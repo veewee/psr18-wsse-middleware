@@ -1,35 +1,47 @@
-<?php declare(strict_types=1);
+<?php
+declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware;
 
 use Http\Client\Common\Plugin;
 use Http\Promise\Promise;
 use Psr\Http\Message\RequestInterface;
-use RobRichards\WsePhp\WSASoap;
 use Soap\Psr18Transport\HttpBinding\SoapActionDetector;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Legacy\LegacyInterop;
+use Soap\Psr18Transport\Xml\XmlMessageManipulator;
+use Soap\Psr18WsseMiddleware\Wsa\MessageId;
+use Soap\Psr18WsseMiddleware\Wsa\WsaHeader;
+use Soap\Psr18WsseMiddleware\Wsa\WsaNamespace;
+use VeeWee\Xml\Dom\Document;
+use function VeeWee\Xml\Dom\Configurator\disallow_doctype;
 
+/**
+ * Adds WS-Addressing headers (Action / To / MessageID / ReplyTo) to the outgoing SOAP request.
+ * Configurable for either addressing version; defaults to W3C 2005/08.
+ */
 final class WsaMiddleware implements Plugin
 {
-    const WSA_ADDRESS_ANONYMOUS = 'http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous';
-
-    private string $address;
-
-    public function __construct(string $address = self::WSA_ADDRESS_ANONYMOUS)
-    {
-        $this->address = $address;
+    public function __construct(
+        private readonly WsaNamespace $namespace = WsaNamespace::W3c200508,
+        private readonly ?string $replyToAddress = null,
+    ) {
     }
 
     public function handleRequest(RequestInterface $request, callable $next, callable $first): Promise
     {
-        $legacyDoc = LegacyInterop::parseBody((string) $request->getBody());
+        $request = (new XmlMessageManipulator())(
+            $request,
+            function (Document $document) use ($request): void {
+                $document->manipulate(disallow_doctype());
 
-        $wsa = new WSASoap($legacyDoc);
-        $wsa->addAction(SoapActionDetector::detectFromRequest($request));
-        $wsa->addTo((string) $request->getUri());
-        $wsa->addMessageID();
-        $wsa->addReplyTo($this->address);
+                WsaHeader::create($this->namespace)
+                    ->withAction(SoapActionDetector::detectFromRequest($request))
+                    ->withTo((string) $request->getUri())
+                    ->withMessageId(MessageId::generate())
+                    ->withReplyTo($this->replyToAddress ?? $this->namespace->anonymousUri())
+                    ->appendTo($document);
+            },
+        );
 
-        return $next($request->withBody(LegacyInterop::toStream($legacyDoc)));
+        return $next($request);
     }
 }

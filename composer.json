@@ -31,7 +31,8 @@
         "php-soap/xml": "^1.11",
         "veewee/xml": "4.x-dev@dev",
         "php-http/client-common": "^2.7",
-        "robrichards/wse-php": "^2.0"
+        "robrichards/wse-php": "^2.0",
+        "symfony/uid": "^7.4 || ^8.0"
     },
     "require-dev": {
         "nyholm/psr7": "^1.5",
