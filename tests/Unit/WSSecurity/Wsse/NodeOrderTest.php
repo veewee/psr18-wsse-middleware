@@ -76,6 +76,18 @@ final class NodeOrderTest extends TestCase
         static::assertSame(['EncryptedKey', 'Signature'], $this->childLocalNames($security));
     }
 
+    public function test_a_saml_assertion_precedes_the_signature_that_references_it(): void
+    {
+        $security = $this->security(
+            '<ds:Signature/>'
+            .'<saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"/>'
+        );
+
+        NodeOrder::sort($security);
+
+        static::assertSame(['Assertion', 'Signature'], $this->childLocalNames($security));
+    }
+
     public function test_sorting_is_idempotent(): void
     {
         $security = $this->security(

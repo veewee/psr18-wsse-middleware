@@ -16,19 +16,25 @@ use function VeeWee\Xml\Dom\Manipulator\append;
  */
 final class NodeOrder
 {
+    private const SAML11_ASSERTION = 'urn:oasis:names:tc:SAML:1.0:assertion';
+    private const SAML20_ASSERTION = 'urn:oasis:names:tc:SAML:2.0:assertion';
+
     /**
-     * The canonical sequence, keyed by "{namespace}localName". Children not in this list keep their
-     * relative order after the known ones.
+     * The canonical sequence, by namespace URI + local name. A SAML assertion is a security token, so it
+     * precedes the Signature that may reference it. Children not in this list keep their relative order
+     * after the known ones.
      *
-     * @var list<array{0: WsseNamespace, 1: string}>
+     * @var list<array{0: non-empty-string, 1: string}>
      */
     private const SEQUENCE = [
-        [WsseNamespace::Wsse, 'BinarySecurityToken'],
-        [WsseNamespace::Wsu, 'Timestamp'],
-        [WsseNamespace::Xenc, 'EncryptedKey'],
-        [WsseNamespace::Xenc, 'ReferenceList'],
-        [WsseNamespace::Ds, 'Signature'],
-        [WsseNamespace::Xenc, 'EncryptedData'],
+        [WsseNamespace::Wsse->value, 'BinarySecurityToken'],
+        [WsseNamespace::Wsu->value, 'Timestamp'],
+        [self::SAML11_ASSERTION, 'Assertion'],
+        [self::SAML20_ASSERTION, 'Assertion'],
+        [WsseNamespace::Xenc->value, 'EncryptedKey'],
+        [WsseNamespace::Xenc->value, 'ReferenceList'],
+        [WsseNamespace::Ds->value, 'Signature'],
+        [WsseNamespace::Xenc->value, 'EncryptedData'],
     ];
 
     public static function sort(Element $securityElement): void
@@ -52,8 +58,8 @@ final class NodeOrder
 
     private static function rankOf(Element $element): int
     {
-        foreach (self::SEQUENCE as $rank => [$namespace, $localName]) {
-            if ($element->namespaceURI === $namespace->value && $element->localName === $localName) {
+        foreach (self::SEQUENCE as $rank => [$namespaceUri, $localName]) {
+            if ($element->namespaceURI === $namespaceUri && $element->localName === $localName) {
                 return $rank;
             }
         }

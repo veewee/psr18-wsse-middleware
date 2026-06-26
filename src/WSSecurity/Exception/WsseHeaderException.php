@@ -30,4 +30,19 @@ final class WsseHeaderException extends RuntimeException
     {
         return new self('Unable to encode the certificate for the BinarySecurityToken: '.$reason.'.');
     }
+
+    public static function samlAssertionNotParseable(string $reason): self
+    {
+        return new self('Unable to parse the SAML assertion XML: '.$reason.'.');
+    }
+
+    public static function samlAssertionNotLocatable(): self
+    {
+        return new self('The SAML assertion root element was not found in the expected SAML namespace.');
+    }
+
+    public static function samlAssertionIdMissing(string $attributeName): self
+    {
+        return new self('The SAML assertion is missing a non-empty "'.$attributeName.'" id attribute.');
+    }
 }
