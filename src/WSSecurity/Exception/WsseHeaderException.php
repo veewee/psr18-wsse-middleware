@@ -25,4 +25,9 @@ final class WsseHeaderException extends RuntimeException
     {
         return new self('Unable to stamp a wsu:Id onto the element: '.$reason.'.');
     }
+
+    public static function bstEncodingFailed(string $reason): self
+    {
+        return new self('Unable to encode the certificate for the BinarySecurityToken: '.$reason.'.');
+    }
 }
