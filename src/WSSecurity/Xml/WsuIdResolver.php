@@ -6,6 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
 use Dom\Element;
 use Dom\XPath;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
+use VeeWee\Xml\Dom\Collection\NodeList;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -20,15 +21,32 @@ final class WsuIdResolver
 {
     public static function resolve(Document $document, string $id): Element
     {
-        $elements = $document
-            ->xpath(new WsseXpath($document))
-            ->query('//*[@wsu:Id='.XPath::quote($id).']')
-            ->expectAllOfType(Element::class);
+        $elements = self::matching($document, $id);
 
         return match ($elements->count()) {
             0 => throw IdReferenceException::notFound($id),
             1 => $elements->expectSingle(),
             default => throw IdReferenceException::ambiguous($id),
         };
+    }
+
+    /**
+     * Whether no element yet carries this wsu:Id. A duplicate (more than one carrier) counts as taken, not
+     * free, so a minter never adds to an existing ambiguity.
+     */
+    public static function isFree(Document $document, string $id): bool
+    {
+        return self::matching($document, $id)->count() === 0;
+    }
+
+    /**
+     * @return NodeList<Element>
+     */
+    private static function matching(Document $document, string $id): NodeList
+    {
+        return $document
+            ->xpath(new WsseXpath($document))
+            ->query('//*[@wsu:Id='.XPath::quote($id).']')
+            ->expectAllOfType(Element::class);
     }
 }
