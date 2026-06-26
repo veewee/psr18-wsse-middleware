@@ -30,11 +30,13 @@ final class SpiContractTest extends TestCase
     public function test_signing_request_exposes_its_inputs(): void
     {
         $part = Part::body();
-        $key = KeyHandle::for(new Certificate('cert'));
+        $certificate = new Certificate('cert');
+        $key = KeyHandle::for($certificate);
 
         $request = new SigningRequest(
             parts: [$part],
             signingKey: $key,
+            signingCertificate: $certificate,
             keyIdentifier: $this->keyIdentifier(),
             signatureMethod: SignatureMethod::RSA_SHA256,
             digestMethod: DigestMethod::SHA256,
@@ -43,6 +45,7 @@ final class SpiContractTest extends TestCase
 
         static::assertSame([$part], $request->parts);
         static::assertSame($key, $request->signingKey);
+        static::assertSame($certificate, $request->signingCertificate);
         static::assertSame(SignatureMethod::RSA_SHA256, $request->signatureMethod);
         static::assertTrue($request->useSingleCertificate);
     }
