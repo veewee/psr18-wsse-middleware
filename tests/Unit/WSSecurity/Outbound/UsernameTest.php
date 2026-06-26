@@ -5,45 +5,16 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use Dom\Element;
 use InvalidArgumentException;
-use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Username;
-use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
-use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use VeeWee\Xml\Dom\Document;
 
-final class UsernameTest extends TestCase
+final class UsernameTest extends OutboundTestCase
 {
-    private const SOAP12 = 'http://www.w3.org/2003/05/soap-envelope';
-    private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
-    private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
     private const TEXT_TYPE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText';
     private const DIGEST_TYPE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest';
     private const BASE64_BINARY = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
-
-    private function envelope(): Document
-    {
-        return Document::fromXmlString(
-            '<soap:Envelope xmlns:soap="'.self::SOAP12.'"><soap:Header/><soap:Body/></soap:Envelope>'
-        );
-    }
-
-    private function context(Document $document): WsseContext
-    {
-        return new WsseContext($document, SoapVersion::Soap12);
-    }
-
-    /** @return list<Element> */
-    private function elements(Document $document, string $namespace, string $localName): array
-    {
-        $found = [];
-        foreach ($document->toUnsafeDocument()->getElementsByTagNameNS($namespace, $localName) as $element) {
-            $found[] = $element;
-        }
-
-        return $found;
-    }
 
     private function maybeOnly(Document $document, string $namespace, string $localName): ?Element
     {

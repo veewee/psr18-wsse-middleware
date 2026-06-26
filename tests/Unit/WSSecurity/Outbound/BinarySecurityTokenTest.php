@@ -5,56 +5,18 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use Dom\Element;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\BinarySecurityToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
-use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
-use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use VeeWee\Xml\Dom\Document;
 
-final class BinarySecurityTokenTest extends TestCase
+final class BinarySecurityTokenTest extends OutboundTestCase
 {
-    private const SOAP12 = 'http://www.w3.org/2003/05/soap-envelope';
-    private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
-    private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
     private const X509V3 = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
     private const BASE64_BINARY = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
-
-    private function envelope(): Document
-    {
-        return Document::fromXmlString(
-            '<soap:Envelope xmlns:soap="'.self::SOAP12.'"><soap:Header/><soap:Body/></soap:Envelope>'
-        );
-    }
-
-    private function context(Document $document): WsseContext
-    {
-        return new WsseContext($document, SoapVersion::Soap12);
-    }
 
     private function certificate(): Certificate
     {
         return Certificate::fromFile(FIXTURE_DIR.'/certificates/wsse-client-x509.pem');
-    }
-
-    /** @return list<Element> */
-    private function elements(Document $document, string $namespace, string $localName): array
-    {
-        $found = [];
-        foreach ($document->toUnsafeDocument()->getElementsByTagNameNS($namespace, $localName) as $element) {
-            $found[] = $element;
-        }
-
-        return $found;
-    }
-
-    private function only(Document $document, string $namespace, string $localName): Element
-    {
-        $elements = $this->elements($document, $namespace, $localName);
-        static::assertCount(1, $elements);
-
-        return $elements[0];
     }
 
     public function test_it_adds_a_binary_security_token_to_the_security_header(): void
