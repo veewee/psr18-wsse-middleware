@@ -28,7 +28,8 @@
         "paragonie/hidden-string": "^2.0",
         "php-soap/psr18-transport": "^2.0",
         "php-soap/engine": "^2.20",
-        "php-soap/xml": "^1.10",
+        "php-soap/xml": "^1.11",
+        "veewee/xml": "4.x-dev@dev",
         "php-http/client-common": "^2.7",
         "robrichards/wse-php": "^2.0"
     },
