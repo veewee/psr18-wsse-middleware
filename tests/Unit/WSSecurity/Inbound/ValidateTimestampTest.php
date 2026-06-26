@@ -1,0 +1,266 @@
+<?php
+declare(strict_types=1);
+
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
+
+use DateTimeImmutable;
+use DateTimeZone;
+use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ValidateTimestamp;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use VeeWee\Xml\Dom\Document;
+
+/**
+ * The ValidateTimestamp block locates the single wsu:Timestamp, parses its Created and Expires, and runs the
+ * freshness checks against an injected clock. These tests pin the clock so each boundary is exact and prove
+ * the injected clock, not the system clock, drives the comparison.
+ */
+final class ValidateTimestampTest extends TestCase
+{
+    private const SOAP = 'http://www.w3.org/2003/05/soap-envelope';
+    private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
+    private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
+    private const NOW = '2026-01-01T12:00:00Z';
+
+    public function test_a_fresh_timestamp_is_accepted(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            $this->timestamp($this->fmt($now), $this->fmt($now->modify('+300 seconds'))),
+        ));
+
+        $this->expectNotToPerformAssertions();
+        $this->block()($context);
+    }
+
+    public function test_an_expired_timestamp_is_rejected(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            $this->timestamp($this->fmt($now->modify('-300 seconds')), $this->fmt($now->modify('-61 seconds'))),
+        ));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_future_created_is_rejected(): void
+    {
+        $now = $this->instant(self::NOW);
+        $created = $now->modify('+61 seconds');
+        $context = $this->context($this->envelope(
+            $this->timestamp($this->fmt($created), $this->fmt($created->modify('+300 seconds'))),
+        ));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_missing_timestamp_is_rejected(): void
+    {
+        $context = $this->context($this->envelope(''));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_duplicate_timestamp_is_rejected(): void
+    {
+        $now = $this->instant(self::NOW);
+        $one = $this->timestamp($this->fmt($now), $this->fmt($now->modify('+300 seconds')));
+        $context = $this->context($this->envelope($one.$one));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_missing_created_element_is_rejected(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'"><wsu:Expires>'.$this->fmt($now->modify('+300 seconds')).'</wsu:Expires></wsu:Timestamp>',
+        ));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_missing_expires_element_is_rejected(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'"><wsu:Created>'.$this->fmt($now).'</wsu:Created></wsu:Timestamp>',
+        ));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_duplicate_created_element_is_rejected(): void
+    {
+        $now = $this->instant(self::NOW);
+        $created = '<wsu:Created>'.$this->fmt($now).'</wsu:Created>';
+        $context = $this->context($this->envelope(
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$created.$created.'<wsu:Expires>'.$this->fmt($now->modify('+300 seconds')).'</wsu:Expires></wsu:Timestamp>',
+        ));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_an_unparseable_date_is_rejected(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            $this->timestamp('not-a-date', $this->fmt($now->modify('+300 seconds'))),
+        ));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_relative_string_is_not_accepted_as_a_date(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            $this->timestamp('now', $this->fmt($now->modify('+300 seconds'))),
+        ));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_millisecond_precision_timestamp_parses(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            $this->timestamp(
+                $now->format('Y-m-d\TH:i:s.v\Z'),
+                $now->modify('+300 seconds')->format('Y-m-d\TH:i:s.v\Z'),
+            ),
+        ));
+
+        $this->expectNotToPerformAssertions();
+        $this->block()($context);
+    }
+
+    public function test_a_second_precision_timestamp_parses(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            $this->timestamp(
+                $now->format('Y-m-d\TH:i:s\Z'),
+                $now->modify('+300 seconds')->format('Y-m-d\TH:i:s\Z'),
+            ),
+        ));
+
+        $this->expectNotToPerformAssertions();
+        $this->block()($context);
+    }
+
+    public function test_a_numeric_offset_timestamp_parses(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            $this->timestamp(
+                $now->format('Y-m-d\TH:i:sP'),
+                $now->modify('+300 seconds')->format('Y-m-d\TH:i:sP'),
+            ),
+        ));
+
+        $this->expectNotToPerformAssertions();
+        $this->block()($context);
+    }
+
+    public function test_no_security_header_is_rejected(): void
+    {
+        $context = $this->context(
+            '<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Body><data>x</data></soap:Body></soap:Envelope>',
+        );
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_custom_clock_skew_is_honoured(): void
+    {
+        $now = $this->instant(self::NOW);
+        $xml = $this->envelope(
+            $this->timestamp($this->fmt($now->modify('-300 seconds')), $this->fmt($now->modify('-90 seconds'))),
+        );
+
+        $this->expectNotToPerformAssertions();
+        (new ValidateTimestamp(new SecurityProfile(clockSkew: 120), $this->clock($now)))($this->context($xml));
+    }
+
+    public function test_the_same_message_is_rejected_under_the_default_skew(): void
+    {
+        $now = $this->instant(self::NOW);
+        $xml = $this->envelope(
+            $this->timestamp($this->fmt($now->modify('-300 seconds')), $this->fmt($now->modify('-90 seconds'))),
+        );
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($this->context($xml));
+    }
+
+    public function test_the_injected_clock_drives_now(): void
+    {
+        // The frozen instant is far from the real wall clock; an envelope fresh only at that instant must pass,
+        // proving the system clock is never consulted.
+        $frozen = $this->instant('2000-06-15T08:30:00Z');
+        $context = $this->context($this->envelope(
+            $this->timestamp($this->fmt($frozen), $this->fmt($frozen->modify('+300 seconds'))),
+        ));
+
+        $this->expectNotToPerformAssertions();
+        (new ValidateTimestamp(new SecurityProfile(), $this->clock($frozen)))($context);
+    }
+
+    private function block(): ValidateTimestamp
+    {
+        return new ValidateTimestamp(new SecurityProfile(), $this->clock($this->instant(self::NOW)));
+    }
+
+    private function clock(DateTimeImmutable $now): Clock
+    {
+        return new FrozenClock($now);
+    }
+
+    private function context(string $xml): WsseContext
+    {
+        return new WsseContext(Document::fromXmlString($xml), SoapVersion::Soap12);
+    }
+
+    private function envelope(string $securityInner): string
+    {
+        return '<soap:Envelope xmlns:soap="'.self::SOAP.'">'
+            .'<soap:Header>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'">'.$securityInner.'</wsse:Security>'
+            .'</soap:Header>'
+            .'<soap:Body><data>x</data></soap:Body>'
+            .'</soap:Envelope>';
+    }
+
+    private function timestamp(string $created, string $expires): string
+    {
+        return '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'
+            .'<wsu:Created>'.$created.'</wsu:Created>'
+            .'<wsu:Expires>'.$expires.'</wsu:Expires>'
+            .'</wsu:Timestamp>';
+    }
+
+    private function instant(string $value): DateTimeImmutable
+    {
+        return new DateTimeImmutable($value, new DateTimeZone('UTC'));
+    }
+
+    private function fmt(DateTimeImmutable $instant): string
+    {
+        return $instant->format('Y-m-d\TH:i:s.v\Z');
+    }
+}
