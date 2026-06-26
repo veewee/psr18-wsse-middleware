@@ -20,4 +20,14 @@ final class CryptoOperationFailed extends RuntimeException
     {
         return new self('The authentication tag is invalid.');
     }
+
+    public static function unreadableCertificate(): self
+    {
+        return new self('Unable to read the certificate.');
+    }
+
+    public static function missingCertificateField(string $field): self
+    {
+        return new self('The certificate does not contain the required '.$field.' field.');
+    }
 }

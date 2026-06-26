@@ -9,7 +9,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "SoapTest\\Psr18WsseMiddleware\\": "src/"
+            "SoapTest\\Psr18WsseMiddleware\\": "tests/"
         }
     },
     "authors": [
