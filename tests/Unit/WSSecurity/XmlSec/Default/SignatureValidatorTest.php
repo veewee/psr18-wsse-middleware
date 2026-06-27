@@ -12,8 +12,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DomCanonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\SignatureValidator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\SignatureValidator;
 use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 

@@ -5,6 +5,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use VeeWee\Xml\Dom\Document;
@@ -27,9 +28,9 @@ abstract class OutboundTestCase extends TestCase
         );
     }
 
-    protected function context(Document $document): WsseContext
+    protected function context(Document $document, ?SecurityProfile $profile = null): WsseContext
     {
-        return new WsseContext($document, SoapVersion::Soap12);
+        return new WsseContext($document, SoapVersion::Soap12, $profile ?? new SecurityProfile());
     }
 
     /** @return list<Element> */

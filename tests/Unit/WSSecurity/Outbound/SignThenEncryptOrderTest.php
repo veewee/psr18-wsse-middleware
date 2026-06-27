@@ -18,21 +18,21 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Decryptor;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DigestCalculator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DomCanonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedDataBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedDataReader;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedKeyBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedKeyReader;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Encryptor;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\KeyInfoBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\PartLocator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\ReferenceCollector;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\SessionKeyFactory;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\SignedInfoBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Signer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\Decryptor;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataReader;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedKeyBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedKeyReader;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\Encryptor;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\SessionKeyFactory;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\DigestCalculator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\KeyInfoBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\ReferenceCollector;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SignedInfoBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\Signer;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -53,8 +53,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature($this->realSigner(), $clientCertificate, keyRef: KeyRef::binarySecurityToken()))($context);
-        (new Encryption($this->realEncryptor(), $recipientCertificate))($context);
+        (new Signature($clientCertificate, $this->realSigner(), keyRef: KeyRef::BinarySecurityToken))($context);
+        (new Encryption($recipientCertificate, $this->realEncryptor()))($context);
 
         $order = [];
         foreach ($this->only($document, self::WSSE, 'Security')->childNodes as $child) {
@@ -87,8 +87,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature($this->realSigner(), $clientCertificate, keyRef: KeyRef::binarySecurityToken()))($context);
-        (new Encryption($this->realEncryptor(), $recipientCertificate))($context);
+        (new Signature($clientCertificate, $this->realSigner(), keyRef: KeyRef::BinarySecurityToken))($context);
+        (new Encryption($recipientCertificate, $this->realEncryptor()))($context);
 
         static::assertCount(1, $this->elements($document, self::DS, 'SignatureValue'));
     }

@@ -44,7 +44,7 @@ final class Signer
         $key = KeyHandleResolver::publicKey($publicCertificate);
 
         // openssl_verify returns 1 (valid), 0 (invalid) or -1 (processing error, e.g. a malformed signature).
-        // Only an explicit 1 is "valid": a malformed/garbage signature is never truthy (the xmlseclibs
+        // Only an explicit 1 is "valid": a malformed/garbage signature is never truthy (guarding the
         // "-1 casts to true" trap), and malformed vs merely-invalid are indistinguishable to the caller (no
         // oracle on attacker-controlled signature bytes). A genuine setup error (openssl_verify returns
         // false: bad key/algorithm) surfaces as OpenSslException rather than being silently swallowed.

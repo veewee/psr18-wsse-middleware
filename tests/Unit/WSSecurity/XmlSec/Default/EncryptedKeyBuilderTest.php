@@ -8,8 +8,8 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedKeyBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedPartId;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedKeyBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedPartId;
 use VeeWee\Xml\Dom\Document;
 
 final class EncryptedKeyBuilderTest extends TestCase

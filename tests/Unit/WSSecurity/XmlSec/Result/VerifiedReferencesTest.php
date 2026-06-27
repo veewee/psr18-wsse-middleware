@@ -8,7 +8,7 @@ use Dom\XMLDocument;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdResolver;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Result\VerifiedReferences;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedReferences;
 use VeeWee\Xml\Dom\Document;
 
 final class VerifiedReferencesTest extends TestCase

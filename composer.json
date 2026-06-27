@@ -21,7 +21,9 @@
     "require": {
         "php": "~8.4.0 || ~8.5.0",
         "ext-dom": "*",
+        "ext-intl": "*",
         "ext-openssl": "*",
+        "php-standard-library/date-time": "^6.1",
         "php-standard-library/file": "^6.1",
         "php-standard-library/foundation": "^6.1",
         "php-standard-library/type": "^6.1",

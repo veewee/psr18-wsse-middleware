@@ -6,7 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Default;
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\CertificateExtractor;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\CertificateExtractor;
 use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 

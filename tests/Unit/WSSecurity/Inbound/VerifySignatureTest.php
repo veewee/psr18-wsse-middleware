@@ -21,9 +21,9 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\PartLocator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Result\VerifiedReferences;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Result\VerifiedSignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedReferences;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedSignature;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -40,7 +40,7 @@ final class VerifySignatureTest extends TestCase
         $context = $this->context();
         $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
 
-        (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: [Part::body()]))($context);
+        (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($context);
         $this->addToAssertionCount(1);
     }
 
@@ -50,7 +50,7 @@ final class VerifySignatureTest extends TestCase
         $verifier = new RecordingVerifier($this->signed([]));
 
         $this->expectException(SecurityFault::class);
-        (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: [Part::body()]))($context);
+        (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($context);
     }
 
     public function test_an_empty_signed_list_only_requires_a_verifiable_signature(): void
@@ -59,7 +59,7 @@ final class VerifySignatureTest extends TestCase
         $verifier = new RecordingVerifier($this->signed([]));
 
         $this->expectNotToPerformAssertions();
-        (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: []))($context);
+        (new VerifySignature($this->trustStore(), signed: [], verifier: $verifier, requiredParts: $this->requiredParts()))($context);
     }
 
     public function test_it_maps_a_verifier_signature_failure_to_a_security_fault(): void
@@ -68,7 +68,7 @@ final class VerifySignatureTest extends TestCase
         $verifier = new ThrowingVerifier($cause);
 
         try {
-            (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: [Part::body()]))($this->context());
+            (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($this->context());
             static::fail('Expected a SecurityFault.');
         } catch (SecurityFault $fault) {
             static::assertStringNotContainsString('bad sig', $fault->getMessage());
@@ -82,7 +82,7 @@ final class VerifySignatureTest extends TestCase
         $verifier = new ThrowingVerifier($cause);
 
         $this->expectException(SecurityFault::class);
-        (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: [Part::body()]))($this->context());
+        (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($this->context());
     }
 
     public function test_it_does_not_rewrap_unexpected_exceptions(): void
@@ -91,7 +91,7 @@ final class VerifySignatureTest extends TestCase
         $verifier = new ThrowingVerifier($unexpected);
 
         $this->expectExceptionObject($unexpected);
-        (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: [Part::body()]))($this->context());
+        (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($this->context());
     }
 
     public function test_it_builds_the_policy_from_the_default_profile(): void
@@ -100,7 +100,7 @@ final class VerifySignatureTest extends TestCase
         $trustStore = $this->trustStore();
         $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
 
-        (new VerifySignature($verifier, $trustStore, $this->requiredParts(), signed: [Part::body()]))($context);
+        (new VerifySignature($trustStore, signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($context);
 
         $policy = $verifier->lastPolicy();
         static::assertNotNull($policy);
@@ -121,14 +121,14 @@ final class VerifySignatureTest extends TestCase
 
     public function test_a_custom_profile_narrows_the_accepted_algorithms(): void
     {
-        $context = $this->context();
-        $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
         $profile = new SecurityProfile(
             acceptedSignatureMethods: [SignatureMethod::RSA_SHA512],
             acceptedDigestMethods: [DigestMethod::SHA512],
         );
+        $context = $this->context($profile);
+        $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
 
-        (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: [Part::body()], profile: $profile))($context);
+        (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($context);
 
         $policy = $verifier->lastPolicy();
         static::assertNotNull($policy);
@@ -141,17 +141,17 @@ final class VerifySignatureTest extends TestCase
         $causes = [
             'verifier-failure' => function (): void {
                 $verifier = new ThrowingVerifier(SignatureVerificationFailed::withReason('bad sig'));
-                (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: [Part::body()]))($this->context());
+                (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($this->context());
             },
             'required-part-missing' => function (): void {
                 $context = $this->context();
                 $verifier = new RecordingVerifier($this->signed([]));
-                (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: [Part::body()]))($context);
+                (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($context);
             },
             'missing-element' => function (): void {
                 $context = $this->context();
                 $verifier = new RecordingVerifier($this->signed([]));
-                (new VerifySignature($verifier, $this->trustStore(), $this->requiredParts(), signed: [Part::timestamp()]))($context);
+                (new VerifySignature($this->trustStore(), signed: [Part::timestamp()], verifier: $verifier, requiredParts: $this->requiredParts()))($context);
             },
         ];
 
@@ -172,11 +172,12 @@ final class VerifySignatureTest extends TestCase
         static::assertCount(1, array_unique($types), 'Every failure cause must surface the same exception type.');
     }
 
-    private function context(): WsseContext
+    private function context(?SecurityProfile $profile = null): WsseContext
     {
         return new WsseContext(
             Document::fromXmlString('<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Body><data>x</data></soap:Body></soap:Envelope>'),
             SoapVersion::Soap12,
+            $profile ?? new SecurityProfile(),
         );
     }
 

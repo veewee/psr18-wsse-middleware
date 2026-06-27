@@ -7,8 +7,8 @@ use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\ParsedReference;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\ReferenceResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ParsedReference;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ReferenceResolver;
 use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 

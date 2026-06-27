@@ -118,7 +118,7 @@ final class Cipher
         }
 
         $padLength = ord($data[$length - 1]);
-        // xmlseclibs trusts this byte blindly; we validate it is a plausible pad length.
+        // Validate the pad length is plausible rather than trusting the final byte blindly.
         if ($padLength < 1 || $padLength > $blockSize || $padLength > $length) {
             throw CryptoOperationFailed::decryptionFailed();
         }

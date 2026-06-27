@@ -23,14 +23,14 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DigestCalculator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DomCanonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\KeyInfoBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\PartLocator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\ReferenceCollector;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\SignedInfoBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Signer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\SigningRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\DigestCalculator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\KeyInfoBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\ReferenceCollector;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SignedInfoBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\Signer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SigningRequest;
 use VeeWee\Xml\Dom\Document;
 
 /**

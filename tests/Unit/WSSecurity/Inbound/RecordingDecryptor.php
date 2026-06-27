@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\DecryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\XmlDecryptor;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlDecryptor;
 use VeeWee\Xml\Dom\Document;
 
 /**

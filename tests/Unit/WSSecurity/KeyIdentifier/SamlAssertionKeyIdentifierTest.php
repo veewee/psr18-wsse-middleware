@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyIdentifier;
 
-use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\SamlAssertionKeyIdentifier;
 
 final class SamlAssertionKeyIdentifierTest extends KeyIdentifierTestCase
@@ -38,11 +37,5 @@ final class SamlAssertionKeyIdentifierTest extends KeyIdentifierTestCase
 
         $keyIdentifier = $this->firstChildElement($this->firstChildElement($keyInfo));
         static::assertFalse($keyIdentifier->hasAttribute('EncodingType'));
-    }
-
-    public function test_it_rejects_an_empty_assertion_id(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        new SamlAssertionKeyIdentifier('');
     }
 }

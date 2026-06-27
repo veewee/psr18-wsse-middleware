@@ -22,13 +22,13 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DigestCalculator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DomCanonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\KeyInfoBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\PartLocator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\ReferenceCollector;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\SignedInfoBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Signer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\DigestCalculator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\KeyInfoBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\ReferenceCollector;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SignedInfoBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\Signer;
 use VeeWee\Xml\Dom\Document;
 
 #[RequiresPhp('>= 8.4.21')]
@@ -39,7 +39,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_uses_profile_algorithms_by_default(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($signer, $this->clientCertificate()))($this->signableContext());
+        (new Signature($this->clientCertificate(), $signer))($this->signableContext());
 
         $request = $signer->lastRequest();
         static::assertSame(SignatureMethod::RSA_SHA256, $request->signatureMethod);
@@ -47,11 +47,11 @@ final class SignatureTest extends OutboundTestCase
         static::assertSame(SignatureCanonicalization::EXC_C14N, $request->canonicalization);
     }
 
-    public function test_an_injected_profile_overrides_the_default(): void
+    public function test_a_context_profile_overrides_the_default(): void
     {
         $signer = new RecordingSigner();
         $profile = new SecurityProfile(signatureMethod: SignatureMethod::RSA_SHA512);
-        (new Signature($signer, $this->clientCertificate(), $profile))($this->signableContext());
+        (new Signature($this->clientCertificate(), $signer))($this->context($this->signableEnvelope(), $profile));
 
         static::assertSame(SignatureMethod::RSA_SHA512, $signer->lastRequest()->signatureMethod);
     }
@@ -59,7 +59,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_a_per_block_override_wins_over_the_profile(): void
     {
         $signer = new RecordingSigner();
-        $block = (new Signature($signer, $this->clientCertificate()))->withSignatureMethod(SignatureMethod::RSA_SHA1);
+        $block = (new Signature($this->clientCertificate(), $signer))->withSignatureMethod(SignatureMethod::RSA_SHA1);
         $block($this->signableContext());
 
         static::assertSame(SignatureMethod::RSA_SHA1, $signer->lastRequest()->signatureMethod);
@@ -67,7 +67,7 @@ final class SignatureTest extends OutboundTestCase
 
     public function test_with_methods_are_immutable(): void
     {
-        $original = new Signature(new RecordingSigner(), $this->clientCertificate());
+        $original = new Signature($this->clientCertificate(), new RecordingSigner());
 
         static::assertNotSame($original, $original->withSignatureMethod(SignatureMethod::RSA_SHA1));
         static::assertNotSame($original, $original->withDigestMethod(DigestMethod::SHA512));
@@ -78,7 +78,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_default_parts_are_body_and_timestamp(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($signer, $this->clientCertificate()))($this->signableContext());
+        (new Signature($this->clientCertificate(), $signer))($this->signableContext());
 
         $parts = $signer->lastRequest()->parts;
         static::assertCount(2, $parts);
@@ -89,7 +89,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_explicit_parts_override_the_default(): void
     {
         $signer = new RecordingSigner();
-        $block = (new Signature($signer, $this->clientCertificate()))->withParts([Part::body()]);
+        $block = (new Signature($this->clientCertificate(), $signer))->withParts([Part::body()]);
         $block($this->signableContext());
 
         $parts = $signer->lastRequest()->parts;
@@ -101,7 +101,7 @@ final class SignatureTest extends OutboundTestCase
     {
         $signer = new RecordingSigner();
         $document = $this->signableEnvelope();
-        (new Signature($signer, $this->clientCertificate(), keyRef: KeyRef::binarySecurityToken()))($this->context($document));
+        (new Signature($this->clientCertificate(), $signer, keyRef: KeyRef::BinarySecurityToken))($this->context($document));
 
         $bst = $this->only($document, self::WSSE, 'BinarySecurityToken');
         $tokenId = $bst->getAttributeNS(self::WSU, 'Id');
@@ -118,7 +118,7 @@ final class SignatureTest extends OutboundTestCase
     {
         $signer = new RecordingSigner();
         $document = $this->signableEnvelope();
-        (new Signature($signer, $this->clientCertificate(), keyRef: KeyRef::subjectKeyIdentifier()))($this->context($document));
+        (new Signature($this->clientCertificate(), $signer, keyRef: KeyRef::SubjectKeyIdentifier))($this->context($document));
 
         static::assertCount(0, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
         static::assertInstanceOf(X509SubjectKeyIdentifier::class, $signer->lastRequest()->keyIdentifier);
@@ -129,7 +129,7 @@ final class SignatureTest extends OutboundTestCase
         $certificate = $this->clientCertificate();
         $document = $this->signableEnvelope();
 
-        (new Signature($this->realSigner(), $certificate, keyRef: KeyRef::binarySecurityToken()))($this->context($document));
+        (new Signature($certificate, $this->realSigner(), keyRef: KeyRef::BinarySecurityToken))($this->context($document));
 
         // The KeyInfo references the embedded BST by its minted id.
         $bstId = $this->only($document, self::WSSE, 'BinarySecurityToken')->getAttributeNS(self::WSU, 'Id');
@@ -145,7 +145,7 @@ final class SignatureTest extends OutboundTestCase
         $certificate = $this->clientCertificate();
         $document = $this->signableEnvelope();
 
-        $block = (new Signature($this->realSigner(), $certificate, keyRef: KeyRef::binarySecurityToken()))
+        $block = (new Signature($certificate, $this->realSigner(), keyRef: KeyRef::BinarySecurityToken))
             ->withSignatureMethod(SignatureMethod::RSA_SHA1)
             ->withParts([Part::body()]);
         $block($this->context($document));

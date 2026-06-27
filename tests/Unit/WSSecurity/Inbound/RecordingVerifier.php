@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\VerificationPolicy;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Result\VerifiedSignature;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\XmlSignatureVerifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerificationPolicy;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedSignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\XmlSignatureVerifier;
 use VeeWee\Xml\Dom\Document;
 
 /**

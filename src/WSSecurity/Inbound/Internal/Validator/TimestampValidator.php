@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Internal\Validator;
 
-use DateTimeImmutable;
+use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 
 /**
@@ -25,15 +25,15 @@ final class TimestampValidator
      * @throws SecurityFault on any failed check
      */
     public function validate(
-        DateTimeImmutable $now,
-        DateTimeImmutable $created,
-        DateTimeImmutable $expires,
+        Timestamp $now,
+        Timestamp $created,
+        Timestamp $expires,
         int $clockSkewSeconds,
         int $maxAgeSeconds,
     ): void {
-        $nowSeconds = $now->getTimestamp();
-        $createdSeconds = $created->getTimestamp();
-        $expiresSeconds = $expires->getTimestamp();
+        $nowSeconds = $now->getSeconds();
+        $createdSeconds = $created->getSeconds();
+        $expiresSeconds = $expires->getSeconds();
 
         if ($expiresSeconds <= $createdSeconds) {
             throw SecurityFault::inboundFailure();

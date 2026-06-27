@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy;
 
 use Dom\Element;
-use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityTokenReference;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
@@ -29,19 +28,11 @@ final class DirectReferenceKeyIdentifier implements KeyIdentifierInterface
     private string $valueType;
 
     /**
-     * @param string $tokenId the wsu:Id of the already-embedded token, without the '#'
-     * @param string $valueType the referenced token's WS-Security ValueType URI
+     * @param non-empty-string $tokenId the wsu:Id of the already-embedded token, without the '#'
+     * @param non-empty-string $valueType the referenced token's WS-Security ValueType URI
      */
     public function __construct(string $tokenId, string $valueType)
     {
-        if ($tokenId === '') {
-            throw new InvalidArgumentException('A direct reference requires a non-empty token id.');
-        }
-
-        if ($valueType === '') {
-            throw new InvalidArgumentException('A direct reference requires a non-empty value type.');
-        }
-
         $this->tokenId = $tokenId;
         $this->valueType = $valueType;
     }

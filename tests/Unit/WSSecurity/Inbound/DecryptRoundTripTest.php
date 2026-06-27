@@ -17,18 +17,16 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Decryptor;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedDataBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedDataReader;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedKeyBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedKeyReader;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Encryptor;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\PartLocator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\SessionKeyFactory;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedKeyBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\Encryptor;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\SessionKeyFactory;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -53,7 +51,7 @@ final class DecryptRoundTripTest extends TestCase
         $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
         static::assertCount(1, $this->encryptedData($document));
 
-        (new Decrypt($this->decryptor(), KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12));
+        (new Decrypt(KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
 
         static::assertSame($originalBody, $this->innerXml($this->body($document)));
         static::assertCount(0, $this->encryptedData($document));
@@ -67,7 +65,7 @@ final class DecryptRoundTripTest extends TestCase
         $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
 
         $this->expectException(SecurityFault::class);
-        (new Decrypt($this->decryptor(), KeyHandle::for($otherKey)))(new WsseContext($document, SoapVersion::Soap12));
+        (new Decrypt(KeyHandle::for($otherKey)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
     }
 
     public function test_a_tampered_ciphertext_throws_a_security_fault(): void
@@ -81,7 +79,7 @@ final class DecryptRoundTripTest extends TestCase
         $cipherValue->textContent = base64_encode('garbage that will not decrypt to anything valid');
 
         $this->expectException(SecurityFault::class);
-        (new Decrypt($this->decryptor(), KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12));
+        (new Decrypt(KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
     }
 
     public function test_a_missing_encrypted_key_throws_a_security_fault(): void
@@ -90,7 +88,7 @@ final class DecryptRoundTripTest extends TestCase
         $document = $this->envelope();
 
         $this->expectException(SecurityFault::class);
-        (new Decrypt($this->decryptor(), KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12));
+        (new Decrypt(KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
     }
 
     public function test_a_handle_without_private_key_material_throws_a_security_fault(): void
@@ -101,7 +99,7 @@ final class DecryptRoundTripTest extends TestCase
 
         // A certificate carries no private key material; the decryptor refuses it and the block collapses it.
         $this->expectException(SecurityFault::class);
-        (new Decrypt($this->decryptor(), KeyHandle::for($certificate)))(new WsseContext($document, SoapVersion::Soap12));
+        (new Decrypt(KeyHandle::for($certificate)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
     }
 
     public function test_all_failure_causes_produce_one_identical_security_fault(): void
@@ -113,7 +111,7 @@ final class DecryptRoundTripTest extends TestCase
             'wrong-key' => function () use ($certificate, $otherKey): void {
                 $document = $this->envelope();
                 $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
-                (new Decrypt($this->decryptor(), KeyHandle::for($otherKey)))(new WsseContext($document, SoapVersion::Soap12));
+                (new Decrypt(KeyHandle::for($otherKey)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
             },
             'tampered' => function () use ($certificate, $key): void {
                 $document = $this->envelope();
@@ -121,16 +119,16 @@ final class DecryptRoundTripTest extends TestCase
                 $cipherValue = $this->body($document)->getElementsByTagNameNS(self::XENC, 'CipherValue')->item(0);
                 static::assertInstanceOf(Element::class, $cipherValue);
                 $cipherValue->textContent = base64_encode('garbage that will not decrypt');
-                (new Decrypt($this->decryptor(), KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12));
+                (new Decrypt(KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
             },
             'no-encrypted-key' => function () use ($key): void {
                 $document = $this->envelope();
-                (new Decrypt($this->decryptor(), KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12));
+                (new Decrypt(KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
             },
             'wrong-key-type' => function () use ($certificate): void {
                 $document = $this->envelope();
                 $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
-                (new Decrypt($this->decryptor(), KeyHandle::for($certificate)))(new WsseContext($document, SoapVersion::Soap12));
+                (new Decrypt(KeyHandle::for($certificate)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
             },
         ];
 
@@ -163,13 +161,6 @@ final class DecryptRoundTripTest extends TestCase
         );
     }
 
-    private function decryptor(): Decryptor
-    {
-        return new Decryptor(
-            new EncryptedKeyReader(new KeyTransport()),
-            new EncryptedDataReader(new Cipher()),
-        );
-    }
 
     private function encryptionRequest(Certificate $certificate): EncryptionRequest
     {

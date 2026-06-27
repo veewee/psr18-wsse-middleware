@@ -7,8 +7,9 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\DecryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\XmlDecryptor;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlDecryptor;
 
 /**
  * Decrypts the xenc:EncryptedData parts of the inbound message by delegating to the XmlDecryptor SPI. The
@@ -22,10 +23,13 @@ use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\XmlDecryptor;
  */
 final class Decrypt implements InboundAction
 {
+    private readonly XmlDecryptor $decryptor;
+
     public function __construct(
-        private readonly XmlDecryptor $decryptor,
         private readonly KeyHandle $privateKey,
+        ?XmlDecryptor $decryptor = null,
     ) {
+        $this->decryptor = $decryptor ?? DefaultEngine::decryptor();
     }
 
     /**

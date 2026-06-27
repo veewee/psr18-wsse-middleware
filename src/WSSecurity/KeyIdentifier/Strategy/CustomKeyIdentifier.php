@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy;
 
 use Dom\Element;
-use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityTokenReference;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
@@ -29,20 +28,13 @@ final class CustomKeyIdentifier implements KeyIdentifierInterface
     /** @var non-empty-string */
     private string $encodingType;
 
+    /**
+     * @param non-empty-string $encodedValue
+     * @param non-empty-string $valueType
+     * @param non-empty-string $encodingType
+     */
     public function __construct(string $encodedValue, string $valueType, string $encodingType)
     {
-        if ($encodedValue === '') {
-            throw new InvalidArgumentException('A custom key identifier requires a non-empty encoded value.');
-        }
-
-        if ($valueType === '') {
-            throw new InvalidArgumentException('A custom key identifier requires a non-empty value type.');
-        }
-
-        if ($encodingType === '') {
-            throw new InvalidArgumentException('A custom key identifier requires a non-empty encoding type.');
-        }
-
         $this->encodedValue = $encodedValue;
         $this->valueType = $valueType;
         $this->encodingType = $encodingType;

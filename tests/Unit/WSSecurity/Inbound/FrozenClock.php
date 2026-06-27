@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
-use DateTimeImmutable;
+use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
 
 /**
@@ -12,11 +12,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
 final class FrozenClock implements Clock
 {
     public function __construct(
-        private readonly DateTimeImmutable $now,
+        private readonly Timestamp $now,
     ) {
     }
 
-    public function now(): DateTimeImmutable
+    public function now(): Timestamp
     {
         return $this->now;
     }

@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use LogicException;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\EncryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\XmlEncryptor;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlEncryptor;
 use VeeWee\Xml\Dom\Document;
 
 /**

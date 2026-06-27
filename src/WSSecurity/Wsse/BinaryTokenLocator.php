@@ -1,0 +1,63 @@
+<?php
+declare(strict_types=1);
+
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Wsse;
+
+use Dom\Element;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
+use VeeWee\Xml\Dom\Document;
+
+/**
+ * Finds the wsse:BinarySecurityToken in the wsse:Security header that carries a given certificate and
+ * returns its wsu:Id. The match is by content (the token's base64 body equals the certificate's
+ * base64-DER form), so the signature path can reference the token it just embedded without holding on to
+ * any minted-id state.
+ */
+final class BinaryTokenLocator
+{
+    /**
+     * @return non-empty-string the matching token's wsu:Id, without the '#' prefix
+     *
+     * @throws WsseHeaderException when no wsse:BinarySecurityToken carries the certificate
+     */
+    public function locate(Document $document, Certificate $certificate): string
+    {
+        $expected = $certificate->toBase64Der();
+
+        foreach ($this->securityHeaders($document) as $security) {
+            foreach (ChildElements::named($security, WsseNamespace::Wsse, 'BinarySecurityToken') as $token) {
+                if ($this->stripped((string) $token->textContent) !== $expected) {
+                    continue;
+                }
+
+                $id = $token->getAttributeNS(WsseNamespace::Wsu->value, 'Id');
+                if ($id !== null && $id !== '') {
+                    return $id;
+                }
+            }
+        }
+
+        throw WsseHeaderException::binaryTokenNotLocatable();
+    }
+
+    /**
+     * @return list<Element>
+     */
+    private function securityHeaders(Document $document): array
+    {
+        return $document
+            ->xpath(new WsseXpath($document))
+            ->query('//'.WsseNamespace::Wsse->qualify('Security'))
+            ->expectAllOfType(Element::class)
+            ->map(static fn (Element $element): Element => $element);
+    }
+
+    private function stripped(string $value): string
+    {
+        return (string) preg_replace('/\s/', '', $value);
+    }
+}

@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy;
 
 use Dom\Element;
-use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier as KeyIdentifierInterface;
@@ -26,12 +25,11 @@ final class SamlAssertionKeyIdentifier implements KeyIdentifierInterface
     /** @var non-empty-string */
     private string $samlAssertionId;
 
+    /**
+     * @param non-empty-string $samlAssertionId
+     */
     public function __construct(string $samlAssertionId)
     {
-        if ($samlAssertionId === '') {
-            throw new InvalidArgumentException('A SAML assertion reference requires a non-empty assertion id.');
-        }
-
         $this->samlAssertionId = $samlAssertionId;
     }
 

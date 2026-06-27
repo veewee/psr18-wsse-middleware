@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity;
 
-use InvalidArgumentException;
-
 /**
  * Describes *which* part of a message a block targets (the SOAP Body, the wsu:Timestamp, a header element by
  * QName, or an element by wsu:Id). It is a pure descriptor; resolving it to a DOM node happens in the engine.
@@ -29,21 +27,20 @@ final readonly class Part
         return new self(PartKind::Timestamp);
     }
 
+    /**
+     * @param non-empty-string $namespace
+     * @param non-empty-string $localName
+     */
     public static function element(string $namespace, string $localName): self
     {
-        if ($namespace === '' || $localName === '') {
-            throw new InvalidArgumentException('Part::element() requires a non-empty namespace and local name.');
-        }
-
         return new self(PartKind::Element, namespace: $namespace, localName: $localName);
     }
 
+    /**
+     * @param non-empty-string $id
+     */
     public static function byId(string $id): self
     {
-        if ($id === '') {
-            throw new InvalidArgumentException('Part::byId() requires a non-empty id.');
-        }
-
         return new self(PartKind::Id, id: $id);
     }
 

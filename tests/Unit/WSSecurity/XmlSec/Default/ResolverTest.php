@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Resolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\Resolver;
 
 final class ResolverTest extends TestCase
 {

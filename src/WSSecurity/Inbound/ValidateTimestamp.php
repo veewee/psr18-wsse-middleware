@@ -3,15 +3,16 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
-use DateTimeImmutable;
-use DateTimeZone;
 use Dom\Element;
+use Psl\DateTime\Exception\ParserException;
+use Psl\DateTime\Timestamp;
+use Psl\DateTime\Timezone;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Internal\Validator\TimestampValidator;
-use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
 
@@ -28,15 +29,16 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
  */
 final class ValidateTimestamp implements InboundAction
 {
+    // Numeric-offset patterns are tried before the literal-Z ones so an offset string is read with its true
+    // offset rather than being swallowed by the more lenient literal-Z match.
     private const ACCEPTED_FORMATS = [
-        'Y-m-d\TH:i:s.v\Z',
-        'Y-m-d\TH:i:s\Z',
-        'Y-m-d\TH:i:s.vP',
-        'Y-m-d\TH:i:sP',
+        "yyyy-MM-dd'T'HH:mm:ss.SSSxxx",
+        "yyyy-MM-dd'T'HH:mm:ssxxx",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
     ];
 
     public function __construct(
-        private readonly SecurityProfile $profile = new SecurityProfile(),
         private readonly Clock $clock = new SystemClock(),
         private readonly TimestampValidator $validator = new TimestampValidator(),
     ) {
@@ -47,13 +49,14 @@ final class ValidateTimestamp implements InboundAction
      */
     public function __invoke(WsseContext $context): void
     {
-        $now = $this->clock->now()->setTimezone(new DateTimeZone('UTC'));
+        $now = $this->clock->now();
+        $profile = $context->profile();
 
         $timestamp = $this->locateTimestamp($context);
         $created = $this->parseInstant($this->requireChildText($timestamp, 'Created'));
         $expires = $this->parseInstant($this->requireChildText($timestamp, 'Expires'));
 
-        $this->validator->validate($now, $created, $expires, $this->profile->clockSkew(), $this->profile->timestampTtl());
+        $this->validator->validate($now, $created, $expires, $profile->clockSkew(), $profile->timestampTtl());
     }
 
     private function locateTimestamp(WsseContext $context): Element
@@ -76,29 +79,12 @@ final class ValidateTimestamp implements InboundAction
     private function requireChildText(Element $timestamp, string $localName): string
     {
         // Exactly one, so a second injected wsu:Created/wsu:Expires cannot shadow the real one.
-        $found = null;
-        /** @var \Dom\Node $child */
-        foreach ($timestamp->childNodes as $child) {
-            if (!$child instanceof Element) {
-                continue;
-            }
-
-            if ($child->localName !== $localName || $child->namespaceURI !== WsseNamespace::Wsu->value) {
-                continue;
-            }
-
-            if ($found !== null) {
-                throw SecurityFault::inboundFailure();
-            }
-
-            $found = $child;
-        }
-
-        if ($found === null) {
+        $matches = ChildElements::named($timestamp, WsseNamespace::Wsu, $localName);
+        if (count($matches) !== 1) {
             throw SecurityFault::inboundFailure();
         }
 
-        $text = trim((string) $found->textContent);
+        $text = trim((string) $matches[0]->textContent);
         if ($text === '') {
             throw SecurityFault::inboundFailure();
         }
@@ -106,19 +92,19 @@ final class ValidateTimestamp implements InboundAction
         return $text;
     }
 
-    private function parseInstant(string $value): DateTimeImmutable
+    private function parseInstant(string $value): Timestamp
     {
-        $utc = new DateTimeZone('UTC');
+        // The underlying Intl parser is lenient and would accept trailing characters after a valid prefix,
+        // so the exact instant shape is pinned here first; only a fully matching value reaches the parser.
+        if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})$/', $value) !== 1) {
+            throw SecurityFault::inboundFailure();
+        }
 
         foreach (self::ACCEPTED_FORMATS as $format) {
-            $parsed = DateTimeImmutable::createFromFormat($format, $value, $utc);
-            if ($parsed === false) {
+            try {
+                return Timestamp::parse($value, $format, Timezone::UTC);
+            } catch (ParserException) {
                 continue;
-            }
-
-            $errors = DateTimeImmutable::getLastErrors();
-            if ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0)) {
-                return $parsed->setTimezone($utc);
             }
         }
 

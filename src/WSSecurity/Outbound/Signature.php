@@ -14,34 +14,32 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIde
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\BinaryTokenLocator;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\SigningRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\XmlSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SigningRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\XmlSigner;
 
 /**
  * Adds a detached, multi-reference ds:Signature to the outbound Security header. Configuration:
  *   - which key to sign with plus the advertised certificate, via ClientCertificate
  *   - which key-reference type to put in ds:KeyInfo, via KeyRef
  *   - which parts to sign (default: Body + Timestamp; override via withParts)
- *   - algorithms (default: the injected profile, falling back to the secure default; override per block)
+ *   - algorithms (default: the profile carried on the context; override per block)
  *
- * For the direct-reference path (KeyRef::binarySecurityToken()), the block embeds a
- * wsse:BinarySecurityToken before signing, reads its minted wsu:Id, and points a
- * DirectReferenceKeyIdentifier at it. For the inline key-reference types (SKI / IssuerSerial /
+ * For the direct-reference path (KeyRef::BinarySecurityToken), the block embeds a
+ * wsse:BinarySecurityToken before signing, locates it by content in the Security header to read its
+ * wsu:Id, and points a DirectReferenceKeyIdentifier at it. For the inline key-reference types (SKI / IssuerSerial /
  * Thumbprint) no token is embedded; the strategy derives its content from the certificate alone.
  *
  * The Security header is guaranteed to exist before the signer runs. Algorithm resolution order:
- * per-block override, then the injected profile, then the secure default.
+ * per-block override, then the profile carried on the context.
  */
 final class Signature implements OutboundAction
 {
     private const VALUE_TYPE_X509V3 = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
-
-    private readonly SecurityProfile $profile;
-    private readonly KeyRef $keyRef;
 
     /** @var non-empty-list<Part>|null */
     private ?array $parts = null;
@@ -50,15 +48,15 @@ final class Signature implements OutboundAction
     private ?DigestMethod $digestMethod = null;
     private ?SignatureCanonicalization $canonicalization = null;
 
+    private readonly XmlSigner $signer;
+
     public function __construct(
-        private readonly XmlSigner $signer,
         private readonly ClientCertificate $clientCertificate,
-        ?SecurityProfile $profile = null,
-        ?KeyRef $keyRef = null,
+        ?XmlSigner $signer = null,
+        private readonly KeyRef $keyRef = KeyRef::BinarySecurityToken,
         private readonly bool $useSingleCertificate = true,
     ) {
-        $this->profile = $profile ?? SecurityProfile::default();
-        $this->keyRef = $keyRef ?? KeyRef::binarySecurityToken();
+        $this->signer = $signer ?? DefaultEngine::signer();
     }
 
     /**
@@ -107,15 +105,16 @@ final class Signature implements OutboundAction
         SecurityHeader::locateOrCreate($document, $context->soapVersion(), mustUnderstand: true);
 
         $keyIdentifier = $this->resolveKeyIdentifier($context);
+        $profile = $context->profile();
 
         $request = new SigningRequest(
             parts: $this->parts ?? [Part::body(), Part::timestamp()],
             signingKey: KeyHandle::for($this->clientCertificate->privateKey()),
             signingCertificate: $this->clientCertificate->publicCertificate(),
             keyIdentifier: $keyIdentifier,
-            signatureMethod: $this->signatureMethod ?? $this->profile->signatureMethod(),
-            digestMethod: $this->digestMethod ?? $this->profile->digestMethod(),
-            canonicalization: $this->canonicalization ?? $this->profile->canonicalization(),
+            signatureMethod: $this->signatureMethod ?? $profile->signatureMethod(),
+            digestMethod: $this->digestMethod ?? $profile->digestMethod(),
+            canonicalization: $this->canonicalization ?? $profile->canonicalization(),
             useSingleCertificate: $this->useSingleCertificate,
         );
 
@@ -124,19 +123,23 @@ final class Signature implements OutboundAction
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier
     {
-        return match ($this->keyRef->kind()) {
-            KeyRefKind::DirectReference => $this->embedBinarySecurityToken($context),
-            KeyRefKind::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
-            KeyRefKind::IssuerSerial => new IssuerSerialKeyIdentifier(new CertificateFieldExtractor()),
-            KeyRefKind::Thumbprint => new ThumbprintKeyIdentifier(new CertificateFieldExtractor()),
+        return match ($this->keyRef) {
+            KeyRef::BinarySecurityToken => $this->embedBinarySecurityToken($context),
+            KeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
+            KeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(new CertificateFieldExtractor()),
+            KeyRef::Thumbprint => new ThumbprintKeyIdentifier(new CertificateFieldExtractor()),
         };
     }
 
     private function embedBinarySecurityToken(WsseContext $context): DirectReferenceKeyIdentifier
     {
-        $token = new BinarySecurityToken($this->clientCertificate->publicCertificate());
+        $certificate = $this->clientCertificate->publicCertificate();
+
+        $token = new BinarySecurityToken($certificate);
         $token($context);
 
-        return new DirectReferenceKeyIdentifier($token->mintedId(), self::VALUE_TYPE_X509V3);
+        $id = (new BinaryTokenLocator())->locate($context->document(), $certificate);
+
+        return new DirectReferenceKeyIdentifier($id, self::VALUE_TYPE_X509V3);
     }
 }

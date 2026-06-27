@@ -8,8 +8,8 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DigestResult;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\SignedInfoBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\DigestResult;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SignedInfoBuilder;
 use VeeWee\Xml\Dom\Document;
 
 final class SignedInfoBuilderTest extends TestCase

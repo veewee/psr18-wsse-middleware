@@ -11,6 +11,7 @@ use Psr\Http\Message\ResponseInterface;
 use Soap\Psr18Transport\Xml\XmlMessageManipulator;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\InboundAction;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\OutboundAction;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use VeeWee\Xml\Dom\Document;
@@ -29,6 +30,7 @@ final class WsseMiddleware implements Plugin
      * @param list<InboundAction>  $inbound
      */
     public function __construct(
+        private readonly SecurityProfile $profile,
         private readonly array $outbound = [],
         private readonly array $inbound = [],
     ) {
@@ -74,9 +76,9 @@ final class WsseMiddleware implements Plugin
     {
         return (new XmlMessageManipulator())(
             $message,
-            static function (Document $document) use ($run): void {
+            function (Document $document) use ($run): void {
                 $document->manipulate(disallow_doctype());
-                $run(new WsseContext($document, SoapVersion::fromDocument($document)));
+                $run(new WsseContext($document, SoapVersion::fromDocument($document), $this->profile));
             },
         );
     }

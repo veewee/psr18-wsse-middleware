@@ -11,10 +11,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DigestVerifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DomCanonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\ResolvedVerificationReference;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\Canonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\DigestVerifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ResolvedVerificationReference;
 use VeeWee\Xml\Dom\Document;
 
 #[RequiresPhp('>= 8.4.21')]

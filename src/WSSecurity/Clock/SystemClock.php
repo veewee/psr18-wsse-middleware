@@ -3,16 +3,15 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Clock;
 
-use DateTimeImmutable;
-use DateTimeZone;
+use Psl\DateTime\Timestamp;
 
 /**
- * The production clock, reading the system time in UTC.
+ * The production clock, reading the system time.
  */
 final class SystemClock implements Clock
 {
-    public function now(): DateTimeImmutable
+    public function now(): Timestamp
     {
-        return new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        return Timestamp::now();
     }
 }

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyIdentifier;
 
-use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\CustomKeyIdentifier;
 
 final class CustomKeyIdentifierTest extends KeyIdentifierTestCase
@@ -27,23 +26,5 @@ final class CustomKeyIdentifierTest extends KeyIdentifierTestCase
         static::assertSame('urn:custom-value-type', $keyIdentifier->getAttribute('ValueType'));
         static::assertSame('urn:custom-encoding', $keyIdentifier->getAttribute('EncodingType'));
         static::assertSame('ZW5jb2RlZA==', $keyIdentifier->textContent);
-    }
-
-    public function test_it_rejects_an_empty_value_type(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        new CustomKeyIdentifier('ZW5jb2RlZA==', '', 'urn:custom-encoding');
-    }
-
-    public function test_it_rejects_an_empty_encoded_value(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        new CustomKeyIdentifier('', 'urn:custom-value-type', 'urn:custom-encoding');
-    }
-
-    public function test_it_rejects_an_empty_encoding_type(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        new CustomKeyIdentifier('ZW5jb2RlZA==', 'urn:custom-value-type', '');
     }
 }

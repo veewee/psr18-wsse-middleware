@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity;
 
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
@@ -40,18 +39,6 @@ final class PartTest extends TestCase
 
         static::assertSame(PartKind::Id, $part->kind());
         static::assertSame('TS-1', $part->id());
-    }
-
-    public function test_element_rejects_an_empty_namespace_or_local_name(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        Part::element('', '');
-    }
-
-    public function test_by_id_rejects_an_empty_id(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        Part::byId('');
     }
 
     public function test_parts_are_compared_by_value(): void

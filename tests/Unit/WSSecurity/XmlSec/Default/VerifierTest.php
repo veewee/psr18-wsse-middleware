@@ -17,15 +17,18 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\CertificateExtractor;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DigestVerifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DomCanonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\ReferenceResolver;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Resolver;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\SignatureValidator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\Verifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\VerificationPolicy;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Result\VerifiedSignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\AlgorithmPolicyEnforcer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\CertificateExtractor;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\DigestVerifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ReferenceResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\Resolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\SignatureLocator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\SignatureValidator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\SignedInfoParser;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerificationPolicy;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedSignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\Verifier;
 use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\WsseSignatureFixture;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -424,6 +427,9 @@ final class VerifierTest extends TestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Verifier(
+            new SignatureLocator(),
+            new SignedInfoParser(),
+            new AlgorithmPolicyEnforcer(),
             new CertificateExtractor(),
             new ReferenceResolver(),
             new DigestVerifier($canonicalizer, new Digest()),

@@ -10,10 +10,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\DecryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\XmlDecryptor;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlDecryptor;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -28,7 +29,7 @@ final class DecryptTest extends TestCase
         $decryptor = new RecordingDecryptor();
         $context = $this->context();
 
-        (new Decrypt($decryptor, $this->privateKey()))($context);
+        (new Decrypt($this->privateKey(), $decryptor))($context);
 
         static::assertSame($context->document(), $decryptor->lastDocument());
     }
@@ -38,7 +39,7 @@ final class DecryptTest extends TestCase
         $decryptor = new RecordingDecryptor();
         $handle = $this->privateKey();
 
-        (new Decrypt($decryptor, $handle))($this->context());
+        (new Decrypt($handle, $decryptor))($this->context());
 
         static::assertInstanceOf(DecryptionRequest::class, $decryptor->lastRequest());
         static::assertSame($handle, $decryptor->lastRequest()->privateKey);
@@ -49,7 +50,7 @@ final class DecryptTest extends TestCase
         $decryptor = new RecordingDecryptor();
 
         $this->expectNotToPerformAssertions();
-        (new Decrypt($decryptor, $this->privateKey()))($this->context());
+        (new Decrypt($this->privateKey(), $decryptor))($this->context());
     }
 
     public function test_it_maps_a_decryption_failure_to_a_security_fault(): void
@@ -57,7 +58,7 @@ final class DecryptTest extends TestCase
         $decryptor = new ThrowingDecryptor(DecryptionFailed::withReason('any reason at all'));
 
         $this->expectException(SecurityFault::class);
-        (new Decrypt($decryptor, $this->privateKey()))($this->context());
+        (new Decrypt($this->privateKey(), $decryptor))($this->context());
     }
 
     public function test_the_security_fault_carries_no_decryption_detail(): void
@@ -66,7 +67,7 @@ final class DecryptTest extends TestCase
         $decryptor = new ThrowingDecryptor(DecryptionFailed::withReason($reason));
 
         try {
-            (new Decrypt($decryptor, $this->privateKey()))($this->context());
+            (new Decrypt($this->privateKey(), $decryptor))($this->context());
             static::fail('Expected a SecurityFault.');
         } catch (SecurityFault $fault) {
             static::assertStringNotContainsString($reason, $fault->getMessage());
@@ -79,7 +80,7 @@ final class DecryptTest extends TestCase
         $decryptor = new ThrowingDecryptor($cause);
 
         try {
-            (new Decrypt($decryptor, $this->privateKey()))($this->context());
+            (new Decrypt($this->privateKey(), $decryptor))($this->context());
             static::fail('Expected a SecurityFault.');
         } catch (SecurityFault $fault) {
             static::assertSame($cause, $fault->getPrevious());
@@ -92,7 +93,7 @@ final class DecryptTest extends TestCase
         $decryptor = new ThrowingDecryptor($unexpected);
 
         $this->expectExceptionObject($unexpected);
-        (new Decrypt($decryptor, $this->privateKey()))($this->context());
+        (new Decrypt($this->privateKey(), $decryptor))($this->context());
     }
 
     private function context(): WsseContext
@@ -100,6 +101,7 @@ final class DecryptTest extends TestCase
         return new WsseContext(
             Document::fromXmlString('<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"><soap:Body/></soap:Envelope>'),
             SoapVersion::Soap12,
+            new SecurityProfile(),
         );
     }
 

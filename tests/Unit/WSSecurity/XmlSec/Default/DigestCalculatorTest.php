@@ -12,10 +12,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DigestCalculator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\DomCanonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\ResolvedReference;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\Canonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\DigestCalculator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
 
 final class DigestCalculatorTest extends TestCase

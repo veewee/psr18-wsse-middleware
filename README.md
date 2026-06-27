@@ -42,12 +42,14 @@ the list is the order things happen in.
 use Http\Client\Common\PluginClient;
 use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 $transport = Psr18Transport::createForClient(
     new PluginClient($yourPsr18Client, [
         new WsseMiddleware(
+            new SecurityProfile(),
             outbound: [
                 new Outbound\Timestamp(),
                 // ... sign, encrypt, add tokens
@@ -108,9 +110,11 @@ Some services just want a username and password:
 
 ```php
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
 $wsseMiddleware = new WsseMiddleware(
+    new SecurityProfile(),
     outbound: [
         new Outbound\Username('your-user', 'your-password'),
     ],
@@ -157,6 +161,7 @@ engine:
 
 ## Settings and secure defaults
 
-Every block falls back to a safe default and lets you override only what you need. It looks at the per-block
-setting first, then a shared `SecurityProfile`, then the package default. Those defaults reject weak
-algorithms such as SHA-1 and 3DES, and use SHA-256 with exclusive canonicalization.
+You configure a `SecurityProfile` once on the `WsseMiddleware` and it reaches every block through the
+per-message context. Each block lets you override only what you need: it looks at the per-block setting
+first, then the profile on the context. The defaults reject weak algorithms such as SHA-1 and 3DES, and use
+SHA-256 with exclusive canonicalization.

@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use Dom\Element;
-use LogicException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\BinarySecurityToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
@@ -70,28 +69,6 @@ final class BinarySecurityTokenTest extends OutboundTestCase
 
         $id = $this->only($document, self::WSSE, 'BinarySecurityToken')->getAttributeNS(self::WSU, 'Id');
         static::assertMatchesRegularExpression('/^id-[0-9a-f-]{36}$/', $id);
-    }
-
-    public function test_minted_id_matches_the_element_attribute(): void
-    {
-        $document = $this->envelope();
-
-        $block = new BinarySecurityToken($this->certificate());
-        $block($this->context($document));
-
-        static::assertSame(
-            $this->only($document, self::WSSE, 'BinarySecurityToken')->getAttributeNS(self::WSU, 'Id'),
-            $block->mintedId(),
-        );
-    }
-
-    public function test_minted_id_throws_before_invoke(): void
-    {
-        $block = new BinarySecurityToken($this->certificate());
-
-        $this->expectException(LogicException::class);
-
-        $block->mintedId();
     }
 
     public function test_the_token_precedes_a_timestamp_in_canonical_order(): void

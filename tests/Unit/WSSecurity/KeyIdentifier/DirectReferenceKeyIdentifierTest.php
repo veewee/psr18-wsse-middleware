@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyIdentifier;
 
-use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
 
 final class DirectReferenceKeyIdentifierTest extends KeyIdentifierTestCase
@@ -41,11 +40,5 @@ final class DirectReferenceKeyIdentifierTest extends KeyIdentifierTestCase
         static::assertNull($keyInfo->parentNode);
         static::assertSame($before, $document->toXmlString());
         static::assertSame(0, $keyInfo->getElementsByTagNameNS(self::WSSE, 'BinarySecurityToken')->length);
-    }
-
-    public function test_it_rejects_an_empty_token_id(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        new DirectReferenceKeyIdentifier('', 'urn:value-type');
     }
 }

@@ -20,6 +20,10 @@ The constructor arguments were renamed to say what they do:
 - `outgoing:` is now `outbound:`, the blocks that secure the request you send.
 - `incoming:` is now `inbound:`, the blocks that check the response you get back.
 
+`WsseMiddleware` now takes a `SecurityProfile` as its first required argument. The profile reaches every
+block through the per-message context, so the signing, encryption and verification blocks no longer take a
+profile of their own.
+
 ### Outbound blocks moved and were renamed
 
 The old `WSSecurity\Entry\*` classes are now `WSSecurity\Outbound\*`:
@@ -42,9 +46,9 @@ outbound side:
 
 ### Key references replaced the KeyIdentifier classes
 
-The `WSSecurity\KeyIdentifier\*` classes are gone. You now pick a reference style with a small value object.
-For signatures, use `KeyRef::binarySecurityToken()`, `KeyRef::subjectKeyIdentifier()`,
-`KeyRef::issuerSerial()` or `KeyRef::thumbprint()`. For encryption, `EncKeyRef` offers the same set.
+The `WSSecurity\KeyIdentifier\*` classes are gone. You now pick a reference style with a small enum.
+For signatures, use `KeyRef::BinarySecurityToken`, `KeyRef::SubjectKeyIdentifier`,
+`KeyRef::IssuerSerial` or `KeyRef::Thumbprint`. For encryption, `EncKeyRef` offers the same set.
 
 ### Algorithm enums moved
 

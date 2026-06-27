@@ -16,13 +16,13 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\DecryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\EncryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\SigningRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\VerificationPolicy;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Result\VerifiedReferences;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Result\VerifiedSignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SigningRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerificationPolicy;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedReferences;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedSignature;
 use VeeWee\Xml\Dom\Document;
 
 final class SpiContractTest extends TestCase

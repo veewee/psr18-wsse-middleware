@@ -15,8 +15,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Request\VerificationPolicy;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\XmlSignatureVerifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerificationPolicy;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\XmlSignatureVerifier;
 
 /**
  * Enforces the signature policy over the evidence the verifier returns. The verifier reports which exact nodes
@@ -31,19 +33,20 @@ use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\XmlSignatureVerifier;
  */
 final class VerifySignature implements InboundAction
 {
-    private readonly SecurityProfile $profile;
+    private readonly XmlSignatureVerifier $verifier;
+    private readonly RequiredPartsValidator $requiredParts;
 
     /**
      * @param list<Part> $signed
      */
     public function __construct(
-        private readonly XmlSignatureVerifier $verifier,
         private readonly TrustStore $trustStore,
-        private readonly RequiredPartsValidator $requiredParts,
         private readonly array $signed = [],
-        ?SecurityProfile $profile = null,
+        ?XmlSignatureVerifier $verifier = null,
+        ?RequiredPartsValidator $requiredParts = null,
     ) {
-        $this->profile = $profile ?? SecurityProfile::default();
+        $this->verifier = $verifier ?? DefaultEngine::verifier();
+        $this->requiredParts = $requiredParts ?? new RequiredPartsValidator(new PartLocator());
     }
 
     /**
@@ -52,7 +55,7 @@ final class VerifySignature implements InboundAction
     public function __invoke(WsseContext $context): void
     {
         $document = $context->document();
-        $policy = $this->buildPolicy();
+        $policy = $this->buildPolicy($context->profile());
 
         try {
             $verified = $this->verifier->verify($document, $policy);
@@ -63,12 +66,12 @@ final class VerifySignature implements InboundAction
         $this->requiredParts->validate($document, $verified->signedElements, $this->signed);
     }
 
-    private function buildPolicy(): VerificationPolicy
+    private function buildPolicy(SecurityProfile $profile): VerificationPolicy
     {
         return new VerificationPolicy(
             trustStore: $this->trustStore,
-            acceptedSignatureMethods: $this->acceptedSignatureMethods(),
-            acceptedDigestMethods: $this->acceptedDigestMethods(),
+            acceptedSignatureMethods: $this->acceptedSignatureMethods($profile),
+            acceptedDigestMethods: $this->acceptedDigestMethods($profile),
             // Only exclusive C14N is accepted. The inclusive and with-comments variants are not used to
             // canonicalize WSSE signatures, so accepting them would only widen the attack surface.
             acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
@@ -78,11 +81,11 @@ final class VerifySignature implements InboundAction
     /**
      * @return non-empty-list<SignatureMethod>
      */
-    private function acceptedSignatureMethods(): array
+    private function acceptedSignatureMethods(SecurityProfile $profile): array
     {
         $accepted = array_values(array_filter(
             SignatureMethod::cases(),
-            $this->profile->acceptsSignatureMethod(...),
+            $profile->acceptsSignatureMethod(...),
         ));
         if ($accepted === []) {
             throw new InvalidArgumentException('The security profile accepts no signature methods.');
@@ -94,11 +97,11 @@ final class VerifySignature implements InboundAction
     /**
      * @return non-empty-list<DigestMethod>
      */
-    private function acceptedDigestMethods(): array
+    private function acceptedDigestMethods(SecurityProfile $profile): array
     {
         $accepted = array_values(array_filter(
             DigestMethod::cases(),
-            $this->profile->acceptsDigestMethod(...),
+            $profile->acceptsDigestMethod(...),
         ));
         if ($accepted === []) {
             throw new InvalidArgumentException('The security profile accepts no digest methods.');

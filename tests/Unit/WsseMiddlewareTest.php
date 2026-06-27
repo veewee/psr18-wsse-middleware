@@ -16,6 +16,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\InboundAction;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\OutboundAction;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
@@ -31,7 +32,7 @@ final class WsseMiddlewareTest extends TestCase
 
     public function test_it_is_a_middleware(): void
     {
-        static::assertInstanceOf(Plugin::class, new WsseMiddleware());
+        static::assertInstanceOf(Plugin::class, new WsseMiddleware(new SecurityProfile()));
     }
 
     public function test_it_applies_outbound_blocks_to_the_request_body(): void
@@ -50,7 +51,7 @@ final class WsseMiddlewareTest extends TestCase
         };
 
         [$sentRequest, $response] = $this->runRequest(
-            new WsseMiddleware([$block]),
+            new WsseMiddleware(new SecurityProfile(), [$block]),
             $this->soapRequest(self::SOAP12_NS),
         );
 
@@ -76,7 +77,7 @@ final class WsseMiddlewareTest extends TestCase
         };
 
         [, $response] = $this->runRequest(
-            new WsseMiddleware([], [$block]),
+            new WsseMiddleware(new SecurityProfile(), [], [$block]),
             $this->soapRequest(self::SOAP12_NS),
             new Response(200, [], $this->soapEnvelope(self::SOAP12_NS)),
         );
@@ -90,10 +91,10 @@ final class WsseMiddlewareTest extends TestCase
         $version = null;
         $block = $this->versionCapturingBlock($version);
 
-        $this->runRequest(new WsseMiddleware([$block]), $this->soapRequest(self::SOAP11_NS));
+        $this->runRequest(new WsseMiddleware(new SecurityProfile(), [$block]), $this->soapRequest(self::SOAP11_NS));
         static::assertSame(SoapVersion::Soap11, $version);
 
-        $this->runRequest(new WsseMiddleware([$block]), $this->soapRequest(self::SOAP12_NS));
+        $this->runRequest(new WsseMiddleware(new SecurityProfile(), [$block]), $this->soapRequest(self::SOAP12_NS));
         static::assertSame(SoapVersion::Soap12, $version);
     }
 
@@ -101,7 +102,7 @@ final class WsseMiddlewareTest extends TestCase
     {
         $request = $this->soapRequest(self::SOAP12_NS);
 
-        [$sentRequest] = $this->runRequest(new WsseMiddleware(), $request);
+        [$sentRequest] = $this->runRequest(new WsseMiddleware(new SecurityProfile()), $request);
 
         static::assertSame($request, $sentRequest);
     }
@@ -111,7 +112,7 @@ final class WsseMiddlewareTest extends TestCase
         $response = new Response(200, [], $this->soapEnvelope(self::SOAP12_NS));
 
         [, $returned] = $this->runRequest(
-            new WsseMiddleware(),
+            new WsseMiddleware(new SecurityProfile()),
             $this->soapRequest(self::SOAP12_NS),
             $response,
         );
@@ -121,7 +122,7 @@ final class WsseMiddlewareTest extends TestCase
 
     public function test_it_rejects_a_doctype_in_the_request(): void
     {
-        $middleware = new WsseMiddleware([$this->versionCapturingBlock($ignored)]);
+        $middleware = new WsseMiddleware(new SecurityProfile(), [$this->versionCapturingBlock($ignored)]);
         $request = $this->soapRequest(self::SOAP12_NS, withDoctype: true);
 
         $this->expectException(DoctypeNotAllowedException::class);
@@ -130,7 +131,7 @@ final class WsseMiddlewareTest extends TestCase
 
     public function test_it_rejects_a_doctype_in_the_response(): void
     {
-        $middleware = new WsseMiddleware([], [$this->versionCapturingBlock($ignored)]);
+        $middleware = new WsseMiddleware(new SecurityProfile(), [], [$this->versionCapturingBlock($ignored)]);
         $response = new Response(200, [], $this->soapEnvelope(self::SOAP12_NS, withDoctype: true));
 
         $this->expectException(DoctypeNotAllowedException::class);
@@ -150,7 +151,7 @@ final class WsseMiddlewareTest extends TestCase
             }
         };
 
-        $middleware = new WsseMiddleware([], [$block]);
+        $middleware = new WsseMiddleware(new SecurityProfile(), [], [$block]);
 
         $this->expectException(SecurityFault::class);
         $middleware->handleRequest(
@@ -176,7 +177,7 @@ final class WsseMiddlewareTest extends TestCase
 
         // Outbound runs synchronously before the next handler, so the failure leaves handleRequest directly.
         $this->expectExceptionObject($failure);
-        (new WsseMiddleware([$block]))->handleRequest(
+        (new WsseMiddleware(new SecurityProfile(), [$block]))->handleRequest(
             $this->soapRequest(self::SOAP12_NS),
             $this->next($sentRequest),
             $this->first(),
@@ -188,7 +189,7 @@ final class WsseMiddlewareTest extends TestCase
         $response = new Response(204);
 
         [, $returned] = $this->runRequest(
-            new WsseMiddleware(),
+            new WsseMiddleware(new SecurityProfile()),
             $this->soapRequest(self::SOAP12_NS),
             $response,
         );
@@ -198,7 +199,7 @@ final class WsseMiddlewareTest extends TestCase
 
     public function test_it_adds_a_real_timestamp_to_the_outgoing_request(): void
     {
-        $middleware = new WsseMiddleware([new Outbound\Timestamp()]);
+        $middleware = new WsseMiddleware(new SecurityProfile(), [new Outbound\Timestamp()]);
         $request = $this->soapRequest(self::SOAP12_NS, withSecurityHeader: true);
 
         [$sentRequest] = $this->runRequest($middleware, $request);

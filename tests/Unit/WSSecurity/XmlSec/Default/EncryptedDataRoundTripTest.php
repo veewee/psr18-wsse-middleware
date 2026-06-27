@@ -10,9 +10,9 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedDataBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptedDataReader;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Default\EncryptionMode;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataReader;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptionMode;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -122,44 +122,55 @@ final class EncryptedDataRoundTripTest extends TestCase
 
     public function test_bad_cbc_padding_and_wrong_key_share_the_same_failure(): void
     {
-        // Both a corrupted CBC block (padding-oracle attempt) and a wrong key must produce one identical
-        // exception type and message, so neither acts as a distinguisher.
-        $key = str_repeat("\x06", 32);
-        $document = $this->envelope();
-        $body = $this->body($document);
-
-        $cipherText = (new Cipher())->encrypt('<a>secret</a>', $key, DataEncryptionMethod::AES256_CBC);
-        $framed = base64_encode($cipherText->iv.$cipherText->bytes);
-        $this->placeEncryptedData($document, $body, $framed, DataEncryptionMethod::AES256_CBC);
-        $encryptedData = $this->onlyEncryptedData($document);
-
-        $wrongKeyError = $this->captureFailure(
-            static fn () => (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, str_repeat("\x07", 32)),
+        // A corrupted CBC block and a wrong key must both surface one identical exception type and message, so
+        // neither acts as a distinguisher. CBC decryption only fails probabilistically (a random block has a
+        // ~1/256 chance of yielding valid padding), so each case retries with a fresh random IV until it does
+        // fail; the assertion is on the uniform failure, not on any single attempt.
+        $wrongKeyError = $this->captureCbcDecryptFailure(
+            str_repeat("\x07", 32),
+            static fn (string $bytes): string => $bytes,
         );
-
-        $document2 = $this->envelope();
-        $body2 = $this->body($document2);
-        $corrupted = $cipherText->bytes;
-        $corrupted[strlen($corrupted) - 1] = $corrupted[strlen($corrupted) - 1] === "\x00" ? "\x01" : "\x00";
-        $this->placeEncryptedData($document2, $body2, base64_encode($cipherText->iv.$corrupted), DataEncryptionMethod::AES256_CBC);
-        $encryptedData2 = $this->onlyEncryptedData($document2);
-        $badPaddingError = $this->captureFailure(
-            static fn () => (new EncryptedDataReader(new Cipher()))->read($document2, $encryptedData2, $key),
+        $badPaddingError = $this->captureCbcDecryptFailure(
+            str_repeat("\x06", 32),
+            $this->corruptLastByte(...),
         );
 
         static::assertSame($wrongKeyError::class, $badPaddingError::class);
         static::assertSame($wrongKeyError->getMessage(), $badPaddingError->getMessage());
     }
 
-    private function captureFailure(callable $operation): DecryptionFailed
+    /**
+     * Encrypts a known plaintext with the canonical key, applies the mutation, and decrypts with the given
+     * key, retrying with a fresh IV until the decryption genuinely fails so the test never flakes on a
+     * coincidentally valid padding.
+     *
+     * @param callable(string): string $mutate
+     */
+    private function captureCbcDecryptFailure(string $decryptKey, callable $mutate): DecryptionFailed
     {
-        try {
-            $operation();
-        } catch (DecryptionFailed $exception) {
-            return $exception;
+        for ($attempt = 0; $attempt < 16; $attempt++) {
+            $document = $this->envelope();
+            $cipherText = (new Cipher())->encrypt('<a>secret</a>', str_repeat("\x06", 32), DataEncryptionMethod::AES256_CBC);
+            $framed = base64_encode($cipherText->iv.$mutate($cipherText->bytes));
+            $this->placeEncryptedData($document, $this->body($document), $framed, DataEncryptionMethod::AES256_CBC);
+            $encryptedData = $this->onlyEncryptedData($document);
+
+            try {
+                (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $decryptKey);
+            } catch (DecryptionFailed $exception) {
+                return $exception;
+            }
         }
 
-        static::fail('Expected a DecryptionFailed.');
+        static::fail('The CBC decryption did not fail within the attempt budget.');
+    }
+
+    private function corruptLastByte(string $bytes): string
+    {
+        $last = strlen($bytes) - 1;
+        $bytes[$last] = $bytes[$last] === "\x00" ? "\x01" : "\x00";
+
+        return $bytes;
     }
 
     private function placeEncryptedData(Document $document, Element $body, string $cipherValue, DataEncryptionMethod $method): void

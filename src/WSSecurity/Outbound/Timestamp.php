@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
-use DateTimeImmutable;
-use DateTimeZone;
 use Dom\Element;
+use Psl\DateTime\SecondsStyle;
+use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -23,8 +23,6 @@ use function VeeWee\Xml\Dom\Builder\value;
  */
 final class Timestamp implements OutboundAction
 {
-    private const TIME_FORMAT = 'Y-m-d\TH:i:s.v\Z';
-
     /**
      * @param positive-int $ttl seconds until expiry
      */
@@ -38,8 +36,8 @@ final class Timestamp implements OutboundAction
         $document = $context->document();
         $minter = new WsuIdMinter();
 
-        $created = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-        $expires = $created->modify('+'.$this->ttl.' seconds');
+        $created = Instant::now();
+        $expires = $created->plusSeconds($this->ttl);
 
         $header = SecurityHeader::locateOrCreate($document, $context->soapVersion());
         $header->appendChildren($this->build($document, $minter, $created, $expires));
@@ -51,15 +49,15 @@ final class Timestamp implements OutboundAction
     private function build(
         Document $document,
         WsuIdMinter $minter,
-        DateTimeImmutable $created,
-        DateTimeImmutable $expires,
+        Instant $created,
+        Instant $expires,
     ): callable {
         $build = namespaced_element(
             WsseNamespace::Wsu->value,
             WsseNamespace::Wsu->qualify('Timestamp'),
             children(
-                namespaced_element(WsseNamespace::Wsu->value, WsseNamespace::Wsu->qualify('Created'), value($created->format(self::TIME_FORMAT))),
-                namespaced_element(WsseNamespace::Wsu->value, WsseNamespace::Wsu->qualify('Expires'), value($expires->format(self::TIME_FORMAT))),
+                namespaced_element(WsseNamespace::Wsu->value, WsseNamespace::Wsu->qualify('Created'), value($this->wire($created))),
+                namespaced_element(WsseNamespace::Wsu->value, WsseNamespace::Wsu->qualify('Expires'), value($this->wire($expires))),
             ),
         );
 
@@ -69,5 +67,14 @@ final class Timestamp implements OutboundAction
 
             return $element;
         };
+    }
+
+    /**
+     * Renders the instant as ISO-8601 UTC with millisecond precision and a literal Z, the form interop peers
+     * expect.
+     */
+    private function wire(Instant $instant): string
+    {
+        return $instant->toRfc3339(SecondsStyle::Milliseconds, useZ: true);
     }
 }

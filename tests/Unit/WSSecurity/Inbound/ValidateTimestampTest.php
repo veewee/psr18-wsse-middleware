@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
-use DateTimeImmutable;
-use DateTimeZone;
 use PHPUnit\Framework\TestCase;
+use Psl\DateTime\SecondsStyle;
+use Psl\DateTime\Timestamp;
+use Psl\DateTime\Timezone;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ValidateTimestamp;
@@ -30,7 +31,7 @@ final class ValidateTimestampTest extends TestCase
     {
         $now = $this->instant(self::NOW);
         $context = $this->context($this->envelope(
-            $this->timestamp($this->fmt($now), $this->fmt($now->modify('+300 seconds'))),
+            $this->timestamp($this->fmt($now), $this->fmt($now->plusSeconds(300))),
         ));
 
         $this->expectNotToPerformAssertions();
@@ -41,7 +42,7 @@ final class ValidateTimestampTest extends TestCase
     {
         $now = $this->instant(self::NOW);
         $context = $this->context($this->envelope(
-            $this->timestamp($this->fmt($now->modify('-300 seconds')), $this->fmt($now->modify('-61 seconds'))),
+            $this->timestamp($this->fmt($now->minusSeconds(300)), $this->fmt($now->minusSeconds(61))),
         ));
 
         $this->expectException(SecurityFault::class);
@@ -51,9 +52,9 @@ final class ValidateTimestampTest extends TestCase
     public function test_a_future_created_is_rejected(): void
     {
         $now = $this->instant(self::NOW);
-        $created = $now->modify('+61 seconds');
+        $created = $now->plusSeconds(61);
         $context = $this->context($this->envelope(
-            $this->timestamp($this->fmt($created), $this->fmt($created->modify('+300 seconds'))),
+            $this->timestamp($this->fmt($created), $this->fmt($created->plusSeconds(300))),
         ));
 
         $this->expectException(SecurityFault::class);
@@ -71,7 +72,7 @@ final class ValidateTimestampTest extends TestCase
     public function test_a_duplicate_timestamp_is_rejected(): void
     {
         $now = $this->instant(self::NOW);
-        $one = $this->timestamp($this->fmt($now), $this->fmt($now->modify('+300 seconds')));
+        $one = $this->timestamp($this->fmt($now), $this->fmt($now->plusSeconds(300)));
         $context = $this->context($this->envelope($one.$one));
 
         $this->expectException(SecurityFault::class);
@@ -82,7 +83,7 @@ final class ValidateTimestampTest extends TestCase
     {
         $now = $this->instant(self::NOW);
         $context = $this->context($this->envelope(
-            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'"><wsu:Expires>'.$this->fmt($now->modify('+300 seconds')).'</wsu:Expires></wsu:Timestamp>',
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'"><wsu:Expires>'.$this->fmt($now->plusSeconds(300)).'</wsu:Expires></wsu:Timestamp>',
         ));
 
         $this->expectException(SecurityFault::class);
@@ -105,7 +106,7 @@ final class ValidateTimestampTest extends TestCase
         $now = $this->instant(self::NOW);
         $created = '<wsu:Created>'.$this->fmt($now).'</wsu:Created>';
         $context = $this->context($this->envelope(
-            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$created.$created.'<wsu:Expires>'.$this->fmt($now->modify('+300 seconds')).'</wsu:Expires></wsu:Timestamp>',
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$created.$created.'<wsu:Expires>'.$this->fmt($now->plusSeconds(300)).'</wsu:Expires></wsu:Timestamp>',
         ));
 
         $this->expectException(SecurityFault::class);
@@ -116,7 +117,7 @@ final class ValidateTimestampTest extends TestCase
     {
         $now = $this->instant(self::NOW);
         $context = $this->context($this->envelope(
-            $this->timestamp('not-a-date', $this->fmt($now->modify('+300 seconds'))),
+            $this->timestamp('not-a-date', $this->fmt($now->plusSeconds(300))),
         ));
 
         $this->expectException(SecurityFault::class);
@@ -127,7 +128,18 @@ final class ValidateTimestampTest extends TestCase
     {
         $now = $this->instant(self::NOW);
         $context = $this->context($this->envelope(
-            $this->timestamp('now', $this->fmt($now->modify('+300 seconds'))),
+            $this->timestamp('now', $this->fmt($now->plusSeconds(300))),
+        ));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_valid_prefix_with_trailing_garbage_is_rejected(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            $this->timestamp($this->fmt($now).' trailing-garbage', $this->fmt($now->plusSeconds(300))),
         ));
 
         $this->expectException(SecurityFault::class);
@@ -139,8 +151,8 @@ final class ValidateTimestampTest extends TestCase
         $now = $this->instant(self::NOW);
         $context = $this->context($this->envelope(
             $this->timestamp(
-                $now->format('Y-m-d\TH:i:s.v\Z'),
-                $now->modify('+300 seconds')->format('Y-m-d\TH:i:s.v\Z'),
+                $this->fmt($now),
+                $this->fmt($now->plusSeconds(300)),
             ),
         ));
 
@@ -153,8 +165,8 @@ final class ValidateTimestampTest extends TestCase
         $now = $this->instant(self::NOW);
         $context = $this->context($this->envelope(
             $this->timestamp(
-                $now->format('Y-m-d\TH:i:s\Z'),
-                $now->modify('+300 seconds')->format('Y-m-d\TH:i:s\Z'),
+                $this->fmtSeconds($now),
+                $this->fmtSeconds($now->plusSeconds(300)),
             ),
         ));
 
@@ -167,8 +179,22 @@ final class ValidateTimestampTest extends TestCase
         $now = $this->instant(self::NOW);
         $context = $this->context($this->envelope(
             $this->timestamp(
-                $now->format('Y-m-d\TH:i:sP'),
-                $now->modify('+300 seconds')->format('Y-m-d\TH:i:sP'),
+                $this->fmtOffset($now),
+                $this->fmtOffset($now->plusSeconds(300)),
+            ),
+        ));
+
+        $this->expectNotToPerformAssertions();
+        $this->block()($context);
+    }
+
+    public function test_a_millisecond_offset_timestamp_parses(): void
+    {
+        $now = $this->instant(self::NOW);
+        $context = $this->context($this->envelope(
+            $this->timestamp(
+                $this->fmtMilliOffset($now),
+                $this->fmtMilliOffset($now->plusSeconds(300)),
             ),
         ));
 
@@ -190,18 +216,18 @@ final class ValidateTimestampTest extends TestCase
     {
         $now = $this->instant(self::NOW);
         $xml = $this->envelope(
-            $this->timestamp($this->fmt($now->modify('-300 seconds')), $this->fmt($now->modify('-90 seconds'))),
+            $this->timestamp($this->fmt($now->minusSeconds(300)), $this->fmt($now->minusSeconds(90))),
         );
 
         $this->expectNotToPerformAssertions();
-        (new ValidateTimestamp(new SecurityProfile(clockSkew: 120), $this->clock($now)))($this->context($xml));
+        (new ValidateTimestamp($this->clock($now)))($this->context($xml, new SecurityProfile(clockSkew: 120)));
     }
 
     public function test_the_same_message_is_rejected_under_the_default_skew(): void
     {
         $now = $this->instant(self::NOW);
         $xml = $this->envelope(
-            $this->timestamp($this->fmt($now->modify('-300 seconds')), $this->fmt($now->modify('-90 seconds'))),
+            $this->timestamp($this->fmt($now->minusSeconds(300)), $this->fmt($now->minusSeconds(90))),
         );
 
         $this->expectException(SecurityFault::class);
@@ -214,26 +240,26 @@ final class ValidateTimestampTest extends TestCase
         // proving the system clock is never consulted.
         $frozen = $this->instant('2000-06-15T08:30:00Z');
         $context = $this->context($this->envelope(
-            $this->timestamp($this->fmt($frozen), $this->fmt($frozen->modify('+300 seconds'))),
+            $this->timestamp($this->fmt($frozen), $this->fmt($frozen->plusSeconds(300))),
         ));
 
         $this->expectNotToPerformAssertions();
-        (new ValidateTimestamp(new SecurityProfile(), $this->clock($frozen)))($context);
+        (new ValidateTimestamp($this->clock($frozen)))($context);
     }
 
     private function block(): ValidateTimestamp
     {
-        return new ValidateTimestamp(new SecurityProfile(), $this->clock($this->instant(self::NOW)));
+        return new ValidateTimestamp($this->clock($this->instant(self::NOW)));
     }
 
-    private function clock(DateTimeImmutable $now): Clock
+    private function clock(Timestamp $now): Clock
     {
         return new FrozenClock($now);
     }
 
-    private function context(string $xml): WsseContext
+    private function context(string $xml, ?SecurityProfile $profile = null): WsseContext
     {
-        return new WsseContext(Document::fromXmlString($xml), SoapVersion::Soap12);
+        return new WsseContext(Document::fromXmlString($xml), SoapVersion::Soap12, $profile ?? new SecurityProfile());
     }
 
     private function envelope(string $securityInner): string
@@ -254,13 +280,28 @@ final class ValidateTimestampTest extends TestCase
             .'</wsu:Timestamp>';
     }
 
-    private function instant(string $value): DateTimeImmutable
+    private function instant(string $value): Timestamp
     {
-        return new DateTimeImmutable($value, new DateTimeZone('UTC'));
+        return Timestamp::parse($value, "yyyy-MM-dd'T'HH:mm:ss'Z'", Timezone::UTC);
     }
 
-    private function fmt(DateTimeImmutable $instant): string
+    private function fmt(Timestamp $instant): string
     {
-        return $instant->format('Y-m-d\TH:i:s.v\Z');
+        return $instant->toRfc3339(SecondsStyle::Milliseconds, useZ: true);
+    }
+
+    private function fmtSeconds(Timestamp $instant): string
+    {
+        return $instant->toRfc3339(SecondsStyle::Seconds, useZ: true);
+    }
+
+    private function fmtOffset(Timestamp $instant): string
+    {
+        return $instant->format("yyyy-MM-dd'T'HH:mm:ssxxx", Timezone::UTC);
+    }
+
+    private function fmtMilliOffset(Timestamp $instant): string
+    {
+        return $instant->format("yyyy-MM-dd'T'HH:mm:ss.SSSxxx", Timezone::UTC);
     }
 }
