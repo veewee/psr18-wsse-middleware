@@ -13,6 +13,26 @@ need `robrichards/wse-php` or `xmlseclibs` at runtime, and the old encryption-bu
 `cweagans/composer-patches` workaround for `wse-php`) is no longer needed. You can drop that patch and the
 dev dependency from your project.
 
+`ext-intl` is now a required extension. The inbound timestamp validator parses instants with the ICU date
+formatter, so make sure `ext-intl` is installed wherever this package runs.
+
+### Blocks are now one-liners; no engine wiring
+
+The signing, encryption, decryption and verification blocks build the engine service they need internally,
+with secure defaults. You construct them directly:
+
+```php
+new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken);
+new Outbound\Encryption($recipientCertificate);
+new Inbound\Decrypt(KeyHandle::for($privateKey));
+new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]);
+```
+
+If you previously passed engine services into the blocks yourself, you can delete that wiring. Each of those
+blocks still accepts the relevant service (`XmlSigner`, `XmlEncryptor`, `XmlDecryptor`,
+`XmlSignatureVerifier`) as an optional constructor argument, defaulting to the bundled implementation, for the
+rare case where you need a custom one.
+
 ### Two block lists instead of one
 
 The constructor arguments were renamed to say what they do:
@@ -20,9 +40,18 @@ The constructor arguments were renamed to say what they do:
 - `outgoing:` is now `outbound:`, the blocks that secure the request you send.
 - `incoming:` is now `inbound:`, the blocks that check the response you get back.
 
-`WsseMiddleware` now takes a `SecurityProfile` as its first required argument. The profile reaches every
-block through the per-message context, so the signing, encryption and verification blocks no longer take a
-profile of their own.
+`WsseMiddleware` now takes a `SecurityProfile` as its first required argument:
+
+```php
+new WsseMiddleware(
+    new SecurityProfile(),
+    outbound: [ /* ... */ ],
+    inbound: [ /* ... */ ],
+);
+```
+
+The profile reaches every block through the per-message context, so the signing, encryption and verification
+blocks no longer take a profile of their own.
 
 ### Outbound blocks moved and were renamed
 
@@ -44,11 +73,15 @@ outbound side:
 - `Inbound\VerifySignature` verifies the signature and confirms the parts you require were signed by a trusted certificate. Checking a response this way is new.
 - `Inbound\ValidateTimestamp` checks the response is fresh within a clock-skew window. This is also new.
 
-### Key references replaced the KeyIdentifier classes
+### Key references are now enums
 
-The `WSSecurity\KeyIdentifier\*` classes are gone. You now pick a reference style with a small enum.
-For signatures, use `KeyRef::BinarySecurityToken`, `KeyRef::SubjectKeyIdentifier`,
-`KeyRef::IssuerSerial` or `KeyRef::Thumbprint`. For encryption, `EncKeyRef` offers the same set.
+The `WSSecurity\KeyIdentifier\*` classes are gone, and the old factory-style calls
+(`KeyRef::binarySecurityToken()`) are gone with them. You now pick a reference style with a small enum case.
+For signatures, use `KeyRef::BinarySecurityToken`, `KeyRef::SubjectKeyIdentifier`, `KeyRef::IssuerSerial` or
+`KeyRef::Thumbprint`. For encryption, `EncKeyRef` offers the same set. Both live under `WSSecurity\Outbound\`.
+
+Because `Outbound\Signature` takes the optional engine service before the key reference, pass the reference as
+a named argument: `new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken)`.
 
 ### Algorithm enums moved
 
@@ -60,7 +93,7 @@ statements. The defaults are secure on their own, so in most cases you can stop 
 
 `WsaMiddleware2005` is gone. There is now a single `WsaMiddleware` that takes the addressing version as an
 argument, and its default namespace is the W3C 2005/08 one. If you relied on the older 2004/08 default, pass
-the version you need explicitly.
+`WsaNamespace::Submission200408` explicitly.
 
 ### A couple of smaller changes
 
