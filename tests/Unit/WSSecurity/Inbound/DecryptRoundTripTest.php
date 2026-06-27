@@ -39,6 +39,7 @@ final class DecryptRoundTripTest extends TestCase
 {
     private const SOAP = 'http://www.w3.org/2003/05/soap-envelope';
     private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
+    private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
     private const X509_TOKEN = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
 
@@ -50,6 +51,23 @@ final class DecryptRoundTripTest extends TestCase
 
         $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
         static::assertCount(1, $this->encryptedData($document));
+
+        (new Decrypt(KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+
+        static::assertSame($originalBody, $this->innerXml($this->body($document)));
+        static::assertCount(0, $this->encryptedData($document));
+    }
+
+    public function test_it_recovers_a_body_whose_encrypted_data_carries_a_native_id(): void
+    {
+        [$key, $certificate] = $this->keyAndCertificate();
+        $document = $this->envelope();
+        $originalBody = $this->innerXml($this->body($document));
+
+        $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
+
+        // Relabel the minted wsu:Id to a native, namespace-less @Id, as some interop peers emit.
+        $this->relabelToNativeId($document);
 
         (new Decrypt(KeyHandle::for($key)))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
 
@@ -204,6 +222,23 @@ final class DecryptRoundTripTest extends TestCase
         }
 
         return $nodes;
+    }
+
+    /**
+     * Moves the wsu:Id minted on the EncryptedData onto a native, namespace-less @Id, keeping the same value
+     * so the DataReference URI="#..." still points at it. This reproduces a common interop wire shape
+     * where the encrypted part carries the native XML-Encryption id rather than the wsu:Id.
+     */
+    private function relabelToNativeId(Document $document): void
+    {
+        $encryptedData = $this->encryptedData($document)[0] ?? null;
+        static::assertInstanceOf(Element::class, $encryptedData);
+
+        $id = $encryptedData->getAttributeNS(self::WSU, 'Id');
+        static::assertNotSame('', $id);
+
+        $encryptedData->removeAttributeNS(self::WSU, 'Id');
+        $encryptedData->setAttribute('Id', $id);
     }
 
     private function innerXml(Element $element): string

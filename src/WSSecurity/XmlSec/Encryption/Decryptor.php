@@ -5,7 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\EncryptedDataResolver;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 
@@ -45,7 +45,7 @@ final class Decryptor implements XmlDecryptor
             $unwrapped = $this->encryptedKeyReader->read($document, $this->privateKey($request));
 
             foreach ($references as $id) {
-                $element = WsuIdResolver::resolve($document, $id);
+                $element = EncryptedDataResolver::resolve($document, $id);
                 $this->encryptedDataReader->read($document, $element, $unwrapped->sessionKey);
             }
         } catch (Throwable) {
