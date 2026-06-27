@@ -31,7 +31,6 @@
         "php-soap/xml": "^1.11",
         "veewee/xml": "4.x-dev@dev",
         "php-http/client-common": "^2.7",
-        "robrichards/wse-php": "^2.0",
         "symfony/uid": "^7.4 || ^8.0",
         "php-standard-library/secure-random": "^6.1",
         "php-standard-library/hash": "^6.1",
@@ -44,19 +43,11 @@
         "phpunit/phpunit": "~12.3",
         "vimeo/psalm": "~6.13",
         "php-cs-fixer/shim": "~3.88",
-        "cweagans/composer-patches": "^1.7",
-        "php-standard-library/psalm-plugin": "^2.4"
-    },
-    "extra": {
-        "patches": {
-            "robrichards/wse-php": {
-                "Fix encryption bug": "https://patch-diff.githubusercontent.com/raw/robrichards/wse-php/pull/67.diff"
-            }
-        }
+        "php-standard-library/psalm-plugin": "^2.4",
+        "robrichards/xmlseclibs": "^3.1"
     },
     "config": {
         "allow-plugins": {
-            "cweagans/composer-patches": true,
             "php-http/discovery": true
         }
     }

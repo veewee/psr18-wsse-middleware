@@ -1,4 +1,5 @@
-<?php declare(strict_types=1);
+<?php
+declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware;
 
@@ -7,95 +8,76 @@ use Http\Promise\Promise;
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
-use RobRichards\WsePhp\WSSESoap;
-use Soap\Psr18WsseMiddleware\WSSecurity\Entry\WsseEntry;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Legacy\LegacyInterop;
+use Soap\Psr18Transport\Xml\XmlMessageManipulator;
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\InboundAction;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\OutboundAction;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use VeeWee\Xml\Dom\Document;
+use function VeeWee\Xml\Dom\Configurator\disallow_doctype;
 
+/**
+ * Applies WS-Security to a SOAP exchange: the outbound blocks write their tokens into the request and
+ * the inbound blocks process the response, each over the same per-message document mutated in place.
+ * A direction is only parsed when it has blocks, and every parse rejects a DOCTYPE before any block
+ * runs. Block exceptions are not caught here; an outbound or inbound failure propagates to the caller.
+ */
 final class WsseMiddleware implements Plugin
 {
     /**
-     * @var list<WsseEntry>
-     */
-    private array $outgoingEntries;
-    /**
-     * @var list<WsseEntry>
-     */
-    private array $incomingEntries;
-    private bool $mustUnderstand = true;
-    private ?string $actor = null;
-
-    /**
-     * @no-named-arguments
-     * @param list<WsseEntry> $outgoing
-     * @param list<WsseEntry> $incoming
+     * @param list<OutboundAction> $outbound
+     * @param list<InboundAction>  $inbound
      */
     public function __construct(
-        array $outgoing = [],
-        array $incoming = []
+        private readonly array $outbound = [],
+        private readonly array $inbound = [],
     ) {
-        $this->outgoingEntries = $outgoing;
-        $this->incomingEntries = $incoming;
-    }
-
-    public function withMustUnderstand(bool $mustUnderstand): self
-    {
-        $new = clone $this;
-        $new->mustUnderstand = $mustUnderstand;
-
-        return $new;
-    }
-
-    public function withActor(string $actor): self
-    {
-        $new = clone $this;
-        $new->actor = $actor;
-
-        return $new;
     }
 
     public function handleRequest(RequestInterface $request, callable $next, callable $first): Promise
     {
-        return $this->beforeRequest($next, $request)->then(
-            fn (ResponseInterface $response): ResponseInterface => $this->afterResponse($response)
+        if ($this->outbound !== []) {
+            $request = $this->applyOutbound($request);
+        }
+
+        return $next($request)->then(
+            fn (ResponseInterface $response): ResponseInterface =>
+                $this->inbound === [] ? $response : $this->applyInbound($response),
         );
     }
 
-    /**
-     * @param callable(RequestInterface): Promise $handler
-     */
-    public function beforeRequest(callable $handler, RequestInterface $request): Promise
+    private function applyOutbound(RequestInterface $request): RequestInterface
     {
-        if ($this->outgoingEntries) {
-            $request = $this->applyWsseEntries($request, $this->outgoingEntries);
-        }
-
-        return $handler($request);
+        return $this->secure($request, function (WsseContext $context): void {
+            foreach ($this->outbound as $block) {
+                $block($context);
+            }
+        });
     }
 
-    public function afterResponse(ResponseInterface $response): ResponseInterface
+    private function applyInbound(ResponseInterface $response): ResponseInterface
     {
-        if (!$this->incomingEntries) {
-            return $response;
-        }
-
-        return $this->applyWsseEntries($response, $this->incomingEntries);
+        return $this->secure($response, function (WsseContext $context): void {
+            foreach ($this->inbound as $block) {
+                $block($context);
+            }
+        });
     }
 
     /**
      * @template T of MessageInterface
      * @param T $message
-     * @param list<WsseEntry> $entries
+     * @param callable(WsseContext): void $run
      * @return T
      */
-    private function applyWsseEntries(MessageInterface $message, array $entries): MessageInterface
+    private function secure(MessageInterface $message, callable $run): MessageInterface
     {
-        $legacyDoc = LegacyInterop::parseBody((string) $message->getBody());
-        $wsse = new WSSESoap($legacyDoc, $this->mustUnderstand, $this->actor);
-
-        foreach ($entries as $entry) {
-            $entry($legacyDoc, $wsse);
-        }
-
-        return $message->withBody(LegacyInterop::toStream($legacyDoc));
+        return (new XmlMessageManipulator())(
+            $message,
+            static function (Document $document) use ($run): void {
+                $document->manipulate(disallow_doctype());
+                $run(new WsseContext($document, SoapVersion::fromDocument($document)));
+            },
+        );
     }
 }
