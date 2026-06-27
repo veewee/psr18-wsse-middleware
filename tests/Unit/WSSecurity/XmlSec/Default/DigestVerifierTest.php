@@ -28,8 +28,7 @@ final class DigestVerifierTest extends TestCase
         $verifier = new DigestVerifier(new DomCanonicalizer(), new Digest());
 
         static::assertTrue($verifier->verify(
-            new ResolvedVerificationReference($element, DigestMethod::SHA256, $expected),
-            SignatureCanonicalization::EXC_C14N,
+            new ResolvedVerificationReference($element, DigestMethod::SHA256, $expected, SignatureCanonicalization::EXC_C14N, []),
         ));
     }
 
@@ -44,8 +43,7 @@ final class DigestVerifierTest extends TestCase
         $verifier = new DigestVerifier(new DomCanonicalizer(), new Digest());
 
         static::assertFalse($verifier->verify(
-            new ResolvedVerificationReference($element, DigestMethod::SHA256, $expected),
-            SignatureCanonicalization::EXC_C14N,
+            new ResolvedVerificationReference($element, DigestMethod::SHA256, $expected, SignatureCanonicalization::EXC_C14N, []),
         ));
     }
 
@@ -57,8 +55,7 @@ final class DigestVerifierTest extends TestCase
 
         $this->expectException(SignatureVerificationFailed::class);
         $verifier->verify(
-            new ResolvedVerificationReference($element, DigestMethod::SHA256, 'not valid base64 !!!'),
-            SignatureCanonicalization::EXC_C14N,
+            new ResolvedVerificationReference($element, DigestMethod::SHA256, 'not valid base64 !!!', SignatureCanonicalization::EXC_C14N, []),
         );
     }
 
@@ -77,8 +74,7 @@ final class DigestVerifierTest extends TestCase
 
         $this->expectException(CanonicalizationFailed::class);
         $verifier->verify(
-            new ResolvedVerificationReference($element, DigestMethod::SHA256, base64_encode('x')),
-            SignatureCanonicalization::EXC_C14N,
+            new ResolvedVerificationReference($element, DigestMethod::SHA256, base64_encode('x'), SignatureCanonicalization::EXC_C14N, []),
         );
     }
 

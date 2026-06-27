@@ -29,6 +29,7 @@ final class SignatureValidatorTest extends TestCase
             $certificate,
             SignatureMethod::RSA_SHA256,
             SignatureCanonicalization::EXC_C14N,
+            [],
         ));
     }
 
@@ -44,6 +45,7 @@ final class SignatureValidatorTest extends TestCase
             $certificate,
             SignatureMethod::RSA_SHA256,
             SignatureCanonicalization::EXC_C14N,
+            [],
         ));
     }
 
@@ -53,7 +55,7 @@ final class SignatureValidatorTest extends TestCase
         $signature->removeChild($this->child($signature, 'SignedInfo'));
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->validator()->validate($signature, $certificate, SignatureMethod::RSA_SHA256, SignatureCanonicalization::EXC_C14N);
+        $this->validator()->validate($signature, $certificate, SignatureMethod::RSA_SHA256, SignatureCanonicalization::EXC_C14N, []);
     }
 
     public function test_it_rejects_two_signed_info_children(): void
@@ -62,7 +64,7 @@ final class SignatureValidatorTest extends TestCase
         $signature->appendChild($this->child($signature, 'SignedInfo')->cloneNode(true));
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->validator()->validate($signature, $certificate, SignatureMethod::RSA_SHA256, SignatureCanonicalization::EXC_C14N);
+        $this->validator()->validate($signature, $certificate, SignatureMethod::RSA_SHA256, SignatureCanonicalization::EXC_C14N, []);
     }
 
     public function test_it_rejects_a_signature_value_before_the_signed_info(): void
@@ -75,7 +77,7 @@ final class SignatureValidatorTest extends TestCase
         $signature->insertBefore($value, $signedInfo);
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->validator()->validate($signature, $certificate, SignatureMethod::RSA_SHA256, SignatureCanonicalization::EXC_C14N);
+        $this->validator()->validate($signature, $certificate, SignatureMethod::RSA_SHA256, SignatureCanonicalization::EXC_C14N, []);
     }
 
     public function test_it_rejects_an_absent_key_info(): void
@@ -84,7 +86,7 @@ final class SignatureValidatorTest extends TestCase
         $signature->removeChild($this->child($signature, 'KeyInfo'));
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->validator()->validate($signature, $certificate, SignatureMethod::RSA_SHA256, SignatureCanonicalization::EXC_C14N);
+        $this->validator()->validate($signature, $certificate, SignatureMethod::RSA_SHA256, SignatureCanonicalization::EXC_C14N, []);
     }
 
     private function validator(): SignatureValidator

@@ -17,11 +17,14 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 final readonly class ParsedSignedInfo
 {
     /**
+     * @param list<string> $canonicalizationInclusivePrefixes the exclusive-c14n PrefixList some signers emit on
+     *        the CanonicalizationMethod, used when canonicalizing ds:SignedInfo
      * @param non-empty-list<Element> $referenceElements the ds:Reference DOM elements, document order
      * @param non-empty-list<ParsedReference> $references the values parsed from those same references, same order
      */
     public function __construct(
         public SignatureCanonicalization $canonicalization,
+        public array $canonicalizationInclusivePrefixes,
         public SignatureMethod $signatureMethod,
         public array $referenceElements,
         public array $references,

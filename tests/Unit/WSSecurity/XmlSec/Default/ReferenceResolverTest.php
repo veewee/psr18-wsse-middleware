@@ -6,6 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Default;
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ParsedReference;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ReferenceResolver;
@@ -84,7 +85,7 @@ final class ReferenceResolverTest extends TestCase
         $parsed = array_fill(
             0,
             $count,
-            new ParsedReference('Body', DigestMethod::SHA256, base64_encode('x')),
+            new ParsedReference('Body', DigestMethod::SHA256, base64_encode('x'), SignatureCanonicalization::EXC_C14N, []),
         );
 
         $this->expectException(SignatureVerificationFailed::class);
@@ -140,7 +141,7 @@ final class ReferenceResolverTest extends TestCase
         foreach ($signedInfo->childNodes as $child) {
             if ($child instanceof Element && $child->localName === 'Reference') {
                 $elements[] = $child;
-                $parsed[] = new ParsedReference('Body', DigestMethod::SHA256, base64_encode('digest'));
+                $parsed[] = new ParsedReference('Body', DigestMethod::SHA256, base64_encode('digest'), SignatureCanonicalization::EXC_C14N, []);
             }
         }
 

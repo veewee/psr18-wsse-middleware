@@ -37,6 +37,8 @@ final class SignatureValidator
     }
 
     /**
+     * @param list<string> $inclusivePrefixes the exclusive-c14n PrefixList used when canonicalizing ds:SignedInfo
+     *
      * @throws SignatureVerificationFailed when the ds:Signature structure is invalid
      * @throws CanonicalizationFailed when ds:SignedInfo cannot be canonicalized (propagated)
      */
@@ -45,6 +47,7 @@ final class SignatureValidator
         Certificate $signerCertificate,
         SignatureMethod $signatureMethod,
         SignatureCanonicalization $canonicalizationMethod,
+        array $inclusivePrefixes,
     ): bool {
         $signedInfo = $this->onlyChild($signatureElement, 'SignedInfo');
         $signatureValue = $this->onlyChild($signatureElement, 'SignatureValue');
@@ -62,7 +65,11 @@ final class SignatureValidator
             throw SignatureVerificationFailed::withReason('The signature value is not valid base64.');
         }
 
-        $canonical = $this->canonicalizer->canonicalize($signedInfo, $canonicalizationMethod);
+        $canonical = $this->canonicalizer->canonicalize(
+            $signedInfo,
+            $canonicalizationMethod,
+            $inclusivePrefixes === [] ? null : $inclusivePrefixes,
+        );
 
         try {
             return $this->opensslSigner->verify($signerCertificate, $canonical, $expectedSignature, $signatureMethod);

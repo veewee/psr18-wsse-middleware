@@ -69,6 +69,8 @@ final class ReferenceResolver
                 $element,
                 $parsed->digestMethod,
                 $parsed->expectedDigestValueBase64,
+                $parsed->canonicalization,
+                $parsed->inclusivePrefixes,
             );
         }
 

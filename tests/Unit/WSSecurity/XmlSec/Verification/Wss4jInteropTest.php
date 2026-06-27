@@ -1,0 +1,71 @@
+<?php
+declare(strict_types=1);
+
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Verification;
+
+use Dom\Element;
+use PHPUnit\Framework\Attributes\RequiresPhp;
+use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerificationPolicy;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedSignature;
+use VeeWee\Xml\Dom\Document;
+
+/**
+ * Verifies a real Apache WSS4J signed message. WSS4J emits an exclusive-c14n InclusiveNamespaces PrefixList on
+ * the CanonicalizationMethod and on each reference Transform; the verifier must honour those prefixes when it
+ * re-canonicalizes, otherwise the recomputed bytes (and digests) differ from what was signed.
+ */
+#[RequiresPhp('>= 8.4.21')]
+final class Wss4jInteropTest extends TestCase
+{
+    private const SOAP = 'http://www.w3.org/2003/05/soap-envelope';
+    private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
+
+    public function test_it_verifies_a_real_wss4j_signed_message(): void
+    {
+        $document = Document::fromXmlString((string) file_get_contents(
+            __DIR__.'/../../../../fixtures/interop/wss4j-signed.xml',
+        ));
+
+        $result = DefaultEngine::verifier()->verify($document, $this->policy());
+
+        static::assertInstanceOf(VerifiedSignature::class, $result);
+        static::assertTrue($result->signedElements->wasSigned($this->body($document)));
+        static::assertTrue($result->signedElements->wasSigned($this->timestamp($document)));
+        static::assertStringContainsString('java-server', $result->signer->subjectDistinguishedName());
+    }
+
+    private function policy(): VerificationPolicy
+    {
+        return new VerificationPolicy(
+            trustStore: TrustStore::fromCertificates(
+                Certificate::fromFile(__DIR__.'/../../../../fixtures/interop/wss4j-ca.crt'),
+            ),
+            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+            acceptedDigestMethods: [DigestMethod::SHA256],
+            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+        );
+    }
+
+    private function body(Document $document): Element
+    {
+        $body = $document->toUnsafeDocument()->getElementsByTagNameNS(self::SOAP, 'Body')->item(0);
+        static::assertInstanceOf(Element::class, $body);
+
+        return $body;
+    }
+
+    private function timestamp(Document $document): Element
+    {
+        $timestamp = $document->toUnsafeDocument()->getElementsByTagNameNS(self::WSU, 'Timestamp')->item(0);
+        static::assertInstanceOf(Element::class, $timestamp);
+
+        return $timestamp;
+    }
+}

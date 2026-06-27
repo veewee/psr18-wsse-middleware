@@ -5,7 +5,6 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
@@ -58,13 +57,14 @@ final class Verifier implements XmlSignatureVerifier
             $signature,
         );
 
-        $this->verifyDigests($resolved, $signedInfo->canonicalization);
+        $this->verifyDigests($resolved);
 
         if (!$this->signatureValidator->validate(
             $signature,
             $signer->certificate(),
             $signedInfo->signatureMethod,
             $signedInfo->canonicalization,
+            $signedInfo->canonicalizationInclusivePrefixes,
         )) {
             throw SignatureVerificationFailed::withReason('The signature value did not verify.');
         }
@@ -91,10 +91,10 @@ final class Verifier implements XmlSignatureVerifier
     /**
      * @param non-empty-list<ResolvedVerificationReference> $resolved
      */
-    private function verifyDigests(array $resolved, SignatureCanonicalization $canonicalization): void
+    private function verifyDigests(array $resolved): void
     {
         foreach ($resolved as $reference) {
-            if (!$this->digestVerifier->verify($reference, $canonicalization)) {
+            if (!$this->digestVerifier->verify($reference)) {
                 throw SignatureVerificationFailed::withReason('A reference digest did not match.');
             }
         }

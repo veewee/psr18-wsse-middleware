@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\Canonicalizer;
@@ -29,16 +28,18 @@ final class DigestVerifier
      * @throws CanonicalizationFailed when the element cannot be canonicalized (propagated)
      * @throws SignatureVerificationFailed when the expected digest value is not valid base64
      */
-    public function verify(
-        ResolvedVerificationReference $reference,
-        SignatureCanonicalization $canonicalizationMethod,
-    ): bool {
+    public function verify(ResolvedVerificationReference $reference): bool
+    {
         $expected = base64_decode($reference->expectedDigestValueBase64, true);
         if ($expected === false) {
             throw SignatureVerificationFailed::withReason('The digest value is not valid base64.');
         }
 
-        $canonical = $this->canonicalizer->canonicalize($reference->element, $canonicalizationMethod);
+        $canonical = $this->canonicalizer->canonicalize(
+            $reference->element,
+            $reference->canonicalization,
+            $reference->inclusivePrefixes === [] ? null : $reference->inclusivePrefixes,
+        );
         $actual = $this->digest->hash($canonical, $reference->digestMethod);
 
         return $this->digest->equals($expected, $actual);
