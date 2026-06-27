@@ -36,6 +36,8 @@ final class CertificateExtractor
 {
     private const X509V3_VALUE_TYPE
         = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
+    private const BASE64_BINARY_ENCODING_TYPE
+        = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
     private const SUBJECT_KEY_IDENTIFIER_VALUE_TYPE
         = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509SubjectKeyIdentifier';
     private const THUMBPRINT_SHA1_VALUE_TYPE
@@ -111,6 +113,14 @@ final class CertificateExtractor
 
         if ($token->getAttribute('ValueType') !== self::X509V3_VALUE_TYPE) {
             throw SignatureVerificationFailed::withReason('The BinarySecurityToken value type is unsupported.');
+        }
+
+        // The encoding type is optional and defaults to base64; a present declaration must name that encoding,
+        // since the token body is read as base64 regardless. An absent declaration is the conformant default.
+        if ($token->hasAttribute('EncodingType')
+            && $token->getAttribute('EncodingType') !== self::BASE64_BINARY_ENCODING_TYPE
+        ) {
+            throw SignatureVerificationFailed::withReason('The BinarySecurityToken encoding type is unsupported.');
         }
 
         return trim((string) $token->textContent);

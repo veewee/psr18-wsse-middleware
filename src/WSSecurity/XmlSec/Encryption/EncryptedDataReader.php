@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
+use function VeeWee\Xml\Dom\Configurator\disallow_doctype;
 use function VeeWee\Xml\Dom\Manipulator\Node\append_external_node;
 use function VeeWee\Xml\Dom\Manipulator\Node\replace_by_external_node;
 
@@ -129,7 +130,8 @@ final class EncryptedDataReader
     {
         // Wrapping lets a Content-mode payload of several siblings (or mixed text) parse as one document; the
         // wrapper carries no namespace, so the recovered nodes keep the declarations they were serialized with.
-        $fragment = Document::fromXmlString('<fragment>'.$plaintext.'</fragment>');
+        // The plaintext is attacker-influenced, so the re-parse refuses a doctype rather than processing it.
+        $fragment = Document::fromXmlString('<fragment>'.$plaintext.'</fragment>', disallow_doctype());
 
         $nodes = [];
         /** @var Node $node */

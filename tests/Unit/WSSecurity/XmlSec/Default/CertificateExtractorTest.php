@@ -94,6 +94,56 @@ final class CertificateExtractorTest extends TestCase
         $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
     }
 
+    public function test_it_rejects_a_token_with_a_present_but_unsupported_encoding_type(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $base64Der = $fixture->certificateBase64Der($fixture->leafCertificate);
+        $document = $this->document(
+            '<wsse:BinarySecurityToken wsu:Id="SignedToken" ValueType="'.self::X509_TOKEN.'"'
+            .' EncodingType="urn:unsupported-encoding">'.$base64Der.'</wsse:BinarySecurityToken>',
+            '<ds:KeyInfo><wsse:SecurityTokenReference>'
+            .'<wsse:Reference URI="#SignedToken" ValueType="'.self::X509_TOKEN.'"/>'
+            .'</wsse:SecurityTokenReference></ds:KeyInfo>'
+        );
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
+    }
+
+    public function test_it_reads_a_token_with_the_base64_encoding_type_present(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $base64Der = $fixture->certificateBase64Der($fixture->leafCertificate);
+        $base64Encoding = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
+        $document = $this->document(
+            '<wsse:BinarySecurityToken wsu:Id="SignedToken" ValueType="'.self::X509_TOKEN.'"'
+            .' EncodingType="'.$base64Encoding.'">'.$base64Der.'</wsse:BinarySecurityToken>',
+            '<ds:KeyInfo><wsse:SecurityTokenReference>'
+            .'<wsse:Reference URI="#SignedToken" ValueType="'.self::X509_TOKEN.'"/>'
+            .'</wsse:SecurityTokenReference></ds:KeyInfo>'
+        );
+
+        $chain = $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
+
+        static::assertStringContainsString('CERTIFICATE', $chain->leaf()->contents());
+    }
+
+    public function test_it_reads_a_token_with_an_absent_encoding_type(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $base64Der = $fixture->certificateBase64Der($fixture->leafCertificate);
+        $document = $this->document(
+            '<wsse:BinarySecurityToken wsu:Id="SignedToken" ValueType="'.self::X509_TOKEN.'">'.$base64Der.'</wsse:BinarySecurityToken>',
+            '<ds:KeyInfo><wsse:SecurityTokenReference>'
+            .'<wsse:Reference URI="#SignedToken" ValueType="'.self::X509_TOKEN.'"/>'
+            .'</wsse:SecurityTokenReference></ds:KeyInfo>'
+        );
+
+        $chain = $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
+
+        static::assertStringContainsString('CERTIFICATE', $chain->leaf()->contents());
+    }
+
     public function test_it_resolves_a_signer_referenced_by_subject_key_identifier(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();

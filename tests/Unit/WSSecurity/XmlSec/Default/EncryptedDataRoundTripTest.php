@@ -120,6 +120,23 @@ final class EncryptedDataRoundTripTest extends TestCase
         (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), str_repeat("\x05", 32));
     }
 
+    public function test_a_doctype_in_the_decrypted_plaintext_is_rejected(): void
+    {
+        $key = str_repeat("\x08", 32);
+        $document = $this->envelope();
+        $body = $this->body($document);
+
+        // A genuine GCM round-trip whose recovered plaintext carries a DOCTYPE: the cipher recovers it, but the
+        // re-parse of the attacker-influenced fragment must refuse it and collapse to the uniform failure.
+        $plaintext = '<!DOCTYPE x [<!ENTITY a "b">]><a>secret</a>';
+        $cipherText = (new Cipher())->encrypt($plaintext, $key, DataEncryptionMethod::AES256_GCM);
+        $framed = $cipherText->iv.$cipherText->bytes.(string) $cipherText->tag;
+        $this->placeEncryptedData($document, $body, base64_encode($framed), DataEncryptionMethod::AES256_GCM);
+
+        $this->expectException(DecryptionFailed::class);
+        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), $key);
+    }
+
     public function test_bad_cbc_padding_and_wrong_key_share_the_same_failure(): void
     {
         // A corrupted CBC block and a wrong key must both surface one identical exception type and message, so
