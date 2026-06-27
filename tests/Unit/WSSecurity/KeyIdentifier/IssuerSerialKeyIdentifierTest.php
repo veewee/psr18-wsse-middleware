@@ -8,7 +8,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyId
 
 final class IssuerSerialKeyIdentifierTest extends KeyIdentifierTestCase
 {
-    public function test_it_emits_a_key_info_with_issuer_name_and_serial_number(): void
+    public function test_it_emits_a_key_info_with_a_security_token_reference_wrapping_issuer_name_and_serial_number(): void
     {
         $document = $this->document();
         $certificate = $this->certificate();
@@ -20,7 +20,11 @@ final class IssuerSerialKeyIdentifierTest extends KeyIdentifierTestCase
         static::assertSame('KeyInfo', $keyInfo->localName);
         static::assertSame(self::DS, $keyInfo->namespaceURI);
 
-        $x509Data = $this->firstChildElement($keyInfo);
+        $reference = $this->firstChildElement($keyInfo);
+        static::assertSame('SecurityTokenReference', $reference->localName);
+        static::assertSame(self::WSSE, $reference->namespaceURI);
+
+        $x509Data = $this->firstChildElement($reference);
         static::assertSame('X509Data', $x509Data->localName);
         static::assertSame(self::DS, $x509Data->namespaceURI);
 
@@ -36,13 +40,5 @@ final class IssuerSerialKeyIdentifierTest extends KeyIdentifierTestCase
         static::assertSame(self::DS, $serialNumber->namespaceURI);
         static::assertSame($expected['serialNumber'], $serialNumber->textContent);
         static::assertSame('4242', $serialNumber->textContent);
-    }
-
-    public function test_it_does_not_wrap_the_reference_in_a_security_token_reference(): void
-    {
-        $keyInfo = (new IssuerSerialKeyIdentifier(new CertificateFieldExtractor()))
-            ->apply($this->document(), $this->certificate());
-
-        static::assertSame(0, $keyInfo->getElementsByTagNameNS(self::WSSE, 'SecurityTokenReference')->length);
     }
 }

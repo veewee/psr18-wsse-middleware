@@ -8,9 +8,12 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use function Psl\Type\dict;
 use function Psl\Type\non_empty_string;
 use function Psl\Type\optional;
 use function Psl\Type\shape;
+use function Psl\Type\union;
+use function Psl\Type\vec;
 
 /**
  * Extracts the certificate fields that WSSE key-reference strategies embed in ds:KeyInfo. All reads go through
@@ -60,8 +63,8 @@ final class CertificateFieldExtractor
         $info = $this->parse($certificate);
 
         return [
-            'issuerName' => $info['name'],
-            'serialNumber' => $info['serialNumber'],
+            'issuerName' => $this->issuerName($info['issuer']),
+            'serialNumber' => $this->serialNumber($info['serialNumber']),
         ];
     }
 
@@ -96,7 +99,12 @@ final class CertificateFieldExtractor
      * here typed and drops the rest; a CoercionException means a required field is absent, i.e. the certificate
      * is unparseable. The subjectKeyIdentifier extension is optional (present only when the cert carries it).
      *
-     * @return array{name: non-empty-string, serialNumber: non-empty-string, extensions?: array{subjectKeyIdentifier?: non-empty-string}}
+     * @return array{
+     *     name: non-empty-string,
+     *     serialNumber: non-empty-string,
+     *     issuer: array<non-empty-string, non-empty-string|list<non-empty-string>>,
+     *     extensions?: array{subjectKeyIdentifier?: non-empty-string}
+     * }
      */
     private function parse(Certificate $certificate): array
     {
@@ -104,6 +112,10 @@ final class CertificateFieldExtractor
             return shape([
                 'name' => non_empty_string(),
                 'serialNumber' => non_empty_string(),
+                'issuer' => dict(
+                    non_empty_string(),
+                    union(non_empty_string(), vec(non_empty_string())),
+                ),
                 'extensions' => optional(shape([
                     'subjectKeyIdentifier' => optional(non_empty_string()),
                 ])),
@@ -114,5 +126,123 @@ final class CertificateFieldExtractor
         } catch (OpenSslException | CoercionException) {
             throw CryptoOperationFailed::unreadableCertificate();
         }
+    }
+
+    /**
+     * Renders the issuer distinguished name in RFC 2253 form: comma-separated Type=Value relative names with the
+     * most-specific name first, which reverses the order openssl reports. Multi-valued relative names are joined
+     * with a plus sign, and the characters RFC 2253 reserves are escaped.
+     *
+     * @param array<non-empty-string, non-empty-string|list<non-empty-string>> $issuer
+     *
+     * @return non-empty-string
+     */
+    private function issuerName(array $issuer): string
+    {
+        $relativeNames = [];
+        foreach ($issuer as $type => $value) {
+            $values = is_array($value) ? $value : [$value];
+            $pairs = [];
+            foreach ($values as $single) {
+                $pairs[] = $type . '=' . $this->escapeDistinguishedNameValue($single);
+            }
+
+            $relativeNames[] = implode('+', $pairs);
+        }
+
+        $name = implode(',', array_reverse($relativeNames));
+        if ($name === '') {
+            throw CryptoOperationFailed::unreadableCertificate();
+        }
+
+        return $name;
+    }
+
+    /**
+     * Escapes the characters RFC 2253 reserves in an attribute value: the structural separators anywhere in the
+     * value, a leading space or number sign, and a trailing space.
+     */
+    private function escapeDistinguishedNameValue(string $value): string
+    {
+        $escaped = str_replace(
+            ['\\', ',', '+', '"', '<', '>', ';'],
+            ['\\\\', '\\,', '\\+', '\\"', '\\<', '\\>', '\\;'],
+            $value,
+        );
+
+        if (str_starts_with($escaped, ' ') || str_starts_with($escaped, '#')) {
+            $escaped = '\\' . $escaped;
+        }
+
+        if (str_ends_with($escaped, ' ')) {
+            $escaped = substr($escaped, 0, -1) . '\\ ';
+        }
+
+        return $escaped;
+    }
+
+    /**
+     * Normalises the serial number to a decimal integer string. openssl reports the serial in decimal on this
+     * build, but other builds report hexadecimal; both are accepted and serials larger than the platform integer
+     * range are converted with arbitrary precision.
+     *
+     * @param non-empty-string $serialNumber
+     *
+     * @return non-empty-string
+     */
+    private function serialNumber(string $serialNumber): string
+    {
+        if (preg_match('/^\d+$/', $serialNumber) === 1) {
+            return $serialNumber;
+        }
+
+        $hex = str_starts_with($serialNumber, '0x') ? substr($serialNumber, 2) : $serialNumber;
+        if ($hex === '' || preg_match('/^[0-9A-Fa-f]+$/', $hex) !== 1) {
+            throw CryptoOperationFailed::unreadableCertificate();
+        }
+
+        $decimal = $this->hexToDecimal($hex);
+        if ($decimal === '') {
+            throw CryptoOperationFailed::unreadableCertificate();
+        }
+
+        return $decimal;
+    }
+
+    /**
+     * Converts a hexadecimal string to its decimal representation with arbitrary precision, since serial numbers
+     * routinely exceed the platform integer range.
+     */
+    private function hexToDecimal(string $hex): string
+    {
+        if (extension_loaded('gmp')) {
+            return gmp_strval(gmp_init($hex, 16), 10);
+        }
+
+        if (extension_loaded('bcmath')) {
+            $decimal = '0';
+            foreach (str_split($hex) as $digit) {
+                $decimal = bcadd(bcmul($decimal, '16'), (string) hexdec($digit));
+            }
+
+            return $decimal;
+        }
+
+        $decimal = [0];
+        foreach (str_split($hex) as $digit) {
+            $carry = (int) hexdec($digit);
+            foreach ($decimal as $position => $value) {
+                $value = $value * 16 + $carry;
+                $decimal[$position] = $value % 10;
+                $carry = intdiv($value, 10);
+            }
+
+            while ($carry > 0) {
+                $decimal[] = $carry % 10;
+                $carry = intdiv($carry, 10);
+            }
+        }
+
+        return implode('', array_reverse(array_map(strval(...), $decimal)));
     }
 }

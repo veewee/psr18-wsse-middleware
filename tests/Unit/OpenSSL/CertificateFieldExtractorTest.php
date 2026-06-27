@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 
 use OpenSSLAsymmetricKey;
+use OpenSSLCertificate;
+use OpenSSLCertificateSigningRequest;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
@@ -32,12 +34,38 @@ final class CertificateFieldExtractorTest extends TestCase
 
     public function test_it_extracts_the_issuer_name_and_serial_number(): void
     {
-        $certificate = $this->certificateWithSerial(1234567890);
+        $leaf = $this->caSignedLeaf(1234567890);
 
-        $issuerSerial = (new CertificateFieldExtractor())->issuerSerial($certificate);
+        $issuerSerial = (new CertificateFieldExtractor())->issuerSerial($leaf);
 
-        static::assertStringContainsString('CN=field-extractor-test', $issuerSerial['issuerName']);
+        // The issuer name is the CA distinguished name in RFC 2253 form: no leading slash, comma separated,
+        // most-specific RDN first. It must be the issuer (the CA), not the leaf subject.
+        static::assertSame(
+            'CN=Field Extractor Test CA,O=PHPro,C=BE',
+            $issuerSerial['issuerName'],
+        );
+        static::assertStringStartsNotWith('/', $issuerSerial['issuerName']);
+        static::assertStringNotContainsString('Leaf Subject', $issuerSerial['issuerName']);
+
+        // The serial is a decimal integer string, never hex.
         static::assertSame('1234567890', $issuerSerial['serialNumber']);
+        static::assertMatchesRegularExpression('/^\d+$/', $issuerSerial['serialNumber']);
+    }
+
+    public function test_it_renders_a_serial_beyond_the_php_integer_range_as_decimal(): void
+    {
+        if (!extension_loaded('gmp')) {
+            static::markTestSkipped('Minting a certificate with a bignum serial requires the gmp extension.');
+        }
+
+        // A 20-byte serial exceeds the platform integer range and must round-trip without precision loss.
+        $serial = '143266986699850468079199010478798978082';
+        $leaf = $this->caSignedLeaf($serial);
+
+        $issuerSerial = (new CertificateFieldExtractor())->issuerSerial($leaf);
+
+        static::assertSame($serial, $issuerSerial['serialNumber']);
+        static::assertMatchesRegularExpression('/^\d+$/', $issuerSerial['serialNumber']);
     }
 
     public function test_it_extracts_the_sha1_thumbprint_as_base64(): void
@@ -83,11 +111,62 @@ final class CertificateFieldExtractorTest extends TestCase
         return $this->signedCertificate('field-extractor-test', $config, 1);
     }
 
-    private function certificateWithSerial(int $serial): Certificate
+    /**
+     * A leaf certificate signed by a separate CA, so the subject and issuer differ. The CA distinguished name
+     * carries country, organisation and common name so the RFC 2253 ordering and escaping can be asserted.
+     *
+     * @param int|numeric-string $serial
+     */
+    private function caSignedLeaf(int|string $serial): Certificate
     {
-        $config = $this->opensslConfig("[req]\ndistinguished_name = dn\nx509_extensions = v3\n[dn]\n[v3]\nsubjectKeyIdentifier = hash\n");
+        // An empty distinguished-name section keeps the issuer free of the openssl default fields, so the
+        // RFC 2253 ordering can be asserted against exactly the names set here.
+        $config = $this->opensslConfig("[req]\ndistinguished_name = dn\n[dn]\n");
 
-        return $this->signedCertificate('field-extractor-test', $config, $serial);
+        $caKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA] + $config);
+        static::assertInstanceOf(OpenSSLAsymmetricKey::class, $caKey);
+
+        $caCsr = openssl_csr_new(
+            ['countryName' => 'BE', 'organizationName' => 'PHPro', 'commonName' => 'Field Extractor Test CA'],
+            $caKey,
+            $config,
+        );
+        static::assertNotFalse($caCsr);
+
+        $caCert = openssl_csr_sign($caCsr, null, $caKey, 3650, $config + ['digest_alg' => 'sha256']);
+        static::assertNotFalse($caCert);
+
+        $leafKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA] + $config);
+        static::assertInstanceOf(OpenSSLAsymmetricKey::class, $leafKey);
+
+        $leafCsr = openssl_csr_new(['commonName' => 'Leaf Subject'], $leafKey, $config);
+        static::assertNotFalse($leafCsr);
+
+        $leafCert = $this->signLeaf($leafCsr, $caCert, $caKey, $config, $serial);
+
+        static::assertTrue(openssl_x509_export($leafCert, $leafPem));
+        static::assertIsString($leafPem);
+
+        return new Certificate($leafPem);
+    }
+
+    /**
+     * @param array{config: non-empty-string} $config
+     * @param int|numeric-string              $serial
+     */
+    private function signLeaf(OpenSSLCertificateSigningRequest $csr, OpenSSLCertificate $caCert, OpenSSLAsymmetricKey $caKey, array $config, int|string $serial): OpenSSLCertificate
+    {
+        // Serials beyond the platform integer range are passed through the hexadecimal parameter, since the
+        // integer serial argument cannot carry them.
+        if (is_string($serial)) {
+            $cert = openssl_csr_sign($csr, $caCert, $caKey, 365, $config + ['digest_alg' => 'sha256'], 0, gmp_strval(gmp_init($serial, 10), 16));
+        } else {
+            $cert = openssl_csr_sign($csr, $caCert, $caKey, 365, $config + ['digest_alg' => 'sha256'], $serial);
+        }
+
+        static::assertNotFalse($cert);
+
+        return $cert;
     }
 
     private function certificateWithoutSki(): Certificate

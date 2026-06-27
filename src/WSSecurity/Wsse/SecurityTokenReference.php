@@ -92,6 +92,37 @@ final readonly class SecurityTokenReference
         ));
     }
 
+    /**
+     * X509IssuerSerial variant: points at the key by the certificate's issuer DN and serial number,
+     * carried as a ds:X509Data child as required by the WS-Security X.509 token profile.
+     *
+     * @param non-empty-string $issuerName the issuer distinguished name
+     * @param non-empty-string $serialNumber the certificate serial number in decimal
+     */
+    public static function x509IssuerSerial(string $issuerName, string $serialNumber): self
+    {
+        return new self(namespaced_element(
+            WsseNamespace::Ds->value,
+            WsseNamespace::Ds->qualify('X509Data'),
+            children(namespaced_element(
+                WsseNamespace::Ds->value,
+                WsseNamespace::Ds->qualify('X509IssuerSerial'),
+                children(
+                    namespaced_element(
+                        WsseNamespace::Ds->value,
+                        WsseNamespace::Ds->qualify('X509IssuerName'),
+                        value($issuerName),
+                    ),
+                    namespaced_element(
+                        WsseNamespace::Ds->value,
+                        WsseNamespace::Ds->qualify('X509SerialNumber'),
+                        value($serialNumber),
+                    ),
+                ),
+            )),
+        ));
+    }
+
     public function build(Document $document): Element
     {
         return $document->map(namespaced_element(

@@ -83,4 +83,31 @@ final class SecurityTokenReferenceTest extends TestCase
         static::assertSame(self::DS, $keyName->namespaceURI);
         static::assertSame('CN=Service', $keyName->textContent);
     }
+
+    public function test_x509_issuer_serial_variant_emits_a_ds_x509_data_issuer_serial(): void
+    {
+        $str = SecurityTokenReference::x509IssuerSerial('CN=Issuer', '4242')->build($this->document());
+
+        static::assertSame('SecurityTokenReference', $str->localName);
+        static::assertSame(self::WSSE, $str->namespaceURI);
+
+        $x509Data = $this->firstChildElement($str);
+        static::assertSame('X509Data', $x509Data->localName);
+        static::assertSame(self::DS, $x509Data->namespaceURI);
+
+        $issuerSerial = $this->firstChildElement($x509Data);
+        static::assertSame('X509IssuerSerial', $issuerSerial->localName);
+        static::assertSame(self::DS, $issuerSerial->namespaceURI);
+
+        $issuerName = $this->firstChildElement($issuerSerial);
+        static::assertSame('X509IssuerName', $issuerName->localName);
+        static::assertSame(self::DS, $issuerName->namespaceURI);
+        static::assertSame('CN=Issuer', $issuerName->textContent);
+
+        $serialNumber = $issuerSerial->lastElementChild;
+        static::assertInstanceOf(Element::class, $serialNumber);
+        static::assertSame('X509SerialNumber', $serialNumber->localName);
+        static::assertSame(self::DS, $serialNumber->namespaceURI);
+        static::assertSame('4242', $serialNumber->textContent);
+    }
 }
