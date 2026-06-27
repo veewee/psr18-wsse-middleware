@@ -1,6 +1,10 @@
 # SOAP WSSE/WSA Middleware
 
-This package provides the tools you need in order to add WSSE and WSA security to your PSR-18 based SOAP Transport.
+This package adds WSSE (WS-Security) and WSA (WS-Addressing) to your PSR-18 based SOAP transport.
+
+From this major version on, the security engine lives inside this package. It signs, encrypts, decrypts and
+verifies on top of `ext-openssl` and the modern PHP DOM, so you no longer pull in `robrichards/wse-php` or
+`xmlseclibs` at runtime.
 
 # Want to help out? 💚
 
@@ -18,265 +22,141 @@ composer require php-soap/psr18-wsse-middleware
 ```
 
 This package includes the [php-soap/psr18-transport](https://github.com/php-soap/psr18-transport/) package and is meant to be used together with it.
-It is a middleware wrapper for the [wse-php package of robrichards](https://github.com/robrichards/wse-php) package. 
 
-## Usage
+# How it works
 
-### WsaMiddleware
+You secure a message by composing building blocks. There are two lists.
 
-If your remote server expects Web Service Addressing (WSA) headers to be available in your request,
-you can activate this middleware.
-The middleware is a light wrapper that makes it easy to use in your application.
+The **outbound** list runs on the request you send: it can add a timestamp, sign the body, encrypt a part,
+and so on. The **inbound** list runs on the response you get back: it can decrypt it, verify its signature
+and check its timestamp.
 
-In case you need [WSA w3c 2005 based Web Service Addressing](https://www.w3.org/TR/2005/CR-ws-addr-soap-20050817/#soaphttp), you should use WsaMiddleware2005.
+Each block configures itself and comes with secure defaults, so you only spell out what your server asks
+for. The shape follows the [WS-Security panel in SoapUI](https://www.soapui.org/docs/soapui-projects/ws-security/):
+if you have a working SoapUI setup, you can rebuild it here one block at a time.
+
+Presence is behaviour. Add a block and that protection is applied. Leave it out and it isn't. The order of
+the list is the order things happen in.
+
+```php
+use Http\Client\Common\PluginClient;
+use Soap\Psr18Transport\Psr18Transport;
+use Soap\Psr18WsseMiddleware\WsseMiddleware;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+
+$transport = Psr18Transport::createForClient(
+    new PluginClient($yourPsr18Client, [
+        new WsseMiddleware(
+            outbound: [
+                new Outbound\Timestamp(),
+                // ... sign, encrypt, add tokens
+            ],
+            inbound: [
+                // ... decrypt, verify, validate the timestamp
+            ],
+        ),
+    ])
+);
+```
+
+## The blocks
+
+Outbound, for securing the request:
+
+- `Outbound\Timestamp`: stamps the message with a created/expires window so the receiver can reject stale or replayed calls.
+- `Outbound\Username`: adds a username, and optionally a password (plaintext or digested).
+- `Outbound\BinarySecurityToken`: attaches your X.509 certificate so the receiver can find the key that signed the message.
+- `Outbound\Signature`: signs the parts you choose. By default that is the body and the timestamp.
+- `Outbound\Encryption`: encrypts sensitive parts for the recipient.
+- `Outbound\SamlAssertion`: carries a SAML assertion you obtained from an STS.
+
+Inbound, for checking the response:
+
+- `Inbound\Decrypt`: decrypts the encrypted parts of the response with your private key.
+- `Inbound\VerifySignature`: verifies the signature and confirms that the parts you require were signed by a trusted certificate.
+- `Inbound\ValidateTimestamp`: checks the response is fresh, within a clock skew you can configure.
+
+The signing, encryption, decryption and verification blocks are driven by the package's WSSE engine. Today
+those heavier blocks take the engine's services in their constructor; a simpler way to assemble them is
+planned. Until then, the tests under `tests/Unit/WSSecurity` are the most reliable reference for wiring a
+full signing or encryption flow.
+
+## WsaMiddleware
+
+If your server expects WS-Addressing headers, add the WSA middleware. It is one configurable middleware that
+covers both addressing versions, and it defaults to the W3C 2005/08 namespace.
 
 ```php
 use Http\Client\Common\PluginClient;
 use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\WsaMiddleware;
-use Soap\Psr18WsseMiddleware\WsaMiddleware2005;
+use Soap\Psr18WsseMiddleware\Wsa\WsaNamespace;
 
 $transport = Psr18Transport::createForClient(
     new PluginClient($yourPsr18Client, [
         new WsaMiddleware(),
-        // OR
-        new WsaMiddleware2005(),
+        // or pick the addressing version explicitly:
+        new WsaMiddleware(WsaNamespace::W3c200508),
     ])
 );
 ```
 
-### WsseMiddleware
+## Adding a username and password
 
-Oh boy ... WS-Security ... can be a real pain !
-This package aims for being as flexible as possible and provides you the tools you need to correctly configure Web Service Security.
-The components are shaped based on the [WS-Security UI inside SoapUI](https://www.soapui.org/docs/soapui-projects/ws-security/).
-This enables you to configure everything the way your SOAP server wants you to!
-If you have a working config on SoapUI, you can transform it to PHP code by following the entries and their configurations. 
-
-*Usage:*
-
-```php
-use Http\Client\Common\PluginClient;
-use Soap\Psr18Transport\Psr18Transport;
-use Soap\Psr18WsseMiddleware\WsseMiddleware;
-
-$transport = Psr18Transport::createForClient(
-    new PluginClient($yourPsr18Client, [
-        new WsseMiddleware([$entries])
-    ])
-);
-```
-
-The WSSE middleware can be built out of multiple configurable entries:
-
-* BinarySecurityToken
-* Decryption
-* Encryption
-* SamlAssertion
-* Signature
-* Timestamp
-* Username
-
-Underneath, there are some common examples on how to configure the `$wsseMiddleware`.
-
-#### Adding a username and password
-
-Some services require you to add a username and optionally a password.
-This can be done with following middleware.
+Some services just want a username and password:
 
 ```php
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
-use Soap\Psr18WsseMiddleware\WSSecurity\Entry;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
 $wsseMiddleware = new WsseMiddleware(
-    outgoing: [
-        (new Entry\Username($user))
-            ->withPassword('xxx')
-            ->withDigest(false),
-    ]
+    outbound: [
+        new Outbound\Username('your-user', 'your-password'),
+    ],
 );
 ```
 
-### Key stores
+## Key stores
 
-This package provides a couple of `Key` wrappers that can be used to pass private / public keys:
+The package wraps your keys and certificates in small value objects:
 
-* `KeyStore\Certificate`: Contains a public X.509 certificate in PEM format.
-* `KeyStore\Key`: Contains a PKCS_8 private key in PEM format.
-* `KeyStore\ClientCertificate`: Contains both a public X.509 certificate and PKCS_8 private key in PEM format.
-
-Example:
+- `KeyStore\Certificate`: a public X.509 certificate in PEM format.
+- `KeyStore\Key`: a PKCS#8 private key in PEM format.
+- `KeyStore\ClientCertificate`: a certificate and a private key together in one PEM bundle.
 
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 
-$privKey = Key::fromFile('security_token.priv')->withPassphrase('xxx'); // Regular private key (not wrapped in X509)
-$pubKey = Certificate::fromFile('security_token.pub'); // Public X509 cert
+$privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
+$certificate = Certificate::fromFile('security_token.pub');
 
-// or:
-
+// or load both from a single bundle:
 $bundle = ClientCertificate::fromFile('client-certificate.pem')->withPassphrase('xxx');
-$privKey = $bunlde->privateKey();
-$pubKey = $bunlde->publicCertificate();
+$privateKey = $bundle->privateKey();
+$certificate = $bundle->publicCertificate();
 ```
 
-In case of a p12 certificate: convert it to a private key and public X509 certificate first:
+Starting from a `.p12` file? Convert it to a private key and a public certificate first:
 
 ```bash
 openssl pkcs12 -in your.p12 -out security_token.pub -clcerts -nokeys
 openssl pkcs12 -in your.p12 -out security_token.priv -nocerts -nodes
 ```
 
-#### Signing a SOAP request with PKCS12 or X509 certificate.
+## Choosing what to sign and how to reference your key
 
-This is one of the most common implementation of WSS out there.
-You are granted a certificate by the soap service with which you need to fetch data.
+A few value objects let you say which parts to protect and how a token is referenced, without touching the
+engine:
 
-Next, you can configure the middleware like this:
+- `Part::body()`, `Part::timestamp()`, `Part::element($namespace, $localName)` and `Part::byId($id)` name the parts a block targets.
+- `KeyRef` and `EncKeyRef` choose how your certificate is referenced in a signature or encryption: a binary token, a subject key identifier, an issuer and serial, or a thumbprint.
+- `Trust\TrustStore::fromCertificates(...)` lists the certificates you trust when verifying a response.
 
-```php
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\DigestMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\WsseMiddleware;
-use Soap\Psr18WsseMiddleware\WSSecurity\Entry;
+## Settings and secure defaults
 
-$privKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
-$pubKey = Certificate::fromFile('security_token.pub');
-
-$wsseMiddleware = new WsseMiddleware(
-    outgoing: [
-        new Entry\Timestamp(60),
-        new Entry\BinarySecurityToken($pubKey),
-        (new Entry\Signature(
-            $privKey,
-            new KeyIdentifier\BinarySecurityTokenIdentifier()
-        ))
-            ->withSignatureMethod(SignatureMethod::RSA_SHA256)
-            ->withDigestMethod(DigestMethod::SHA256)
-            ->withSignAllHeaders(true)
-            ->withSignBody(true)
-    ]
-);
-```
-
-This example can also be used in combination with signing and username authentication.
-
-#### Authorize a SOAP request with a SAML assertion
-
-Another common implementation is authentication through a WS-Trust compliant STS instance.
-In this case, you first have to fetch a SAML assertion from the STS service.
-Most of them require you to sign the request with a X509 certificate.
-This can be done with the middleware above.
-
-Once you received back your SAML assertion, you have to pass it to the webservice you want to contact.
-A common configuration for passing the SAML assertion might look like this:
-
-```php
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\DigestMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\WsseMiddleware;
-use Soap\Psr18WsseMiddleware\WSSecurity\Entry;
-
-$privKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
-
-// These are provided through the STS service.
-$samlAssertion = new DOMDocument();
-$samlAssertion->loadXML(<<<EOXML
-<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:1.0:assertion" AssertionID="xxxx" />
-EOXML
-);
-$samlAssertionId = $samlAssertion->documentElement->getAttribute('AssertionID');
-
-$wsseMiddleware = new WsseMiddleware(
-    outgoing: [
-        new Entry\Timestamp(60),
-        (new Entry\Signature(
-            $privKey,
-            new KeyIdentifier\SamlKeyIdentifier($samlAssertionId)
-        ))
-            ->withSignatureMethod(SignatureMethod::RSA_SHA256)
-            ->withDigestMethod(DigestMethod::SHA256)
-            ->withSignAllHeaders(true)
-            ->withSignBody(true)
-            ->withInsertBefore(false),
-        new Entry\SamlAssertion($samlAssertion),
-    ]
-);
-```
-
-#### Encrypt sensitive data
-
-Some services require you to encrypt sensitive parts of the request and decrypt sensitive parts of the response.
-In this case, you can add your public key to the request, encrypt the payload and send it over the wire.
-Incoming responses will be encrypted with your public key and kan be decrypted by using your private key.
-
-
-Encryption contains a [known bug](https://github.com/robrichards/wse-php/pull/67) in the underlying [robrichards/wse-php](https://github.com/robrichards/wse-php) library.
-Since a fix has not been merged yet, you can apply a patch like this:
-
-```bash
-composer require --dev cweagans/composer-patches
-```
-
-```json
-{
-  "extra": {
-    "patches": {
-      "robrichards/wse-php": {
-        "Fix encryption bug": "https://patch-diff.githubusercontent.com/raw/robrichards/wse-php/pull/67.diff"
-      }
-    }
-  }
-}
-```
-
-The configuration for encryption looks like this:
-
-```php
-use Soap\Psr18WsseMiddleware\WSSecurity\DataEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\DigestMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\WsseMiddleware;
-use Soap\Psr18WsseMiddleware\WSSecurity\Entry;
-
-$privKey = Key::fromFile('security_token.priv')->withPassphrase('xxx'); // Private key
-$pubKey = Certificate::fromFile('security_token.pub'); // Public X509 cert
-$signKey = Certificate::fromFile('sign-key.pem'); // X509 cert for signing. Could be the same as $pubKey.
-
-$wsseMiddleware = new WsseMiddleware(
-    outgoing: [
-        new Entry\Timestamp(60),
-        new Entry\BinarySecurityToken($pubKey),
-        (new Entry\Signature(
-            $privKey,
-            new KeyIdentifier\BinarySecurityTokenIdentifier()
-        ))
-        (new Entry\Encryption(
-            $signKey,
-            new KeyIdentifier\X509SubjectKeyIdentifier($signKey)
-        ))
-            ->withKeyEncryptionMethod(KeyEncryptionMethod::RSA_OAEP_MGF1P)
-            ->withDataEncryptionMethod(DataEncryptionMethod::AES256_CBC)
-            
-            //Per Default the Signature gets Encrypted too. To Disable Encryption of the Signature you can add the following. 
-            ->withEncryptSignature(false)
-    ],
-    incoming: [
-        new Entry\Decryption($privKey)
-    ]
-);
-```
-
-Note: Encryption only can also be done without adding a signature.
+Every block falls back to a safe default and lets you override only what you need. It looks at the per-block
+setting first, then a shared `SecurityProfile`, then the package default. Those defaults reject weak
+algorithms such as SHA-1 and 3DES, and use SHA-256 with exclusive canonicalization.
