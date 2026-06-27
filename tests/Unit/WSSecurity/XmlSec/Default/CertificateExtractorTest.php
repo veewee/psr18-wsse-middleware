@@ -5,14 +5,28 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Default;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\CertificateExtractor;
 use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
+/**
+ * Covers the inbound CertificateExtractor: it reads the two forms that carry the certificate in the message (a
+ * BST direct reference and an inline ds:X509Certificate), and resolves the three forms that name the certificate
+ * by identifier (Subject Key Identifier, SHA-1 thumbprint, IssuerSerial) against the verifier's trust store. A
+ * reference to a certificate the trust store does not hold is refused, and an ambiguous match is refused.
+ */
 final class CertificateExtractorTest extends TestCase
 {
     private const X509_TOKEN = WsseSignatureFixture::X509_TOKEN;
+    private const WSSE11 = 'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd';
 
     public function test_it_reads_the_certificate_from_a_referenced_binary_security_token(): void
     {
@@ -25,7 +39,7 @@ final class CertificateExtractorTest extends TestCase
             .'</wsse:SecurityTokenReference></ds:KeyInfo>'
         );
 
-        $chain = (new CertificateExtractor())->extract($document, $this->signature($document));
+        $chain = $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
 
         static::assertStringContainsString('CERTIFICATE', $chain->leaf()->contents());
     }
@@ -39,7 +53,7 @@ final class CertificateExtractorTest extends TestCase
             '<ds:KeyInfo><ds:X509Data><ds:X509Certificate>'.$base64Der.'</ds:X509Certificate></ds:X509Data></ds:KeyInfo>'
         );
 
-        $chain = (new CertificateExtractor())->extract($document, $this->signature($document));
+        $chain = $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
 
         static::assertStringContainsString('CERTIFICATE', $chain->leaf()->contents());
     }
@@ -49,7 +63,7 @@ final class CertificateExtractorTest extends TestCase
         $document = $this->document('', '');
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new CertificateExtractor())->extract($document, $this->signature($document));
+        $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
     }
 
     public function test_it_rejects_a_reference_to_a_missing_token(): void
@@ -62,22 +76,7 @@ final class CertificateExtractorTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new CertificateExtractor())->extract($document, $this->signature($document));
-    }
-
-    public function test_it_rejects_a_certificate_named_by_identifier(): void
-    {
-        // A SecurityTokenReference > KeyIdentifier (SKI / thumbprint) names the cert without carrying it.
-        $document = $this->document(
-            '',
-            '<ds:KeyInfo><wsse:SecurityTokenReference>'
-            .'<wsse:KeyIdentifier ValueType="http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1">'
-            .base64_encode('thumbprint').'</wsse:KeyIdentifier>'
-            .'</wsse:SecurityTokenReference></ds:KeyInfo>'
-        );
-
-        $this->expectException(SignatureVerificationFailed::class);
-        (new CertificateExtractor())->extract($document, $this->signature($document));
+        $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
     }
 
     public function test_it_rejects_a_token_with_an_unsupported_value_type(): void
@@ -92,7 +91,120 @@ final class CertificateExtractorTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new CertificateExtractor())->extract($document, $this->signature($document));
+        $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
+    }
+
+    public function test_it_resolves_a_signer_referenced_by_subject_key_identifier(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $this->withKeyInfo(
+            new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
+            $fixture->leafCertificate,
+        );
+
+        $chain = $this->extractor()->extract(
+            $document,
+            $this->signature($document),
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+        );
+
+        static::assertSame($this->base64Der($fixture->leafCertificate), $this->base64Der($chain->leaf()));
+    }
+
+    public function test_it_resolves_a_signer_referenced_by_sha1_thumbprint(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $this->withKeyInfo(
+            new ThumbprintKeyIdentifier(new CertificateFieldExtractor()),
+            $fixture->leafCertificate,
+        );
+
+        $chain = $this->extractor()->extract(
+            $document,
+            $this->signature($document),
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+        );
+
+        static::assertSame($this->base64Der($fixture->leafCertificate), $this->base64Der($chain->leaf()));
+    }
+
+    public function test_it_resolves_a_signer_referenced_by_issuer_and_serial(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $this->withKeyInfo(
+            new IssuerSerialKeyIdentifier(new CertificateFieldExtractor()),
+            $fixture->leafCertificate,
+        );
+
+        // A second, unrelated trust anchor has a different issuer DN, so the issuer-serial match stays unique.
+        $other = WsseSignatureFixture::selfSignedLeaf();
+
+        $chain = $this->extractor()->extract(
+            $document,
+            $this->signature($document),
+            TrustStore::fromCertificates($other->caCertificate, $fixture->leafCertificate),
+        );
+
+        static::assertSame($this->base64Der($fixture->leafCertificate), $this->base64Der($chain->leaf()));
+    }
+
+    public function test_it_refuses_an_identifier_reference_to_a_certificate_not_in_the_trust_store(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $this->withKeyInfo(
+            new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
+            $fixture->leafCertificate,
+        );
+
+        // The trust store holds only the CA, not the signer leaf, so the identifier cannot be resolved.
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->extractor()->extract(
+            $document,
+            $this->signature($document),
+            TrustStore::fromCertificates($fixture->caCertificate),
+        );
+    }
+
+    public function test_it_refuses_an_ambiguous_subject_key_identifier_match(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $this->withKeyInfo(
+            new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
+            $fixture->leafCertificate,
+        );
+
+        // Two trust-store entries with the same identifier make the reference ambiguous.
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->extractor()->extract(
+            $document,
+            $this->signature($document),
+            TrustStore::fromCertificates($fixture->leafCertificate, $fixture->leafCertificate),
+        );
+    }
+
+    private function extractor(): CertificateExtractor
+    {
+        return new CertificateExtractor(new CertificateFieldExtractor());
+    }
+
+    /**
+     * Builds an envelope whose ds:Signature carries a ds:KeyInfo produced by the given outbound key-identifier
+     * strategy for the given certificate, the form a conformant peer emits when it names the signer by identifier.
+     */
+    private function withKeyInfo(KeyIdentifier $strategy, Certificate $certificate): Document
+    {
+        $document = $this->document('', '<ds:KeyInfoPlaceholder/>');
+        $native = $document->toUnsafeDocument();
+
+        $signature = $native->getElementsByTagNameNS(WsseSignatureFixture::DS, 'Signature')->item(0);
+        static::assertInstanceOf(Element::class, $signature);
+        $placeholder = $native->getElementsByTagNameNS(WsseSignatureFixture::DS, 'KeyInfoPlaceholder')->item(0);
+        static::assertInstanceOf(Element::class, $placeholder);
+
+        $keyInfo = $strategy->apply($document, $certificate);
+        $signature->replaceChild($keyInfo, $placeholder);
+
+        return $document;
     }
 
     private function document(string $token, string $keyInfo): Document
@@ -101,6 +213,7 @@ final class CertificateExtractorTest extends TestCase
             '<soap:Envelope'
             .' xmlns:soap="'.WsseSignatureFixture::SOAP.'"'
             .' xmlns:wsse="'.WsseSignatureFixture::WSSE.'"'
+            .' xmlns:wsse11="'.self::WSSE11.'"'
             .' xmlns:wsu="'.WsseSignatureFixture::WSU.'"'
             .' xmlns:ds="'.WsseSignatureFixture::DS.'">'
             .'<soap:Header><wsse:Security>'
@@ -118,5 +231,13 @@ final class CertificateExtractorTest extends TestCase
         static::assertInstanceOf(Element::class, $signature);
 
         return $signature;
+    }
+
+    private function base64Der(Certificate $certificate): string
+    {
+        $body = preg_replace('/-----(BEGIN|END) CERTIFICATE-----|\s+/', '', $certificate->contents());
+        static::assertIsString($body);
+
+        return $body;
     }
 }

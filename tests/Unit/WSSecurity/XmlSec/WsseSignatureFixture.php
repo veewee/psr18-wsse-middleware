@@ -18,6 +18,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\KeyInfoBuilder;
@@ -111,6 +112,7 @@ final class WsseSignatureFixture
         bool $withTimestamp = false,
         SignatureMethod $signatureMethod = SignatureMethod::RSA_SHA256,
         DigestMethod $digestMethod = DigestMethod::SHA256,
+        ?KeyIdentifier $keyIdentifier = null,
     ): Document {
         $document = $this->envelope($withTimestamp);
 
@@ -118,7 +120,7 @@ final class WsseSignatureFixture
             parts: $parts,
             signingKey: KeyHandle::for($this->leafKey),
             signingCertificate: $this->leafCertificate,
-            keyIdentifier: new DirectReferenceKeyIdentifier(self::BST_ID, self::X509_TOKEN),
+            keyIdentifier: $keyIdentifier ?? new DirectReferenceKeyIdentifier(self::BST_ID, self::X509_TOKEN),
             signatureMethod: $signatureMethod,
             digestMethod: $digestMethod,
             canonicalization: SignatureCanonicalization::EXC_C14N,

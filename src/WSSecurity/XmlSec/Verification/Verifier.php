@@ -47,7 +47,7 @@ final class Verifier implements XmlSignatureVerifier
 
         $this->policyEnforcer->enforce($policy, $signedInfo);
 
-        $chain = $this->certificateExtractor->extract($document, $signature);
+        $chain = $this->certificateExtractor->extract($document, $signature, $policy->trustStore);
         $signer = $this->establishTrust($chain, $policy);
 
         $resolved = $this->referenceResolver->resolve(

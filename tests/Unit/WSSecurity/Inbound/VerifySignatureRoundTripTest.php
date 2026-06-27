@@ -5,8 +5,10 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -58,4 +60,20 @@ final class VerifySignatureRoundTripTest extends TestCase
         ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
     }
 
+    public function test_it_verifies_a_signer_referenced_by_subject_key_identifier(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        // The message names the signer by its Subject Key Identifier and carries no certificate; the verifier
+        // must resolve it from the trust store, which holds the CA and the signer leaf.
+        $document = $fixture->sign(
+            [Part::body()],
+            keyIdentifier: new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
+        );
+
+        $this->expectNotToPerformAssertions();
+        (new VerifySignature(
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+            signed: [Part::body()],
+        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+    }
 }
