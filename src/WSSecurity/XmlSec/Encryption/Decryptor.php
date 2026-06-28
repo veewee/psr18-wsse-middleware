@@ -42,7 +42,7 @@ final class Decryptor implements XmlDecryptor
                 throw DecryptionFailed::withReason('The message declares too many encrypted parts.');
             }
 
-            $unwrapped = $this->encryptedKeyReader->read($document, $this->privateKey($request));
+            $unwrapped = $this->encryptedKeyReader->read($document, $this->privateKey($request), $request->profile);
 
             foreach ($references as $id) {
                 $element = EncryptedDataResolver::resolve($document, $id);

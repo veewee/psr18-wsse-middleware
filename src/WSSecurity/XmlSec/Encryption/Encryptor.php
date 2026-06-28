@@ -69,7 +69,7 @@ final class Encryptor implements XmlEncryptor
             $wrappedKey = $this->keyTransport->wrap(
                 $sessionKey,
                 $this->recipientCertificate($request),
-                $request->keyEncryptionMethod,
+                $request->keyTransportAlgorithm,
             );
 
             $encryptedKey = $this->encryptedKeyBuilder->build(
@@ -77,7 +77,7 @@ final class Encryptor implements XmlEncryptor
                 $wrappedKey,
                 $request->keyIdentifier,
                 $this->recipientCertificate($request),
-                $request->keyEncryptionMethod,
+                $request->keyTransportAlgorithm,
                 $partIds,
             );
 

@@ -8,7 +8,7 @@ use LogicException;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
@@ -60,7 +60,7 @@ final class SpiContractTest extends TestCase
             recipientCertificate: $recipient,
             keyIdentifier: $this->keyIdentifier(),
             dataEncryptionMethod: DataEncryptionMethod::AES256_GCM,
-            keyEncryptionMethod: KeyEncryptionMethod::RSA_OAEP,
+            keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha1(),
         );
 
         static::assertSame([$part], $request->parts);

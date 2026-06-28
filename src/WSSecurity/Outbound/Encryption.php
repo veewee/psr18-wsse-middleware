@@ -6,6 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
@@ -48,6 +49,7 @@ final class Encryption implements OutboundAction
 
     private ?DataEncryptionMethod $dataEncryptionMethod = null;
     private ?KeyEncryptionMethod $keyEncryptionMethod = null;
+    private ?KeyTransportAlgorithm $keyTransportAlgorithm = null;
 
     private readonly XmlEncryptor $encryptor;
 
@@ -78,10 +80,26 @@ final class Encryption implements OutboundAction
         return $clone;
     }
 
+    /**
+     * Overrides only the key-encryption method; the OAEP hash is resolved from the profile (or its default) at
+     * apply time. For a method paired with a specific hash, use withKeyTransportAlgorithm.
+     */
     public function withKeyEncryptionMethod(KeyEncryptionMethod $method): self
     {
         $clone = clone $this;
         $clone->keyEncryptionMethod = $method;
+
+        return $clone;
+    }
+
+    /**
+     * Overrides the whole key-transport choice atomically: an invalid method/hash pairing cannot be expressed,
+     * and this override wins over withKeyEncryptionMethod and the profile.
+     */
+    public function withKeyTransportAlgorithm(KeyTransportAlgorithm $algorithm): self
+    {
+        $clone = clone $this;
+        $clone->keyTransportAlgorithm = $algorithm;
 
         return $clone;
     }
@@ -99,12 +117,17 @@ final class Encryption implements OutboundAction
         $keyIdentifier = $this->resolveKeyIdentifier($context);
         $profile = $context->profile();
 
+        $keyTransportAlgorithm = $this->keyTransportAlgorithm ?? KeyTransportAlgorithm::fromMethod(
+            $this->keyEncryptionMethod ?? $profile->keyEncryptionMethod(),
+            $profile->oaepHash(),
+        );
+
         $request = new EncryptionRequest(
             parts: $this->parts ?? [Part::body()],
             recipientCertificate: KeyHandle::for($this->recipientCertificate),
             keyIdentifier: $keyIdentifier,
             dataEncryptionMethod: $this->dataEncryptionMethod ?? $profile->dataEncryptionMethod(),
-            keyEncryptionMethod: $this->keyEncryptionMethod ?? $profile->keyEncryptionMethod(),
+            keyTransportAlgorithm: $keyTransportAlgorithm,
         );
 
         $this->encryptor->encrypt($document, $request);

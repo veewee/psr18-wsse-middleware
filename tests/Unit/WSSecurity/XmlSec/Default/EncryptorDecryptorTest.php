@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
@@ -301,7 +301,7 @@ final class EncryptorDecryptorTest extends TestCase
             recipientCertificate: KeyHandle::for($certificate),
             keyIdentifier: new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
             dataEncryptionMethod: $method,
-            keyEncryptionMethod: KeyEncryptionMethod::RSA_OAEP_MGF1P,
+            keyTransportAlgorithm: KeyTransportAlgorithm::legacyMgf1p(),
         );
     }
 

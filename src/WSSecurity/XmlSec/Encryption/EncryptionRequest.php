@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
@@ -23,7 +23,7 @@ final readonly class EncryptionRequest
         public KeyHandle $recipientCertificate,
         public KeyIdentifier $keyIdentifier,
         public DataEncryptionMethod $dataEncryptionMethod,
-        public KeyEncryptionMethod $keyEncryptionMethod,
+        public KeyTransportAlgorithm $keyTransportAlgorithm,
     ) {
     }
 }

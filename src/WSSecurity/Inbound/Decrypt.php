@@ -38,7 +38,7 @@ final class Decrypt implements InboundAction
     public function __invoke(WsseContext $context): void
     {
         try {
-            $this->decryptor->decrypt($context->document(), new DecryptionRequest($this->privateKey));
+            $this->decryptor->decrypt($context->document(), new DecryptionRequest($this->privateKey, $context->profile()));
         } catch (DecryptionFailed $exception) {
             throw SecurityFault::inboundFailure($exception);
         }

@@ -13,6 +13,7 @@ enum WsseNamespace: string
     case Wsse11 = 'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd';
     case Ds = 'http://www.w3.org/2000/09/xmldsig#';
     case Xenc = 'http://www.w3.org/2001/04/xmlenc#';
+    case Xenc11 = 'http://www.w3.org/2009/xmlenc11#';
 
     public function prefix(): string
     {
@@ -22,6 +23,7 @@ enum WsseNamespace: string
             self::Wsse11 => 'wsse11',
             self::Ds => 'ds',
             self::Xenc => 'xenc',
+            self::Xenc11 => 'xenc11',
         };
     }
 

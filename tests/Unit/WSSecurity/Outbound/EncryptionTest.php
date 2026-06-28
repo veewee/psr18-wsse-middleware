@@ -15,6 +15,8 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
@@ -54,7 +56,8 @@ final class EncryptionTest extends OutboundTestCase
 
         $request = $encryptor->lastRequest();
         static::assertSame(DataEncryptionMethod::AES256_GCM, $request->dataEncryptionMethod);
-        static::assertSame(KeyEncryptionMethod::RSA_OAEP, $request->keyEncryptionMethod);
+        static::assertSame(KeyEncryptionMethod::RSA_OAEP, $request->keyTransportAlgorithm->method);
+        static::assertSame(OaepHash::Sha1, $request->keyTransportAlgorithm->oaepHash);
     }
 
     public function test_a_per_block_data_encryption_override_wins(): void
@@ -74,7 +77,62 @@ final class EncryptionTest extends OutboundTestCase
             ->withKeyEncryptionMethod(KeyEncryptionMethod::RSA_OAEP_MGF1P);
         $block($this->context($this->plainEnvelope()));
 
-        static::assertSame(KeyEncryptionMethod::RSA_OAEP_MGF1P, $encryptor->lastRequest()->keyEncryptionMethod);
+        static::assertSame(KeyEncryptionMethod::RSA_OAEP_MGF1P, $encryptor->lastRequest()->keyTransportAlgorithm->method);
+    }
+
+    public function test_an_atomic_key_transport_override_wins(): void
+    {
+        $encryptor = new RecordingEncryptor();
+        $block = (new Encryption($this->recipientCertificate(), $encryptor))
+            ->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
+        $block($this->context($this->plainEnvelope()));
+
+        $algorithm = $encryptor->lastRequest()->keyTransportAlgorithm;
+        static::assertSame(KeyEncryptionMethod::RSA_OAEP, $algorithm->method);
+        static::assertSame(OaepHash::Sha256, $algorithm->oaepHash);
+    }
+
+    public function test_an_rsa_1_5_transport_carries_a_null_oaep_hash(): void
+    {
+        $encryptor = new RecordingEncryptor();
+        $block = (new Encryption($this->recipientCertificate(), $encryptor))
+            ->withKeyTransportAlgorithm(KeyTransportAlgorithm::rsa1_5());
+        $block($this->context($this->plainEnvelope()));
+
+        $algorithm = $encryptor->lastRequest()->keyTransportAlgorithm;
+        static::assertSame(KeyEncryptionMethod::RSA_1_5, $algorithm->method);
+        static::assertNull($algorithm->oaepHash);
+    }
+
+    public function test_a_context_profile_drives_the_outbound_oaep_hash(): void
+    {
+        $encryptor = new RecordingEncryptor();
+        $profile = new SecurityProfile(oaepHash: OaepHash::Sha256);
+        (new Encryption($this->recipientCertificate(), $encryptor))($this->context($this->plainEnvelope(), $profile));
+
+        static::assertSame(OaepHash::Sha256, $encryptor->lastRequest()->keyTransportAlgorithm->oaepHash);
+    }
+
+    public function test_it_encrypts_with_oaep_sha256_and_round_trips_through_the_engine_decryptor(): void
+    {
+        [$key, $certificate] = $this->keyAndCertificate();
+        $document = $this->envelopeWithSecurity();
+        $originalBody = $document->stringifyNode($this->only($document, self::SOAP12, 'Body'));
+
+        $block = (new Encryption($certificate, $this->realEncryptor()))->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
+        $block($this->context($document));
+
+        // The xenc:EncryptionMethod carries explicit SHA-256 digest and MGF children.
+        $encryptedKey = $this->only($document, self::XENC, 'EncryptedKey');
+        $method = $encryptedKey->getElementsByTagNameNS(self::XENC, 'EncryptionMethod')->item(0);
+        static::assertInstanceOf(Element::class, $method);
+        static::assertSame(1, $method->getElementsByTagNameNS('http://www.w3.org/2009/xmlenc11#', 'MGF')->count());
+
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher())))
+            ->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+
+        static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
+        static::assertSame($originalBody, $document->stringifyNode($this->only($document, self::SOAP12, 'Body')));
     }
 
     public function test_a_context_profile_overrides_the_default(): void
@@ -93,6 +151,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertNotSame($original, $original->withParts([Part::timestamp()]));
         static::assertNotSame($original, $original->withDataEncryptionMethod(DataEncryptionMethod::AES128_CBC));
         static::assertNotSame($original, $original->withKeyEncryptionMethod(KeyEncryptionMethod::RSA_OAEP_MGF1P));
+        static::assertNotSame($original, $original->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256()));
     }
 
     public function test_the_default_part_is_the_body_only(): void
@@ -123,7 +182,7 @@ final class EncryptionTest extends OutboundTestCase
         $encryptor = new RecordingEncryptor();
         (new Encryption($this->recipientCertificate(), $encryptor))($this->context($this->plainEnvelope()));
 
-        static::assertNotSame(KeyEncryptionMethod::RSA_1_5, $encryptor->lastRequest()->keyEncryptionMethod);
+        static::assertNotSame(KeyEncryptionMethod::RSA_1_5, $encryptor->lastRequest()->keyTransportAlgorithm->method);
     }
 
     /**

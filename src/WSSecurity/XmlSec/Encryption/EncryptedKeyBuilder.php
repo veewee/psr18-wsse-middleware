@@ -4,7 +4,8 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
@@ -39,7 +40,7 @@ final class EncryptedKeyBuilder
         string $wrappedKey,
         KeyIdentifier $keyIdentifier,
         Certificate $recipientCertificate,
-        KeyEncryptionMethod $keyEncryptionMethod,
+        KeyTransportAlgorithm $keyTransportAlgorithm,
         array $encryptedPartIds,
     ): Element {
         $keyInfo = $keyIdentifier->apply($document, $recipientCertificate);
@@ -48,11 +49,7 @@ final class EncryptedKeyBuilder
             WsseNamespace::Xenc->value,
             WsseNamespace::Xenc->qualify('EncryptedKey'),
             children(
-                static fn (): Element => $document->map(namespaced_element(
-                    WsseNamespace::Xenc->value,
-                    WsseNamespace::Xenc->qualify('EncryptionMethod'),
-                    attribute('Algorithm', $keyEncryptionMethod->value),
-                )),
+                fn (): Element => $this->buildEncryptionMethod($document, $keyTransportAlgorithm),
                 static fn (): Element => $keyInfo,
                 static fn (): Element => $document->map(namespaced_element(
                     WsseNamespace::Xenc->value,
@@ -66,6 +63,38 @@ final class EncryptedKeyBuilder
                     ),
                 )),
                 fn (): Element => $this->buildReferenceList($document, $encryptedPartIds),
+            ),
+        ));
+    }
+
+    private function buildEncryptionMethod(Document $document, KeyTransportAlgorithm $algorithm): Element
+    {
+        // SHA-1 OAEP carries no DigestMethod / MGF children: the spec defaults are SHA-1 / MGF1-SHA1, so a bare
+        // EncryptionMethod stays byte-identical to peers and to prior output. SHA-256 is declared explicitly.
+        $oaepHash = $algorithm->oaepHash;
+        if (!$algorithm->isOaep() || $oaepHash === null || $oaepHash === OaepHash::Sha1) {
+            return $document->map(namespaced_element(
+                WsseNamespace::Xenc->value,
+                WsseNamespace::Xenc->qualify('EncryptionMethod'),
+                attribute('Algorithm', $algorithm->method->value),
+            ));
+        }
+
+        return $document->map(namespaced_element(
+            WsseNamespace::Xenc->value,
+            WsseNamespace::Xenc->qualify('EncryptionMethod'),
+            attribute('Algorithm', $algorithm->method->value),
+            children(
+                static fn (): Element => $document->map(namespaced_element(
+                    WsseNamespace::Ds->value,
+                    WsseNamespace::Ds->qualify('DigestMethod'),
+                    attribute('Algorithm', $oaepHash->digestMethod()->value),
+                )),
+                static fn (): Element => $document->map(namespaced_element(
+                    WsseNamespace::Xenc11->value,
+                    WsseNamespace::Xenc11->qualify('MGF'),
+                    attribute('Algorithm', $oaepHash->mgfUri()),
+                )),
             ),
         ));
     }

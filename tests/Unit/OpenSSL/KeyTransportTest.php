@@ -8,35 +8,36 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 
 final class KeyTransportTest extends TestCase
 {
     /**
-     * @return array<string, array{0: KeyEncryptionMethod}>
+     * @return array<string, array{0: KeyTransportAlgorithm}>
      */
     public static function methods(): array
     {
         return [
-            'oaep-mgf1p' => [KeyEncryptionMethod::RSA_OAEP_MGF1P],
-            'oaep-xmlenc11' => [KeyEncryptionMethod::RSA_OAEP],
-            'rsa-1_5' => [KeyEncryptionMethod::RSA_1_5],
+            'oaep-mgf1p' => [KeyTransportAlgorithm::legacyMgf1p()],
+            'oaep-sha1' => [KeyTransportAlgorithm::oaepSha1()],
+            'oaep-sha256' => [KeyTransportAlgorithm::oaepSha256()],
+            'rsa-1_5' => [KeyTransportAlgorithm::rsa1_5()],
         ];
     }
 
     #[DataProvider('methods')]
-    public function test_it_wraps_and_unwraps_a_session_key(KeyEncryptionMethod $method): void
+    public function test_it_wraps_and_unwraps_a_session_key(KeyTransportAlgorithm $algorithm): void
     {
         $transport = new KeyTransport();
         [$private, $certificate] = $this->keyAndCertificate();
         $sessionKey = random_bytes(32);
 
-        $wrapped = $transport->wrap($sessionKey, $certificate, $method);
+        $wrapped = $transport->wrap($sessionKey, $certificate, $algorithm);
 
         static::assertNotSame($sessionKey, $wrapped);
-        static::assertSame($sessionKey, $transport->unwrap($wrapped, $private, $method));
+        static::assertSame($sessionKey, $transport->unwrap($wrapped, $private, $algorithm));
     }
 
     public function test_unwrap_failures_are_uniform_regardless_of_padding(): void
@@ -48,16 +49,18 @@ final class KeyTransportTest extends TestCase
         // Bleichenbacher nature) and would spuriously "succeed" here.
         $garbage = random_bytes(512);
 
-        $oaep = $this->captureFailureMessage($transport, $garbage, $private, KeyEncryptionMethod::RSA_OAEP);
-        $pkcs1 = $this->captureFailureMessage($transport, $garbage, $private, KeyEncryptionMethod::RSA_1_5);
+        $oaepSha1 = $this->captureFailureMessage($transport, $garbage, $private, KeyTransportAlgorithm::oaepSha1());
+        $oaepSha256 = $this->captureFailureMessage($transport, $garbage, $private, KeyTransportAlgorithm::oaepSha256());
+        $pkcs1 = $this->captureFailureMessage($transport, $garbage, $private, KeyTransportAlgorithm::rsa1_5());
 
-        static::assertSame($oaep, $pkcs1);
+        static::assertSame($oaepSha1, $pkcs1);
+        static::assertSame($oaepSha256, $pkcs1);
     }
 
-    private function captureFailureMessage(KeyTransport $transport, string $wrapped, Key $private, KeyEncryptionMethod $method): string
+    private function captureFailureMessage(KeyTransport $transport, string $wrapped, Key $private, KeyTransportAlgorithm $algorithm): string
     {
         try {
-            $transport->unwrap($wrapped, $private, $method);
+            $transport->unwrap($wrapped, $private, $algorithm);
         } catch (CryptoOperationFailed $exception) {
             return $exception->getMessage();
         }

@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
@@ -187,7 +187,7 @@ final class DecryptRoundTripTest extends TestCase
             recipientCertificate: KeyHandle::for($certificate),
             keyIdentifier: new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
             dataEncryptionMethod: DataEncryptionMethod::AES256_GCM,
-            keyEncryptionMethod: KeyEncryptionMethod::RSA_OAEP_MGF1P,
+            keyTransportAlgorithm: KeyTransportAlgorithm::legacyMgf1p(),
         );
     }
 

@@ -6,6 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 
@@ -25,12 +26,15 @@ final class SecurityProfile
     private readonly array $acceptedKeyEncryptionMethods;
     /** @var list<DataEncryptionMethod> */
     private readonly array $acceptedDataEncryptionMethods;
+    /** @var list<OaepHash> */
+    private readonly array $acceptedOaepHashes;
 
     /**
      * @param list<SignatureMethod>|null      $acceptedSignatureMethods
      * @param list<DigestMethod>|null         $acceptedDigestMethods
      * @param list<KeyEncryptionMethod>|null  $acceptedKeyEncryptionMethods
      * @param list<DataEncryptionMethod>|null $acceptedDataEncryptionMethods
+     * @param list<OaepHash>|null             $acceptedOaepHashes
      */
     public function __construct(
         private readonly int $timestampTtl = 300,
@@ -40,10 +44,12 @@ final class SecurityProfile
         private readonly SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N,
         private readonly DataEncryptionMethod $dataEncryptionMethod = DataEncryptionMethod::AES256_GCM,
         private readonly KeyEncryptionMethod $keyEncryptionMethod = KeyEncryptionMethod::RSA_OAEP,
+        private readonly OaepHash $oaepHash = OaepHash::Sha1,
         ?array $acceptedSignatureMethods = null,
         ?array $acceptedDigestMethods = null,
         ?array $acceptedKeyEncryptionMethods = null,
         ?array $acceptedDataEncryptionMethods = null,
+        ?array $acceptedOaepHashes = null,
     ) {
         $this->acceptedSignatureMethods = $acceptedSignatureMethods ?? [
             SignatureMethod::RSA_SHA256,
@@ -69,6 +75,10 @@ final class SecurityProfile
             DataEncryptionMethod::AES128_CBC,
             DataEncryptionMethod::AES192_CBC,
             DataEncryptionMethod::AES256_CBC,
+        ];
+        $this->acceptedOaepHashes = $acceptedOaepHashes ?? [
+            OaepHash::Sha1,
+            OaepHash::Sha256,
         ];
     }
 
@@ -112,6 +122,11 @@ final class SecurityProfile
         return $this->keyEncryptionMethod;
     }
 
+    public function oaepHash(): OaepHash
+    {
+        return $this->oaepHash;
+    }
+
     public function acceptsSignatureMethod(SignatureMethod $method): bool
     {
         return in_array($method, $this->acceptedSignatureMethods, true);
@@ -130,5 +145,10 @@ final class SecurityProfile
     public function acceptsDataEncryptionMethod(DataEncryptionMethod $method): bool
     {
         return in_array($method, $this->acceptedDataEncryptionMethods, true);
+    }
+
+    public function acceptsOaepHash(OaepHash $hash): bool
+    {
+        return in_array($hash, $this->acceptedOaepHashes, true);
     }
 }
