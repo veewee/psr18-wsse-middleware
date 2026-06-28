@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use function VeeWee\Xml\Dom\Locator\Element\children;
 
@@ -23,11 +24,6 @@ use function VeeWee\Xml\Dom\Locator\Element\children;
  */
 final class SignedInfoParser
 {
-    /**
-     * The exclusive-c14n namespace that carries the optional InclusiveNamespaces PrefixList element.
-     */
-    private const EXC_C14N_NAMESPACE = 'http://www.w3.org/2001/10/xml-exc-c14n#';
-
     /**
      * @throws SignatureVerificationFailed
      */
@@ -97,7 +93,7 @@ final class SignedInfoParser
 
         return new ParsedReference(
             $digestMethod,
-            trim((string) $digestValue->textContent),
+            ElementText::trimmed($digestValue),
             $canonicalization,
             $inclusivePrefixes,
         );
@@ -166,7 +162,7 @@ final class SignedInfoParser
         $matches = children($canonicalizationElement)
             ->filter(
                 static fn (Element $child): bool => $child->localName === 'InclusiveNamespaces'
-                    && $child->namespaceURI === self::EXC_C14N_NAMESPACE,
+                    && $child->namespaceURI === SignatureCanonicalization::EXC_C14N->value,
             )
             ->map(static fn (Element $child): Element => $child);
 

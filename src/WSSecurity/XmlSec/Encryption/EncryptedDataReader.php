@@ -12,6 +12,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -75,7 +76,7 @@ final class EncryptedDataReader
         $cipherData = $this->child($encryptedDataElement, 'CipherData');
         $cipherValue = $this->child($cipherData, 'CipherValue');
 
-        $decoded = base64_decode(trim((string) $cipherValue->textContent), true);
+        $decoded = base64_decode(ElementText::trimmed($cipherValue), true);
         if ($decoded === false) {
             throw DecryptionFailed::withReason('The cipher value is not valid base64.');
         }

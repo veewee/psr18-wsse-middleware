@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlEncryptor;
@@ -40,8 +41,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
  */
 final class Encryption implements OutboundAction
 {
-    private const VALUE_TYPE_X509V3 = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
-
     /** @var non-empty-list<Part>|null */
     private ?array $parts = null;
 
@@ -152,6 +151,6 @@ final class Encryption implements OutboundAction
     {
         $id = (new BinarySecurityToken($this->recipientCertificate))->embed($context);
 
-        return new DirectReferenceKeyIdentifier($id, self::VALUE_TYPE_X509V3);
+        return new DirectReferenceKeyIdentifier($id, WsSecurityValueType::X509v3->value);
     }
 }

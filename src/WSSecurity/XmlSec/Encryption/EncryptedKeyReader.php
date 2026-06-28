@@ -13,8 +13,9 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 
@@ -116,7 +117,7 @@ final class EncryptedKeyReader
         $cipherData = $this->child($encryptedKey, 'CipherData', Namespaces::Xenc);
         $cipherValue = $this->child($cipherData, 'CipherValue', Namespaces::Xenc);
 
-        $decoded = base64_decode(trim((string) $cipherValue->textContent), true);
+        $decoded = base64_decode(ElementText::trimmed($cipherValue), true);
         if ($decoded === false || $decoded === '') {
             throw DecryptionFailed::withReason('The wrapped key is not valid base64.');
         }
@@ -129,12 +130,10 @@ final class EncryptedKeyReader
      */
     private function locate(Document $document): Element
     {
-        $encryptedKeys = $document
-            ->xpath(new Xpath($document))
-            ->query(
-                '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Xenc->qualify('EncryptedKey'),
-            )
-            ->expectAllOfType(Element::class);
+        $encryptedKeys = Query::elements(
+            $document,
+            '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Xenc->qualify('EncryptedKey'),
+        );
 
         if ($encryptedKeys->count() !== 1) {
             throw DecryptionFailed::withReason('Exactly one xenc:EncryptedKey is required in the Security header.');

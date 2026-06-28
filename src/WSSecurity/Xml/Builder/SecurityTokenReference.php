@@ -7,6 +7,8 @@ use Closure;
 use Dom\Element;
 use Dom\Node;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\children;
@@ -61,6 +63,39 @@ final readonly class SecurityTokenReference
             attribute('ValueType', $valueType),
             attribute('EncodingType', $encodingType),
             value($encodedValue),
+        ));
+    }
+
+    /**
+     * Thumbprint variant: a wsse11:KeyIdentifier carrying the SHA-1 fingerprint of the certificate. The
+     * KeyIdentifier lives in the WSSE 1.1 namespace while the enclosing reference stays in WSSE 1.0.
+     *
+     * @param non-empty-string $encodedValue the base64-encoded fingerprint
+     */
+    public static function thumbprint(string $encodedValue): self
+    {
+        return new self(namespaced_element(
+            Namespaces::Wsse11->value,
+            Namespaces::Wsse11->qualify('KeyIdentifier'),
+            attribute('ValueType', WsSecurityValueType::ThumbprintSha1->value),
+            attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
+            value($encodedValue),
+        ));
+    }
+
+    /**
+     * SAML assertion variant: a wsse:KeyIdentifier naming a SAML assertion by its id. The id is an XML id,
+     * not binary, so the KeyIdentifier carries no encoding type.
+     *
+     * @param non-empty-string $assertionId
+     */
+    public static function samlAssertion(string $assertionId): self
+    {
+        return new self(namespaced_element(
+            Namespaces::Wsse->value,
+            Namespaces::Wsse->qualify('KeyIdentifier'),
+            attribute('ValueType', WsSecurityValueType::SamlAssertionId->value),
+            value($assertionId),
         ));
     }
 
@@ -129,6 +164,21 @@ final readonly class SecurityTokenReference
             Namespaces::Wsse->value,
             Namespaces::Wsse->qualify('SecurityTokenReference'),
             children($this->childBuilder),
+        ));
+    }
+
+    /**
+     * Builds the reference wrapped in the ds:KeyInfo a ds:Signature or xenc:EncryptedKey expects, the form
+     * every key-identifier strategy hands back.
+     */
+    public function buildKeyInfo(Document $document): Element
+    {
+        $reference = $this->build($document);
+
+        return $document->map(namespaced_element(
+            Namespaces::Ds->value,
+            Namespaces::Ds->qualify('KeyInfo'),
+            children(static fn (): Element => $reference),
         ));
     }
 }

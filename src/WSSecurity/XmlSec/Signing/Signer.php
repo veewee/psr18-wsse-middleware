@@ -7,9 +7,9 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SigningFailed;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
@@ -81,17 +81,7 @@ final class Signer implements XmlSigner
      */
     private function locateSecurity(Document $document): Element
     {
-        $security = $document
-            ->xpath(new Xpath($document))
-            ->query('//'.Namespaces::Wsse->qualify('Security'))
-            ->expectAllOfType(Element::class)
-            ->first();
-
-        if ($security === null) {
-            throw SigningFailed::missingSecurityHeader();
-        }
-
-        return $security;
+        return SecurityHeader::locate($document) ?? throw SigningFailed::missingSecurityHeader();
     }
 
     /**

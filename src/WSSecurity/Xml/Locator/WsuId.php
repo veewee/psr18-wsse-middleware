@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator;
 use Dom\Element;
 use Dom\XPath;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath as XpathConfigurator;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 use VeeWee\Xml\Dom\Collection\NodeList;
 use VeeWee\Xml\Dom\Document;
 
@@ -45,9 +45,6 @@ final class WsuId
      */
     private static function matching(Document $document, string $id): NodeList
     {
-        return $document
-            ->xpath(new XpathConfigurator($document))
-            ->query('//*[@wsu:Id='.XPath::quote($id).']')
-            ->expectAllOfType(Element::class);
+        return Query::elements($document, '//*[@wsu:Id='.XPath::quote($id).']');
     }
 }

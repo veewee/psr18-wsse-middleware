@@ -12,6 +12,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 
 /**
@@ -127,7 +128,7 @@ final class OaepParameterResolver
     {
         // We assume the empty label L="". A non-empty OAEPparams declares a label we do not support.
         foreach (ChildElements::named($encryptionMethod, Namespaces::Xenc, 'OAEPparams') as $params) {
-            if (trim((string) $params->textContent) !== '') {
+            if (ElementText::trimmed($params) !== '') {
                 throw UnsupportedAlgorithmException::forAlgorithm('xenc:OAEPparams');
             }
         }

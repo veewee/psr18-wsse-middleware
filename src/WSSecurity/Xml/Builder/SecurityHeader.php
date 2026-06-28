@@ -8,7 +8,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 use Soap\Xml\Builder\Header\MustUnderstand;
 use Soap\Xml\Builder\SoapHeaders;
 use Soap\Xml\Locator\SoapHeaderLocator;
@@ -64,6 +64,17 @@ final class SecurityHeader
         return new self($security);
     }
 
+    /**
+     * Finds the wsse:Security header already present in the document without creating one, returning null
+     * when none is present. The lookup is document-wide and SOAP-version agnostic, as the WSSE namespace is
+     * fixed; the caller maps a null to its own failure. Distinct from locateOrCreate, which mutates the
+     * document and stamps targeting attributes.
+     */
+    public static function locate(Document $document): ?Element
+    {
+        return Query::elements($document, '//'.Namespaces::Wsse->qualify('Security'))->first();
+    }
+
     public function element(): Element
     {
         return $this->element;
@@ -107,11 +118,7 @@ final class SecurityHeader
 
     private static function locateOrCreateSecurity(Document $document, Element $header): Element
     {
-        $existing = $document
-            ->xpath(new Xpath($document))
-            ->query('./'.Namespaces::Wsse->qualify('Security'), $header)
-            ->expectAllOfType(Element::class)
-            ->first();
+        $existing = Query::elements($document, './'.Namespaces::Wsse->qualify('Security'), $header)->first();
 
         if ($existing !== null) {
             return $existing;

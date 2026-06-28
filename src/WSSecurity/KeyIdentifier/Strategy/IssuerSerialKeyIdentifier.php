@@ -7,11 +7,8 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityTokenReference;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier as KeyIdentifierInterface;
 use VeeWee\Xml\Dom\Document;
-use function VeeWee\Xml\Dom\Builder\children;
-use function VeeWee\Xml\Dom\Builder\namespaced_element;
 
 /**
  * References the key by the certificate's issuer distinguished name and serial number. The result is
@@ -28,13 +25,8 @@ final class IssuerSerialKeyIdentifier implements KeyIdentifierInterface
     public function apply(Document $document, Certificate $certificate): Element
     {
         $issuerSerial = $this->extractor->issuerSerial($certificate);
-        $reference = SecurityTokenReference::x509IssuerSerial($issuerSerial['issuerName'], $issuerSerial['serialNumber'])
-            ->build($document);
 
-        return $document->map(namespaced_element(
-            Namespaces::Ds->value,
-            Namespaces::Ds->qualify('KeyInfo'),
-            children(static fn (): Element => $reference),
-        ));
+        return SecurityTokenReference::x509IssuerSerial($issuerSerial['issuerName'], $issuerSerial['serialNumber'])
+            ->buildKeyInfo($document);
     }
 }

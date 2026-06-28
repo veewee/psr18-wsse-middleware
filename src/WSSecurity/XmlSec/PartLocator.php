@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 use Soap\Xml\Locator\SoapBodyLocator;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Locator\document_element;
@@ -53,11 +53,7 @@ final class PartLocator
      */
     private function locateTimestamp(Document $document): Element
     {
-        $timestamp = $document
-            ->xpath(new Xpath($document))
-            ->query('//'.Namespaces::Wsu->qualify('Timestamp'))
-            ->expectAllOfType(Element::class)
-            ->first();
+        $timestamp = Query::elements($document, '//'.Namespaces::Wsu->qualify('Timestamp'))->first();
 
         if ($timestamp === null) {
             throw IdReferenceException::notFound('wsu:Timestamp');

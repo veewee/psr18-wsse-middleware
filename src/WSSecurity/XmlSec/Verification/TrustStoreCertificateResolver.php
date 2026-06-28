@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Formatter\DistinguishedName;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 
 /**
  * Resolves an identifier reference (Subject Key Identifier, SHA-1 thumbprint, or issuer DN plus serial) to a
@@ -19,11 +20,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
  */
 final class TrustStoreCertificateResolver
 {
-    private const SUBJECT_KEY_IDENTIFIER_VALUE_TYPE
-        = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509SubjectKeyIdentifier';
-    private const THUMBPRINT_SHA1_VALUE_TYPE
-        = 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1';
-
     public function __construct(
         private CertificateFieldExtractor $fieldExtractor,
         private DistinguishedName $distinguishedName = new DistinguishedName(),
@@ -48,8 +44,8 @@ final class TrustStoreCertificateResolver
     private function resolveByKeyIdentifier(CertificateReference $reference, TrustStore $trustStore): Certificate
     {
         $identifierOf = match ($reference->valueType) {
-            self::SUBJECT_KEY_IDENTIFIER_VALUE_TYPE => $this->fieldExtractor->subjectKeyIdentifier(...),
-            self::THUMBPRINT_SHA1_VALUE_TYPE => $this->fieldExtractor->thumbprintSha1(...),
+            WsSecurityValueType::X509SubjectKeyIdentifier->value => $this->fieldExtractor->subjectKeyIdentifier(...),
+            WsSecurityValueType::ThumbprintSha1->value => $this->fieldExtractor->thumbprintSha1(...),
             default => throw SignatureVerificationFailed::withReason('The key identifier value type is unsupported.'),
         };
 

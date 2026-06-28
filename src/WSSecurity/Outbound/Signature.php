@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SigningRequest;
@@ -37,8 +38,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\XmlSigner;
  */
 final class Signature implements OutboundAction
 {
-    private const VALUE_TYPE_X509V3 = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
-
     /** @var non-empty-list<Part>|null */
     private ?array $parts = null;
 
@@ -139,6 +138,6 @@ final class Signature implements OutboundAction
         $certificate = $this->clientCertificate->publicCertificate();
         $id = (new BinarySecurityToken($certificate))->embed($context);
 
-        return new DirectReferenceKeyIdentifier($id, self::VALUE_TYPE_X509V3);
+        return new DirectReferenceKeyIdentifier($id, WsSecurityValueType::X509v3->value);
     }
 }

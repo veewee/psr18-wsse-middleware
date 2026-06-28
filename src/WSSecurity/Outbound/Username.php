@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -35,7 +36,6 @@ final class Username implements OutboundAction
     private const NONCE_LENGTH = 16;
     private const TYPE_TEXT = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText';
     private const TYPE_DIGEST = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest';
-    private const ENCODING_BASE64 = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
 
     private readonly Random $random;
     private readonly Digest $digester;
@@ -136,7 +136,7 @@ final class Username implements OutboundAction
             namespaced_element(
                 Namespaces::Wsse->value,
                 Namespaces::Wsse->qualify('Nonce'),
-                attribute('EncodingType', self::ENCODING_BASE64),
+                attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
                 value(base64_encode($nonce)),
             ),
             namespaced_element(

@@ -10,10 +10,9 @@ use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -140,16 +139,7 @@ final class Encryptor implements XmlEncryptor
      */
     private function locateSecurity(Document $document): Element
     {
-        $security = $document
-            ->xpath(new Xpath($document))
-            ->query('//'.Namespaces::Wsse->qualify('Security'))
-            ->expectAllOfType(Element::class)
-            ->first();
-
-        if ($security === null) {
-            throw EncryptionFailed::withReason('No wsse:Security header was found to attach the encrypted key to.');
-        }
-
-        return $security;
+        return SecurityHeader::locate($document)
+            ?? throw EncryptionFailed::withReason('No wsse:Security header was found to attach the encrypted key to.');
     }
 }

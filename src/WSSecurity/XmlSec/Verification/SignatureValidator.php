@@ -13,6 +13,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\Canonicalizer;
 
@@ -59,7 +60,7 @@ final class SignatureValidator
         $this->onlyChild($signedInfo, 'CanonicalizationMethod');
         $this->onlyChild($signedInfo, 'SignatureMethod');
 
-        $expectedSignature = base64_decode($this->trimmedText($signatureValue), true);
+        $expectedSignature = base64_decode(ElementText::trimmed($signatureValue), true);
         if ($expectedSignature === false) {
             throw SignatureVerificationFailed::withReason('The signature value is not valid base64.');
         }
@@ -95,10 +96,5 @@ final class SignatureValidator
     private function precedes(Node $first, Node $second): bool
     {
         return ($first->compareDocumentPosition($second) & Node::DOCUMENT_POSITION_FOLLOWING) !== 0;
-    }
-
-    private function trimmedText(Element $element): string
-    {
-        return trim((string) $element->textContent);
     }
 }

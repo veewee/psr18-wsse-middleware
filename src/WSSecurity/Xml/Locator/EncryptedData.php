@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator;
 use Dom\Element;
 use Dom\XPath;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath as XpathConfigurator;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 use VeeWee\Xml\Dom\Collection\NodeList;
 use VeeWee\Xml\Dom\Document;
 
@@ -40,9 +40,6 @@ final class EncryptedData
     {
         $quoted = XPath::quote($id);
 
-        return $document
-            ->xpath(new XpathConfigurator($document))
-            ->query('//xenc:EncryptedData[@wsu:Id='.$quoted.' or @Id='.$quoted.']')
-            ->expectAllOfType(Element::class);
+        return Query::elements($document, '//xenc:EncryptedData[@wsu:Id='.$quoted.' or @Id='.$quoted.']');
     }
 }

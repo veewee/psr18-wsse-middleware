@@ -6,9 +6,12 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -21,11 +24,6 @@ use VeeWee\Xml\Dom\Document;
  */
 final class KeyInfoReader
 {
-    private const X509V3_VALUE_TYPE
-        = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
-    private const BASE64_BINARY_ENCODING_TYPE
-        = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
-
     /**
      * @throws SignatureVerificationFailed when ds:KeyInfo is absent or carries an unsupported or malformed
      *         certificate reference
@@ -89,19 +87,19 @@ final class KeyInfoReader
             throw SignatureVerificationFailed::withReason('The token reference does not point at a BinarySecurityToken.');
         }
 
-        if ($token->getAttribute('ValueType') !== self::X509V3_VALUE_TYPE) {
+        if ($token->getAttribute('ValueType') !== WsSecurityValueType::X509v3->value) {
             throw SignatureVerificationFailed::withReason('The BinarySecurityToken value type is unsupported.');
         }
 
         // The encoding type is optional and defaults to base64; a present declaration must name that encoding,
         // since the token body is read as base64 regardless. An absent declaration is the conformant default.
         if ($token->hasAttribute('EncodingType')
-            && $token->getAttribute('EncodingType') !== self::BASE64_BINARY_ENCODING_TYPE
+            && $token->getAttribute('EncodingType') !== WsSecurityEncodingType::Base64Binary->value
         ) {
             throw SignatureVerificationFailed::withReason('The BinarySecurityToken encoding type is unsupported.');
         }
 
-        return trim((string) $token->textContent);
+        return ElementText::trimmed($token);
     }
 
     /**
@@ -120,7 +118,7 @@ final class KeyInfoReader
             return null;
         }
 
-        return trim((string) $certificate->textContent);
+        return ElementText::trimmed($certificate);
     }
 
     /**
@@ -137,7 +135,7 @@ final class KeyInfoReader
 
         $keyIdentifier = $this->onlyKeyIdentifier($str);
         if ($keyIdentifier !== null) {
-            $reference = trim((string) $keyIdentifier->textContent);
+            $reference = ElementText::trimmed($keyIdentifier);
             if ($reference === '') {
                 throw SignatureVerificationFailed::withReason('The key identifier is empty.');
             }
@@ -195,8 +193,8 @@ final class KeyInfoReader
         }
 
         return CertificateReference::issuerSerial(
-            trim((string) $issuerName->textContent),
-            trim((string) $serialNumber->textContent),
+            ElementText::trimmed($issuerName),
+            ElementText::trimmed($serialNumber),
         );
     }
 

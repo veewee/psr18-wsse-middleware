@@ -13,8 +13,9 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Internal\Validator\TimestampValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 
 /**
  * Rejects a stale, future-dated, or replayed-window message before the application sees it. It locates the
@@ -73,12 +74,10 @@ final class ValidateTimestamp implements InboundAction
     private function locateTimestamp(WsseContext $context): Element
     {
         $document = $context->document();
-        $timestamps = $document
-            ->xpath(new Xpath($document))
-            ->query(
-                '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Wsu->qualify('Timestamp'),
-            )
-            ->expectAllOfType(Element::class);
+        $timestamps = Query::elements(
+            $document,
+            '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Wsu->qualify('Timestamp'),
+        );
 
         if ($timestamps->count() !== 1) {
             throw SecurityFault::inboundFailure();
@@ -95,7 +94,7 @@ final class ValidateTimestamp implements InboundAction
             throw SecurityFault::inboundFailure();
         }
 
-        $text = trim((string) $matches[0]->textContent);
+        $text = ElementText::trimmed($matches[0]);
         if ($text === '') {
             throw SecurityFault::inboundFailure();
         }

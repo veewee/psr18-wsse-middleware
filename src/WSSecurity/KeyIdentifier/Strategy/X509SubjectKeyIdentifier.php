@@ -7,11 +7,10 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityTokenReference;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier as KeyIdentifierInterface;
 use VeeWee\Xml\Dom\Document;
-use function VeeWee\Xml\Dom\Builder\children;
-use function VeeWee\Xml\Dom\Builder\namespaced_element;
 
 /**
  * References the key by the certificate's Subject Key Identifier extension. The result is
@@ -19,9 +18,6 @@ use function VeeWee\Xml\Dom\Builder\namespaced_element;
  */
 final class X509SubjectKeyIdentifier implements KeyIdentifierInterface
 {
-    private const VALUE_TYPE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509SubjectKeyIdentifier';
-    private const ENCODING_TYPE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
-
     public function __construct(
         private CertificateFieldExtractor $extractor,
     ) {
@@ -30,13 +26,11 @@ final class X509SubjectKeyIdentifier implements KeyIdentifierInterface
     public function apply(Document $document, Certificate $certificate): Element
     {
         $encoded = $this->extractor->subjectKeyIdentifier($certificate);
-        $reference = SecurityTokenReference::keyIdentifier($encoded, self::VALUE_TYPE, self::ENCODING_TYPE)
-            ->build($document);
 
-        return $document->map(namespaced_element(
-            Namespaces::Ds->value,
-            Namespaces::Ds->qualify('KeyInfo'),
-            children(static fn (): Element => $reference),
-        ));
+        return SecurityTokenReference::keyIdentifier(
+            $encoded,
+            WsSecurityValueType::X509SubjectKeyIdentifier->value,
+            WsSecurityEncodingType::Base64Binary->value,
+        )->buildKeyInfo($document);
     }
 }

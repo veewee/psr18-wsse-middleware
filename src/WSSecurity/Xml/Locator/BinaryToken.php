@@ -8,7 +8,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -49,10 +49,7 @@ final class BinaryToken
      */
     private function securityHeaders(Document $document): array
     {
-        return $document
-            ->xpath(new Xpath($document))
-            ->query('//'.Namespaces::Wsse->qualify('Security'))
-            ->expectAllOfType(Element::class)
+        return Query::elements($document, '//'.Namespaces::Wsse->qualify('Security'))
             ->map(static fn (Element $element): Element => $element);
     }
 

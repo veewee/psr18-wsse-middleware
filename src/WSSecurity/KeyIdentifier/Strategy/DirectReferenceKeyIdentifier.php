@@ -6,11 +6,8 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityTokenReference;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier as KeyIdentifierInterface;
 use VeeWee\Xml\Dom\Document;
-use function VeeWee\Xml\Dom\Builder\children;
-use function VeeWee\Xml\Dom\Builder\namespaced_element;
 
 /**
  * References a token that already exists in the Security header by its wsu:Id. The result is
@@ -39,12 +36,6 @@ final class DirectReferenceKeyIdentifier implements KeyIdentifierInterface
 
     public function apply(Document $document, Certificate $certificate): Element
     {
-        $reference = SecurityTokenReference::reference($this->tokenId, $this->valueType)->build($document);
-
-        return $document->map(namespaced_element(
-            Namespaces::Ds->value,
-            Namespaces::Ds->qualify('KeyInfo'),
-            children(static fn (): Element => $reference),
-        ));
+        return SecurityTokenReference::reference($this->tokenId, $this->valueType)->buildKeyInfo($document);
     }
 }

@@ -11,6 +11,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\BinaryToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -27,9 +29,6 @@ use function VeeWee\Xml\Dom\Builder\value;
  */
 final class BinarySecurityToken implements OutboundAction
 {
-    private const VALUE_TYPE_X509V3 = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
-    private const ENCODING_BASE64 = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
-
     public function __construct(
         private readonly Certificate $certificate,
     ) {
@@ -70,8 +69,8 @@ final class BinarySecurityToken implements OutboundAction
         $build = namespaced_element(
             Namespaces::Wsse->value,
             Namespaces::Wsse->qualify('BinarySecurityToken'),
-            attribute('ValueType', self::VALUE_TYPE_X509V3),
-            attribute('EncodingType', self::ENCODING_BASE64),
+            attribute('ValueType', WsSecurityValueType::X509v3->value),
+            attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
             value($body),
         );
 
