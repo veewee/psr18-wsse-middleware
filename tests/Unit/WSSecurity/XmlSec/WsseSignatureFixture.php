@@ -14,7 +14,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
@@ -132,7 +131,7 @@ final class WsseSignatureFixture
 
         $this->signer()->sign($document, new SigningRequest(
             parts: $parts,
-            signingKey: KeyHandle::for($this->leafKey),
+            signingKey: $this->leafKey,
             signingCertificate: $this->leafCertificate,
             keyIdentifier: $keyIdentifier ?? new DirectReferenceKeyIdentifier(self::BST_ID, self::X509_TOKEN),
             signatureMethod: $signatureMethod,

@@ -12,7 +12,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
  * anchors / pinned certs), never the certificate embedded in the message.
  *
  * Trust only: there are no privateKey()/certificate() accessors. The raw OpenSSL key handle never leaves the
- * OpenSSL\ module. Signing and encryption pass a KeyHandle down so OpenSSL\ resolves and uses it internally.
+ * OpenSSL\ module. Signing and encryption pass the Key/Certificate material down so OpenSSL\ resolves and uses
+ * it internally.
  */
 interface KeyResolver
 {

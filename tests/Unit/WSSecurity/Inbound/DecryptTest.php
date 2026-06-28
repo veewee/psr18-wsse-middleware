@@ -9,7 +9,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -105,8 +104,8 @@ final class DecryptTest extends TestCase
         );
     }
 
-    private function privateKey(): KeyHandle
+    private function privateKey(): Key
     {
-        return KeyHandle::for(new Key('not-real-pem-material'));
+        return new Key('not-real-pem-material');
     }
 }

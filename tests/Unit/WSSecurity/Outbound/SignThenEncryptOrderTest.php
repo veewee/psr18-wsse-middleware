@@ -13,7 +13,6 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyRef;
@@ -74,7 +73,7 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
 
         // The encrypted body still round-trips after the combined operation.
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher())))
-            ->decrypt($document, new DecryptionRequest(KeyHandle::for($recipientKey)));
+            ->decrypt($document, new DecryptionRequest($recipientKey));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertStringContainsString('<data>x</data>', $document->toXmlString());

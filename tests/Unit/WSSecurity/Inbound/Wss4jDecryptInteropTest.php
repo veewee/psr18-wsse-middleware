@@ -6,7 +6,6 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -25,7 +24,7 @@ final class Wss4jDecryptInteropTest extends TestCase
         $document = Document::fromXmlString((string) file_get_contents($fixtures.'/wss4j-encrypted-oaep-sha256.xml'));
         $context = new WsseContext($document, SoapVersion::Soap12, new SecurityProfile());
 
-        $recipientKey = KeyHandle::for(Key::fromFile($fixtures.'/wss4j-recipient-php-client.key'));
+        $recipientKey = Key::fromFile($fixtures.'/wss4j-recipient-php-client.key');
 
         (new Inbound\Decrypt($recipientKey))($context);
 

@@ -5,7 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
@@ -13,8 +13,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlDecryptor;
 
 /**
  * Decrypts the xenc:EncryptedData parts of the inbound message by delegating to the XmlDecryptor SPI. The
- * recipient private key is provided at construction time as a KeyHandle the decryptor resolves internally;
- * the document is mutated in place (each EncryptedData replaced by its plaintext nodes).
+ * recipient private key is provided at construction time and the decryptor resolves it internally; the
+ * document is mutated in place (each EncryptedData replaced by its plaintext nodes).
  *
  * Every decryption failure, whatever its cause, collapses to one SecurityFault with a non-identifying
  * message. The underlying reason is chained for operator logs only and is never forwarded to a remote peer.
@@ -26,7 +26,7 @@ final class Decrypt implements InboundAction
     private readonly XmlDecryptor $decryptor;
 
     public function __construct(
-        private readonly KeyHandle $privateKey,
+        private readonly Key $privateKey,
         ?XmlDecryptor $decryptor = null,
     ) {
         $this->decryptor = $decryptor ?? DefaultEngine::decryptor();

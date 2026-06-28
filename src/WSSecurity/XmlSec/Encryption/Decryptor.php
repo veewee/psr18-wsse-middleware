@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\EncryptedDataResolver;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -42,7 +41,7 @@ final class Decryptor implements XmlDecryptor
                 throw DecryptionFailed::withReason('The message declares too many encrypted parts.');
             }
 
-            $unwrapped = $this->encryptedKeyReader->read($document, $this->privateKey($request), $request->profile);
+            $unwrapped = $this->encryptedKeyReader->read($document, $request->privateKey, $request->profile);
 
             foreach ($references as $id) {
                 $element = EncryptedDataResolver::resolve($document, $id);
@@ -52,18 +51,5 @@ final class Decryptor implements XmlDecryptor
             // Every cause collapses to one message so the inbound path is never a padding or validation oracle.
             throw DecryptionFailed::withReason('Unable to decrypt the message.');
         }
-    }
-
-    /**
-     * @throws DecryptionFailed
-     */
-    private function privateKey(DecryptionRequest $request): Key
-    {
-        $material = $request->privateKey->material();
-        if (!$material instanceof Key) {
-            throw DecryptionFailed::withReason('The private key handle does not carry private key material.');
-        }
-
-        return $material;
     }
 }

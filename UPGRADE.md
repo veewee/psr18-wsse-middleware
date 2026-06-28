@@ -24,7 +24,7 @@ with secure defaults. You construct them directly:
 ```php
 new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken);
 new Outbound\Encryption($recipientCertificate);
-new Inbound\Decrypt(KeyHandle::for($privateKey));
+new Inbound\Decrypt($privateKey);
 new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]);
 ```
 

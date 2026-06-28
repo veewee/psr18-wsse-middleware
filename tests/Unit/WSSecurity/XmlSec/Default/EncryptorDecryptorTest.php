@@ -16,7 +16,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
@@ -66,7 +65,7 @@ final class EncryptorDecryptorTest extends TestCase
         static::assertCount(1, $this->encryptedData($document));
         static::assertNotNull($this->encryptedKey($document));
 
-        $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+        $this->decryptor()->decrypt($document, new DecryptionRequest($key));
 
         static::assertSame($originalBody, $this->innerXml($this->body($document)));
         static::assertCount(0, $this->encryptedData($document));
@@ -86,7 +85,7 @@ final class EncryptorDecryptorTest extends TestCase
         static::assertCount(1, $encryptedData);
         static::assertSame('http://www.w3.org/2001/04/xmlenc#Element', $encryptedData[0]->getAttribute('Type'));
 
-        $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+        $this->decryptor()->decrypt($document, new DecryptionRequest($key));
 
         static::assertStringContainsString('<app:Custom', $document->toXmlString());
         static::assertStringContainsString('payload', $document->toXmlString());
@@ -107,7 +106,7 @@ final class EncryptorDecryptorTest extends TestCase
         $references = $this->encryptedKey($document)->getElementsByTagNameNS(self::XENC, 'DataReference');
         static::assertSame(2, $references->count());
 
-        $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+        $this->decryptor()->decrypt($document, new DecryptionRequest($key));
 
         static::assertCount(0, $this->encryptedData($document));
     }
@@ -148,7 +147,7 @@ final class EncryptorDecryptorTest extends TestCase
         $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
 
         $this->expectException(DecryptionFailed::class);
-        $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($otherKey)));
+        $this->decryptor()->decrypt($document, new DecryptionRequest($otherKey));
     }
 
     public function test_a_tampered_ciphertext_fails_uniformly(): void
@@ -162,7 +161,7 @@ final class EncryptorDecryptorTest extends TestCase
         $cipherValue->textContent = base64_encode('garbage that will not decrypt to anything valid at all');
 
         $this->expectException(DecryptionFailed::class);
-        $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+        $this->decryptor()->decrypt($document, new DecryptionRequest($key));
     }
 
     public function test_a_non_sha1_oaep_digest_is_refused(): void
@@ -179,7 +178,7 @@ final class EncryptorDecryptorTest extends TestCase
         $encryptionMethod->appendChild($digestMethod);
 
         $this->expectException(DecryptionFailed::class);
-        $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+        $this->decryptor()->decrypt($document, new DecryptionRequest($key));
     }
 
     public function test_a_non_sha1_oaep_mgf_is_refused(): void
@@ -196,7 +195,7 @@ final class EncryptorDecryptorTest extends TestCase
         $encryptionMethod->appendChild($mgf);
 
         $this->expectException(DecryptionFailed::class);
-        $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+        $this->decryptor()->decrypt($document, new DecryptionRequest($key));
     }
 
     public function test_an_absent_oaep_digest_is_accepted(): void
@@ -206,7 +205,7 @@ final class EncryptorDecryptorTest extends TestCase
         $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
 
         // No DigestMethod child: SHA-1 default applies and the round-trip succeeds.
-        $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+        $this->decryptor()->decrypt($document, new DecryptionRequest($key));
 
         static::assertCount(0, $this->encryptedData($document));
     }
@@ -228,7 +227,7 @@ final class EncryptorDecryptorTest extends TestCase
         }
 
         $this->expectException(DecryptionFailed::class);
-        $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+        $this->decryptor()->decrypt($document, new DecryptionRequest($key));
     }
 
     public function test_all_decrypt_failures_share_one_exception_type(): void
@@ -240,7 +239,7 @@ final class EncryptorDecryptorTest extends TestCase
             'wrong-key' => function () use ($certificate, $otherKey): void {
                 $document = $this->envelope();
                 $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
-                $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($otherKey)));
+                $this->decryptor()->decrypt($document, new DecryptionRequest($otherKey));
             },
             'tampered' => function () use ($certificate, $key): void {
                 $document = $this->envelope();
@@ -248,11 +247,11 @@ final class EncryptorDecryptorTest extends TestCase
                 $cipherValue = $this->body($document)->getElementsByTagNameNS(self::XENC, 'CipherValue')->item(0);
                 static::assertInstanceOf(Element::class, $cipherValue);
                 $cipherValue->textContent = base64_encode('garbage that will not decrypt');
-                $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+                $this->decryptor()->decrypt($document, new DecryptionRequest($key));
             },
             'no-encrypted-key' => function () use ($key): void {
                 $document = $this->envelope();
-                $this->decryptor()->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+                $this->decryptor()->decrypt($document, new DecryptionRequest($key));
             },
         ];
 
@@ -298,7 +297,7 @@ final class EncryptorDecryptorTest extends TestCase
     {
         return new EncryptionRequest(
             parts: $parts,
-            recipientCertificate: KeyHandle::for($certificate),
+            recipientCertificate: $certificate,
             keyIdentifier: new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
             dataEncryptionMethod: $method,
             keyTransportAlgorithm: KeyTransportAlgorithm::legacyMgf1p(),

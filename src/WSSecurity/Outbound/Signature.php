@@ -12,7 +12,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyId
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -108,7 +107,7 @@ final class Signature implements OutboundAction
 
         $request = new SigningRequest(
             parts: $this->parts ?? [Part::body(), Part::timestamp()],
-            signingKey: KeyHandle::for($this->clientCertificate->privateKey()),
+            signingKey: $this->clientCertificate->privateKey(),
             signingCertificate: $this->clientCertificate->publicCertificate(),
             keyIdentifier: $keyIdentifier,
             signatureMethod: $this->signatureMethod ?? $profile->signatureMethod(),

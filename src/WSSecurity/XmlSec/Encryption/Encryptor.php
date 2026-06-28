@@ -8,7 +8,6 @@ use Dom\Node;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\EncryptionFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\NodeOrder;
@@ -68,7 +67,7 @@ final class Encryptor implements XmlEncryptor
 
             $wrappedKey = $this->keyTransport->wrap(
                 $sessionKey,
-                $this->recipientCertificate($request),
+                $request->recipientCertificate,
                 $request->keyTransportAlgorithm,
             );
 
@@ -76,7 +75,7 @@ final class Encryptor implements XmlEncryptor
                 $document,
                 $wrappedKey,
                 $request->keyIdentifier,
-                $this->recipientCertificate($request),
+                $request->recipientCertificate,
                 $request->keyTransportAlgorithm,
                 $partIds,
             );
@@ -134,19 +133,6 @@ final class Encryptor implements XmlEncryptor
         }
 
         return $serialized;
-    }
-
-    /**
-     * @throws EncryptionFailed
-     */
-    private function recipientCertificate(EncryptionRequest $request): Certificate
-    {
-        $material = $request->recipientCertificate->material();
-        if (!$material instanceof Certificate) {
-            throw EncryptionFailed::withReason('The recipient key handle does not carry certificate material.');
-        }
-
-        return $material;
     }
 
     /**

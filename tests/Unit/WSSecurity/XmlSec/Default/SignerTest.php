@@ -20,7 +20,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
@@ -194,7 +193,7 @@ final class SignerTest extends TestCase
     {
         return new SigningRequest(
             parts: $parts,
-            signingKey: KeyHandle::for($key),
+            signingKey: $key,
             signingCertificate: $certificate,
             keyIdentifier: new DirectReferenceKeyIdentifier('SignedToken', self::X509_TOKEN),
             signatureMethod: SignatureMethod::RSA_SHA256,

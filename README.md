@@ -281,15 +281,13 @@ plaintext.
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 
 $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 
-new Inbound\Decrypt(KeyHandle::for($privateKey));
+new Inbound\Decrypt($privateKey);
 ```
 
-- `KeyHandle $privateKey` — your recipient private key, wrapped in a `KeyHandle`. Build it with
-  `KeyHandle::for($key)` where `$key` is a `KeyStore\Key` or a `KeyStore\ClientCertificate`. Required.
+- `Key $privateKey` — your recipient private key as a `KeyStore\Key`. Required.
 
 Any decryption failure collapses to one uniform `SecurityFault` that does not reveal which step failed, so the
 middleware cannot be used as a padding oracle.
@@ -499,7 +497,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -523,7 +520,7 @@ $transport = Psr18Transport::createForClient(
             ],
             inbound: [
                 // Decrypt first ...
-                new Inbound\Decrypt(KeyHandle::for($ourPrivateKey)),
+                new Inbound\Decrypt($ourPrivateKey),
                 // ... then verify and check freshness:
                 new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]),
                 new Inbound\ValidateTimestamp(),
@@ -559,8 +556,6 @@ $certificate = $bundle->publicCertificate();  // returns a KeyStore\Certificate
 - `Certificate::fromFile(string $file): Certificate`.
 - `ClientCertificate::fromFile(string $file): ClientCertificate` then `->withPassphrase(string)`; it exposes
   `->privateKey(): Key` and `->publicCertificate(): Certificate`.
-- `KeyHandle::for(Key|Certificate|ClientCertificate): KeyHandle` wraps any of these where a block asks for a
-  `KeyHandle` (the `Decrypt` block).
 
 Starting from a `.p12` file? Convert it to a private key and a public certificate first:
 

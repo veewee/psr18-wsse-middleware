@@ -12,7 +12,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyId
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -123,7 +122,7 @@ final class Encryption implements OutboundAction
 
         $request = new EncryptionRequest(
             parts: $this->parts ?? [Part::body()],
-            recipientCertificate: KeyHandle::for($this->recipientCertificate),
+            recipientCertificate: $this->recipientCertificate,
             keyIdentifier: $keyIdentifier,
             dataEncryptionMethod: $this->dataEncryptionMethod ?? $profile->dataEncryptionMethod(),
             keyTransportAlgorithm: $keyTransportAlgorithm,

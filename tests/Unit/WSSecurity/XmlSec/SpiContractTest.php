@@ -12,7 +12,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
@@ -31,7 +31,7 @@ final class SpiContractTest extends TestCase
     {
         $part = Part::body();
         $certificate = new Certificate('cert');
-        $key = KeyHandle::for($certificate);
+        $key = new Key('key');
 
         $request = new SigningRequest(
             parts: [$part],
@@ -53,7 +53,7 @@ final class SpiContractTest extends TestCase
     public function test_encryption_request_exposes_its_inputs(): void
     {
         $part = Part::body();
-        $recipient = KeyHandle::for(new Certificate('cert'));
+        $recipient = new Certificate('cert');
 
         $request = new EncryptionRequest(
             parts: [$part],
@@ -70,7 +70,7 @@ final class SpiContractTest extends TestCase
 
     public function test_decryption_request_carries_the_private_key(): void
     {
-        $key = KeyHandle::for(new Certificate('cert'));
+        $key = new Key('key');
 
         static::assertSame($key, (new DecryptionRequest($key))->privateKey);
     }

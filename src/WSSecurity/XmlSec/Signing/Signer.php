@@ -7,7 +7,6 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SigningFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\NodeOrder;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
@@ -105,13 +104,8 @@ final class Signer implements XmlSigner
     {
         $canonical = $this->canonicalizer->canonicalize($signedInfo, $request->canonicalization);
 
-        $key = $request->signingKey->material();
-        if (!$key instanceof Key) {
-            throw SigningFailed::cryptoError('the signing key handle does not carry private key material');
-        }
-
         try {
-            $signature = $this->opensslSigner->sign($key, $canonical, $request->signatureMethod);
+            $signature = $this->opensslSigner->sign($request->signingKey, $canonical, $request->signatureMethod);
         } catch (OpenSslException $exception) {
             throw SigningFailed::cryptoError($exception->getMessage());
         }

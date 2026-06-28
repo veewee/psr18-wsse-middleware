@@ -7,12 +7,12 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
 
 /**
- * The inputs to a single signing operation. The signing key is named by a KeyHandle (PEM material), which the
+ * The inputs to a single signing operation. The signing key is the private key material, which the
  * OpenSSL\ module resolves to a live handle internally so the raw handle never escapes that module. The
  * advertised signing certificate is an explicit input, distinct from the private key: the KeyIdentifier
  * strategy turns it into the ds:KeyInfo content that tells the recipient which key verifies the signature.
@@ -24,7 +24,7 @@ final readonly class SigningRequest
      */
     public function __construct(
         public array $parts,
-        public KeyHandle $signingKey,
+        public Key $signingKey,
         public Certificate $signingCertificate,
         public KeyIdentifier $keyIdentifier,
         public SignatureMethod $signatureMethod,

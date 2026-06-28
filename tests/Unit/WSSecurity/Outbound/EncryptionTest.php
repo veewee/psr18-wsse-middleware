@@ -23,7 +23,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIden
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
@@ -129,7 +128,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertSame(1, $method->getElementsByTagNameNS('http://www.w3.org/2009/xmlenc11#', 'MGF')->count());
 
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher())))
-            ->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+            ->decrypt($document, new DecryptionRequest($key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertSame($originalBody, $document->stringifyNode($this->only($document, self::SOAP12, 'Body')));
@@ -243,7 +242,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertSame('http://www.w3.org/2001/04/xmlenc#Content', $encryptedData->getAttribute('Type'));
 
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher())))
-            ->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+            ->decrypt($document, new DecryptionRequest($key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertSame($originalBody, $document->stringifyNode($this->only($document, self::SOAP12, 'Body')));
@@ -313,7 +312,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertSame(DataEncryptionMethod::AES256_CBC->value, $method->getAttribute('Algorithm'));
 
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher())))
-            ->decrypt($document, new DecryptionRequest(KeyHandle::for($key)));
+            ->decrypt($document, new DecryptionRequest($key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
     }
