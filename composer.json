@@ -46,7 +46,8 @@
         "vimeo/psalm": "~6.13",
         "php-cs-fixer/shim": "~3.88",
         "php-standard-library/psalm-plugin": "^2.4",
-        "robrichards/xmlseclibs": "^3.1"
+        "robrichards/xmlseclibs": "^3.1",
+        "phpseclib/phpseclib": "^3.0"
     },
     "config": {
         "allow-plugins": {

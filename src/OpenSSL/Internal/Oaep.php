@@ -71,6 +71,13 @@ final class Oaep
         $hLen = self::hashLength($hashAlgorithm);
         $k = self::modulusBytes($privateKey);
 
+        // Reject structurally impossible inputs before the RSA op. A ciphertext that is not exactly one
+        // modulus wide, or a key too small to ever carry a valid encoding, can never decode; refusing both
+        // up front is independent of the padding contents, so it adds no oracle.
+        if (strlen($cipher) !== $k || $k < 2 * $hLen + 2) {
+            throw OpenSslException::operationFailed('OAEP-decode the session key', '');
+        }
+
         $em = OpenSslCall::output(
             static fn (Ref $plain): bool => openssl_private_decrypt($cipher, $plain->value, $privateKey, OPENSSL_NO_PADDING),
             'OAEP-decrypt the session key',
