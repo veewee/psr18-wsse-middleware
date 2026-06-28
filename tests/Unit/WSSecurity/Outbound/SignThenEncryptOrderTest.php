@@ -17,7 +17,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\Decryptor;

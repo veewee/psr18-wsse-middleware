@@ -13,8 +13,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Internal\Validator\TimestampValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 
 /**
  * Rejects a stale, future-dated, or replayed-window message before the application sees it. It locates the
@@ -74,9 +74,9 @@ final class ValidateTimestamp implements InboundAction
     {
         $document = $context->document();
         $timestamps = $document
-            ->xpath(new WsseXpath($document))
+            ->xpath(new Xpath($document))
             ->query(
-                '//'.WsseNamespace::Wsse->qualify('Security').'/'.WsseNamespace::Wsu->qualify('Timestamp'),
+                '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Wsu->qualify('Timestamp'),
             )
             ->expectAllOfType(Element::class);
 
@@ -90,7 +90,7 @@ final class ValidateTimestamp implements InboundAction
     private function requireChildText(Element $timestamp, string $localName): string
     {
         // Exactly one, so a second injected wsu:Created/wsu:Expires cannot shadow the real one.
-        $matches = ChildElements::named($timestamp, WsseNamespace::Wsu, $localName);
+        $matches = ChildElements::named($timestamp, Namespaces::Wsu, $localName);
         if (count($matches) !== 1) {
             throw SecurityFault::inboundFailure();
         }

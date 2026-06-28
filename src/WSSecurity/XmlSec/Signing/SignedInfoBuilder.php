@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\children;
@@ -38,17 +38,17 @@ final class SignedInfoBuilder
         );
 
         return $document->map(namespaced_element(
-            WsseNamespace::Ds->value,
-            WsseNamespace::Ds->qualify('SignedInfo'),
+            Namespaces::Ds->value,
+            Namespaces::Ds->qualify('SignedInfo'),
             children(
                 namespaced_element(
-                    WsseNamespace::Ds->value,
-                    WsseNamespace::Ds->qualify('CanonicalizationMethod'),
+                    Namespaces::Ds->value,
+                    Namespaces::Ds->qualify('CanonicalizationMethod'),
                     attribute('Algorithm', $canonicalization->value),
                 ),
                 namespaced_element(
-                    WsseNamespace::Ds->value,
-                    WsseNamespace::Ds->qualify('SignatureMethod'),
+                    Namespaces::Ds->value,
+                    Namespaces::Ds->qualify('SignatureMethod'),
                     attribute('Algorithm', $signatureMethod->value),
                 ),
                 ...$referenceBuilders,
@@ -62,27 +62,27 @@ final class SignedInfoBuilder
     private function reference(DigestResult $result, SignatureCanonicalization $canonicalization): callable
     {
         return namespaced_element(
-            WsseNamespace::Ds->value,
-            WsseNamespace::Ds->qualify('Reference'),
+            Namespaces::Ds->value,
+            Namespaces::Ds->qualify('Reference'),
             attribute('URI', '#'.$result->wsuId),
             children(
                 namespaced_element(
-                    WsseNamespace::Ds->value,
-                    WsseNamespace::Ds->qualify('Transforms'),
+                    Namespaces::Ds->value,
+                    Namespaces::Ds->qualify('Transforms'),
                     children(namespaced_element(
-                        WsseNamespace::Ds->value,
-                        WsseNamespace::Ds->qualify('Transform'),
+                        Namespaces::Ds->value,
+                        Namespaces::Ds->qualify('Transform'),
                         attribute('Algorithm', $canonicalization->value),
                     )),
                 ),
                 namespaced_element(
-                    WsseNamespace::Ds->value,
-                    WsseNamespace::Ds->qualify('DigestMethod'),
+                    Namespaces::Ds->value,
+                    Namespaces::Ds->qualify('DigestMethod'),
                     attribute('Algorithm', $result->digestMethod->value),
                 ),
                 namespaced_element(
-                    WsseNamespace::Ds->value,
-                    WsseNamespace::Ds->qualify('DigestValue'),
+                    Namespaces::Ds->value,
+                    Namespaces::Ds->qualify('DigestValue'),
                     value($result->digestValueBase64),
                 ),
             ),

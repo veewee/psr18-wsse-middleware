@@ -9,8 +9,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -90,7 +90,7 @@ final class ReferenceResolver
         $id = substr($uri, 1);
 
         try {
-            return WsuIdResolver::resolve($document, $id);
+            return WsuId::resolve($document, $id);
         } catch (IdReferenceException) {
             throw SignatureVerificationFailed::withReason('A referenced element could not be resolved.');
         }
@@ -103,7 +103,7 @@ final class ReferenceResolver
             throw SignatureVerificationFailed::withReason('A reference declares no transform.');
         }
 
-        $candidates = ChildElements::named($transforms, WsseNamespace::Ds, 'Transform');
+        $candidates = ChildElements::named($transforms, Namespaces::Ds, 'Transform');
         if (count($candidates) > 1) {
             throw SignatureVerificationFailed::withReason('A reference declares more than one transform.');
         }
@@ -130,7 +130,7 @@ final class ReferenceResolver
 
     private function onlyDsChild(Element $parent, string $localName): ?Element
     {
-        $matches = ChildElements::named($parent, WsseNamespace::Ds, $localName);
+        $matches = ChildElements::named($parent, Namespaces::Ds, $localName);
         if (count($matches) > 1) {
             throw SignatureVerificationFailed::withReason(
                 sprintf('ds:%s must appear at most once in a reference.', $localName),

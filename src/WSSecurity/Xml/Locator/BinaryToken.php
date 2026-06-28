@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Wsse;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -17,7 +17,7 @@ use VeeWee\Xml\Dom\Document;
  * base64-DER form), so the signature path can reference the token it just embedded without holding on to
  * any minted-id state.
  */
-final class BinaryTokenLocator
+final class BinaryToken
 {
     /**
      * @return non-empty-string the matching token's wsu:Id, without the '#' prefix
@@ -29,12 +29,12 @@ final class BinaryTokenLocator
         $expected = $certificate->toBase64Der();
 
         foreach ($this->securityHeaders($document) as $security) {
-            foreach (ChildElements::named($security, WsseNamespace::Wsse, 'BinarySecurityToken') as $token) {
+            foreach (ChildElements::named($security, Namespaces::Wsse, 'BinarySecurityToken') as $token) {
                 if ($this->stripped((string) $token->textContent) !== $expected) {
                     continue;
                 }
 
-                $id = $token->getAttributeNS(WsseNamespace::Wsu->value, 'Id');
+                $id = $token->getAttributeNS(Namespaces::Wsu->value, 'Id');
                 if ($id !== null && $id !== '') {
                     return $id;
                 }
@@ -50,8 +50,8 @@ final class BinaryTokenLocator
     private function securityHeaders(Document $document): array
     {
         return $document
-            ->xpath(new WsseXpath($document))
-            ->query('//'.WsseNamespace::Wsse->qualify('Security'))
+            ->xpath(new Xpath($document))
+            ->query('//'.Namespaces::Wsse->qualify('Security'))
             ->expectAllOfType(Element::class)
             ->map(static fn (Element $element): Element => $element);
     }

@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier as KeyIdentifierInterface;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
@@ -34,14 +34,14 @@ final class ThumbprintKeyIdentifier implements KeyIdentifierInterface
         $encoded = $this->extractor->thumbprintSha1($certificate);
 
         return $document->map(namespaced_element(
-            WsseNamespace::Ds->value,
-            WsseNamespace::Ds->qualify('KeyInfo'),
+            Namespaces::Ds->value,
+            Namespaces::Ds->qualify('KeyInfo'),
             children(namespaced_element(
-                WsseNamespace::Wsse->value,
-                WsseNamespace::Wsse->qualify('SecurityTokenReference'),
+                Namespaces::Wsse->value,
+                Namespaces::Wsse->qualify('SecurityTokenReference'),
                 children(namespaced_element(
-                    WsseNamespace::Wsse11->value,
-                    WsseNamespace::Wsse11->qualify('KeyIdentifier'),
+                    Namespaces::Wsse11->value,
+                    Namespaces::Wsse11->qualify('KeyIdentifier'),
                     attribute('ValueType', self::VALUE_TYPE),
                     attribute('EncodingType', self::ENCODING_TYPE),
                     value($encoded),

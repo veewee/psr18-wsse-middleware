@@ -7,7 +7,7 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
@@ -46,18 +46,18 @@ final class EncryptedKeyBuilder
         $keyInfo = $keyIdentifier->apply($document, $recipientCertificate);
 
         return $document->map(namespaced_element(
-            WsseNamespace::Xenc->value,
-            WsseNamespace::Xenc->qualify('EncryptedKey'),
+            Namespaces::Xenc->value,
+            Namespaces::Xenc->qualify('EncryptedKey'),
             children(
                 fn (): Element => $this->buildEncryptionMethod($document, $keyTransportAlgorithm),
                 static fn (): Element => $keyInfo,
                 static fn (): Element => $document->map(namespaced_element(
-                    WsseNamespace::Xenc->value,
-                    WsseNamespace::Xenc->qualify('CipherData'),
+                    Namespaces::Xenc->value,
+                    Namespaces::Xenc->qualify('CipherData'),
                     children(
                         static fn (): Element => $document->map(namespaced_element(
-                            WsseNamespace::Xenc->value,
-                            WsseNamespace::Xenc->qualify('CipherValue'),
+                            Namespaces::Xenc->value,
+                            Namespaces::Xenc->qualify('CipherValue'),
                             value(base64_encode($wrappedKey)),
                         )),
                     ),
@@ -74,25 +74,25 @@ final class EncryptedKeyBuilder
         $oaepHash = $algorithm->oaepHash;
         if (!$algorithm->isOaep() || $oaepHash === null || $oaepHash === OaepHash::Sha1) {
             return $document->map(namespaced_element(
-                WsseNamespace::Xenc->value,
-                WsseNamespace::Xenc->qualify('EncryptionMethod'),
+                Namespaces::Xenc->value,
+                Namespaces::Xenc->qualify('EncryptionMethod'),
                 attribute('Algorithm', $algorithm->method->value),
             ));
         }
 
         return $document->map(namespaced_element(
-            WsseNamespace::Xenc->value,
-            WsseNamespace::Xenc->qualify('EncryptionMethod'),
+            Namespaces::Xenc->value,
+            Namespaces::Xenc->qualify('EncryptionMethod'),
             attribute('Algorithm', $algorithm->method->value),
             children(
                 static fn (): Element => $document->map(namespaced_element(
-                    WsseNamespace::Ds->value,
-                    WsseNamespace::Ds->qualify('DigestMethod'),
+                    Namespaces::Ds->value,
+                    Namespaces::Ds->qualify('DigestMethod'),
                     attribute('Algorithm', $oaepHash->digestMethod()->value),
                 )),
                 static fn (): Element => $document->map(namespaced_element(
-                    WsseNamespace::Xenc11->value,
-                    WsseNamespace::Xenc11->qualify('MGF'),
+                    Namespaces::Xenc11->value,
+                    Namespaces::Xenc11->qualify('MGF'),
                     attribute('Algorithm', $oaepHash->mgfUri()),
                 )),
             ),
@@ -106,16 +106,16 @@ final class EncryptedKeyBuilder
     {
         $references = array_map(
             static fn (EncryptedPartId $partId): callable => static fn (): Element => $document->map(namespaced_element(
-                WsseNamespace::Xenc->value,
-                WsseNamespace::Xenc->qualify('DataReference'),
+                Namespaces::Xenc->value,
+                Namespaces::Xenc->qualify('DataReference'),
                 attribute('URI', '#'.$partId->id),
             )),
             $encryptedPartIds,
         );
 
         return $document->map(namespaced_element(
-            WsseNamespace::Xenc->value,
-            WsseNamespace::Xenc->qualify('ReferenceList'),
+            Namespaces::Xenc->value,
+            Namespaces::Xenc->qualify('ReferenceList'),
             children(...$references),
         ));
     }

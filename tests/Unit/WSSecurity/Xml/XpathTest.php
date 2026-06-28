@@ -4,10 +4,10 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml;
 
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use VeeWee\Xml\Dom\Document;
 
-final class WsseXpathTest extends TestCase
+final class XpathTest extends TestCase
 {
     private const SOAP12 = 'http://www.w3.org/2003/05/soap-envelope';
     private const SOAP11 = 'http://schemas.xmlsoap.org/soap/envelope/';
@@ -32,7 +32,7 @@ final class WsseXpathTest extends TestCase
     {
         $document = Document::fromXmlString($this->envelope(self::SOAP12));
 
-        $security = $document->xpath(new WsseXpath($document))
+        $security = $document->xpath(new Xpath($document))
             ->querySingle('/soap:Envelope/soap:Header/wsse:Security');
 
         static::assertSame('Security', $security->localName);
@@ -42,7 +42,7 @@ final class WsseXpathTest extends TestCase
     {
         $document = Document::fromXmlString($this->envelope(self::SOAP11));
 
-        $security = $document->xpath(new WsseXpath($document))
+        $security = $document->xpath(new Xpath($document))
             ->querySingle('/soap:Envelope/soap:Header/wsse:Security');
 
         static::assertSame('Security', $security->localName);
@@ -51,7 +51,7 @@ final class WsseXpathTest extends TestCase
     public function test_it_registers_wsu_ds_and_xenc_prefixes(): void
     {
         $document = Document::fromXmlString($this->envelope(self::SOAP12));
-        $xpath = $document->xpath(new WsseXpath($document));
+        $xpath = $document->xpath(new Xpath($document));
 
         static::assertSame('Timestamp', $xpath->querySingle('//wsu:Timestamp')->localName);
         static::assertSame('Signature', $xpath->querySingle('//ds:Signature')->localName);

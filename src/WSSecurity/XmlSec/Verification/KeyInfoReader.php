@@ -7,8 +7,8 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -32,7 +32,7 @@ final class KeyInfoReader
      */
     public function read(Document $document, Element $signatureElement): CertificateReference
     {
-        $keyInfo = $this->onlyChild($signatureElement, WsseNamespace::Ds, 'KeyInfo');
+        $keyInfo = $this->onlyChild($signatureElement, Namespaces::Ds, 'KeyInfo');
         if ($keyInfo === null) {
             throw SignatureVerificationFailed::withReason('ds:KeyInfo is missing.');
         }
@@ -60,12 +60,12 @@ final class KeyInfoReader
      */
     private function fromSecurityTokenReference(Document $document, Element $keyInfo): ?string
     {
-        $str = $this->onlyChild($keyInfo, WsseNamespace::Wsse, 'SecurityTokenReference');
+        $str = $this->onlyChild($keyInfo, Namespaces::Wsse, 'SecurityTokenReference');
         if ($str === null) {
             return null;
         }
 
-        $reference = $this->onlyChild($str, WsseNamespace::Wsse, 'Reference');
+        $reference = $this->onlyChild($str, Namespaces::Wsse, 'Reference');
         if ($reference === null) {
             // No direct reference: the certificate is not carried by a BST here. The identifier forms are tried
             // by the caller; this method only owns the carried-by-BST path.
@@ -80,12 +80,12 @@ final class KeyInfoReader
         $tokenId = substr($uri, 1);
 
         try {
-            $token = WsuIdResolver::resolve($document, $tokenId);
+            $token = WsuId::resolve($document, $tokenId);
         } catch (IdReferenceException) {
             throw SignatureVerificationFailed::withReason('The referenced security token was not found.');
         }
 
-        if ($token->localName !== 'BinarySecurityToken' || $token->namespaceURI !== WsseNamespace::Wsse->value) {
+        if ($token->localName !== 'BinarySecurityToken' || $token->namespaceURI !== Namespaces::Wsse->value) {
             throw SignatureVerificationFailed::withReason('The token reference does not point at a BinarySecurityToken.');
         }
 
@@ -110,12 +110,12 @@ final class KeyInfoReader
      */
     private function fromInlineX509(Element $keyInfo): ?string
     {
-        $x509Data = $this->onlyChild($keyInfo, WsseNamespace::Ds, 'X509Data');
+        $x509Data = $this->onlyChild($keyInfo, Namespaces::Ds, 'X509Data');
         if ($x509Data === null) {
             return null;
         }
 
-        $certificate = $this->onlyChild($x509Data, WsseNamespace::Ds, 'X509Certificate');
+        $certificate = $this->onlyChild($x509Data, Namespaces::Ds, 'X509Certificate');
         if ($certificate === null) {
             return null;
         }
@@ -130,7 +130,7 @@ final class KeyInfoReader
      */
     private function fromIdentifierReference(Element $keyInfo): ?CertificateReference
     {
-        $str = $this->onlyChild($keyInfo, WsseNamespace::Wsse, 'SecurityTokenReference');
+        $str = $this->onlyChild($keyInfo, Namespaces::Wsse, 'SecurityTokenReference');
         if ($str === null) {
             return null;
         }
@@ -162,8 +162,8 @@ final class KeyInfoReader
      */
     private function onlyKeyIdentifier(Element $str): ?Element
     {
-        $wsse = $this->onlyChild($str, WsseNamespace::Wsse, 'KeyIdentifier');
-        $wsse11 = $this->onlyChild($str, WsseNamespace::Wsse11, 'KeyIdentifier');
+        $wsse = $this->onlyChild($str, Namespaces::Wsse, 'KeyIdentifier');
+        $wsse11 = $this->onlyChild($str, Namespaces::Wsse11, 'KeyIdentifier');
 
         if ($wsse !== null && $wsse11 !== null) {
             throw SignatureVerificationFailed::withReason('wsse:KeyIdentifier must appear at most once in its parent.');
@@ -178,18 +178,18 @@ final class KeyInfoReader
      */
     private function issuerSerialReference(Element $str): ?CertificateReference
     {
-        $x509Data = $this->onlyChild($str, WsseNamespace::Ds, 'X509Data');
+        $x509Data = $this->onlyChild($str, Namespaces::Ds, 'X509Data');
         if ($x509Data === null) {
             return null;
         }
 
-        $issuerSerial = $this->onlyChild($x509Data, WsseNamespace::Ds, 'X509IssuerSerial');
+        $issuerSerial = $this->onlyChild($x509Data, Namespaces::Ds, 'X509IssuerSerial');
         if ($issuerSerial === null) {
             return null;
         }
 
-        $issuerName = $this->onlyChild($issuerSerial, WsseNamespace::Ds, 'X509IssuerName');
-        $serialNumber = $this->onlyChild($issuerSerial, WsseNamespace::Ds, 'X509SerialNumber');
+        $issuerName = $this->onlyChild($issuerSerial, Namespaces::Ds, 'X509IssuerName');
+        $serialNumber = $this->onlyChild($issuerSerial, Namespaces::Ds, 'X509SerialNumber');
         if ($issuerName === null || $serialNumber === null) {
             throw SignatureVerificationFailed::withReason('The issuer-serial reference is incomplete.');
         }
@@ -200,7 +200,7 @@ final class KeyInfoReader
         );
     }
 
-    private function onlyChild(Element $parent, WsseNamespace $namespace, string $localName): ?Element
+    private function onlyChild(Element $parent, Namespaces $namespace, string $localName): ?Element
     {
         $matches = ChildElements::named($parent, $namespace, $localName);
         if (count($matches) > 1) {

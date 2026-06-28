@@ -10,10 +10,10 @@ use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\NodeOrder;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -141,8 +141,8 @@ final class Encryptor implements XmlEncryptor
     private function locateSecurity(Document $document): Element
     {
         $security = $document
-            ->xpath(new WsseXpath($document))
-            ->query('//'.WsseNamespace::Wsse->qualify('Security'))
+            ->xpath(new Xpath($document))
+            ->query('//'.Namespaces::Wsse->qualify('Security'))
             ->expectAllOfType(Element::class)
             ->first();
 

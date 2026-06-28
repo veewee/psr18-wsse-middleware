@@ -19,7 +19,7 @@ final class ChildElements
     /**
      * @return list<Element>
      */
-    public static function named(Element $parent, WsseNamespace $namespace, string $localName): array
+    public static function named(Element $parent, Namespaces $namespace, string $localName): array
     {
         return children($parent)
             ->filter(

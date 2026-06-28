@@ -12,7 +12,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Configurator\disallow_doctype;
@@ -145,7 +145,7 @@ final class EncryptedDataReader
     private function child(Element $parent, string $localName): Element
     {
         // Exactly one, so an injected sibling cannot shadow the element the decrypt depends on.
-        $matches = ChildElements::named($parent, WsseNamespace::Xenc, $localName);
+        $matches = ChildElements::named($parent, Namespaces::Xenc, $localName);
         if (count($matches) !== 1) {
             throw DecryptionFailed::withReason(sprintf('xenc:%s is missing.', $localName));
         }

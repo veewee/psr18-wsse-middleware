@@ -6,20 +6,20 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Result;
 use Dom\Element;
 use Dom\XMLDocument;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedReferences;
 use VeeWee\Xml\Dom\Document;
 
 final class VerifiedReferencesTest extends TestCase
 {
-    private const WSU = WsseNamespace::Wsu;
+    private const WSU = Namespaces::Wsu;
 
     public function test_was_signed_is_true_only_for_an_exact_signed_instance(): void
     {
         $document = Document::fromXmlString($this->envelope());
-        $timestamp = WsuIdResolver::resolve($document, 'TS-1');
-        $body = WsuIdResolver::resolve($document, 'Body-1');
+        $timestamp = WsuId::resolve($document, 'TS-1');
+        $body = WsuId::resolve($document, 'Body-1');
 
         $references = new VerifiedReferences([$timestamp]);
 
@@ -33,8 +33,8 @@ final class VerifiedReferencesTest extends TestCase
      */
     public function test_was_signed_is_false_for_an_equal_but_different_element(): void
     {
-        $signed = WsuIdResolver::resolve(Document::fromXmlString($this->envelope()), 'TS-1');
-        $lookAlike = WsuIdResolver::resolve(Document::fromXmlString($this->envelope()), 'TS-1');
+        $signed = WsuId::resolve(Document::fromXmlString($this->envelope()), 'TS-1');
+        $lookAlike = WsuId::resolve(Document::fromXmlString($this->envelope()), 'TS-1');
 
         $references = new VerifiedReferences([$signed]);
 
@@ -45,8 +45,8 @@ final class VerifiedReferencesTest extends TestCase
     public function test_signed_ids_lists_the_wsu_ids_of_the_signed_elements(): void
     {
         $document = Document::fromXmlString($this->envelope());
-        $timestamp = WsuIdResolver::resolve($document, 'TS-1');
-        $body = WsuIdResolver::resolve($document, 'Body-1');
+        $timestamp = WsuId::resolve($document, 'TS-1');
+        $body = WsuId::resolve($document, 'Body-1');
 
         $references = new VerifiedReferences([$timestamp, $body]);
 
@@ -60,7 +60,7 @@ final class VerifiedReferencesTest extends TestCase
 
     public function test_signed_ids_skips_a_signed_element_without_a_wsu_id(): void
     {
-        $timestamp = WsuIdResolver::resolve(Document::fromXmlString($this->envelope()), 'TS-1');
+        $timestamp = WsuId::resolve(Document::fromXmlString($this->envelope()), 'TS-1');
         // The new Dom\ API returns null for the absent wsu:Id on this element, so it must not appear.
         $withoutId = XMLDocument::createFromString('<root/>')->documentElement;
         static::assertInstanceOf(Element::class, $withoutId);

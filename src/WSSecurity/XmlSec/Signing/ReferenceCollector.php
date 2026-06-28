@@ -5,9 +5,9 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
@@ -64,7 +64,7 @@ final class ReferenceCollector
      */
     private function wsuId(Document $document, Element $element): string
     {
-        $existing = $element->getAttributeNS(WsseNamespace::Wsu->value, 'Id');
+        $existing = $element->getAttributeNS(Namespaces::Wsu->value, 'Id');
         if ($existing !== null && $existing !== '') {
             return $existing;
         }

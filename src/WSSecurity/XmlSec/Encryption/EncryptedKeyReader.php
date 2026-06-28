@@ -13,8 +13,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 
@@ -48,7 +48,7 @@ final class EncryptedKeyReader
 
         try {
             $encryptedKey = $this->locate($document);
-            $encryptionMethod = $this->child($encryptedKey, 'EncryptionMethod', WsseNamespace::Xenc);
+            $encryptionMethod = $this->child($encryptedKey, 'EncryptionMethod', Namespaces::Xenc);
 
             $method = $this->keyEncryptionMethod($encryptionMethod);
 
@@ -89,10 +89,10 @@ final class EncryptedKeyReader
     public function dataReferences(Document $document): array
     {
         $encryptedKey = $this->locate($document);
-        $referenceList = $this->child($encryptedKey, 'ReferenceList', WsseNamespace::Xenc);
+        $referenceList = $this->child($encryptedKey, 'ReferenceList', Namespaces::Xenc);
 
         $ids = [];
-        foreach (ChildElements::named($referenceList, WsseNamespace::Xenc, 'DataReference') as $child) {
+        foreach (ChildElements::named($referenceList, Namespaces::Xenc, 'DataReference') as $child) {
             $uri = (string) $child->getAttribute('URI');
             if (!str_starts_with($uri, '#') || $uri === '#') {
                 throw DecryptionFailed::withReason('A data reference URI must be a non-empty same-document id.');
@@ -113,8 +113,8 @@ final class EncryptedKeyReader
      */
     private function wrappedKey(Element $encryptedKey): string
     {
-        $cipherData = $this->child($encryptedKey, 'CipherData', WsseNamespace::Xenc);
-        $cipherValue = $this->child($cipherData, 'CipherValue', WsseNamespace::Xenc);
+        $cipherData = $this->child($encryptedKey, 'CipherData', Namespaces::Xenc);
+        $cipherValue = $this->child($cipherData, 'CipherValue', Namespaces::Xenc);
 
         $decoded = base64_decode(trim((string) $cipherValue->textContent), true);
         if ($decoded === false || $decoded === '') {
@@ -130,9 +130,9 @@ final class EncryptedKeyReader
     private function locate(Document $document): Element
     {
         $encryptedKeys = $document
-            ->xpath(new WsseXpath($document))
+            ->xpath(new Xpath($document))
             ->query(
-                '//'.WsseNamespace::Wsse->qualify('Security').'/'.WsseNamespace::Xenc->qualify('EncryptedKey'),
+                '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Xenc->qualify('EncryptedKey'),
             )
             ->expectAllOfType(Element::class);
 
@@ -146,7 +146,7 @@ final class EncryptedKeyReader
     /**
      * @throws DecryptionFailed
      */
-    private function child(Element $parent, string $localName, WsseNamespace $namespace): Element
+    private function child(Element $parent, string $localName, Namespaces $namespace): Element
     {
         // Exactly one, so an injected sibling cannot shadow the element the unwrap depends on.
         $matches = ChildElements::named($parent, $namespace, $localName);

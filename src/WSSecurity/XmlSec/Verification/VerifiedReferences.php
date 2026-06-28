@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 
 /**
  * The exact element instances a verified signature covered. This is the XML Signature Wrapping defense
@@ -40,7 +40,7 @@ final readonly class VerifiedReferences
         $ids = [];
         foreach ($this->elements as $element) {
             // The new Dom\ API returns null for an absent attribute (unlike the old DOM "" sentinel).
-            $id = $element->getAttributeNS(WsseNamespace::Wsu->value, 'Id');
+            $id = $element->getAttributeNS(Namespaces::Wsu->value, 'Id');
             if ($id !== null) {
                 $ids[] = $id;
             }

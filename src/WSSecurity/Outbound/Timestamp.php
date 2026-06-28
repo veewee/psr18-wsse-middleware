@@ -8,10 +8,10 @@ use Psl\DateTime\SecondsStyle;
 use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\SystemClock;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -66,11 +66,11 @@ final class Timestamp implements OutboundAction
         Instant $expires,
     ): callable {
         $build = namespaced_element(
-            WsseNamespace::Wsu->value,
-            WsseNamespace::Wsu->qualify('Timestamp'),
+            Namespaces::Wsu->value,
+            Namespaces::Wsu->qualify('Timestamp'),
             children(
-                namespaced_element(WsseNamespace::Wsu->value, WsseNamespace::Wsu->qualify('Created'), value($this->wire($created))),
-                namespaced_element(WsseNamespace::Wsu->value, WsseNamespace::Wsu->qualify('Expires'), value($this->wire($expires))),
+                namespaced_element(Namespaces::Wsu->value, Namespaces::Wsu->qualify('Created'), value($this->wire($created))),
+                namespaced_element(Namespaces::Wsu->value, Namespaces::Wsu->qualify('Expires'), value($this->wire($expires))),
             ),
         );
 

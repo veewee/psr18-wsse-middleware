@@ -12,7 +12,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 
 /**
  * Resolves the OAEP parameterization a xenc:EncryptionMethod declares into one KeyTransportAlgorithm.
@@ -69,11 +69,11 @@ final class OaepParameterResolver
                 continue;
             }
 
-            if ($child->localName === 'DigestMethod' && $child->namespaceURI === WsseNamespace::Ds->value) {
+            if ($child->localName === 'DigestMethod' && $child->namespaceURI === Namespaces::Ds->value) {
                 $digestUri = (string) $child->getAttribute('Algorithm');
             }
 
-            if ($child->localName === 'MGF' && $child->namespaceURI === WsseNamespace::Xenc11->value) {
+            if ($child->localName === 'MGF' && $child->namespaceURI === Namespaces::Xenc11->value) {
                 $mgfUri = (string) $child->getAttribute('Algorithm');
             }
         }
@@ -126,7 +126,7 @@ final class OaepParameterResolver
     private function rejectNonEmptyOaepParams(Element $encryptionMethod): void
     {
         // We assume the empty label L="". A non-empty OAEPparams declares a label we do not support.
-        foreach (ChildElements::named($encryptionMethod, WsseNamespace::Xenc, 'OAEPparams') as $params) {
+        foreach (ChildElements::named($encryptionMethod, Namespaces::Xenc, 'OAEPparams') as $params) {
             if (trim((string) $params->textContent) !== '') {
                 throw UnsupportedAlgorithmException::forAlgorithm('xenc:OAEPparams');
             }

@@ -1,12 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Wsse;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Symfony\Component\Uid\Uuid;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -29,7 +29,7 @@ final class WsuIdMinter
         $id = $this->uniqueId($document);
 
         try {
-            namespaced_attribute(WsseNamespace::Wsu->value, WsseNamespace::Wsu->qualify('Id'), $id)($element);
+            namespaced_attribute(Namespaces::Wsu->value, Namespaces::Wsu->qualify('Id'), $id)($element);
         } catch (Throwable $exception) {
             throw WsseHeaderException::idStampFailed($exception->getMessage());
         }
@@ -46,7 +46,7 @@ final class WsuIdMinter
         // pre-existing duplicate) before stamping.
         do {
             $id = 'id-'.Uuid::v4()->toRfc4122();
-        } while (!WsuIdResolver::isFree($document, $id));
+        } while (!WsuId::isFree($document, $id));
 
         return $id;
     }

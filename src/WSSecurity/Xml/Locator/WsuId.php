@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator;
 
 use Dom\Element;
 use Dom\XPath;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath as XpathConfigurator;
 use VeeWee\Xml\Dom\Collection\NodeList;
 use VeeWee\Xml\Dom\Document;
 
@@ -17,7 +18,7 @@ use VeeWee\Xml\Dom\Document;
  * so a crafted value cannot alter the query. A duplicate `wsu:Id` is rejected as ambiguous instead of
  * silently resolving to the first match.
  */
-final class WsuIdResolver
+final class WsuId
 {
     public static function resolve(Document $document, string $id): Element
     {
@@ -45,7 +46,7 @@ final class WsuIdResolver
     private static function matching(Document $document, string $id): NodeList
     {
         return $document
-            ->xpath(new WsseXpath($document))
+            ->xpath(new XpathConfigurator($document))
             ->query('//*[@wsu:Id='.XPath::quote($id).']')
             ->expectAllOfType(Element::class);
     }

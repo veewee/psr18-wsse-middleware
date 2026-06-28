@@ -12,9 +12,9 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Random;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\SystemClock;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -92,7 +92,7 @@ final class Username implements OutboundAction
     private function build(): callable
     {
         $children = [
-            namespaced_element(WsseNamespace::Wsse->value, WsseNamespace::Wsse->qualify('Username'), value($this->username)),
+            namespaced_element(Namespaces::Wsse->value, Namespaces::Wsse->qualify('Username'), value($this->username)),
         ];
 
         if ($this->password !== null) {
@@ -100,8 +100,8 @@ final class Username implements OutboundAction
         }
 
         return namespaced_element(
-            WsseNamespace::Wsse->value,
-            WsseNamespace::Wsse->qualify('UsernameToken'),
+            Namespaces::Wsse->value,
+            Namespaces::Wsse->qualify('UsernameToken'),
             children(...$children),
         );
     }
@@ -114,8 +114,8 @@ final class Username implements OutboundAction
         if (!$this->digest) {
             return [
                 namespaced_element(
-                    WsseNamespace::Wsse->value,
-                    WsseNamespace::Wsse->qualify('Password'),
+                    Namespaces::Wsse->value,
+                    Namespaces::Wsse->qualify('Password'),
                     attribute('Type', self::TYPE_TEXT),
                     value($password),
                 ),
@@ -128,20 +128,20 @@ final class Username implements OutboundAction
 
         return [
             namespaced_element(
-                WsseNamespace::Wsse->value,
-                WsseNamespace::Wsse->qualify('Password'),
+                Namespaces::Wsse->value,
+                Namespaces::Wsse->qualify('Password'),
                 attribute('Type', self::TYPE_DIGEST),
                 value($digest),
             ),
             namespaced_element(
-                WsseNamespace::Wsse->value,
-                WsseNamespace::Wsse->qualify('Nonce'),
+                Namespaces::Wsse->value,
+                Namespaces::Wsse->qualify('Nonce'),
                 attribute('EncodingType', self::ENCODING_BASE64),
                 value(base64_encode($nonce)),
             ),
             namespaced_element(
-                WsseNamespace::Wsu->value,
-                WsseNamespace::Wsu->qualify('Created'),
+                Namespaces::Wsu->value,
+                Namespaces::Wsu->qualify('Created'),
                 value($created),
             ),
         ];

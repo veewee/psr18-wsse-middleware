@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Wsse;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use function VeeWee\Xml\Dom\Locator\Element\children;
 use function VeeWee\Xml\Dom\Manipulator\append;
 
@@ -27,14 +27,14 @@ final class NodeOrder
      * @var list<array{0: non-empty-string, 1: string}>
      */
     private const SEQUENCE = [
-        [WsseNamespace::Wsse->value, 'BinarySecurityToken'],
-        [WsseNamespace::Wsu->value, 'Timestamp'],
+        [Namespaces::Wsse->value, 'BinarySecurityToken'],
+        [Namespaces::Wsu->value, 'Timestamp'],
         [self::SAML11_ASSERTION, 'Assertion'],
         [self::SAML20_ASSERTION, 'Assertion'],
-        [WsseNamespace::Xenc->value, 'EncryptedKey'],
-        [WsseNamespace::Xenc->value, 'ReferenceList'],
-        [WsseNamespace::Ds->value, 'Signature'],
-        [WsseNamespace::Xenc->value, 'EncryptedData'],
+        [Namespaces::Xenc->value, 'EncryptedKey'],
+        [Namespaces::Xenc->value, 'ReferenceList'],
+        [Namespaces::Ds->value, 'Signature'],
+        [Namespaces::Xenc->value, 'EncryptedData'],
     ];
 
     public static function sort(Element $securityElement): void

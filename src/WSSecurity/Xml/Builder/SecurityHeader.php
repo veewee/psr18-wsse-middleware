@@ -1,13 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Wsse;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use Soap\Xml\Builder\Header\MustUnderstand;
 use Soap\Xml\Builder\SoapHeaders;
 use Soap\Xml\Locator\SoapHeaderLocator;
@@ -107,8 +108,8 @@ final class SecurityHeader
     private static function locateOrCreateSecurity(Document $document, Element $header): Element
     {
         $existing = $document
-            ->xpath(new WsseXpath($document))
-            ->query('./'.WsseNamespace::Wsse->qualify('Security'), $header)
+            ->xpath(new Xpath($document))
+            ->query('./'.Namespaces::Wsse->qualify('Security'), $header)
             ->expectAllOfType(Element::class)
             ->first();
 
@@ -116,7 +117,7 @@ final class SecurityHeader
             return $existing;
         }
 
-        $security = namespaced_element(WsseNamespace::Wsse->value, WsseNamespace::Wsse->qualify('Security'))($header);
+        $security = namespaced_element(Namespaces::Wsse->value, Namespaces::Wsse->qualify('Security'))($header);
         append($security)($header);
 
         return $security;

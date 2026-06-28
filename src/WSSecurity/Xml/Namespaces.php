@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
 /**
  * The XML namespaces used throughout the WSSE engine, backed by their canonical URI.
  */
-enum WsseNamespace: string
+enum Namespaces: string
 {
     case Wsse = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
     case Wsu = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';

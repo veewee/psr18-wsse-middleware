@@ -1,12 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Wsse;
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml\Manipulator;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use VeeWee\Xml\Dom\Document;
 
 final class WsuIdMinterTest extends TestCase
@@ -46,7 +46,7 @@ final class WsuIdMinterTest extends TestCase
 
         $id = (new WsuIdMinter())->mint($body, $document);
 
-        static::assertSame($body, WsuIdResolver::resolve($document, $id));
+        static::assertSame($body, WsuId::resolve($document, $id));
     }
 
     public function test_minted_ids_are_unique_within_a_document(): void

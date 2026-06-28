@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use function VeeWee\Xml\Dom\Locator\Element\children;
 
 /**
@@ -59,7 +59,7 @@ final class SignedInfoParser
     {
         $elements = [];
         $parsed = [];
-        foreach (ChildElements::named($signedInfo, WsseNamespace::Ds, 'Reference') as $child) {
+        foreach (ChildElements::named($signedInfo, Namespaces::Ds, 'Reference') as $child) {
             $elements[] = $child;
             $parsed[] = $this->parseReference($child, $signedInfoCanonicalization);
         }
@@ -118,7 +118,7 @@ final class SignedInfoParser
         Element $reference,
         SignatureCanonicalization $signedInfoCanonicalization,
     ): array {
-        $transformsMatches = ChildElements::named($reference, WsseNamespace::Ds, 'Transforms');
+        $transformsMatches = ChildElements::named($reference, Namespaces::Ds, 'Transforms');
         if (count($transformsMatches) > 1) {
             throw SignatureVerificationFailed::withReason('ds:Transforms must appear at most once in a reference.');
         }
@@ -128,7 +128,7 @@ final class SignedInfoParser
             return [$signedInfoCanonicalization, []];
         }
 
-        $transformElements = ChildElements::named($transforms, WsseNamespace::Ds, 'Transform');
+        $transformElements = ChildElements::named($transforms, Namespaces::Ds, 'Transform');
         if (count($transformElements) !== 1) {
             throw SignatureVerificationFailed::withReason('A reference must declare exactly one transform.');
         }
@@ -220,7 +220,7 @@ final class SignedInfoParser
     private function requireDsChild(Element $parent, string $localName): Element
     {
         // Exactly one, so a second injected ds:DigestMethod/ds:DigestValue cannot shadow the real one.
-        $matches = ChildElements::named($parent, WsseNamespace::Ds, $localName);
+        $matches = ChildElements::named($parent, Namespaces::Ds, $localName);
         if (count($matches) !== 1) {
             throw SignatureVerificationFailed::withReason(sprintf('ds:%s must appear exactly once.', $localName));
         }

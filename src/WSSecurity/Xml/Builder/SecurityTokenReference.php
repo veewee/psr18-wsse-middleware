@@ -1,12 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Wsse;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder;
 
 use Closure;
 use Dom\Element;
 use Dom\Node;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\children;
@@ -39,8 +39,8 @@ final readonly class SecurityTokenReference
     public static function reference(string $uri, string $valueType): self
     {
         return new self(namespaced_element(
-            WsseNamespace::Wsse->value,
-            WsseNamespace::Wsse->qualify('Reference'),
+            Namespaces::Wsse->value,
+            Namespaces::Wsse->qualify('Reference'),
             attribute('URI', '#'.$uri),
             attribute('ValueType', $valueType),
         ));
@@ -56,8 +56,8 @@ final readonly class SecurityTokenReference
     public static function keyIdentifier(string $encodedValue, string $valueType, string $encodingType): self
     {
         return new self(namespaced_element(
-            WsseNamespace::Wsse->value,
-            WsseNamespace::Wsse->qualify('KeyIdentifier'),
+            Namespaces::Wsse->value,
+            Namespaces::Wsse->qualify('KeyIdentifier'),
             attribute('ValueType', $valueType),
             attribute('EncodingType', $encodingType),
             value($encodedValue),
@@ -72,8 +72,8 @@ final readonly class SecurityTokenReference
     public static function embedded(callable $childBuilder): self
     {
         return new self(namespaced_element(
-            WsseNamespace::Wsse->value,
-            WsseNamespace::Wsse->qualify('Embedded'),
+            Namespaces::Wsse->value,
+            Namespaces::Wsse->qualify('Embedded'),
             children($childBuilder),
         ));
     }
@@ -86,8 +86,8 @@ final readonly class SecurityTokenReference
     public static function keyName(string $name): self
     {
         return new self(namespaced_element(
-            WsseNamespace::Ds->value,
-            WsseNamespace::Ds->qualify('KeyName'),
+            Namespaces::Ds->value,
+            Namespaces::Ds->qualify('KeyName'),
             value($name),
         ));
     }
@@ -102,20 +102,20 @@ final readonly class SecurityTokenReference
     public static function x509IssuerSerial(string $issuerName, string $serialNumber): self
     {
         return new self(namespaced_element(
-            WsseNamespace::Ds->value,
-            WsseNamespace::Ds->qualify('X509Data'),
+            Namespaces::Ds->value,
+            Namespaces::Ds->qualify('X509Data'),
             children(namespaced_element(
-                WsseNamespace::Ds->value,
-                WsseNamespace::Ds->qualify('X509IssuerSerial'),
+                Namespaces::Ds->value,
+                Namespaces::Ds->qualify('X509IssuerSerial'),
                 children(
                     namespaced_element(
-                        WsseNamespace::Ds->value,
-                        WsseNamespace::Ds->qualify('X509IssuerName'),
+                        Namespaces::Ds->value,
+                        Namespaces::Ds->qualify('X509IssuerName'),
                         value($issuerName),
                     ),
                     namespaced_element(
-                        WsseNamespace::Ds->value,
-                        WsseNamespace::Ds->qualify('X509SerialNumber'),
+                        Namespaces::Ds->value,
+                        Namespaces::Ds->qualify('X509SerialNumber'),
                         value($serialNumber),
                     ),
                 ),
@@ -126,8 +126,8 @@ final readonly class SecurityTokenReference
     public function build(Document $document): Element
     {
         return $document->map(namespaced_element(
-            WsseNamespace::Wsse->value,
-            WsseNamespace::Wsse->qualify('SecurityTokenReference'),
+            Namespaces::Wsse->value,
+            Namespaces::Wsse->qualify('SecurityTokenReference'),
             children($this->childBuilder),
         ));
     }

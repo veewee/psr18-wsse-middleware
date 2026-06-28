@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml;
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml\Locator;
 
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use VeeWee\Xml\Dom\Document;
 
-final class WsuIdResolverTest extends TestCase
+final class WsuIdTest extends TestCase
 {
     private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
 
@@ -35,7 +35,7 @@ final class WsuIdResolverTest extends TestCase
             .'<soap:Body wsu:Id="Body-1"/></soap:Envelope>'
         );
 
-        $element = WsuIdResolver::resolve($document, 'TS-1');
+        $element = WsuId::resolve($document, 'TS-1');
 
         static::assertSame('Timestamp', $element->localName);
         static::assertSame('TS-1', $element->getAttributeNS(self::WSU, 'Id'));
@@ -46,7 +46,7 @@ final class WsuIdResolverTest extends TestCase
         $document = Document::fromXmlString($this->envelope(''));
 
         $this->expectException(IdReferenceException::class);
-        WsuIdResolver::resolve($document, 'does-not-exist');
+        WsuId::resolve($document, 'does-not-exist');
     }
 
     /** XSW-1: two elements sharing a wsu:Id is ambiguous and must be rejected, never "pick the first". */
@@ -59,7 +59,7 @@ final class WsuIdResolverTest extends TestCase
         );
 
         $this->expectException(IdReferenceException::class);
-        WsuIdResolver::resolve($document, 'dup');
+        WsuId::resolve($document, 'dup');
     }
 
     /** XPATH-1: a crafted id must be treated as a literal value, never injected into the query. */
@@ -69,7 +69,7 @@ final class WsuIdResolverTest extends TestCase
 
         // Classic injection: would match every element if interpolated unescaped.
         $this->expectException(IdReferenceException::class);
-        WsuIdResolver::resolve($document, "x' or '1'='1");
+        WsuId::resolve($document, "x' or '1'='1");
     }
 
     public function test_it_handles_an_id_containing_a_single_quote_as_a_literal(): void
@@ -80,7 +80,7 @@ final class WsuIdResolverTest extends TestCase
             .'<soap:Body/></soap:Envelope>'
         );
 
-        $element = WsuIdResolver::resolve($document, "it's-me");
+        $element = WsuId::resolve($document, "it's-me");
 
         static::assertSame('Timestamp', $element->localName);
     }
@@ -94,7 +94,7 @@ final class WsuIdResolverTest extends TestCase
             .'<soap:Body/></soap:Envelope>'
         );
 
-        $element = WsuIdResolver::resolve($document, 'a\'"b');
+        $element = WsuId::resolve($document, 'a\'"b');
 
         static::assertSame('Timestamp', $element->localName);
     }

@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator;
 
 use Dom\Element;
 use Dom\XPath;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath as XpathConfigurator;
 use VeeWee\Xml\Dom\Collection\NodeList;
 use VeeWee\Xml\Dom\Document;
 
@@ -19,7 +20,7 @@ use VeeWee\Xml\Dom\Document;
  * DTD-declared IDs, the id embedded as a string literal so a crafted value cannot alter the query, and a
  * duplicate carrier rejected as ambiguous instead of silently resolving to the first match.
  */
-final class EncryptedDataResolver
+final class EncryptedData
 {
     public static function resolve(Document $document, string $id): Element
     {
@@ -40,7 +41,7 @@ final class EncryptedDataResolver
         $quoted = XPath::quote($id);
 
         return $document
-            ->xpath(new WsseXpath($document))
+            ->xpath(new XpathConfigurator($document))
             ->query('//xenc:EncryptedData[@wsu:Id='.$quoted.' or @Id='.$quoted.']')
             ->expectAllOfType(Element::class);
     }

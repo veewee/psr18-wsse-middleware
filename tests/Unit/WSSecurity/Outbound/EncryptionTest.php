@@ -27,7 +27,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataBuilder;

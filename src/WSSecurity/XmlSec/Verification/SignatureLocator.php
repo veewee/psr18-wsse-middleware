@@ -5,8 +5,8 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -22,9 +22,9 @@ final class SignatureLocator
     public function locate(Document $document): Element
     {
         $signatures = $document
-            ->xpath(new WsseXpath($document))
+            ->xpath(new Xpath($document))
             ->query(
-                '//'.WsseNamespace::Wsse->qualify('Security').'/'.WsseNamespace::Ds->qualify('Signature'),
+                '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Ds->qualify('Signature'),
             )
             ->expectAllOfType(Element::class);
 

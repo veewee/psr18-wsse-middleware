@@ -7,9 +7,9 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use Soap\Xml\Locator\SoapBodyLocator;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Locator\document_element;
@@ -31,7 +31,7 @@ final class PartLocator
             PartKind::Body => $this->locateBody($document),
             PartKind::Timestamp => $this->locateTimestamp($document),
             PartKind::Element => $this->locateElement($document, $part),
-            PartKind::Id => WsuIdResolver::resolve($document, (string) $part->id()),
+            PartKind::Id => WsuId::resolve($document, (string) $part->id()),
         };
     }
 
@@ -54,8 +54,8 @@ final class PartLocator
     private function locateTimestamp(Document $document): Element
     {
         $timestamp = $document
-            ->xpath(new WsseXpath($document))
-            ->query('//'.WsseNamespace::Wsu->qualify('Timestamp'))
+            ->xpath(new Xpath($document))
+            ->query('//'.Namespaces::Wsu->qualify('Timestamp'))
             ->expectAllOfType(Element::class)
             ->first();
 

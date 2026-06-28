@@ -5,7 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier as KeyIdentifierInterface;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
@@ -36,14 +36,14 @@ final class SamlAssertionKeyIdentifier implements KeyIdentifierInterface
     public function apply(Document $document, Certificate $certificate): Element
     {
         return $document->map(namespaced_element(
-            WsseNamespace::Ds->value,
-            WsseNamespace::Ds->qualify('KeyInfo'),
+            Namespaces::Ds->value,
+            Namespaces::Ds->qualify('KeyInfo'),
             children(namespaced_element(
-                WsseNamespace::Wsse->value,
-                WsseNamespace::Wsse->qualify('SecurityTokenReference'),
+                Namespaces::Wsse->value,
+                Namespaces::Wsse->qualify('SecurityTokenReference'),
                 children(namespaced_element(
-                    WsseNamespace::Wsse->value,
-                    WsseNamespace::Wsse->qualify('KeyIdentifier'),
+                    Namespaces::Wsse->value,
+                    Namespaces::Wsse->qualify('KeyIdentifier'),
                     attribute('ValueType', self::VALUE_TYPE),
                     value($this->samlAssertionId),
                 )),

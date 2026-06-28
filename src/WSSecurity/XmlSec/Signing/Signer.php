@@ -7,9 +7,9 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SigningFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\NodeOrder;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseXpath;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
@@ -82,8 +82,8 @@ final class Signer implements XmlSigner
     private function locateSecurity(Document $document): Element
     {
         $security = $document
-            ->xpath(new WsseXpath($document))
-            ->query('//'.WsseNamespace::Wsse->qualify('Security'))
+            ->xpath(new Xpath($document))
+            ->query('//'.Namespaces::Wsse->qualify('Security'))
             ->expectAllOfType(Element::class)
             ->first();
 
@@ -116,8 +116,8 @@ final class Signer implements XmlSigner
     private function buildSignatureValueElement(Document $document): Element
     {
         return $document->map(namespaced_element(
-            WsseNamespace::Ds->value,
-            WsseNamespace::Ds->qualify('SignatureValue'),
+            Namespaces::Ds->value,
+            Namespaces::Ds->qualify('SignatureValue'),
         ));
     }
 
@@ -128,8 +128,8 @@ final class Signer implements XmlSigner
         Element $keyInfo,
     ): Element {
         return $document->map(namespaced_element(
-            WsseNamespace::Ds->value,
-            WsseNamespace::Ds->qualify('Signature'),
+            Namespaces::Ds->value,
+            Namespaces::Ds->qualify('Signature'),
             children(
                 static fn (): Element => $signedInfo,
                 static fn (): Element => $signatureValue,

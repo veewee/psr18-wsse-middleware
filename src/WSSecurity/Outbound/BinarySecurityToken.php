@@ -6,11 +6,11 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\BinaryTokenLocator;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\BinaryToken;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -49,7 +49,7 @@ final class BinarySecurityToken implements OutboundAction
     public function embed(WsseContext $context): string
     {
         $document = $context->document();
-        $locator = new BinaryTokenLocator();
+        $locator = new BinaryToken();
 
         try {
             return $locator->locate($document, $this->certificate);
@@ -68,8 +68,8 @@ final class BinarySecurityToken implements OutboundAction
     {
         $minter = new WsuIdMinter();
         $build = namespaced_element(
-            WsseNamespace::Wsse->value,
-            WsseNamespace::Wsse->qualify('BinarySecurityToken'),
+            Namespaces::Wsse->value,
+            Namespaces::Wsse->qualify('BinarySecurityToken'),
             attribute('ValueType', self::VALUE_TYPE_X509V3),
             attribute('EncodingType', self::ENCODING_BASE64),
             value($body),

@@ -13,7 +13,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\Canonicalizer;
 
 /**
@@ -84,7 +84,7 @@ final class SignatureValidator
      */
     private function onlyChild(Element $parent, string $localName): Element
     {
-        $matches = ChildElements::named($parent, WsseNamespace::Ds, $localName);
+        $matches = ChildElements::named($parent, Namespaces::Ds, $localName);
         if (count($matches) !== 1) {
             throw SignatureVerificationFailed::withReason(sprintf('ds:%s must appear exactly once.', $localName));
         }
