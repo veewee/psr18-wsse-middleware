@@ -30,7 +30,6 @@ final readonly class SigningRequest
         public SignatureMethod $signatureMethod,
         public DigestMethod $digestMethod,
         public SignatureCanonicalization $canonicalization,
-        public bool $useSingleCertificate = true,
     ) {
     }
 }

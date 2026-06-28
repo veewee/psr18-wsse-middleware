@@ -52,7 +52,6 @@ final class Signature implements OutboundAction
         private readonly ClientCertificate $clientCertificate,
         ?XmlSigner $signer = null,
         private readonly KeyRef $keyRef = KeyRef::BinarySecurityToken,
-        private readonly bool $useSingleCertificate = true,
     ) {
         $this->signer = $signer ?? DefaultEngine::signer();
     }
@@ -113,7 +112,6 @@ final class Signature implements OutboundAction
             signatureMethod: $this->signatureMethod ?? $profile->signatureMethod(),
             digestMethod: $this->digestMethod ?? $profile->digestMethod(),
             canonicalization: $this->canonicalization ?? $profile->canonicalization(),
-            useSingleCertificate: $this->useSingleCertificate,
         );
 
         $this->signer->sign($document, $request);

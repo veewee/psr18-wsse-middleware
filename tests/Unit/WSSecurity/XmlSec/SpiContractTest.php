@@ -47,7 +47,6 @@ final class SpiContractTest extends TestCase
         static::assertSame($key, $request->signingKey);
         static::assertSame($certificate, $request->signingCertificate);
         static::assertSame(SignatureMethod::RSA_SHA256, $request->signatureMethod);
-        static::assertTrue($request->useSingleCertificate);
     }
 
     public function test_encryption_request_exposes_its_inputs(): void

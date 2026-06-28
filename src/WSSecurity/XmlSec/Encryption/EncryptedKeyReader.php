@@ -9,7 +9,6 @@ use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
@@ -72,7 +71,7 @@ final class EncryptedKeyReader
             throw DecryptionFailed::withReason('Unable to unwrap the session key.');
         }
 
-        return new UnwrappedKey($sessionKey, DataEncryptionMethod::default());
+        return new UnwrappedKey($sessionKey);
     }
 
     /**

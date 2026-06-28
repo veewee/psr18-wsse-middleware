@@ -13,12 +13,10 @@ use function Psl\File\read;
 final class Certificate implements KeyInterface
 {
     private HiddenString $key;
-    private HiddenString $passphrase;
 
     public function __construct(string $key)
     {
         $this->key = new HiddenString($key);
-        $this->passphrase = new HiddenString('');
     }
 
     /**
@@ -62,26 +60,8 @@ final class Certificate implements KeyInterface
         return base64_encode($der);
     }
 
-    public function withPassphrase(string $passphrase): self
-    {
-        $new = clone $this;
-        $new->passphrase = new HiddenString($passphrase);
-
-        return $new;
-    }
-
     public function contents(): string
     {
         return $this->key->getString();
-    }
-
-    public function passphrase(): string
-    {
-        return $this->passphrase->getString();
-    }
-
-    public function isCertificate(): bool
-    {
-        return true;
     }
 }

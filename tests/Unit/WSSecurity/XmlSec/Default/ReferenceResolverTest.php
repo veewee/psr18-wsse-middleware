@@ -85,7 +85,7 @@ final class ReferenceResolverTest extends TestCase
         $parsed = array_fill(
             0,
             $count,
-            new ParsedReference('Body', DigestMethod::SHA256, base64_encode('x'), SignatureCanonicalization::EXC_C14N, []),
+            new ParsedReference(DigestMethod::SHA256, base64_encode('x'), SignatureCanonicalization::EXC_C14N, []),
         );
 
         $this->expectException(SignatureVerificationFailed::class);
@@ -141,7 +141,7 @@ final class ReferenceResolverTest extends TestCase
         foreach ($signedInfo->childNodes as $child) {
             if ($child instanceof Element && $child->localName === 'Reference') {
                 $elements[] = $child;
-                $parsed[] = new ParsedReference('Body', DigestMethod::SHA256, base64_encode('digest'), SignatureCanonicalization::EXC_C14N, []);
+                $parsed[] = new ParsedReference(DigestMethod::SHA256, base64_encode('digest'), SignatureCanonicalization::EXC_C14N, []);
             }
         }
 

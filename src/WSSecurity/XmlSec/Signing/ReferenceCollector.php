@@ -50,7 +50,7 @@ final class ReferenceCollector
             }
             $seen[] = $element;
 
-            $references[] = new ResolvedReference($element, $this->wsuId($document, $element), $part);
+            $references[] = new ResolvedReference($element, $this->wsuId($document, $element));
         }
 
         // At least one Part is guaranteed, and the first is always kept, so the list is non-empty.

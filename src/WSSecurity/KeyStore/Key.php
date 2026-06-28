@@ -46,9 +46,4 @@ final class Key implements KeyInterface
     {
         return $this->passphrase->getString();
     }
-
-    public function isCertificate(): bool
-    {
-        return false;
-    }
 }

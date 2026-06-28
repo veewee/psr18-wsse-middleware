@@ -96,7 +96,6 @@ final class SignedInfoParser
         );
 
         return new ParsedReference(
-            $wsuId,
             $digestMethod,
             trim((string) $digestValue->textContent),
             $canonicalization,

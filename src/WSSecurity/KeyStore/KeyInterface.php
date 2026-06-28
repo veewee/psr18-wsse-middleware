@@ -8,14 +8,4 @@ interface KeyInterface
      * The RAW content of the key.
      */
     public function contents(): string;
-
-    /**
-     * The passphrase to open up the key information
-     */
-    public function passphrase(): string;
-
-    /**
-     * Is the key an X509 certificate?
-     */
-    public function isCertificate(): bool;
 }

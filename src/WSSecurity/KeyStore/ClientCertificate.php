@@ -60,11 +60,6 @@ final class ClientCertificate implements KeyInterface
         return $this->passphrase->getString();
     }
 
-    public function isCertificate(): bool
-    {
-        return true;
-    }
-
     public function withPassphrase(#[SensitiveParameter] string $passphrase): self
     {
         $new = clone $this;
