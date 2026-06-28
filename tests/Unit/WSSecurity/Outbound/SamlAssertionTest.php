@@ -8,7 +8,6 @@ use LogicException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SamlAssertion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SamlVersion;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SubjectConfirmation;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
 
 final class SamlAssertionTest extends OutboundTestCase
@@ -184,20 +183,6 @@ final class SamlAssertionTest extends OutboundTestCase
 
         $this->only($document, self::WSSE, 'Security');
         $this->only($document, self::SAML20, 'Assertion');
-    }
-
-    public function test_holder_of_key_and_sender_vouches_import_identically(): void
-    {
-        $hok = $this->envelope();
-        $sv = $this->envelope();
-
-        (new SamlAssertion($this->saml20('same'), SamlVersion::Saml20, SubjectConfirmation::HolderOfKey))($this->context($hok));
-        (new SamlAssertion($this->saml20('same'), SamlVersion::Saml20, SubjectConfirmation::SenderVouches))($this->context($sv));
-
-        static::assertSame(
-            $this->only($hok, self::SAML20, 'Assertion')->ownerDocument->saveXml($this->only($hok, self::SAML20, 'Assertion')),
-            $this->only($sv, self::SAML20, 'Assertion')->ownerDocument->saveXml($this->only($sv, self::SAML20, 'Assertion')),
-        );
     }
 
     public function test_the_assertion_follows_a_timestamp_in_the_security_header(): void

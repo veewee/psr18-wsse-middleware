@@ -36,7 +36,6 @@ final class SamlAssertion implements OutboundAction
     public function __construct(
         private readonly string $assertionXml,
         private readonly SamlVersion $version,
-        private readonly SubjectConfirmation $confirmation = SubjectConfirmation::SenderVouches,
     ) {
     }
 

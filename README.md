@@ -261,7 +261,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 new Outbound\SamlAssertion(
     $assertionXml,
     Outbound\SamlVersion::Saml20,
-    Outbound\SubjectConfirmation::SenderVouches,
 );
 ```
 
@@ -269,10 +268,6 @@ new Outbound\SamlAssertion(
 - `SamlVersion $version` — `SamlVersion::Saml11` or `SamlVersion::Saml20`. Required; the version determines the
   expected namespace and the id attribute (`AssertionID` for 1.1, `ID` for 2.0). The assertion root alone has no
   reliable version discriminant, so you state it.
-- `SubjectConfirmation $confirmation = SubjectConfirmation::SenderVouches` — the assertion's confirmation method
-  as caller-supplied metadata. `SenderVouches` (default) asserts identity without a separate key proof.
-  `HolderOfKey` binds a key you prove possession of through a separate `Signature` block. The import itself is
-  identical either way.
 
 After it runs, `assertionId()` returns the assertion's id, which advanced Holder-of-Key flows can wire into a
 signature.
@@ -483,7 +478,6 @@ $serviceTransport = Psr18Transport::createForClient(
                 new Outbound\SamlAssertion(
                     $assertionXml,
                     Outbound\SamlVersion::Saml20,
-                    Outbound\SubjectConfirmation::SenderVouches,
                 ),
                 new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken),
             ],
