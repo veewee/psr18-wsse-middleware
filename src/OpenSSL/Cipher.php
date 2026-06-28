@@ -3,17 +3,18 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
-use Psl\Ref;
+use phpseclib3\Crypt\AES;
+use phpseclib3\Crypt\Common\BlockCipher;
+use phpseclib3\Crypt\TripleDES;
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
-use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
+use Throwable;
 
 /**
- * Symmetric bulk encryption (AES-CBC/GCM, 3DES-CBC). GCM authenticates; CBC does not, so CBC integrity must
- * come from the enclosing signature (enforced a layer up). Every decrypt failure collapses to one uniform
- * error so this is never a padding oracle.
+ * Symmetric bulk encryption (AES-CBC/GCM, 3DES-CBC) routed through the symmetric cipher library. GCM
+ * authenticates; CBC does not, so CBC integrity must come from the enclosing signature (enforced a layer up).
+ * Every decrypt failure collapses to one uniform error so this is never a padding oracle.
  */
 final class Cipher
 {
@@ -29,27 +30,22 @@ final class Cipher
         #[SensitiveParameter] string $key,
         DataEncryptionMethod $method,
     ): CipherText {
-        $cipher = $this->cipher($method);
         $iv = $this->random->bytes($this->ivLength($method));
 
-        if ($method->isGcm()) {
-            // openssl_encrypt writes the GCM tag out-param by reference; a Psl\Ref carries it out cleanly.
-            /** @var Ref<string> $tag */
-            $tag = new Ref('');
-            $bytes = OpenSslCall::run(
-                static fn (): string|false => openssl_encrypt($plaintext, $cipher, $key, OPENSSL_RAW_DATA, $iv, $tag->value, '', self::GCM_TAG_LENGTH),
-                'encrypt the data',
-            );
+        try {
+            $cipher = $this->cipher($method, $key, $iv);
 
-            return new CipherText($iv, $bytes, $tag->value);
+            if ($method->isGcm()) {
+                $bytes = $cipher->encrypt($plaintext);
+
+                return new CipherText($iv, $bytes, $cipher->getTag());
+            }
+
+            // For CBC the IV length equals the block size.
+            $bytes = $cipher->encrypt($this->pad($plaintext, strlen($iv)));
+        } catch (Throwable) {
+            throw CryptoOperationFailed::encryptionFailed();
         }
-
-        // For CBC the IV length equals the block size.
-        $padded = $this->pad($plaintext, strlen($iv));
-        $bytes = OpenSslCall::run(
-            static fn (): string|false => openssl_encrypt($padded, $cipher, $key, OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING, $iv),
-            'encrypt the data',
-        );
 
         return new CipherText($iv, $bytes, null);
     }
@@ -59,7 +55,6 @@ final class Cipher
         #[SensitiveParameter] string $key,
         DataEncryptionMethod $method,
     ): string {
-        $cipher = $this->cipher($method);
         $ivLength = $this->ivLength($method);
 
         if ($method->isGcm()) {
@@ -68,19 +63,21 @@ final class Cipher
                 throw CryptoOperationFailed::invalidAuthenticationTag();
             }
             if (strlen($cipherText->iv) !== $ivLength) {
-                // openssl silently accepts non-96-bit GCM IVs and weakens GHASH; we refuse.
+                // A non-96-bit GCM IV weakens GHASH, so we refuse it outright.
                 throw CryptoOperationFailed::decryptionFailed();
             }
 
             $tag = $cipherText->tag;
 
             try {
-                return OpenSslCall::run(
-                    static fn (): string|false => openssl_decrypt($cipherText->bytes, $cipher, $key, OPENSSL_RAW_DATA, $cipherText->iv, $tag),
-                );
-            } catch (OpenSslException) {
+                $cipher = $this->cipher($method, $key, $cipherText->iv);
+                $cipher->setTag($tag);
+                $plaintext = $cipher->decrypt($cipherText->bytes);
+            } catch (Throwable) {
                 throw CryptoOperationFailed::decryptionFailed();
             }
+
+            return $plaintext;
         }
 
         if (strlen($cipherText->iv) !== $ivLength) {
@@ -88,10 +85,9 @@ final class Cipher
         }
 
         try {
-            $padded = OpenSslCall::run(
-                static fn (): string|false => openssl_decrypt($cipherText->bytes, $cipher, $key, OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING, $cipherText->iv),
-            );
-        } catch (OpenSslException) {
+            $cipher = $this->cipher($method, $key, $cipherText->iv);
+            $padded = $cipher->decrypt($cipherText->bytes);
+        } catch (Throwable) {
             throw CryptoOperationFailed::decryptionFailed();
         }
 
@@ -127,18 +123,55 @@ final class Cipher
     }
 
     /**
-     * @return non-empty-string
+     * Build a fresh cipher object per call, configured for the method. The key length is pinned before the key
+     * is set so a wrong-length session key is rejected rather than silently re-sizing the cipher. We apply
+     * ISO 10126 padding ourselves, so the library padding is disabled to keep the wire format intact.
      */
-    private function cipher(DataEncryptionMethod $method): string
+    private function cipher(
+        DataEncryptionMethod $method,
+        #[SensitiveParameter] string $key,
+        string $iv,
+    ): BlockCipher {
+        if ($method === DataEncryptionMethod::TRIPLEDES_CBC) {
+            $cipher = new TripleDES('cbc');
+            $cipher->setKey($key);
+            $cipher->setIV($iv);
+            $cipher->disablePadding();
+
+            return $cipher;
+        }
+
+        if ($method->isGcm()) {
+            $cipher = new AES('gcm');
+            $cipher->setKeyLength($this->aesKeyLength($method));
+            $cipher->setKey($key);
+            $cipher->setNonce($iv);
+
+            return $cipher;
+        }
+
+        $cipher = new AES('cbc');
+        $cipher->setKeyLength($this->aesKeyLength($method));
+        $cipher->setKey($key);
+        $cipher->setIV($iv);
+        $cipher->disablePadding();
+
+        return $cipher;
+    }
+
+    /**
+     * @return 128|192|256
+     */
+    private function aesKeyLength(DataEncryptionMethod $method): int
     {
         return match ($method) {
-            DataEncryptionMethod::TRIPLEDES_CBC => 'des-ede3-cbc',
-            DataEncryptionMethod::AES128_CBC => 'aes-128-cbc',
-            DataEncryptionMethod::AES192_CBC => 'aes-192-cbc',
-            DataEncryptionMethod::AES256_CBC => 'aes-256-cbc',
-            DataEncryptionMethod::AES128_GCM => 'aes-128-gcm',
-            DataEncryptionMethod::AES192_GCM => 'aes-192-gcm',
-            DataEncryptionMethod::AES256_GCM => 'aes-256-gcm',
+            DataEncryptionMethod::AES128_CBC,
+            DataEncryptionMethod::AES128_GCM => 128,
+            DataEncryptionMethod::AES192_CBC,
+            DataEncryptionMethod::AES192_GCM => 192,
+            DataEncryptionMethod::AES256_CBC,
+            DataEncryptionMethod::AES256_GCM => 256,
+            DataEncryptionMethod::TRIPLEDES_CBC => throw CryptoOperationFailed::encryptionFailed(),
         };
     }
 
