@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\OpenSSL\Formatter;
 
-use Brick\Math\BigInteger;
+use phpseclib3\Math\BigInteger;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
+
+use function Psl\Type\non_empty_string;
 
 /**
  * Normalises a certificate serial number to a decimal integer string. openssl reports the serial in decimal
@@ -32,6 +34,6 @@ final class SerialNumber
         }
 
         // Serial numbers routinely exceed the platform integer range, so the conversion keeps arbitrary precision.
-        return (string) BigInteger::fromBase($hex, 16);
+        return non_empty_string()->coerce((new BigInteger($hex, 16))->toString());
     }
 }

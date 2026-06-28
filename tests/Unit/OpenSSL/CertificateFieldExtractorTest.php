@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 
-use Brick\Math\BigInteger;
+use phpseclib3\Math\BigInteger;
 use OpenSSLAsymmetricKey;
 use OpenSSLCertificate;
 use OpenSSLCertificateSigningRequest;
@@ -156,7 +156,7 @@ final class CertificateFieldExtractorTest extends TestCase
         // Serials beyond the platform integer range are passed through the hexadecimal parameter, since the
         // integer serial argument cannot carry them.
         if (is_string($serial)) {
-            $cert = openssl_csr_sign($csr, $caCert, $caKey, 365, $config + ['digest_alg' => 'sha256'], 0, BigInteger::of($serial)->toBase(16));
+            $cert = openssl_csr_sign($csr, $caCert, $caKey, 365, $config + ['digest_alg' => 'sha256'], 0, (new BigInteger($serial, 10))->toHex());
         } else {
             $cert = openssl_csr_sign($csr, $caCert, $caKey, 365, $config + ['digest_alg' => 'sha256'], $serial);
         }

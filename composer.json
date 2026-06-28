@@ -28,7 +28,6 @@
         "php-standard-library/foundation": "^6.1",
         "php-standard-library/type": "^6.1",
         "paragonie/hidden-string": "^2.0",
-        "brick/math": "^0.18",
         "php-soap/psr18-transport": "^2.0",
         "php-soap/engine": "^2.20",
         "php-soap/xml": "^1.11",
