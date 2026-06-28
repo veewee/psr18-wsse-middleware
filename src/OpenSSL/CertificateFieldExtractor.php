@@ -9,16 +9,18 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use function Psl\Type\dict;
+use function Psl\Type\int;
 use function Psl\Type\non_empty_string;
-use function Psl\Type\optional;
+use function Psl\Type\nullish;
 use function Psl\Type\shape;
 use function Psl\Type\union;
 use function Psl\Type\vec;
 
 /**
- * Extracts the certificate fields that WSSE key-reference strategies embed in ds:KeyInfo. All reads go through
- * OpenSslCall so the single ext-openssl boundary stays inside the OpenSSL namespace and the strategies remain
- * free of raw openssl_* calls.
+ * The single reader of certificate fields: the values WSSE key-reference strategies embed in ds:KeyInfo
+ * (subject key identifier, issuer and serial, thumbprint) and the fields trust verification needs (subject
+ * name, validity window, key usage). All reads go through OpenSslCall so the single ext-openssl boundary stays
+ * inside the OpenSSL namespace and the callers remain free of raw openssl_* calls.
  */
 final class CertificateFieldExtractor
 {
@@ -32,8 +34,7 @@ final class CertificateFieldExtractor
      */
     public function subjectKeyIdentifier(Certificate $certificate): string
     {
-        $info = $this->parse($certificate);
-        $hex = $info['extensions']['subjectKeyIdentifier'] ?? null;
+        $hex = ($this->parse($certificate)['extensions'] ?? [])['subjectKeyIdentifier'] ?? null;
         if ($hex === null) {
             throw CryptoOperationFailed::missingCertificateField('subjectKeyIdentifier');
         }
@@ -95,15 +96,57 @@ final class CertificateFieldExtractor
     }
 
     /**
-     * Reads the identifying fields out of openssl_x509_parse's untyped array. coerce() keeps the fields modelled
-     * here typed and drops the rest; a CoercionException means a required field is absent, i.e. the certificate
-     * is unparseable. The subjectKeyIdentifier extension is optional (present only when the cert carries it).
+     * The certificate's subject distinguished name, as openssl reports it. Used as the human-readable signer
+     * identity once a chain is trusted.
+     *
+     * @return non-empty-string
+     *
+     * @throws CryptoOperationFailed when the certificate cannot be read
+     */
+    public function subjectName(Certificate $certificate): string
+    {
+        return $this->parse($certificate)['name'];
+    }
+
+    /**
+     * The certificate's validity window as Unix timestamps, so a verifier can reject a not-yet-valid or expired
+     * certificate.
+     *
+     * @return array{from: int, to: int}
+     *
+     * @throws CryptoOperationFailed when the certificate cannot be read
+     */
+    public function validityWindow(Certificate $certificate): array
+    {
+        $info = $this->parse($certificate);
+
+        return ['from' => $info['validFrom_time_t'], 'to' => $info['validTo_time_t']];
+    }
+
+    /**
+     * The keyUsage extension value, or null when the certificate carries no keyUsage extension.
+     *
+     * @return non-empty-string|null
+     *
+     * @throws CryptoOperationFailed when the certificate cannot be read
+     */
+    public function keyUsage(Certificate $certificate): ?string
+    {
+        return ($this->parse($certificate)['extensions'] ?? [])['keyUsage'] ?? null;
+    }
+
+    /**
+     * Reads the identifying and trust fields out of openssl_x509_parse's untyped array. coerce() keeps the fields
+     * modelled here typed and drops the rest; a CoercionException means a required field is absent, i.e. the
+     * certificate is unparseable. The extensions are optional (present only when the cert carries them).
      *
      * @return array{
      *     name: non-empty-string,
      *     serialNumber: non-empty-string,
      *     issuer: array<non-empty-string, non-empty-string|list<non-empty-string>>,
-     *     extensions?: array{subjectKeyIdentifier?: non-empty-string}
+     *     validFrom_time_t: int,
+     *     validTo_time_t: int,
+     *     extensions: array{subjectKeyIdentifier: non-empty-string|null, keyUsage: non-empty-string|null}|null
      * }
      */
     private function parse(Certificate $certificate): array
@@ -116,8 +159,11 @@ final class CertificateFieldExtractor
                     non_empty_string(),
                     union(non_empty_string(), vec(non_empty_string())),
                 ),
-                'extensions' => optional(shape([
-                    'subjectKeyIdentifier' => optional(non_empty_string()),
+                'validFrom_time_t' => int(),
+                'validTo_time_t' => int(),
+                'extensions' => nullish(shape([
+                    'subjectKeyIdentifier' => nullish(non_empty_string()),
+                    'keyUsage' => nullish(non_empty_string()),
                 ])),
             ])->coerce(OpenSslCall::run(
                 static fn () => openssl_x509_parse($certificate->contents()),

@@ -5,18 +5,13 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
 use Phpro\ResourceStream\Factory\TmpStream;
 use Phpro\ResourceStream\ResourceStream;
-use Psl\Type\Exception\CoercionException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
+use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
-use function Psl\Type\int;
-use function Psl\Type\optional;
-use function Psl\Type\shape;
-use function Psl\Type\string;
 
 /**
  * The verifyTrust primitive: establish that a signing certificate is trusted. Trust is decided against a
@@ -26,6 +21,13 @@ use function Psl\Type\string;
  */
 final class CertificateTrust
 {
+    private readonly CertificateFieldExtractor $fields;
+
+    public function __construct()
+    {
+        $this->fields = new CertificateFieldExtractor();
+    }
+
     public function verify(CertificateChain $chain, TrustStore $trust): TrustedSigner
     {
         if ($trust->isEmpty()) {
@@ -33,39 +35,20 @@ final class CertificateTrust
         }
 
         $leaf = $chain->leaf();
-        $info = $this->parse($leaf);
 
-        $this->assertWithinValidity($info['validFrom_time_t'], $info['validTo_time_t']);
-        $this->assertMaySign($info['extensions']['keyUsage'] ?? null);
-        $this->assertChainsToAnchor($chain, $trust);
-
-        return new TrustedSigner($info['name'], $leaf);
-    }
-
-    /**
-     * Read the trust-relevant fields out of openssl_x509_parse's untyped array. coerce() drops the fields we
-     * don't model and keeps the rest typed; a CoercionException means a required field is missing, i.e. the
-     * certificate is unparseable. extensions / keyUsage are optional (present only if the cert carries them).
-     *
-     * @return array{name: string, validFrom_time_t: int, validTo_time_t: int, extensions?: array{keyUsage?: string}}
-     */
-    private function parse(Certificate $certificate): array
-    {
         try {
-            return shape([
-                'name' => string(),
-                'validFrom_time_t' => int(),
-                'validTo_time_t' => int(),
-                'extensions' => optional(shape([
-                    'keyUsage' => optional(string()),
-                ])),
-            ])->coerce(OpenSslCall::run(
-                static fn () => openssl_x509_parse($certificate->contents()),
-                'read the certificate',
-            ));
-        } catch (OpenSslException | CoercionException) {
+            $subjectName = $this->fields->subjectName($leaf);
+            $validity = $this->fields->validityWindow($leaf);
+            $keyUsage = $this->fields->keyUsage($leaf);
+        } catch (CryptoOperationFailed) {
             throw CertificateTrustException::unreadable();
         }
+
+        $this->assertWithinValidity($validity['from'], $validity['to']);
+        $this->assertMaySign($keyUsage);
+        $this->assertChainsToAnchor($chain, $trust);
+
+        return new TrustedSigner($subjectName, $leaf);
     }
 
     private function assertWithinValidity(int $validFrom, int $validTo): void
