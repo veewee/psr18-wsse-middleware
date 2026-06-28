@@ -11,7 +11,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use function Psl\Type\dict;
 use function Psl\Type\int;
 use function Psl\Type\non_empty_string;
-use function Psl\Type\nullish;
+use function Psl\Type\optional;
 use function Psl\Type\shape;
 use function Psl\Type\union;
 use function Psl\Type\vec;
@@ -146,7 +146,7 @@ final class CertificateFieldExtractor
      *     issuer: array<non-empty-string, non-empty-string|list<non-empty-string>>,
      *     validFrom_time_t: int,
      *     validTo_time_t: int,
-     *     extensions: array{subjectKeyIdentifier: non-empty-string|null, keyUsage: non-empty-string|null}|null
+     *     extensions?: array{subjectKeyIdentifier?: non-empty-string, keyUsage?: non-empty-string}
      * }
      */
     private function parse(Certificate $certificate): array
@@ -161,9 +161,9 @@ final class CertificateFieldExtractor
                 ),
                 'validFrom_time_t' => int(),
                 'validTo_time_t' => int(),
-                'extensions' => nullish(shape([
-                    'subjectKeyIdentifier' => nullish(non_empty_string()),
-                    'keyUsage' => nullish(non_empty_string()),
+                'extensions' => optional(shape([
+                    'subjectKeyIdentifier' => optional(non_empty_string()),
+                    'keyUsage' => optional(non_empty_string()),
                 ])),
             ])->coerce(OpenSslCall::run(
                 static fn () => openssl_x509_parse($certificate->contents()),
