@@ -5,7 +5,10 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use Psl\DateTime\SecondsStyle;
+use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
+use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound\FrozenClock;
 use VeeWee\Xml\Dom\Document;
 
 final class TimestampTest extends OutboundTestCase
@@ -90,6 +93,23 @@ final class TimestampTest extends OutboundTestCase
 
         $id = $this->only($document, self::WSU, 'Timestamp')->getAttributeNS(self::WSU, 'Id');
         static::assertMatchesRegularExpression('/^id-[0-9a-f-]{36}$/', $id);
+    }
+
+    public function test_a_pinned_clock_drives_created_and_expires(): void
+    {
+        $document = $this->envelope();
+        $now = Instant::fromParts(1893553445, 678000000);
+
+        (new Timestamp(600))->withClock(new FrozenClock($now))($this->context($document));
+
+        static::assertSame(
+            '2030-01-02T03:04:05.678Z',
+            $this->only($document, self::WSU, 'Created')->textContent,
+        );
+        static::assertSame(
+            $now->plusSeconds(600)->toRfc3339(SecondsStyle::Milliseconds, useZ: true),
+            $this->only($document, self::WSU, 'Expires')->textContent,
+        );
     }
 
     private function ttlDelta(Document $document): int

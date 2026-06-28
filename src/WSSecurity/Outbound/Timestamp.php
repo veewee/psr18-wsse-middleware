@@ -6,6 +6,8 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Dom\Element;
 use Psl\DateTime\SecondsStyle;
 use Psl\DateTime\Timestamp as Instant;
+use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
+use Soap\Psr18WsseMiddleware\WSSecurity\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -23,12 +25,23 @@ use function VeeWee\Xml\Dom\Builder\value;
  */
 final class Timestamp implements OutboundAction
 {
+    private Clock $clock;
+
     /**
      * @param positive-int $ttl seconds until expiry
      */
     public function __construct(
         private readonly int $ttl = 300,
     ) {
+        $this->clock = new SystemClock();
+    }
+
+    public function withClock(Clock $clock): self
+    {
+        $clone = clone $this;
+        $clone->clock = $clock;
+
+        return $clone;
     }
 
     public function __invoke(WsseContext $context): void
@@ -36,7 +49,7 @@ final class Timestamp implements OutboundAction
         $document = $context->document();
         $minter = new WsuIdMinter();
 
-        $created = Instant::now();
+        $created = $this->clock->now();
         $expires = $created->plusSeconds($this->ttl);
 
         $header = SecurityHeader::locateOrCreate($document, $context->soapVersion());

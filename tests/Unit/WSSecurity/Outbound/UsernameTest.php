@@ -5,9 +5,11 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use Dom\Element;
 use InvalidArgumentException;
+use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Username;
+use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound\FrozenClock;
 use VeeWee\Xml\Dom\Document;
 
 final class UsernameTest extends OutboundTestCase
@@ -125,5 +127,43 @@ final class UsernameTest extends OutboundTestCase
 
         static::assertNotSame($original, $original->withPassword('secret'));
         static::assertNotSame($original, $original->withDigest(true));
+    }
+
+    public function test_a_pinned_clock_drives_the_digest_created_and_password(): void
+    {
+        $document = $this->envelope();
+        $now = Instant::fromParts(1893553445, 678000000);
+
+        (new Username('alice', 'secret'))->withDigest(true)->withClock(new FrozenClock($now))($this->context($document));
+
+        $created = $this->maybeOnly($document, self::WSU, 'Created')?->textContent;
+        static::assertSame('2030-01-02T03:04:05.678Z', $created);
+
+        $nonce = base64_decode($this->maybeOnly($document, self::WSSE, 'Nonce')?->textContent ?? '', true);
+        static::assertNotFalse($nonce);
+        $expected = base64_encode((new Digest())->hash($nonce.$created.'secret', DigestMethod::SHA1));
+        static::assertSame($expected, $this->maybeOnly($document, self::WSSE, 'Password')?->textContent);
+    }
+
+    public function test_the_clock_survives_regardless_of_wither_order(): void
+    {
+        $now = Instant::fromParts(1893553445, 678000000);
+        $clock = new FrozenClock($now);
+
+        $blocks = [
+            (new Username('alice', digest: true))->withClock($clock)->withPassword('secret'),
+            (new Username('alice', 'secret', digest: true))->withClock($clock),
+            (new Username('alice'))->withPassword('secret')->withClock($clock)->withDigest(true),
+        ];
+
+        foreach ($blocks as $block) {
+            $document = $this->envelope();
+            $block($this->context($document));
+
+            static::assertSame(
+                '2030-01-02T03:04:05.678Z',
+                $this->maybeOnly($document, self::WSU, 'Created')?->textContent,
+            );
+        }
     }
 }

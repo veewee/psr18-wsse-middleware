@@ -6,11 +6,12 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Dom\Element;
 use InvalidArgumentException;
 use Psl\DateTime\SecondsStyle;
-use Psl\DateTime\Timestamp as Instant;
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Random;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
+use Soap\Psr18WsseMiddleware\WSSecurity\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespace;
@@ -38,27 +39,43 @@ final class Username implements OutboundAction
 
     private readonly Random $random;
     private readonly Digest $digester;
+    private Clock $clock;
 
     public function __construct(
         private readonly string $username,
         #[SensitiveParameter]
-        private readonly ?string $password = null,
-        private readonly bool $digest = false,
+        private ?string $password = null,
+        private bool $digest = false,
         ?Random $random = null,
         ?Digest $digester = null,
     ) {
         $this->random = $random ?? new Random();
         $this->digester = $digester ?? new Digest();
+        $this->clock = new SystemClock();
     }
 
     public function withPassword(#[SensitiveParameter] string $password): self
     {
-        return new self($this->username, $password, $this->digest, $this->random, $this->digester);
+        $clone = clone $this;
+        $clone->password = $password;
+
+        return $clone;
     }
 
     public function withDigest(bool $digest): self
     {
-        return new self($this->username, $this->password, $digest, $this->random, $this->digester);
+        $clone = clone $this;
+        $clone->digest = $digest;
+
+        return $clone;
+    }
+
+    public function withClock(Clock $clock): self
+    {
+        $clone = clone $this;
+        $clone->clock = $clock;
+
+        return $clone;
     }
 
     public function __invoke(WsseContext $context): void
@@ -108,7 +125,7 @@ final class Username implements OutboundAction
         }
 
         $nonce = $this->random->bytes(self::NONCE_LENGTH);
-        $created = Instant::now()->toRfc3339(SecondsStyle::Milliseconds, useZ: true);
+        $created = $this->clock->now()->toRfc3339(SecondsStyle::Milliseconds, useZ: true);
         $digest = base64_encode($this->digester->hash($nonce.$created.$password, DigestMethod::SHA1));
 
         return [
