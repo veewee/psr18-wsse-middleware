@@ -41,6 +41,40 @@ final class DistinguishedName
     }
 
     /**
+     * Normalizes an RFC 2253 distinguished name for robust comparison across implementations that render the
+     * same name with cosmetic differences. The name is split into its relative components on unescaped commas,
+     * each component is split into attribute type and value on the first unescaped equals sign, the type is
+     * uppercased and the value is whitespace-trimmed and case-folded. The component order is preserved, since
+     * RFC 2253 orders relative names most-specific-first and that ordering is significant.
+     *
+     * This does not decode RFC 2253 hex-encoded values or reorder multi-valued relative names, so two names
+     * that are equal only after such decoding are treated as different. The forms compared here are produced by
+     * the same renderer on both sides, so those edge cases do not arise in practice.
+     */
+    public function normalize(string $name): string
+    {
+        $components = preg_split('/(?<!\\\\),/', $name);
+        if ($components === false) {
+            return $name;
+        }
+
+        $normalized = [];
+        foreach ($components as $component) {
+            $parts = preg_split('/(?<!\\\\)=/', $component, 2);
+            if ($parts === false || count($parts) !== 2) {
+                $normalized[] = mb_strtolower(trim($component));
+                continue;
+            }
+
+            $type = strtoupper(trim($parts[0]));
+            $value = mb_strtolower(trim($parts[1]));
+            $normalized[] = $type . '=' . $value;
+        }
+
+        return implode(',', $normalized);
+    }
+
+    /**
      * Escapes the characters RFC 2253 reserves in an attribute value: the structural separators anywhere in
      * the value, a leading space or number sign, and a trailing space.
      */

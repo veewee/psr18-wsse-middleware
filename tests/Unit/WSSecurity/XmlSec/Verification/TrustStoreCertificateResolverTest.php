@@ -1,0 +1,139 @@
+<?php
+declare(strict_types=1);
+
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Verification;
+
+use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\CertificateReference;
+use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\TrustStoreCertificateResolver;
+use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\WsseSignatureFixture;
+
+/**
+ * Covers the trust-store matching policy in isolation: a typed certificate reference resolves to the single
+ * matching anchor, an unknown identifier is refused, and two anchors carrying the same identifier make the
+ * reference ambiguous. The match is by computed identifier, so no anchor is ever silently preferred.
+ */
+final class TrustStoreCertificateResolverTest extends TestCase
+{
+    private const SUBJECT_KEY_IDENTIFIER_VALUE_TYPE
+        = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509SubjectKeyIdentifier';
+    private const THUMBPRINT_SHA1_VALUE_TYPE
+        = 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1';
+
+    public function test_it_resolves_a_unique_subject_key_identifier_match(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $extractor = new CertificateFieldExtractor();
+        $reference = CertificateReference::keyIdentifier(
+            self::SUBJECT_KEY_IDENTIFIER_VALUE_TYPE,
+            $extractor->subjectKeyIdentifier($fixture->leafCertificate),
+        );
+
+        $resolved = $this->resolver($extractor)->resolve(
+            $reference,
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+        );
+
+        static::assertSame($fixture->leafCertificate, $resolved);
+    }
+
+    public function test_it_resolves_a_unique_thumbprint_match(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $extractor = new CertificateFieldExtractor();
+        $reference = CertificateReference::keyIdentifier(
+            self::THUMBPRINT_SHA1_VALUE_TYPE,
+            $extractor->thumbprintSha1($fixture->leafCertificate),
+        );
+
+        $resolved = $this->resolver($extractor)->resolve(
+            $reference,
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+        );
+
+        static::assertSame($fixture->leafCertificate, $resolved);
+    }
+
+    public function test_it_resolves_a_unique_issuer_serial_match(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $extractor = new CertificateFieldExtractor();
+        $fields = $extractor->issuerSerial($fixture->leafCertificate);
+        $reference = CertificateReference::issuerSerial($fields['issuerName'], $fields['serialNumber']);
+
+        $other = WsseSignatureFixture::selfSignedLeaf();
+
+        $resolved = $this->resolver($extractor)->resolve(
+            $reference,
+            TrustStore::fromCertificates($other->caCertificate, $fixture->leafCertificate),
+        );
+
+        static::assertSame($fixture->leafCertificate, $resolved);
+    }
+
+    public function test_it_refuses_an_identifier_no_anchor_carries(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $extractor = new CertificateFieldExtractor();
+        $reference = CertificateReference::keyIdentifier(
+            self::SUBJECT_KEY_IDENTIFIER_VALUE_TYPE,
+            $extractor->subjectKeyIdentifier($fixture->leafCertificate),
+        );
+
+        // The trust store holds only the CA, not the signer leaf the identifier names.
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->resolver($extractor)->resolve(
+            $reference,
+            TrustStore::fromCertificates($fixture->caCertificate),
+        );
+    }
+
+    public function test_it_refuses_an_ambiguous_match(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $extractor = new CertificateFieldExtractor();
+        $reference = CertificateReference::keyIdentifier(
+            self::SUBJECT_KEY_IDENTIFIER_VALUE_TYPE,
+            $extractor->subjectKeyIdentifier($fixture->leafCertificate),
+        );
+
+        // Two anchors carrying the same identifier make the reference ambiguous.
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->resolver($extractor)->resolve(
+            $reference,
+            TrustStore::fromCertificates($fixture->leafCertificate, $fixture->leafCertificate),
+        );
+    }
+
+    public function test_it_refuses_an_unsupported_key_identifier_value_type(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $reference = CertificateReference::keyIdentifier('urn:unsupported', 'anything');
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->resolver(new CertificateFieldExtractor())->resolve(
+            $reference,
+            TrustStore::fromCertificates($fixture->leafCertificate),
+        );
+    }
+
+    public function test_it_refuses_a_carried_reference_it_cannot_resolve(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $reference = CertificateReference::carried('does-not-matter');
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->resolver(new CertificateFieldExtractor())->resolve(
+            $reference,
+            TrustStore::fromCertificates($fixture->leafCertificate),
+        );
+    }
+
+    private function resolver(CertificateFieldExtractor $extractor): TrustStoreCertificateResolver
+    {
+        return new TrustStoreCertificateResolver($extractor);
+    }
+}

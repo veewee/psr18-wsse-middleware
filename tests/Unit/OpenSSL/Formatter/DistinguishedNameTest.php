@@ -66,4 +66,29 @@ final class DistinguishedNameTest extends TestCase
         $this->expectException(CryptoOperationFailed::class);
         (new DistinguishedName())->render([]);
     }
+
+    public function test_it_normalizes_cosmetic_differences_for_comparison(): void
+    {
+        // Same name, rendered with different attribute-type casing and spacing on each side.
+        $left = (new DistinguishedName())->normalize('cn=Test CA, o=PHPro , C=BE');
+        $right = (new DistinguishedName())->normalize('CN=test ca,O=phpro,c=be');
+
+        static::assertSame($left, $right);
+    }
+
+    public function test_it_preserves_relative_name_order_when_normalizing(): void
+    {
+        // The most-specific-first ordering is significant, so two names differing only in order stay different.
+        $left = (new DistinguishedName())->normalize('CN=Leaf,O=PHPro');
+        $right = (new DistinguishedName())->normalize('O=PHPro,CN=Leaf');
+
+        static::assertNotSame($left, $right);
+    }
+
+    public function test_it_keeps_an_escaped_comma_inside_a_value_when_normalizing(): void
+    {
+        $normalized = (new DistinguishedName())->normalize('CN=Doe\\, John,O=PHPro');
+
+        static::assertSame('CN=doe\\, john,O=phpro', $normalized);
+    }
 }
