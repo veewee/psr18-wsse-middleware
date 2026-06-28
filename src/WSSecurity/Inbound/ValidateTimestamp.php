@@ -38,10 +38,21 @@ final class ValidateTimestamp implements InboundAction
         "yyyy-MM-dd'T'HH:mm:ss'Z'",
     ];
 
-    public function __construct(
-        private readonly Clock $clock = new SystemClock(),
-        private readonly TimestampValidator $validator = new TimestampValidator(),
-    ) {
+    private Clock $clock;
+    private readonly TimestampValidator $validator;
+
+    public function __construct()
+    {
+        $this->clock = new SystemClock();
+        $this->validator = new TimestampValidator();
+    }
+
+    public function withClock(Clock $clock): self
+    {
+        $clone = clone $this;
+        $clone->clock = $clock;
+
+        return $clone;
     }
 
     /**

@@ -33,7 +33,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\XmlSignatureVerifier
  */
 final class VerifySignature implements InboundAction
 {
-    private readonly XmlSignatureVerifier $verifier;
+    private XmlSignatureVerifier $verifier;
     private readonly RequiredPartsValidator $requiredParts;
 
     /**
@@ -42,11 +42,17 @@ final class VerifySignature implements InboundAction
     public function __construct(
         private readonly TrustStore $trustStore,
         private readonly array $signed = [],
-        ?XmlSignatureVerifier $verifier = null,
-        ?RequiredPartsValidator $requiredParts = null,
     ) {
-        $this->verifier = $verifier ?? DefaultEngine::verifier();
-        $this->requiredParts = $requiredParts ?? new RequiredPartsValidator(new PartLocator());
+        $this->verifier = DefaultEngine::verifier();
+        $this->requiredParts = new RequiredPartsValidator(new PartLocator());
+    }
+
+    public function withVerifier(XmlSignatureVerifier $verifier): self
+    {
+        $clone = clone $this;
+        $clone->verifier = $verifier;
+
+        return $clone;
     }
 
     /**

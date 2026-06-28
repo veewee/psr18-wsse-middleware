@@ -53,8 +53,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature($clientCertificate, $this->realSigner(), keyRef: KeyRef::BinarySecurityToken))($context);
-        (new Encryption($recipientCertificate, $this->realEncryptor()))($context);
+        (new Signature($clientCertificate, keyRef: KeyRef::BinarySecurityToken))->withSigner($this->realSigner())($context);
+        (new Encryption($recipientCertificate))->withEncryptor($this->realEncryptor())($context);
 
         $order = [];
         foreach ($this->only($document, self::WSSE, 'Security')->childNodes as $child) {
@@ -87,8 +87,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature($clientCertificate, $this->realSigner(), keyRef: KeyRef::BinarySecurityToken))($context);
-        (new Encryption($recipientCertificate, $this->realEncryptor()))($context);
+        (new Signature($clientCertificate, keyRef: KeyRef::BinarySecurityToken))->withSigner($this->realSigner())($context);
+        (new Encryption($recipientCertificate))->withEncryptor($this->realEncryptor())($context);
 
         static::assertCount(1, $this->elements($document, self::DS, 'SignatureValue'));
     }
@@ -101,8 +101,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature($clientCertificate, $this->realSigner(), keyRef: KeyRef::BinarySecurityToken))($context);
-        (new Encryption($clientCertificate->publicCertificate(), $this->realEncryptor(), encKeyRef: EncKeyRef::BinarySecurityToken))($context);
+        (new Signature($clientCertificate, keyRef: KeyRef::BinarySecurityToken))->withSigner($this->realSigner())($context);
+        (new Encryption($clientCertificate->publicCertificate(), encKeyRef: EncKeyRef::BinarySecurityToken))->withEncryptor($this->realEncryptor())($context);
 
         static::assertCount(1, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
     }

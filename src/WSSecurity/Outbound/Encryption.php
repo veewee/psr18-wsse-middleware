@@ -49,14 +49,21 @@ final class Encryption implements OutboundAction
     private ?KeyEncryptionMethod $keyEncryptionMethod = null;
     private ?KeyTransportAlgorithm $keyTransportAlgorithm = null;
 
-    private readonly XmlEncryptor $encryptor;
+    private XmlEncryptor $encryptor;
 
     public function __construct(
         private readonly Certificate $recipientCertificate,
-        ?XmlEncryptor $encryptor = null,
         private readonly EncKeyRef $encKeyRef = EncKeyRef::SubjectKeyIdentifier,
     ) {
-        $this->encryptor = $encryptor ?? DefaultEngine::encryptor();
+        $this->encryptor = DefaultEngine::encryptor();
+    }
+
+    public function withEncryptor(XmlEncryptor $encryptor): self
+    {
+        $clone = clone $this;
+        $clone->encryptor = $encryptor;
+
+        return $clone;
     }
 
     /**

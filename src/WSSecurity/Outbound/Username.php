@@ -46,11 +46,9 @@ final class Username implements OutboundAction
         #[SensitiveParameter]
         private ?string $password = null,
         private bool $digest = false,
-        ?Random $random = null,
-        ?Digest $digester = null,
     ) {
-        $this->random = $random ?? new Random();
-        $this->digester = $digester ?? new Digest();
+        $this->random = new Random();
+        $this->digester = new Digest();
         $this->clock = new SystemClock();
     }
 

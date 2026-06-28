@@ -29,9 +29,9 @@ new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp(
 ```
 
 If you previously passed engine services into the blocks yourself, you can delete that wiring. Each of those
-blocks still accepts the relevant service (`XmlSigner`, `XmlEncryptor`, `XmlDecryptor`,
-`XmlSignatureVerifier`) as an optional constructor argument, defaulting to the bundled implementation, for the
-rare case where you need a custom one.
+blocks builds the bundled implementation by default; for the rare case where you need a custom one, override it
+with a `with*()` method (`Outbound\Signature::withSigner`, `Outbound\Encryption::withEncryptor`,
+`Inbound\Decrypt::withDecryptor`, `Inbound\VerifySignature::withVerifier`) rather than a constructor argument.
 
 ### Two block lists instead of one
 

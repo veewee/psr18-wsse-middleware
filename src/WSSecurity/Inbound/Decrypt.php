@@ -23,13 +23,20 @@ use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlDecryptor;
  */
 final class Decrypt implements InboundAction
 {
-    private readonly XmlDecryptor $decryptor;
+    private XmlDecryptor $decryptor;
 
     public function __construct(
         private readonly Key $privateKey,
-        ?XmlDecryptor $decryptor = null,
     ) {
-        $this->decryptor = $decryptor ?? DefaultEngine::decryptor();
+        $this->decryptor = DefaultEngine::decryptor();
+    }
+
+    public function withDecryptor(XmlDecryptor $decryptor): self
+    {
+        $clone = clone $this;
+        $clone->decryptor = $decryptor;
+
+        return $clone;
     }
 
     /**

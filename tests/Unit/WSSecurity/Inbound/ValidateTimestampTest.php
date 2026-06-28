@@ -220,7 +220,7 @@ final class ValidateTimestampTest extends TestCase
         );
 
         $this->expectNotToPerformAssertions();
-        (new ValidateTimestamp($this->clock($now)))($this->context($xml, new SecurityProfile(clockSkew: 120)));
+        ((new ValidateTimestamp())->withClock($this->clock($now)))($this->context($xml, new SecurityProfile(clockSkew: 120)));
     }
 
     public function test_the_same_message_is_rejected_under_the_default_skew(): void
@@ -244,12 +244,12 @@ final class ValidateTimestampTest extends TestCase
         ));
 
         $this->expectNotToPerformAssertions();
-        (new ValidateTimestamp($this->clock($frozen)))($context);
+        ((new ValidateTimestamp())->withClock($this->clock($frozen)))($context);
     }
 
     private function block(): ValidateTimestamp
     {
-        return new ValidateTimestamp($this->clock($this->instant(self::NOW)));
+        return (new ValidateTimestamp())->withClock($this->clock($this->instant(self::NOW)));
     }
 
     private function clock(Timestamp $now): Clock

@@ -70,7 +70,7 @@ $transport = Psr18Transport::createForClient(
 
 The signing, encryption, decryption and verification blocks are powered by the package's WSSE engine, but you
 do not see it: each block builds the engine service it needs with secure defaults. Advanced users who want to
-swap an engine service (for example a custom signer) can pass it as an optional constructor argument; this is
+swap an engine service (for example a custom signer) can override it with a `with*()` method; this is
 covered once, near the end, under [Custom engine services](#custom-engine-services).
 
 # The building blocks
@@ -704,7 +704,17 @@ It fills in `Action` (from the SOAP action), `To` (from the request URI), a gene
 # Custom engine services
 
 The signing, encryption, decryption and verification blocks build the engine service they need with secure
-defaults, so you normally pass nothing extra. If you need to customize the engine (for example to inject a
-custom `XmlSigner`, `XmlEncryptor`, `XmlDecryptor` or `XmlSignatureVerifier`), each of those blocks accepts the
-service as an optional constructor argument that defaults to the bundled implementation. Reach for this only when
-the defaults genuinely do not fit.
+defaults, so you normally pass nothing extra. If you need to customize the engine, override the bundled service
+with a `with*()` method:
+
+- `Outbound\Signature::withSigner(XmlSigner $signer)`
+- `Outbound\Encryption::withEncryptor(XmlEncryptor $encryptor)`
+- `Inbound\Decrypt::withDecryptor(XmlDecryptor $decryptor)`
+- `Inbound\VerifySignature::withVerifier(XmlSignatureVerifier $verifier)`
+
+```php
+(new Outbound\Signature($clientCertificate))->withSigner($customSigner);
+(new Inbound\Decrypt($privateKey))->withDecryptor($customDecryptor);
+```
+
+Reach for this only when the defaults genuinely do not fit.

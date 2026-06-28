@@ -51,7 +51,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_it_uses_profile_algorithms_by_default(): void
     {
         $encryptor = new RecordingEncryptor();
-        (new Encryption($this->recipientCertificate(), $encryptor))($this->context($this->plainEnvelope()));
+        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
 
         $request = $encryptor->lastRequest();
         static::assertSame(DataEncryptionMethod::AES256_GCM, $request->dataEncryptionMethod);
@@ -62,7 +62,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_a_per_block_data_encryption_override_wins(): void
     {
         $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate(), $encryptor))
+        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
             ->withDataEncryptionMethod(DataEncryptionMethod::AES128_CBC);
         $block($this->context($this->plainEnvelope()));
 
@@ -72,7 +72,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_a_per_block_key_encryption_override_wins(): void
     {
         $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate(), $encryptor))
+        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
             ->withKeyEncryptionMethod(KeyEncryptionMethod::RSA_OAEP_MGF1P);
         $block($this->context($this->plainEnvelope()));
 
@@ -82,7 +82,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_an_atomic_key_transport_override_wins(): void
     {
         $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate(), $encryptor))
+        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
             ->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
         $block($this->context($this->plainEnvelope()));
 
@@ -94,7 +94,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_an_rsa_1_5_transport_carries_a_null_oaep_hash(): void
     {
         $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate(), $encryptor))
+        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
             ->withKeyTransportAlgorithm(KeyTransportAlgorithm::rsa1_5());
         $block($this->context($this->plainEnvelope()));
 
@@ -107,7 +107,7 @@ final class EncryptionTest extends OutboundTestCase
     {
         $encryptor = new RecordingEncryptor();
         $profile = new SecurityProfile(oaepHash: OaepHash::Sha256);
-        (new Encryption($this->recipientCertificate(), $encryptor))($this->context($this->plainEnvelope(), $profile));
+        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope(), $profile));
 
         static::assertSame(OaepHash::Sha256, $encryptor->lastRequest()->keyTransportAlgorithm->oaepHash);
     }
@@ -118,7 +118,7 @@ final class EncryptionTest extends OutboundTestCase
         $document = $this->envelopeWithSecurity();
         $originalBody = $document->stringifyNode($this->only($document, self::SOAP12, 'Body'));
 
-        $block = (new Encryption($certificate, $this->realEncryptor()))->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
+        $block = (new Encryption($certificate))->withEncryptor($this->realEncryptor())->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
         $block($this->context($document));
 
         // The xenc:EncryptionMethod carries explicit SHA-256 digest and MGF children.
@@ -138,14 +138,14 @@ final class EncryptionTest extends OutboundTestCase
     {
         $encryptor = new RecordingEncryptor();
         $profile = new SecurityProfile(dataEncryptionMethod: DataEncryptionMethod::AES256_CBC);
-        (new Encryption($this->recipientCertificate(), $encryptor))($this->context($this->plainEnvelope(), $profile));
+        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope(), $profile));
 
         static::assertSame(DataEncryptionMethod::AES256_CBC, $encryptor->lastRequest()->dataEncryptionMethod);
     }
 
     public function test_with_methods_are_immutable(): void
     {
-        $original = new Encryption($this->recipientCertificate(), new RecordingEncryptor());
+        $original = (new Encryption($this->recipientCertificate()))->withEncryptor(new RecordingEncryptor());
 
         static::assertNotSame($original, $original->withParts([Part::timestamp()]));
         static::assertNotSame($original, $original->withDataEncryptionMethod(DataEncryptionMethod::AES128_CBC));
@@ -153,10 +153,19 @@ final class EncryptionTest extends OutboundTestCase
         static::assertNotSame($original, $original->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256()));
     }
 
+    public function test_with_encryptor_routes_encryption_to_the_given_encryptor(): void
+    {
+        $encryptor = new RecordingEncryptor();
+        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
+
+        // lastRequest() throws unless encrypt() ran on the injected double, proving the override is used.
+        static::assertInstanceOf(DataEncryptionMethod::class, $encryptor->lastRequest()->dataEncryptionMethod);
+    }
+
     public function test_the_default_part_is_the_body_only(): void
     {
         $encryptor = new RecordingEncryptor();
-        (new Encryption($this->recipientCertificate(), $encryptor))($this->context($this->plainEnvelope()));
+        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
 
         $parts = $encryptor->lastRequest()->parts;
         static::assertCount(1, $parts);
@@ -166,7 +175,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_explicit_parts_override_the_default(): void
     {
         $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate(), $encryptor))
+        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
             ->withParts([Part::body(), Part::timestamp()]);
         $block($this->context($this->plainEnvelope()));
 
@@ -179,7 +188,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_the_default_key_reference_does_not_use_deprecated_rsa_padding(): void
     {
         $encryptor = new RecordingEncryptor();
-        (new Encryption($this->recipientCertificate(), $encryptor))($this->context($this->plainEnvelope()));
+        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
 
         static::assertNotSame(KeyEncryptionMethod::RSA_1_5, $encryptor->lastRequest()->keyTransportAlgorithm->method);
     }
@@ -202,7 +211,7 @@ final class EncryptionTest extends OutboundTestCase
     {
         $encryptor = new RecordingEncryptor();
         $document = $this->plainEnvelope();
-        (new Encryption($this->recipientCertificate(), $encryptor, encKeyRef: $encKeyRef))($this->context($document));
+        (new Encryption($this->recipientCertificate(), encKeyRef: $encKeyRef))->withEncryptor($encryptor)($this->context($document));
 
         static::assertCount(0, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
         static::assertInstanceOf($expectedStrategy, $encryptor->lastRequest()->keyIdentifier);
@@ -212,7 +221,7 @@ final class EncryptionTest extends OutboundTestCase
     {
         $encryptor = new RecordingEncryptor();
         $document = $this->plainEnvelope();
-        (new Encryption($this->recipientCertificate(), $encryptor, encKeyRef: EncKeyRef::BinarySecurityToken))($this->context($document));
+        (new Encryption($this->recipientCertificate(), encKeyRef: EncKeyRef::BinarySecurityToken))->withEncryptor($encryptor)($this->context($document));
 
         $bst = $this->only($document, self::WSSE, 'BinarySecurityToken');
         $tokenId = $bst->getAttributeNS(self::WSU, 'Id');
@@ -230,7 +239,7 @@ final class EncryptionTest extends OutboundTestCase
         $document = $this->envelopeWithSecurity();
         $originalBody = $document->stringifyNode($this->only($document, self::SOAP12, 'Body'));
 
-        (new Encryption($certificate, $this->realEncryptor()))($this->context($document));
+        (new Encryption($certificate))->withEncryptor($this->realEncryptor())($this->context($document));
 
         // One EncryptedKey in the Security header, one EncryptedData replacing the Body content, one DataReference.
         $encryptedKey = $this->only($document, self::XENC, 'EncryptedKey');
@@ -253,7 +262,7 @@ final class EncryptionTest extends OutboundTestCase
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelopeWithSecurity();
 
-        (new Encryption($certificate, $this->realEncryptor()))($this->context($document));
+        (new Encryption($certificate))->withEncryptor($this->realEncryptor())($this->context($document));
 
         $dom = new DOMDocument();
         static::assertTrue($dom->loadXML($document->toXmlString()));
@@ -302,7 +311,7 @@ final class EncryptionTest extends OutboundTestCase
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelopeWithSecurity();
 
-        $block = (new Encryption($certificate, $this->realEncryptor()))
+        $block = (new Encryption($certificate))->withEncryptor($this->realEncryptor())
             ->withDataEncryptionMethod(DataEncryptionMethod::AES256_CBC);
         $block($this->context($document));
 

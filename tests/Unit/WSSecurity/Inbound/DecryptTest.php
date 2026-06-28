@@ -28,9 +28,17 @@ final class DecryptTest extends TestCase
         $decryptor = new RecordingDecryptor();
         $context = $this->context();
 
-        (new Decrypt($this->privateKey(), $decryptor))($context);
+        (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($context);
 
         static::assertSame($context->document(), $decryptor->lastDocument());
+    }
+
+    public function test_with_decryptor_routes_decryption_to_the_given_decryptor(): void
+    {
+        $decryptor = new RecordingDecryptor();
+        (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
+
+        static::assertNotNull($decryptor->lastRequest());
     }
 
     public function test_it_passes_the_constructed_private_key_handle(): void
@@ -38,7 +46,7 @@ final class DecryptTest extends TestCase
         $decryptor = new RecordingDecryptor();
         $handle = $this->privateKey();
 
-        (new Decrypt($handle, $decryptor))($this->context());
+        (new Decrypt($handle))->withDecryptor($decryptor)($this->context());
 
         static::assertInstanceOf(DecryptionRequest::class, $decryptor->lastRequest());
         static::assertSame($handle, $decryptor->lastRequest()->privateKey);
@@ -49,7 +57,7 @@ final class DecryptTest extends TestCase
         $decryptor = new RecordingDecryptor();
 
         $this->expectNotToPerformAssertions();
-        (new Decrypt($this->privateKey(), $decryptor))($this->context());
+        (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
     }
 
     public function test_it_maps_a_decryption_failure_to_a_security_fault(): void
@@ -57,7 +65,7 @@ final class DecryptTest extends TestCase
         $decryptor = new ThrowingDecryptor(DecryptionFailed::withReason('any reason at all'));
 
         $this->expectException(SecurityFault::class);
-        (new Decrypt($this->privateKey(), $decryptor))($this->context());
+        (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
     }
 
     public function test_the_security_fault_carries_no_decryption_detail(): void
@@ -66,7 +74,7 @@ final class DecryptTest extends TestCase
         $decryptor = new ThrowingDecryptor(DecryptionFailed::withReason($reason));
 
         try {
-            (new Decrypt($this->privateKey(), $decryptor))($this->context());
+            (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
             static::fail('Expected a SecurityFault.');
         } catch (SecurityFault $fault) {
             static::assertStringNotContainsString($reason, $fault->getMessage());
@@ -79,7 +87,7 @@ final class DecryptTest extends TestCase
         $decryptor = new ThrowingDecryptor($cause);
 
         try {
-            (new Decrypt($this->privateKey(), $decryptor))($this->context());
+            (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
             static::fail('Expected a SecurityFault.');
         } catch (SecurityFault $fault) {
             static::assertSame($cause, $fault->getPrevious());
@@ -92,7 +100,7 @@ final class DecryptTest extends TestCase
         $decryptor = new ThrowingDecryptor($unexpected);
 
         $this->expectExceptionObject($unexpected);
-        (new Decrypt($this->privateKey(), $decryptor))($this->context());
+        (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
     }
 
     private function context(): WsseContext

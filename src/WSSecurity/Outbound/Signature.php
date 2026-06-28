@@ -46,14 +46,21 @@ final class Signature implements OutboundAction
     private ?DigestMethod $digestMethod = null;
     private ?SignatureCanonicalization $canonicalization = null;
 
-    private readonly XmlSigner $signer;
+    private XmlSigner $signer;
 
     public function __construct(
         private readonly ClientCertificate $clientCertificate,
-        ?XmlSigner $signer = null,
         private readonly KeyRef $keyRef = KeyRef::BinarySecurityToken,
     ) {
-        $this->signer = $signer ?? DefaultEngine::signer();
+        $this->signer = DefaultEngine::signer();
+    }
+
+    public function withSigner(XmlSigner $signer): self
+    {
+        $clone = clone $this;
+        $clone->signer = $signer;
+
+        return $clone;
     }
 
     /**
