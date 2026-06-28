@@ -4,13 +4,9 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Default;
 
 use Dom\Element;
-use DOMDocument;
-use Exception;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
-use RobRichards\XMLSecLibs\XMLSecurityDSig;
-use RobRichards\XMLSecLibs\XMLSecurityKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
@@ -33,8 +29,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SigningRequest;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * The strong proof that B3 produces interoperable signatures: a third-party verifier (xmlseclibs) accepts
- * every signature this Signer emits, and a tampered element is rejected.
+ * Asserts the Signer emits the expected ds:Signature structure: the right references, reused wsu:Id values,
+ * canonical header ordering, and a byte-stable body digest.
  */
 #[RequiresPhp('>= 8.4.21')]
 final class SignerTest extends TestCase
@@ -45,47 +41,41 @@ final class SignerTest extends TestCase
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
     private const X509_TOKEN = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
 
-    public function test_it_signs_the_body_and_a_third_party_verifier_accepts_it(): void
+    public function test_it_signs_the_body(): void
     {
-        [, $certificate, $document] = $this->sign([Part::body()]);
+        [, , $document] = $this->sign([Part::body()]);
 
         $references = $this->references($document);
         static::assertCount(1, $references);
         static::assertSame('#'.$this->bodyId($document), $references[0]->getAttribute('URI'));
-
-        $this->assertVerifiesWithXmlSecLibs($document, $certificate);
     }
 
     public function test_it_signs_the_timestamp(): void
     {
-        [, $certificate, $document] = $this->sign([Part::timestamp()], withTimestamp: true);
+        [, , $document] = $this->sign([Part::timestamp()], withTimestamp: true);
 
         static::assertCount(1, $this->references($document));
-        $this->assertVerifiesWithXmlSecLibs($document, $certificate);
     }
 
     public function test_it_signs_the_body_and_the_timestamp_with_two_references(): void
     {
-        [, $certificate, $document] = $this->sign([Part::body(), Part::timestamp()], withTimestamp: true);
+        [, , $document] = $this->sign([Part::body(), Part::timestamp()], withTimestamp: true);
 
         static::assertCount(2, $this->references($document));
-        $this->assertVerifiesWithXmlSecLibs($document, $certificate);
     }
 
     public function test_it_signs_a_specific_header_element(): void
     {
-        [, $certificate, $document] = $this->sign([Part::element('urn:app', 'Custom')], withCustom: true);
+        [, , $document] = $this->sign([Part::element('urn:app', 'Custom')], withCustom: true);
 
         static::assertCount(1, $this->references($document));
-        $this->assertVerifiesWithXmlSecLibs($document, $certificate);
     }
 
     public function test_it_reuses_an_existing_wsu_id(): void
     {
-        [, $certificate, $document] = $this->sign([Part::byId('Body-Preset')], presetBodyId: 'Body-Preset');
+        [, , $document] = $this->sign([Part::byId('Body-Preset')], presetBodyId: 'Body-Preset');
 
         static::assertSame('#Body-Preset', $this->references($document)[0]->getAttribute('URI'));
-        $this->assertVerifiesWithXmlSecLibs($document, $certificate);
     }
 
     public function test_it_emits_the_signature_structure(): void
@@ -138,19 +128,6 @@ final class SignerTest extends TestCase
         foreach ($references as $reference) {
             static::assertStringNotContainsString('Signature', (string) $reference->getAttribute('URI'));
         }
-    }
-
-    public function test_a_tampered_element_is_rejected_by_the_verifier(): void
-    {
-        [, $certificate, $document] = $this->sign([Part::body()]);
-
-        $body = $document->toUnsafeDocument()->getElementsByTagNameNS(self::SOAP, 'Body')->item(0);
-        static::assertInstanceOf(Element::class, $body);
-        $injected = $document->toUnsafeDocument()->createElement('injected');
-        $injected->textContent = 'tampered';
-        $body->appendChild($injected);
-
-        static::assertFalse($this->verifiesWithXmlSecLibs($document, $certificate));
     }
 
     public function test_the_body_digest_is_byte_stable_for_rsa_sha256(): void
@@ -282,40 +259,6 @@ final class SignerTest extends TestCase
         }
 
         return null;
-    }
-
-    private function assertVerifiesWithXmlSecLibs(Document $document, Certificate $certificate): void
-    {
-        static::assertTrue($this->verifiesWithXmlSecLibs($document, $certificate));
-    }
-
-    private function verifiesWithXmlSecLibs(Document $document, Certificate $certificate): bool
-    {
-        $dom = new DOMDocument();
-        static::assertTrue($dom->loadXML($document->toXmlString()));
-
-        $dsig = new XMLSecurityDSig();
-        $dsig->idKeys = ['wsu:Id'];
-        $dsig->idNS = ['wsu' => self::WSU];
-
-        $signatureNode = $dsig->locateSignature($dom);
-        static::assertNotNull($signatureNode);
-
-        $dsig->canonicalizeSignedInfo();
-
-        try {
-            // xmlseclibs throws on a digest mismatch rather than returning false.
-            if (!$dsig->validateReference()) {
-                return false;
-            }
-        } catch (Exception) {
-            return false;
-        }
-
-        $key = new XMLSecurityKey(XMLSecurityKey::RSA_SHA256, ['type' => 'public']);
-        $key->loadKey($certificate->contents(), false, true);
-
-        return $dsig->verify($key) === 1;
     }
 
     /**

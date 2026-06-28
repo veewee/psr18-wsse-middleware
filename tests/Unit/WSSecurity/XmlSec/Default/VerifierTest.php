@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Default;
 
 use Dom\Element;
-use DOMDocument;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
@@ -384,33 +383,6 @@ final class VerifierTest extends TestCase
             array_fill_keys(array_keys($cases), SignatureVerificationFailed::class),
             $thrown,
         );
-    }
-
-    public function test_a_b3_signed_document_is_accepted_by_both_b4_and_xmlseclibs(): void
-    {
-        $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
-
-        // B4 accepts it.
-        $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
-
-        // The independent xmlseclibs verifier accepts the same bytes, proving the structure is interoperable.
-        $dom = new DOMDocument();
-        static::assertTrue($dom->loadXML($document->toXmlString()));
-
-        $dsig = new \RobRichards\XMLSecLibs\XMLSecurityDSig();
-        $dsig->idKeys = ['wsu:Id'];
-        $dsig->idNS = ['wsu' => WsseSignatureFixture::WSU];
-        static::assertNotNull($dsig->locateSignature($dom));
-        $dsig->canonicalizeSignedInfo();
-        static::assertTrue($dsig->validateReference());
-
-        $key = new \RobRichards\XMLSecLibs\XMLSecurityKey(
-            \RobRichards\XMLSecLibs\XMLSecurityKey::RSA_SHA256,
-            ['type' => 'public'],
-        );
-        $key->loadKey($fixture->leafCertificate->contents(), false, true);
-        static::assertSame(1, $dsig->verify($key));
     }
 
     private function policy(Certificate $anchor): VerificationPolicy

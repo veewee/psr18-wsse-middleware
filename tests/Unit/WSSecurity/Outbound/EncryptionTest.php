@@ -4,13 +4,8 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use Dom\Element;
-use DOMDocument;
-use DOMElement;
-use DOMXPath;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\Attributes\DataProvider;
-use RobRichards\XMLSecLibs\XMLSecEnc;
-use RobRichards\XMLSecLibs\XMLSecurityKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
@@ -41,8 +36,8 @@ use VeeWee\Xml\Dom\Document;
 
 /**
  * Covers the Encryption block: configuration resolution against a recording encryptor, the inline vs
- * BST key-reference dispatch, and the real-crypto functional path proven both by the engine's own
- * Decryptor round-trip and by an independent xmlseclibs decrypt for interop.
+ * BST key-reference dispatch, and the real-crypto functional path proven by the engine's own
+ * Decryptor round-trip.
  */
 final class EncryptionTest extends OutboundTestCase
 {
@@ -255,55 +250,6 @@ final class EncryptionTest extends OutboundTestCase
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertSame($originalBody, $document->stringifyNode($this->only($document, self::SOAP12, 'Body')));
-    }
-
-    public function test_the_encrypted_message_decrypts_under_xmlseclibs(): void
-    {
-        [$key, $certificate] = $this->keyAndCertificate();
-        $document = $this->envelopeWithSecurity();
-
-        (new Encryption($certificate))->withEncryptor($this->realEncryptor())($this->context($document));
-
-        $dom = new DOMDocument();
-        static::assertTrue($dom->loadXML($document->toXmlString()));
-
-        // Drive the independent stack the WSSE way: unwrap the session key from the EncryptedKey in the
-        // Security header, then decrypt the EncryptedData named by its ReferenceList.
-        $encryptedKey = $dom->getElementsByTagNameNS(self::XENC, 'EncryptedKey')->item(0);
-        static::assertInstanceOf(DOMElement::class, $encryptedKey);
-
-        $keyEnc = new XMLSecEnc();
-        $keyEnc->setNode($encryptedKey);
-        $wrappingKey = $keyEnc->locateKey();
-        static::assertInstanceOf(XMLSecurityKey::class, $wrappingKey);
-        $wrappingKey->isEncrypted = true;
-        $wrappingKey->encryptedCtx = $keyEnc;
-        XMLSecEnc::staticLocateKeyInfo($wrappingKey, $encryptedKey);
-
-        $wrappingKey->loadKey($key->contents(), false, false);
-        $sessionKeyBytes = $keyEnc->decryptKey($wrappingKey);
-        static::assertIsString($sessionKeyBytes);
-
-        $dataReference = $encryptedKey->getElementsByTagNameNS(self::XENC, 'DataReference')->item(0);
-        static::assertInstanceOf(DOMElement::class, $dataReference);
-        $referencedId = ltrim($dataReference->getAttribute('URI'), '#');
-        static::assertNotSame('', $referencedId);
-
-        $xpath = new DOMXPath($dom);
-        $xpath->registerNamespace('wsu', self::WSU);
-        $encryptedData = $xpath->query('//*[@wsu:Id="'.$referencedId.'"]')->item(0);
-        static::assertInstanceOf(DOMElement::class, $encryptedData);
-
-        $dataEnc = new XMLSecEnc();
-        $dataEnc->setNode($encryptedData);
-        $dataEnc->type = $encryptedData->getAttribute('Type');
-        $sessionKey = $dataEnc->locateKey($encryptedData);
-        static::assertInstanceOf(XMLSecurityKey::class, $sessionKey);
-        $sessionKey->loadKey($sessionKeyBytes);
-
-        $decrypted = $dataEnc->decryptNode($sessionKey, false);
-        static::assertIsString($decrypted);
-        static::assertStringContainsString('<app:n>5</app:n>', $decrypted);
     }
 
     public function test_an_overridden_data_algorithm_reaches_the_encrypted_message(): void

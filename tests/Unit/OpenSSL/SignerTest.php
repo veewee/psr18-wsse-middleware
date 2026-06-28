@@ -107,8 +107,8 @@ final class SignerTest extends TestCase
         $signer = new Signer();
         [, $certificate] = $this->keyAndCertificate();
 
-        // A garbage signature must come back as a strict false, never a truthy result (the xmlseclibs
-        // -1->true forgery trap), and without distinguishing "malformed" from "invalid".
+        // A garbage signature must come back as a strict false, never a truthy result (a -1->true
+        // forgery trap), and without distinguishing "malformed" from "invalid".
         static::assertFalse($signer->verify($certificate, 'payload', 'not-a-real-signature', SignatureMethod::RSA_SHA256));
         static::assertFalse($signer->verify($certificate, 'payload', '', SignatureMethod::RSA_SHA256));
         static::assertFalse($signer->verify($certificate, 'payload', str_repeat('A', 5000), SignatureMethod::RSA_SHA256));

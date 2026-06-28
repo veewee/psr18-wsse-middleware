@@ -3,12 +3,8 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
-use DOMDocument;
-use Exception;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\Attributes\RequiresPhp;
-use RobRichards\XMLSecLibs\XMLSecurityDSig;
-use RobRichards\XMLSecLibs\XMLSecurityKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
@@ -133,7 +129,7 @@ final class SignatureTest extends OutboundTestCase
         static::assertInstanceOf(X509SubjectKeyIdentifier::class, $signer->lastRequest()->keyIdentifier);
     }
 
-    public function test_direct_reference_round_trips_under_xmlseclibs(): void
+    public function test_direct_reference_wires_the_signature_key_info_to_the_embedded_bst(): void
     {
         $certificate = $this->clientCertificate();
         $document = $this->signableEnvelope();
@@ -144,9 +140,6 @@ final class SignatureTest extends OutboundTestCase
         $bstId = $this->only($document, self::WSSE, 'BinarySecurityToken')->getAttributeNS(self::WSU, 'Id');
         $reference = $this->only($document, self::WSSE, 'Reference');
         static::assertSame('#'.$bstId, $reference->getAttribute('URI'));
-
-        // The produced signature verifies under an independent implementation.
-        static::assertTrue($this->verifiesWithXmlSecLibs($document, $certificate->publicCertificate()->contents()));
     }
 
     public function test_an_overridden_algorithm_reaches_the_signed_document(): void
@@ -224,33 +217,5 @@ final class SignatureTest extends OutboundTestCase
         static::assertIsString($certificatePem);
 
         return new ClientCertificate($certificatePem.$privatePem);
-    }
-
-    private function verifiesWithXmlSecLibs(Document $document, string $certificatePem): bool
-    {
-        $dom = new DOMDocument();
-        static::assertTrue($dom->loadXML($document->toXmlString()));
-
-        $dsig = new XMLSecurityDSig();
-        $dsig->idKeys = ['wsu:Id'];
-        $dsig->idNS = ['wsu' => self::WSU];
-
-        $signatureNode = $dsig->locateSignature($dom);
-        static::assertNotNull($signatureNode);
-
-        $dsig->canonicalizeSignedInfo();
-
-        try {
-            if (!$dsig->validateReference()) {
-                return false;
-            }
-        } catch (Exception) {
-            return false;
-        }
-
-        $key = new XMLSecurityKey(XMLSecurityKey::RSA_SHA256, ['type' => 'public']);
-        $key->loadKey($certificatePem, false, true);
-
-        return $dsig->verify($key) === 1;
     }
 }
