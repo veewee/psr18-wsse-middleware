@@ -178,11 +178,32 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecuri
   Part::timestamp()]`. Must be a non-empty list of `Part` descriptors. To sign the timestamp, include a
   `Timestamp` block earlier in the list.
 - `withSignatureMethod(SignatureMethod $method): self` — the signature algorithm. Default: the profile's
-  `signatureMethod()` (RSA-SHA256).
+  `signatureMethod()` (RSA-SHA256). RSA and ECDSA are both supported. Pick an ECDSA method when your signing
+  identity is an EC certificate and key:
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
+
+  (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken))
+      ->withSignatureMethod(SignatureMethod::ECDSA_SHA256);
+  ```
+  The ECDSA cases are `ECDSA_SHA256`, `ECDSA_SHA384` and `ECDSA_SHA512` (the xmldsig-more URIs). They require an
+  EC certificate and key; an RSA key paired with an ECDSA method will not sign. The RSA cases stay `RSA_SHA256`
+  (the default), `RSA_SHA384` and `RSA_SHA512`.
 - `withDigestMethod(DigestMethod $method): self` — the per-reference digest algorithm. Default: the profile's
   `digestMethod()` (SHA-256).
 - `withCanonicalization(SignatureCanonicalization $canonicalization): self` — the canonicalization method.
-  Default: the profile's `canonicalization()` (exclusive C14N).
+  Default: the profile's `canonicalization()` (exclusive C14N). The exclusive variants (`EXC_C14N`,
+  `EXC_C14N_COMMENTS`) are the WSSE norm. The inclusive Canonical XML 1.0 variants (`C14N`, `C14N_COMMENTS`)
+  are also available for a server that requires them:
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
+
+  (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken))
+      ->withCanonicalization(SignatureCanonicalization::C14N);
+  ```
+  If you sign with an inclusive variant and also verify the response with one, add it to the profile's
+  `acceptedCanonicalizations` allow-list as well (see [Security profile and defaults](#security-profile-and-defaults));
+  by default only the exclusive variants are accepted inbound.
 
 ## Outbound: `Encryption`
 
@@ -210,8 +231,22 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\EncKeyRef::IssuerSerial)
 - `withParts(non-empty-list<Part> $parts): self` — which parts to encrypt. Default is `[Part::body()]`.
 - `withDataEncryptionMethod(DataEncryptionMethod $method): self` — the bulk-data cipher. Default: the profile's
   `dataEncryptionMethod()` (AES-256-GCM).
-- `withKeyEncryptionMethod(KeyEncryptionMethod $method): self` — the key-transport algorithm that wraps the
-  session key. Default: the profile's `keyEncryptionMethod()` (RSA-OAEP).
+- `withKeyEncryptionMethod(KeyEncryptionMethod $method): self`. The key-transport method that wraps the
+  session key. Default: the profile's `keyEncryptionMethod()` (RSA-OAEP). This sets only the method; the OAEP
+  hash is resolved from the profile (or its default, SHA-1). To pin the method and the hash together, use
+  `withKeyTransportAlgorithm` instead.
+- `withKeyTransportAlgorithm(KeyTransportAlgorithm $algorithm): self`. The whole key-transport choice (method
+  plus OAEP hash) in one atomic value, so an invalid method/hash pairing cannot be expressed. This override wins
+  over both `withKeyEncryptionMethod` and the profile. The default key transport is RSA-OAEP with SHA-1
+  (byte-identical on the wire to the previous releases). Select RSA-OAEP-SHA256 when the server expects it:
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
+
+  (new Outbound\Encryption($recipient))
+      ->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
+  ```
+  The named constructors are `KeyTransportAlgorithm::oaepSha1()` (the default), `oaepSha256()`, `legacyMgf1p()`
+  (RSA-OAEP-MGF1P, SHA-1) and `rsa1_5()` (RSA-1_5, rejected inbound by default).
 
 ## Outbound: `SamlAssertion`
 
@@ -292,9 +327,11 @@ new Inbound\VerifySignature(
   particular part to be covered. Name the parts you depend on (typically the body and the timestamp) so an
   attacker cannot strip the signature from the part that matters.
 
-The accepted signature and digest algorithms come from the profile's allow-lists; only exclusive C14N is
-accepted. Every failure cause collapses to one uniform `SecurityFault` carrying no step-identifying detail, so
-the block is never a forgery oracle.
+The accepted signature, digest and canonicalization algorithms come from the profile's allow-lists. By default
+the signature allow-list covers RSA and ECDSA at SHA-256/384/512, and only the exclusive C14N variants are
+accepted; to accept an inclusive variant, add it to the profile's `acceptedCanonicalizations` (see
+[Security profile and defaults](#security-profile-and-defaults)). Every failure cause collapses to one uniform
+`SecurityFault` carrying no step-identifying detail, so the block is never a forgery oracle.
 
 ## Inbound: `ValidateTimestamp`
 
@@ -602,16 +639,47 @@ Constructor arguments:
 - `KeyEncryptionMethod $keyEncryptionMethod = KeyEncryptionMethod::RSA_OAEP` — the outbound key-transport
   algorithm.
 - `?array $acceptedSignatureMethods = null` — the inbound allow-list for signature algorithms. `null` (default)
-  applies secure defaults: RSA-SHA256/384/512, rejecting SHA-1 and HMAC methods.
+  applies secure defaults: RSA-SHA256/384/512 and ECDSA-SHA256/384/512, rejecting SHA-1 and HMAC methods.
 - `?array $acceptedDigestMethods = null` — the inbound allow-list for digests. Default: SHA-256/384/512.
 - `?array $acceptedKeyEncryptionMethods = null` — the inbound allow-list for key transport. Default: RSA-OAEP and
   RSA-OAEP-MGF1P, rejecting RSA-1_5.
 - `?array $acceptedDataEncryptionMethods = null` — the inbound allow-list for bulk ciphers. Default: AES-GCM and
   AES-CBC at 128/192/256, rejecting 3DES.
+- `?array $acceptedOaepHashes = null` — the inbound allow-list for the OAEP hash on an inbound `EncryptedKey`.
+  Default: SHA-1 and SHA-256.
+- `?array $acceptedCanonicalizations = null` — the inbound allow-list for the canonicalization on an inbound
+  signature. Default: the exclusive variants only (`SignatureCanonicalization::EXC_C14N` and
+  `EXC_C14N_COMMENTS`). The inclusive variants are not the WSSE norm, so accepting them only widens the attack
+  surface; opt in by listing `SignatureCanonicalization::C14N` and/or `C14N_COMMENTS` here:
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
+
+  $profile = new SecurityProfile(
+      acceptedCanonicalizations: [
+          SignatureCanonicalization::EXC_C14N,
+          SignatureCanonicalization::EXC_C14N_COMMENTS,
+          SignatureCanonicalization::C14N,
+      ],
+  );
+  ```
 
 The defaults reject weak algorithms (SHA-1, RSA-1_5, 3DES) and use SHA-256 with exclusive canonicalization. The
 algorithm enums live under `Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\`: `SignatureMethod`, `DigestMethod`,
-`SignatureCanonicalization`, `DataEncryptionMethod`, `KeyEncryptionMethod`.
+`SignatureCanonicalization`, `DataEncryptionMethod`, `KeyEncryptionMethod`, `KeyTransportAlgorithm` and
+`OaepHash`.
+
+## Supported algorithms and limitations
+
+- **Signatures:** RSA-SHA256/384/512 and ECDSA-SHA256/384/512. RSA-SHA1 is rejected by default. ECDSA needs an
+  EC certificate and key.
+- **Digests:** SHA-256/384/512. SHA-1 is rejected by default.
+- **Key transport:** RSA-OAEP-SHA1 (the default, byte-identical to previous releases), RSA-OAEP-SHA256,
+  RSA-OAEP-MGF1P and RSA-1_5 (rejected by default). Select a non-default with
+  `Outbound\Encryption::withKeyTransportAlgorithm(...)`.
+- **Bulk encryption:** AES-GCM and AES-CBC at 128/192/256 bits. 3DES is rejected by default.
+- **Canonicalization:** exclusive C14N (`EXC_C14N`, `EXC_C14N_COMMENTS`) is the default and the only form
+  accepted inbound unless you opt in. Inclusive Canonical XML 1.0 (`C14N`, `C14N_COMMENTS`) is supported as an
+  opt-in. Canonical XML 1.1 is **not** supported: the underlying platform does not provide it.
 
 # WsaMiddleware
 

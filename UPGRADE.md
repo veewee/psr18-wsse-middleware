@@ -89,6 +89,29 @@ The algorithm enums (`SignatureMethod`, `DigestMethod`, `SignatureCanonicalizati
 and `KeyEncryptionMethod`) moved from the `WSSecurity\` root into `WSSecurity\Algorithm\`. Update your `use`
 statements. The defaults are secure on their own, so in most cases you can stop passing these explicitly.
 
+### New opt-in algorithms (existing behaviour is unchanged)
+
+A few algorithm choices were added. They are all opt-in, so a profile you carry over keeps signing and
+encrypting exactly as before:
+
+- **ECDSA signing.** `SignatureMethod` now has `ECDSA_SHA256`, `ECDSA_SHA384` and `ECDSA_SHA512`. Select one on
+  the block with `Outbound\Signature::withSignatureMethod(SignatureMethod::ECDSA_SHA256)`; it needs an EC
+  certificate and key. The default stays RSA-SHA256. Inbound, the ECDSA methods are in the default accepted
+  signature allow-list, so you can verify an ECDSA-signed response without extra configuration.
+- **RSA-OAEP-SHA256 key transport.** The default key transport stays RSA-OAEP with SHA-1, which is
+  byte-identical on the wire to before. To upgrade a single block, pass
+  `Outbound\Encryption::withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256())`. The named constructors
+  are `oaepSha1()`, `oaepSha256()`, `legacyMgf1p()` and `rsa1_5()`. There is no `withOaepHash()` setter; use
+  `withKeyTransportAlgorithm()`. Inbound, both SHA-1 and SHA-256 are accepted by default.
+- **Inclusive canonicalization.** `SignatureCanonicalization` now has the inclusive Canonical XML 1.0 variants
+  `C14N` and `C14N_COMMENTS` alongside the exclusive ones. The exclusive variants remain the default and the
+  only form accepted inbound; opt in to an inclusive variant outbound with
+  `Outbound\Signature::withCanonicalization(...)` and, if you also verify with it, by adding it to the profile's
+  `acceptedCanonicalizations`. Canonical XML 1.1 is not supported.
+
+`SecurityProfile` gained two inbound allow-lists for these: `acceptedOaepHashes` (default SHA-1 and SHA-256) and
+`acceptedCanonicalizations` (default the exclusive variants only). Leave them unset to keep the secure defaults.
+
 ### One WS-Addressing middleware
 
 `WsaMiddleware2005` is gone. There is now a single `WsaMiddleware` that takes the addressing version as an
