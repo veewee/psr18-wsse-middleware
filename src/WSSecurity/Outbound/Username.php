@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
-use DateTimeImmutable;
-use DateTimeZone;
 use Dom\Element;
 use InvalidArgumentException;
+use Psl\DateTime\SecondsStyle;
+use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Random;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
@@ -30,7 +30,6 @@ use function VeeWee\Xml\Dom\Builder\value;
  */
 final class Username implements OutboundAction
 {
-    private const TIME_FORMAT = 'Y-m-d\TH:i:s.v\Z';
     private const NONCE_LENGTH = 16;
     private const TYPE_TEXT = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText';
     private const TYPE_DIGEST = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest';
@@ -107,7 +106,7 @@ final class Username implements OutboundAction
         }
 
         $nonce = $this->random->bytes(self::NONCE_LENGTH);
-        $created = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format(self::TIME_FORMAT);
+        $created = Instant::now()->toRfc3339(SecondsStyle::Milliseconds, useZ: true);
         $digest = base64_encode($this->digester->hash($nonce.$created.$password, DigestMethod::SHA1));
 
         return [
