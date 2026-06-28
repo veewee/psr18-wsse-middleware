@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 
+use Brick\Math\BigInteger;
 use OpenSSLAsymmetricKey;
 use OpenSSLCertificate;
 use OpenSSLCertificateSigningRequest;
@@ -54,10 +55,6 @@ final class CertificateFieldExtractorTest extends TestCase
 
     public function test_it_renders_a_serial_beyond_the_php_integer_range_as_decimal(): void
     {
-        if (!extension_loaded('gmp')) {
-            static::markTestSkipped('Minting a certificate with a bignum serial requires the gmp extension.');
-        }
-
         // A 20-byte serial exceeds the platform integer range and must round-trip without precision loss.
         $serial = '143266986699850468079199010478798978082';
         $leaf = $this->caSignedLeaf($serial);
@@ -159,7 +156,7 @@ final class CertificateFieldExtractorTest extends TestCase
         // Serials beyond the platform integer range are passed through the hexadecimal parameter, since the
         // integer serial argument cannot carry them.
         if (is_string($serial)) {
-            $cert = openssl_csr_sign($csr, $caCert, $caKey, 365, $config + ['digest_alg' => 'sha256'], 0, gmp_strval(gmp_init($serial, 10), 16));
+            $cert = openssl_csr_sign($csr, $caCert, $caKey, 365, $config + ['digest_alg' => 'sha256'], 0, BigInteger::of($serial)->toBase(16));
         } else {
             $cert = openssl_csr_sign($csr, $caCert, $caKey, 365, $config + ['digest_alg' => 'sha256'], $serial);
         }

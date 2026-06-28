@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
+use Brick\Math\BigInteger;
 use Psl\Type\Exception\CoercionException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
@@ -247,48 +248,7 @@ final class CertificateFieldExtractor
             throw CryptoOperationFailed::unreadableCertificate();
         }
 
-        $decimal = $this->hexToDecimal($hex);
-        if ($decimal === '') {
-            throw CryptoOperationFailed::unreadableCertificate();
-        }
-
-        return $decimal;
-    }
-
-    /**
-     * Converts a hexadecimal string to its decimal representation with arbitrary precision, since serial numbers
-     * routinely exceed the platform integer range.
-     */
-    private function hexToDecimal(string $hex): string
-    {
-        if (extension_loaded('gmp')) {
-            return gmp_strval(gmp_init($hex, 16), 10);
-        }
-
-        if (extension_loaded('bcmath')) {
-            $decimal = '0';
-            foreach (str_split($hex) as $digit) {
-                $decimal = bcadd(bcmul($decimal, '16'), (string) hexdec($digit));
-            }
-
-            return $decimal;
-        }
-
-        $decimal = [0];
-        foreach (str_split($hex) as $digit) {
-            $carry = (int) hexdec($digit);
-            foreach ($decimal as $position => $value) {
-                $value = $value * 16 + $carry;
-                $decimal[$position] = $value % 10;
-                $carry = intdiv($value, 10);
-            }
-
-            while ($carry > 0) {
-                $decimal[] = $carry % 10;
-                $carry = intdiv($carry, 10);
-            }
-        }
-
-        return implode('', array_reverse(array_map(strval(...), $decimal)));
+        // Serial numbers routinely exceed the platform integer range, so the conversion keeps arbitrary precision.
+        return (string) BigInteger::fromBase($hex, 16);
     }
 }
