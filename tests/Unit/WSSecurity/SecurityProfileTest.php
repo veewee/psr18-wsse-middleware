@@ -56,6 +56,9 @@ final class SecurityProfileTest extends TestCase
         $profile = SecurityProfile::default();
 
         static::assertTrue($profile->acceptsSignatureMethod(SignatureMethod::RSA_SHA256));
+        static::assertTrue($profile->acceptsSignatureMethod(SignatureMethod::ECDSA_SHA256));
+        static::assertTrue($profile->acceptsSignatureMethod(SignatureMethod::ECDSA_SHA384));
+        static::assertTrue($profile->acceptsSignatureMethod(SignatureMethod::ECDSA_SHA512));
         static::assertTrue($profile->acceptsDigestMethod(DigestMethod::SHA256));
         static::assertTrue($profile->acceptsKeyEncryptionMethod(KeyEncryptionMethod::RSA_OAEP));
         static::assertTrue($profile->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_GCM));

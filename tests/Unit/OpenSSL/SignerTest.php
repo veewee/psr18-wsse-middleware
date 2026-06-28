@@ -6,6 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
+use Soap\Psr18WsseMiddleware\OpenSSL\Internal\EcdsaSignature;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
@@ -81,6 +82,61 @@ final class SignerTest extends TestCase
         $signer->sign(new Key($certificate->contents()), 'payload', SignatureMethod::RSA_SHA256);
     }
 
+    public function test_it_signs_and_verifies_with_every_ecdsa_method(): void
+    {
+        $signer = new Signer();
+        $data = 'the canonicalized SignedInfo';
+
+        foreach ([
+            [SignatureMethod::ECDSA_SHA256, 'prime256v1'],
+            [SignatureMethod::ECDSA_SHA384, 'secp384r1'],
+            [SignatureMethod::ECDSA_SHA512, 'secp521r1'],
+        ] as [$method, $curve]) {
+            [$private, $certificate] = $this->ecKeyAndCertificate($curve);
+            $signature = $signer->sign($private, $data, $method);
+
+            static::assertNotSame('', $signature);
+            static::assertTrue($signer->verify($certificate, $data, $signature, $method));
+        }
+    }
+
+    /**
+     * An ECDSA signature our signer produces is the fixed-width r||s pair; converting it back to DER lets a
+     * plain openssl_verify accept it. OpenSSL is the independent oracle for the outbound conversion.
+     */
+    public function test_ecdsa_signature_is_accepted_by_openssl_as_an_oracle(): void
+    {
+        $signer = new Signer();
+        [$private, $certificate] = $this->ecKeyAndCertificate('prime256v1');
+        $data = 'oracle payload';
+
+        $p1363 = $signer->sign($private, $data, SignatureMethod::ECDSA_SHA256);
+        $der = EcdsaSignature::p1363ToDer($p1363);
+
+        $publicKey = openssl_pkey_get_public($certificate->contents());
+        static::assertInstanceOf(OpenSSLAsymmetricKey::class, $publicKey);
+        static::assertSame(1, openssl_verify($data, $der, $publicKey, OPENSSL_ALGO_SHA256));
+    }
+
+    /**
+     * A DER signature produced directly by openssl_sign, converted to the fixed-width pair, is accepted by our
+     * verify path. OpenSSL is the independent oracle for the inbound conversion.
+     */
+    public function test_ecdsa_signature_from_openssl_is_accepted_by_our_verify(): void
+    {
+        $signer = new Signer();
+        [$private, $certificate] = $this->ecKeyAndCertificate('prime256v1');
+        $data = 'oracle payload';
+
+        $privateKey = openssl_pkey_get_private($private->contents());
+        static::assertInstanceOf(OpenSSLAsymmetricKey::class, $privateKey);
+        static::assertTrue(openssl_sign($data, $der, $privateKey, OPENSSL_ALGO_SHA256));
+        static::assertIsString($der);
+
+        $p1363 = EcdsaSignature::derToP1363($der, 32);
+        static::assertTrue($signer->verify($certificate, $data, $p1363, SignatureMethod::ECDSA_SHA256));
+    }
+
     /**
      * Every signature method the enum advertises must be executable by the signer: none may map to an
      * unsupported algorithm. This guards the enum against re-introducing a case the engine cannot apply.
@@ -88,9 +144,11 @@ final class SignerTest extends TestCase
     public function test_every_signature_method_is_executable(): void
     {
         $signer = new Signer();
-        [$private] = $this->keyAndCertificate();
 
         foreach (SignatureMethod::cases() as $method) {
+            // ECDSA needs an EC key for the DER to fixed-width conversion to derive a coordinate width; the
+            // other methods only select a hash, so an RSA key serves them all.
+            [$private] = $method->isEcdsa() ? $this->ecKeyAndCertificate('prime256v1') : $this->keyAndCertificate();
             $signature = $signer->sign($private, 'payload', $method);
             static::assertNotSame('', $signature);
         }
@@ -99,9 +157,28 @@ final class SignerTest extends TestCase
     /**
      * @return array{0: Key, 1: Certificate}
      */
+    private function ecKeyAndCertificate(string $curve): array
+    {
+        $private = openssl_pkey_new(['curve_name' => $curve, 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+
+        return $this->exportKeyAndCertificate($private);
+    }
+
+    /**
+     * @return array{0: Key, 1: Certificate}
+     */
     private function keyAndCertificate(): array
     {
         $private = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+
+        return $this->exportKeyAndCertificate($private);
+    }
+
+    /**
+     * @return array{0: Key, 1: Certificate}
+     */
+    private function exportKeyAndCertificate(OpenSSLAsymmetricKey|false $private): array
+    {
         static::assertInstanceOf(OpenSSLAsymmetricKey::class, $private);
 
         static::assertTrue(openssl_pkey_export($private, $privatePem));

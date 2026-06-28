@@ -6,6 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
@@ -28,6 +29,22 @@ final class VerifySignatureRoundTripTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([Part::body(), Part::timestamp()], withTimestamp: true);
+
+        $this->expectNotToPerformAssertions();
+        (new VerifySignature(
+            TrustStore::fromCertificates($fixture->caCertificate),
+            signed: [Part::body(), Part::timestamp()],
+        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+    }
+
+    public function test_it_verifies_a_real_ecdsa_signed_body_and_timestamp(): void
+    {
+        $fixture = WsseSignatureFixture::ecCaSignedLeaf();
+        $document = $fixture->sign(
+            [Part::body(), Part::timestamp()],
+            withTimestamp: true,
+            signatureMethod: SignatureMethod::ECDSA_SHA256,
+        );
 
         $this->expectNotToPerformAssertions();
         (new VerifySignature(

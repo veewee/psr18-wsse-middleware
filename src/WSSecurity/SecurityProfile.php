@@ -49,6 +49,9 @@ final class SecurityProfile
             SignatureMethod::RSA_SHA256,
             SignatureMethod::RSA_SHA384,
             SignatureMethod::RSA_SHA512,
+            SignatureMethod::ECDSA_SHA256,
+            SignatureMethod::ECDSA_SHA384,
+            SignatureMethod::ECDSA_SHA512,
         ];
         $this->acceptedDigestMethods = $acceptedDigestMethods ?? [
             DigestMethod::SHA256,

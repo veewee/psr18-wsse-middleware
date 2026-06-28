@@ -41,6 +41,31 @@ final class Wss4jInteropTest extends TestCase
         static::assertStringContainsString('java-server', $result->signer->subjectDistinguishedName());
     }
 
+    public function test_it_verifies_a_real_wss4j_ecdsa_signed_message(): void
+    {
+        $document = Document::fromXmlString((string) file_get_contents(
+            __DIR__.'/../../../../fixtures/interop/wss4j-signed-ecdsa.xml',
+        ));
+
+        $result = DefaultEngine::verifier()->verify($document, $this->ecdsaPolicy());
+
+        static::assertInstanceOf(VerifiedSignature::class, $result);
+        static::assertTrue($result->signedElements->wasSigned($this->body($document)));
+        static::assertStringContainsString('ec client', $result->signer->subjectDistinguishedName());
+    }
+
+    private function ecdsaPolicy(): VerificationPolicy
+    {
+        return new VerificationPolicy(
+            trustStore: TrustStore::fromCertificates(
+                Certificate::fromFile(__DIR__.'/../../../../fixtures/interop/wss4j-ca.crt'),
+            ),
+            acceptedSignatureMethods: [SignatureMethod::ECDSA_SHA256],
+            acceptedDigestMethods: [DigestMethod::SHA256],
+            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+        );
+    }
+
     private function policy(): VerificationPolicy
     {
         return new VerificationPolicy(

@@ -15,6 +15,19 @@ final class SignatureMethodTest extends TestCase
         static::assertSame('http://www.w3.org/2001/04/xmldsig-more#rsa-sha384', SignatureMethod::RSA_SHA384->value);
         static::assertSame('http://www.w3.org/2001/04/xmldsig-more#rsa-sha512', SignatureMethod::RSA_SHA512->value);
         static::assertSame('http://www.w3.org/2000/09/xmldsig#dsa-sha1', SignatureMethod::DSA_SHA1->value);
+        static::assertSame('http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256', SignatureMethod::ECDSA_SHA256->value);
+        static::assertSame('http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha384', SignatureMethod::ECDSA_SHA384->value);
+        static::assertSame('http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512', SignatureMethod::ECDSA_SHA512->value);
+    }
+
+    public function test_only_the_ecdsa_methods_report_as_ecdsa(): void
+    {
+        static::assertTrue(SignatureMethod::ECDSA_SHA256->isEcdsa());
+        static::assertTrue(SignatureMethod::ECDSA_SHA384->isEcdsa());
+        static::assertTrue(SignatureMethod::ECDSA_SHA512->isEcdsa());
+
+        static::assertFalse(SignatureMethod::RSA_SHA256->isEcdsa());
+        static::assertFalse(SignatureMethod::DSA_SHA1->isEcdsa());
     }
 
     public function test_the_secure_default_is_rsa_sha256(): void

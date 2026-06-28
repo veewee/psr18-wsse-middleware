@@ -109,6 +109,9 @@ final class VerifySignatureTest extends TestCase
             SignatureMethod::RSA_SHA256,
             SignatureMethod::RSA_SHA384,
             SignatureMethod::RSA_SHA512,
+            SignatureMethod::ECDSA_SHA256,
+            SignatureMethod::ECDSA_SHA384,
+            SignatureMethod::ECDSA_SHA512,
         ], $policy->acceptedSignatureMethods);
         static::assertSame([
             DigestMethod::SHA256,

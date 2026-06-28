@@ -55,9 +55,22 @@ final class WsseSignatureFixture
      */
     public static function caSignedLeaf(): self
     {
+        return self::caSignedLeafWithKey(self::rsaKey());
+    }
+
+    /**
+     * A leaf key and certificate signed by a generated CA, using an elliptic-curve leaf key so the round trip
+     * exercises the ECDSA signing and verification path.
+     */
+    public static function ecCaSignedLeaf(string $curve = 'prime256v1'): self
+    {
+        return self::caSignedLeafWithKey(self::ecKey($curve));
+    }
+
+    private static function caSignedLeafWithKey(OpenSSLAsymmetricKey $leafPrivate): self
+    {
         [$caKey, $caCert] = self::caKeyPair();
 
-        $leafPrivate = self::rsaKey();
         $leafCsr = openssl_csr_new(['commonName' => 'WSSE Round Trip Leaf'], $leafPrivate);
         if ($leafCsr === false) {
             throw new RuntimeException('Unable to create the leaf CSR.');
@@ -190,6 +203,16 @@ final class WsseSignatureFixture
         $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
         if ($key === false) {
             throw new RuntimeException('Unable to generate an RSA key.');
+        }
+
+        return $key;
+    }
+
+    private static function ecKey(string $curve): OpenSSLAsymmetricKey
+    {
+        $key = openssl_pkey_new(['curve_name' => $curve, 'private_key_type' => OPENSSL_KEYTYPE_EC]);
+        if ($key === false) {
+            throw new RuntimeException('Unable to generate an EC key.');
         }
 
         return $key;
