@@ -39,6 +39,10 @@
         "phpro/resource-stream": "^1.4",
         "phpseclib/phpseclib": "^3.0"
     },
+    "suggest": {
+        "ext-gmp": "For native-speed RSA and ECDSA (key transport and signatures); phpseclib uses it when present",
+        "ext-bcmath": "Faster RSA and ECDSA than the pure-PHP fallback when ext-gmp is absent (already quick on PHP 8.4)"
+    },
     "require-dev": {
         "nyholm/psr7": "^1.5",
         "php-http/mock-client": "^1.5",

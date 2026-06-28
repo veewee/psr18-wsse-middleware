@@ -8,13 +8,22 @@ parts changed. Here is what to check when you upgrade.
 
 ### The engine is now part of this package
 
-Signing, encryption, decryption and verification run on `ext-openssl` and the modern PHP DOM. You no longer
-need `robrichards/wse-php` or `xmlseclibs` at runtime, and the old encryption-bug patch (the
-`cweagans/composer-patches` workaround for `wse-php`) is no longer needed. You can drop that patch and the
-dev dependency from your project.
+Signing, encryption, decryption and verification run inside this package on the modern PHP DOM, `ext-openssl`
+(symmetric ciphers, digests and certificates) and the `phpseclib/phpseclib` library (RSA and ECDSA key
+transport and signatures). You no longer need `robrichards/wse-php` or `xmlseclibs` at runtime, and the old
+encryption-bug patch (the `cweagans/composer-patches` workaround for `wse-php`) is no longer needed. You can
+drop that patch and the dev dependency from your project.
 
 `ext-intl` is now a required extension. The inbound timestamp validator parses instants with the ICU date
 formatter, so make sure `ext-intl` is installed wherever this package runs.
+
+### Install ext-gmp or ext-bcmath for RSA performance
+
+phpseclib does the RSA and ECDSA big-integer math in PHP, so its speed depends on the arithmetic backend it
+finds. Install `ext-gmp` for native-speed key transport and signatures, or `ext-bcmath`, which on PHP 8.4 is
+already fast enough for a typical client. With neither extension the math falls back to a pure-PHP path that
+is noticeably slower per message; everything still works, just slower. `ext-bcmath` is commonly enabled by
+default, so most installations need no action.
 
 ### Blocks are now one-liners; no engine wiring
 
