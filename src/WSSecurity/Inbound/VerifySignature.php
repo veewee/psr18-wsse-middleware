@@ -72,9 +72,7 @@ final class VerifySignature implements InboundAction
             trustStore: $this->trustStore,
             acceptedSignatureMethods: $this->acceptedSignatureMethods($profile),
             acceptedDigestMethods: $this->acceptedDigestMethods($profile),
-            // Only exclusive C14N is accepted. The inclusive and with-comments variants are not used to
-            // canonicalize WSSE signatures, so accepting them would only widen the attack surface.
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            acceptedCanonicalizations: $this->acceptedCanonicalizations($profile),
         );
     }
 
@@ -105,6 +103,22 @@ final class VerifySignature implements InboundAction
         ));
         if ($accepted === []) {
             throw new InvalidArgumentException('The security profile accepts no digest methods.');
+        }
+
+        return $accepted;
+    }
+
+    /**
+     * @return non-empty-list<SignatureCanonicalization>
+     */
+    private function acceptedCanonicalizations(SecurityProfile $profile): array
+    {
+        $accepted = array_values(array_filter(
+            SignatureCanonicalization::cases(),
+            $profile->acceptsCanonicalization(...),
+        ));
+        if ($accepted === []) {
+            throw new InvalidArgumentException('The security profile accepts no canonicalizations.');
         }
 
         return $accepted;

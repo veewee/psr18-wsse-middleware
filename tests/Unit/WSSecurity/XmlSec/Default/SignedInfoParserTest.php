@@ -99,11 +99,26 @@ final class SignedInfoParserTest extends TestCase
         (new SignedInfoParser())->parse($signedInfo);
     }
 
-    public function test_it_rejects_an_inclusive_c14n_reference_transform(): void
+    public function test_it_parses_an_inclusive_c14n_reference_transform(): void
+    {
+        // The parser only structurally reads the transform; whether an inclusive c14n is accepted is decided
+        // later by the policy enforcer, not here.
+        $signedInfo = $this->signedInfo(
+            canonicalization: '<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>',
+            references: $this->reference('#Body', SignatureCanonicalization::C14N->value, null),
+        );
+
+        $parsed = (new SignedInfoParser())->parse($signedInfo);
+
+        static::assertSame(SignatureCanonicalization::C14N, $parsed->references[0]->canonicalization);
+        static::assertSame([], $parsed->references[0]->inclusivePrefixes);
+    }
+
+    public function test_it_rejects_an_unknown_reference_transform(): void
     {
         $signedInfo = $this->signedInfo(
             canonicalization: '<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>',
-            references: $this->reference('#Body', 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315', null),
+            references: $this->reference('#Body', 'urn:not-a-canonicalization', null),
         );
 
         $this->expectException(SignatureVerificationFailed::class);

@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
+use Dom\Element;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
@@ -74,6 +76,56 @@ final class VerifySignatureRoundTripTest extends TestCase
         (new VerifySignature(
             TrustStore::fromCertificates(WsseSignatureFixture::caSignedLeaf()->caCertificate),
             signed: [Part::body()],
+        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+    }
+
+    public function test_it_round_trips_an_inclusive_c14n_signature_when_the_policy_opts_in(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign(
+            [Part::body(), Part::timestamp()],
+            withTimestamp: true,
+            canonicalization: SignatureCanonicalization::C14N,
+        );
+
+        // The emitted CanonicalizationMethod carries the inclusive C14N 1.0 URI.
+        $canonicalizationMethod = $document
+            ->toUnsafeDocument()
+            ->getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'CanonicalizationMethod')
+            ->item(0);
+        static::assertInstanceOf(Element::class, $canonicalizationMethod);
+        static::assertSame(
+            SignatureCanonicalization::C14N->value,
+            $canonicalizationMethod->getAttribute('Algorithm'),
+        );
+
+        (new VerifySignature(
+            TrustStore::fromCertificates($fixture->caCertificate),
+            signed: [Part::body(), Part::timestamp()],
+        ))(new WsseContext(
+            $document,
+            SoapVersion::Soap12,
+            new SecurityProfile(acceptedCanonicalizations: [
+                SignatureCanonicalization::C14N,
+                SignatureCanonicalization::EXC_C14N,
+            ]),
+        ));
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_it_rejects_an_inclusive_c14n_signature_under_the_default_policy(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign(
+            [Part::body(), Part::timestamp()],
+            withTimestamp: true,
+            canonicalization: SignatureCanonicalization::C14N,
+        );
+
+        $this->expectException(SecurityFault::class);
+        (new VerifySignature(
+            TrustStore::fromCertificates($fixture->caCertificate),
+            signed: [Part::body(), Part::timestamp()],
         ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
     }
 

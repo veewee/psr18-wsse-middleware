@@ -118,7 +118,10 @@ final class VerifySignatureTest extends TestCase
             DigestMethod::SHA384,
             DigestMethod::SHA512,
         ], $policy->acceptedDigestMethods);
-        static::assertSame([SignatureCanonicalization::EXC_C14N], $policy->acceptedCanonicalizations);
+        static::assertSame(
+            [SignatureCanonicalization::EXC_C14N, SignatureCanonicalization::EXC_C14N_COMMENTS],
+            $policy->acceptedCanonicalizations,
+        );
         static::assertSame($trustStore, $policy->trustStore);
     }
 

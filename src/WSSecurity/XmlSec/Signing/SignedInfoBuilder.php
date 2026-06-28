@@ -17,13 +17,12 @@ use function VeeWee\Xml\Dom\Builder\value;
  * Assembles a ds:SignedInfo element with ds:CanonicalizationMethod, ds:SignatureMethod, and one ds:Reference
  * per DigestResult. The returned element is detached; the caller attaches it as a child of ds:Signature.
  *
- * Each ds:Reference declares the exclusive-C14N transform it was digested with, so a verifier canonicalizes
- * the referenced element the same way before checking the digest.
+ * Each ds:Reference declares the C14N transform it was digested with, so a verifier canonicalizes the
+ * referenced element the same way before checking the digest. The same canonicalization drives both the
+ * SignedInfo method and every reference transform.
  */
 final class SignedInfoBuilder
 {
-    private const EXC_C14N = 'http://www.w3.org/2001/10/xml-exc-c14n#';
-
     /**
      * @param non-empty-list<DigestResult> $references
      */
@@ -34,7 +33,7 @@ final class SignedInfoBuilder
         array $references,
     ): Element {
         $referenceBuilders = array_map(
-            fn (DigestResult $result): callable => $this->reference($result),
+            fn (DigestResult $result): callable => $this->reference($result, $canonicalization),
             $references,
         );
 
@@ -60,7 +59,7 @@ final class SignedInfoBuilder
     /**
      * @return callable(Element): Element
      */
-    private function reference(DigestResult $result): callable
+    private function reference(DigestResult $result, SignatureCanonicalization $canonicalization): callable
     {
         return namespaced_element(
             WsseNamespace::Ds->value,
@@ -73,7 +72,7 @@ final class SignedInfoBuilder
                     children(namespaced_element(
                         WsseNamespace::Ds->value,
                         WsseNamespace::Ds->qualify('Transform'),
-                        attribute('Algorithm', self::EXC_C14N),
+                        attribute('Algorithm', $canonicalization->value),
                     )),
                 ),
                 namespaced_element(

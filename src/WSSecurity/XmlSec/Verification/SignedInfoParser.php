@@ -106,9 +106,10 @@ final class SignedInfoParser
 
     /**
      * Resolves the canonicalization a reference's digest is computed under. When ds:Transforms is present it
-     * must declare exactly one exclusive-c14n transform and nothing else; its optional PrefixList is read.
-     * When ds:Transforms is absent the digest is taken under the SignedInfo canonicalization with no prefixes,
-     * which preserves the behaviour for signers that omit Transforms.
+     * must declare exactly one c14n transform and nothing else; the optional PrefixList of an exclusive
+     * transform is read. When ds:Transforms is absent the digest is taken under the SignedInfo canonicalization
+     * with no prefixes, which preserves the behaviour for signers that omit Transforms. Whether the resolved
+     * canonicalization is accepted at all is decided later by the policy enforcer, not here.
      *
      * @return array{0: SignatureCanonicalization, 1: list<string>}
      *
@@ -136,7 +137,7 @@ final class SignedInfoParser
         $transform = $transformElements[0];
         $algorithm = SignatureCanonicalization::tryFrom((string) $transform->getAttribute('Algorithm'));
         if ($algorithm === null) {
-            throw SignatureVerificationFailed::withReason('A reference transform is not an accepted canonicalization.');
+            throw SignatureVerificationFailed::withReason('A reference transform is not a known canonicalization.');
         }
 
         return [$algorithm, $this->inclusivePrefixes($transform)];

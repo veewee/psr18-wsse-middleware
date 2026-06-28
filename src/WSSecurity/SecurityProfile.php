@@ -28,13 +28,16 @@ final class SecurityProfile
     private readonly array $acceptedDataEncryptionMethods;
     /** @var list<OaepHash> */
     private readonly array $acceptedOaepHashes;
+    /** @var list<SignatureCanonicalization> */
+    private readonly array $acceptedCanonicalizations;
 
     /**
-     * @param list<SignatureMethod>|null      $acceptedSignatureMethods
-     * @param list<DigestMethod>|null         $acceptedDigestMethods
-     * @param list<KeyEncryptionMethod>|null  $acceptedKeyEncryptionMethods
-     * @param list<DataEncryptionMethod>|null $acceptedDataEncryptionMethods
-     * @param list<OaepHash>|null             $acceptedOaepHashes
+     * @param list<SignatureMethod>|null           $acceptedSignatureMethods
+     * @param list<DigestMethod>|null              $acceptedDigestMethods
+     * @param list<KeyEncryptionMethod>|null       $acceptedKeyEncryptionMethods
+     * @param list<DataEncryptionMethod>|null      $acceptedDataEncryptionMethods
+     * @param list<OaepHash>|null                  $acceptedOaepHashes
+     * @param list<SignatureCanonicalization>|null $acceptedCanonicalizations
      */
     public function __construct(
         private readonly int $timestampTtl = 300,
@@ -50,6 +53,7 @@ final class SecurityProfile
         ?array $acceptedKeyEncryptionMethods = null,
         ?array $acceptedDataEncryptionMethods = null,
         ?array $acceptedOaepHashes = null,
+        ?array $acceptedCanonicalizations = null,
     ) {
         $this->acceptedSignatureMethods = $acceptedSignatureMethods ?? [
             SignatureMethod::RSA_SHA256,
@@ -79,6 +83,13 @@ final class SecurityProfile
         $this->acceptedOaepHashes = $acceptedOaepHashes ?? [
             OaepHash::Sha1,
             OaepHash::Sha256,
+        ];
+        // Both exclusive variants are accepted by default. The inclusive variants are not the WSSE norm, so
+        // accepting them would only widen the attack surface; inclusive canonicalization is opt-in by passing
+        // it here.
+        $this->acceptedCanonicalizations = $acceptedCanonicalizations ?? [
+            SignatureCanonicalization::EXC_C14N,
+            SignatureCanonicalization::EXC_C14N_COMMENTS,
         ];
     }
 
@@ -150,5 +161,10 @@ final class SecurityProfile
     public function acceptsOaepHash(OaepHash $hash): bool
     {
         return in_array($hash, $this->acceptedOaepHashes, true);
+    }
+
+    public function acceptsCanonicalization(SignatureCanonicalization $canonicalization): bool
+    {
+        return in_array($canonicalization, $this->acceptedCanonicalizations, true);
     }
 }

@@ -71,6 +71,38 @@ final class DomCanonicalizerTest extends TestCase
         static::assertStringNotContainsString('<!-- c -->', $withoutComments);
     }
 
+    // Inclusive C14N carries inherited ancestor namespace declarations into the subtree; exclusive C14N drops
+    // the ones the subtree does not use. The 'extra' prefix is declared on the ancestor Envelope and unused in
+    // the Body, so it appears only in the inclusive output.
+    #[RequiresPhp('>= 8.4.21')]
+    public function test_inclusive_c14n_keeps_inherited_ancestor_namespaces_that_exclusive_drops(): void
+    {
+        $canonicalizer = new DomCanonicalizer();
+
+        $exclusive = $canonicalizer->canonicalize($this->newBody(), SignatureCanonicalization::EXC_C14N);
+        $inclusive = $canonicalizer->canonicalize($this->newBody(), SignatureCanonicalization::C14N);
+        $inclusiveComments = $canonicalizer->canonicalize($this->newBody(), SignatureCanonicalization::C14N_COMMENTS);
+
+        static::assertStringNotContainsString('xmlns:extra', $exclusive);
+        static::assertStringContainsString('xmlns:extra', $inclusive);
+        static::assertStringContainsString('xmlns:extra', $inclusiveComments);
+        static::assertStringContainsString('<!-- c -->', $inclusiveComments);
+        static::assertStringNotContainsString('<!-- c -->', $inclusive);
+    }
+
+    // Inclusive C14N has no InclusiveNamespaces PrefixList, so a prefix list passed alongside an inclusive
+    // method must be ignored rather than changing the output.
+    #[RequiresPhp('>= 8.4.21')]
+    public function test_a_prefix_list_is_ignored_for_inclusive_c14n(): void
+    {
+        $canonicalizer = new DomCanonicalizer();
+
+        static::assertSame(
+            $canonicalizer->canonicalize($this->newBody(), SignatureCanonicalization::C14N),
+            $canonicalizer->canonicalize($this->newBody(), SignatureCanonicalization::C14N, ['extra']),
+        );
+    }
+
     // The InclusiveNamespaces PrefixList is only honored correctly by libxml on the supported floor.
     #[RequiresPhp('>= 8.4.21')]
     public function test_inclusive_prefixes_force_unused_ancestor_namespaces_into_the_output(): void

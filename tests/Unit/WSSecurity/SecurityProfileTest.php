@@ -65,6 +65,29 @@ final class SecurityProfileTest extends TestCase
         static::assertTrue($profile->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_CBC));
     }
 
+    /** SECURITY: the default accepts both exclusive C14N variants only; inclusive C14N is opt-in. */
+    public function test_the_default_accepts_both_exclusive_canonicalization_variants(): void
+    {
+        $profile = SecurityProfile::default();
+
+        static::assertTrue($profile->acceptsCanonicalization(SignatureCanonicalization::EXC_C14N));
+        static::assertTrue($profile->acceptsCanonicalization(SignatureCanonicalization::EXC_C14N_COMMENTS));
+        static::assertFalse($profile->acceptsCanonicalization(SignatureCanonicalization::C14N));
+        static::assertFalse($profile->acceptsCanonicalization(SignatureCanonicalization::C14N_COMMENTS));
+    }
+
+    public function test_inclusive_canonicalization_can_be_opted_in_by_an_explicit_allow_list(): void
+    {
+        $profile = new SecurityProfile(
+            acceptedCanonicalizations: [SignatureCanonicalization::C14N, SignatureCanonicalization::EXC_C14N],
+        );
+
+        static::assertTrue($profile->acceptsCanonicalization(SignatureCanonicalization::C14N));
+        static::assertTrue($profile->acceptsCanonicalization(SignatureCanonicalization::EXC_C14N));
+        static::assertFalse($profile->acceptsCanonicalization(SignatureCanonicalization::C14N_COMMENTS));
+        static::assertFalse($profile->acceptsCanonicalization(SignatureCanonicalization::EXC_C14N_COMMENTS));
+    }
+
     public function test_a_legacy_peer_can_be_supported_by_an_explicit_allow_list(): void
     {
         $profile = new SecurityProfile(

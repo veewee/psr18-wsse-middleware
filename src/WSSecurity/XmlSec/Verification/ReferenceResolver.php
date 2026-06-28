@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
 use Dom\Element;
 use Dom\Node;
+use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
@@ -19,16 +20,14 @@ use VeeWee\Xml\Dom\Document;
  * declares an absurd number of references would otherwise amplify canonicalization and digest work far beyond
  * its own size, and a document-size limit cannot bound that because the message itself is small.
  *
- * For each reference it refuses any non-same-document URI, requires the single allow-listed transform
- * (exclusive C14N) and nothing else, resolves the bare id through the hardened wsu:Id lookup (which refuses a
- * duplicate id and never falls back to getElementById), and refuses a reference that resolves to the
- * ds:Signature element itself or anything inside it. The returned element instances are exactly what the
- * lookup produced and are never re-queried afterwards.
+ * For each reference it refuses any non-same-document URI, requires exactly one known c14n transform and
+ * nothing else (which canonicalizations are actually accepted is decided upstream by the policy enforcer),
+ * resolves the bare id through the hardened wsu:Id lookup (which refuses a duplicate id and never falls back to
+ * getElementById), and refuses a reference that resolves to the ds:Signature element itself or anything inside
+ * it. The returned element instances are exactly what the lookup produced and are never re-queried afterwards.
  */
 final class ReferenceResolver
 {
-    private const EXC_C14N = 'http://www.w3.org/2001/10/xml-exc-c14n#';
-
     /**
      * Upper bound on the number of ds:Reference entries a single ds:SignedInfo may declare. A conservative
      * ceiling far above any legitimate WSSE message; it could later move to the verification policy if a
@@ -60,7 +59,7 @@ final class ReferenceResolver
         $resolved = [];
         foreach ($referenceElements as $index => $referenceElement) {
             $parsed = $parsedReferences[$index];
-            $this->assertExclusiveC14nTransform($referenceElement);
+            $this->assertSingleKnownC14nTransform($referenceElement);
 
             $element = $this->locate($document, $referenceElement);
             $this->assertNotSignatureInfrastructure($element, $signatureElement);
@@ -97,7 +96,7 @@ final class ReferenceResolver
         }
     }
 
-    private function assertExclusiveC14nTransform(Element $referenceElement): void
+    private function assertSingleKnownC14nTransform(Element $referenceElement): void
     {
         $transforms = $this->onlyDsChild($referenceElement, 'Transforms');
         if ($transforms === null) {
@@ -110,7 +109,9 @@ final class ReferenceResolver
         }
 
         $transform = $candidates[0] ?? null;
-        if ($transform === null || $transform->getAttribute('Algorithm') !== self::EXC_C14N) {
+        if ($transform === null
+            || SignatureCanonicalization::tryFrom((string) $transform->getAttribute('Algorithm')) === null
+        ) {
             throw SignatureVerificationFailed::withReason('A reference declares an unsupported transform.');
         }
     }

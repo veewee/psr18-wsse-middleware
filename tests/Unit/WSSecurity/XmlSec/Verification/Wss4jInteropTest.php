@@ -66,6 +66,33 @@ final class Wss4jInteropTest extends TestCase
         );
     }
 
+    public function test_it_verifies_a_real_wss4j_inclusive_c14n_signed_message(): void
+    {
+        // WSS4J applies the inclusive canonicalization to ds:SignedInfo while keeping exclusive transforms on
+        // each reference, so the message is mixed: the policy must accept both for the verification to pass.
+        $document = Document::fromXmlString((string) file_get_contents(
+            __DIR__.'/../../../../fixtures/interop/wss4j-signed-inclusive-c14n.xml',
+        ));
+
+        $result = DefaultEngine::verifier()->verify($document, $this->inclusiveC14nPolicy());
+
+        static::assertInstanceOf(VerifiedSignature::class, $result);
+        static::assertTrue($result->signedElements->wasSigned($this->body($document)));
+        static::assertStringContainsString('java-server', $result->signer->subjectDistinguishedName());
+    }
+
+    private function inclusiveC14nPolicy(): VerificationPolicy
+    {
+        return new VerificationPolicy(
+            trustStore: TrustStore::fromCertificates(
+                Certificate::fromFile(__DIR__.'/../../../../fixtures/interop/wss4j-ca.crt'),
+            ),
+            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+            acceptedDigestMethods: [DigestMethod::SHA256],
+            acceptedCanonicalizations: [SignatureCanonicalization::C14N, SignatureCanonicalization::EXC_C14N],
+        );
+    }
+
     private function policy(): VerificationPolicy
     {
         return new VerificationPolicy(

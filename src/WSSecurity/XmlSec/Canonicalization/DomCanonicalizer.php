@@ -12,7 +12,7 @@ use function VeeWee\Xml\ErrorHandling\disallow_libxml_false_returns;
 
 /**
  * The single seam between every XML-DSig operation and libxml's C14N primitive. Wraps native Dom\Node::C14N,
- * supports exclusive C14N only (the WS-Security norm, and the canonicalization the supported libxml floor
+ * supports both exclusive and inclusive Canonical XML 1.0 (the canonicalizations the supported libxml floor
  * produces byte-for-byte correctly), and refuses an empty or failed canonicalization rather than letting it
  * be signed or compared.
  */
@@ -31,13 +31,14 @@ final class DomCanonicalizer implements Canonicalizer
         ?array $inclusivePrefixes = null,
     ): string {
         try {
-            // A libxml C14N failure must never escape as a raw exception through the SPI.
+            // A libxml C14N failure must never escape as a raw exception through the SPI. The
+            // InclusiveNamespaces PrefixList only has meaning for exclusive C14N, so it is passed only then.
             $canonical = disallow_libxml_false_returns(
                 $node->C14N(
-                    exclusive: true,
+                    exclusive: $method->isExclusive(),
                     withComments: $method->withComments(),
                     xpath: null,
-                    nsPrefixes: $inclusivePrefixes,
+                    nsPrefixes: $method->isExclusive() ? $inclusivePrefixes : null,
                 ),
                 'C14N produced no output',
             );

@@ -76,14 +76,34 @@ final class SignedInfoBuilderTest extends TestCase
         static::assertSame(self::EXC_C14N, $transform->getAttribute('Algorithm'));
     }
 
+    public function test_the_reference_transform_matches_the_chosen_canonicalization(): void
+    {
+        $signedInfo = $this->build(
+            [new DigestResult('Body-1', 'AAA=', DigestMethod::SHA256)],
+            SignatureCanonicalization::C14N,
+        );
+
+        static::assertSame(
+            SignatureCanonicalization::C14N->value,
+            $this->childAt($signedInfo, 0)->getAttribute('Algorithm'),
+        );
+
+        $reference = $this->childrenByLocalName($signedInfo, 'Reference')[0];
+        $transforms = $this->childrenByLocalName($reference, 'Transforms')[0];
+        $transform = $this->childrenByLocalName($transforms, 'Transform')[0];
+        static::assertSame(SignatureCanonicalization::C14N->value, $transform->getAttribute('Algorithm'));
+    }
+
     /**
      * @param non-empty-list<DigestResult> $results
      */
-    private function build(array $results): Element
-    {
+    private function build(
+        array $results,
+        SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N,
+    ): Element {
         return (new SignedInfoBuilder())->build(
             Document::fromXmlString('<root/>'),
-            SignatureCanonicalization::EXC_C14N,
+            $canonicalization,
             SignatureMethod::RSA_SHA256,
             $results,
         );

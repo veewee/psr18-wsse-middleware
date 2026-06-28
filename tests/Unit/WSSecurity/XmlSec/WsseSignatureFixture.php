@@ -126,6 +126,7 @@ final class WsseSignatureFixture
         SignatureMethod $signatureMethod = SignatureMethod::RSA_SHA256,
         DigestMethod $digestMethod = DigestMethod::SHA256,
         ?KeyIdentifier $keyIdentifier = null,
+        SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N,
     ): Document {
         $document = $this->envelope($withTimestamp);
 
@@ -136,7 +137,7 @@ final class WsseSignatureFixture
             keyIdentifier: $keyIdentifier ?? new DirectReferenceKeyIdentifier(self::BST_ID, self::X509_TOKEN),
             signatureMethod: $signatureMethod,
             digestMethod: $digestMethod,
-            canonicalization: SignatureCanonicalization::EXC_C14N,
+            canonicalization: $canonicalization,
         ));
 
         return $document;
