@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyStore;
 
 use ParagonIE\HiddenString\HiddenString;
+use SensitiveParameter;
 use function Psl\File\read;
 
 /**
@@ -14,7 +15,7 @@ final class Key implements KeyInterface
     private HiddenString $key;
     private HiddenString $passphrase;
 
-    public function __construct(string $key)
+    public function __construct(#[SensitiveParameter] string $key)
     {
         $this->key = new HiddenString($key);
         $this->passphrase = new HiddenString('');
@@ -28,7 +29,7 @@ final class Key implements KeyInterface
         return new self(read($file));
     }
 
-    public function withPassphrase(string $passphrase): self
+    public function withPassphrase(#[SensitiveParameter] string $passphrase): self
     {
         $new = clone $this;
         $new->passphrase = new HiddenString($passphrase);

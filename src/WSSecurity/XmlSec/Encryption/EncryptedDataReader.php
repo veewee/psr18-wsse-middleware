@@ -98,7 +98,7 @@ final class EncryptedDataReader
         return new CipherText($iv, substr($decoded, $ivLength), null);
     }
 
-    private function restore(Document $document, Element $encryptedDataElement, string $plaintext): void
+    private function restore(Document $document, Element $encryptedDataElement, #[SensitiveParameter] string $plaintext): void
     {
         $mode = EncryptionMode::tryFrom((string) $encryptedDataElement->getAttribute('Type'))
             ?? EncryptionMode::Element;
@@ -126,7 +126,7 @@ final class EncryptedDataReader
     /**
      * @return list<Node>
      */
-    private function parseFragment(string $plaintext): array
+    private function parseFragment(#[SensitiveParameter] string $plaintext): array
     {
         // Wrapping lets a Content-mode payload of several siblings (or mixed text) parse as one document; the
         // wrapper carries no namespace, so the recovered nodes keep the declarations they were serialized with.

@@ -7,6 +7,7 @@ use Dom\Element;
 use InvalidArgumentException;
 use Psl\DateTime\SecondsStyle;
 use Psl\DateTime\Timestamp as Instant;
+use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Random;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
@@ -40,6 +41,7 @@ final class Username implements OutboundAction
 
     public function __construct(
         private readonly string $username,
+        #[SensitiveParameter]
         private readonly ?string $password = null,
         private readonly bool $digest = false,
         ?Random $random = null,
@@ -49,7 +51,7 @@ final class Username implements OutboundAction
         $this->digester = $digester ?? new Digest();
     }
 
-    public function withPassword(string $password): self
+    public function withPassword(#[SensitiveParameter] string $password): self
     {
         return new self($this->username, $password, $this->digest, $this->random, $this->digester);
     }
@@ -92,7 +94,7 @@ final class Username implements OutboundAction
     /**
      * @return list<callable(Element): Element>
      */
-    private function passwordChildren(string $password): array
+    private function passwordChildren(#[SensitiveParameter] string $password): array
     {
         if (!$this->digest) {
             return [
