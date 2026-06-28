@@ -5,7 +5,6 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
 use Psl\Ref;
 use SensitiveParameter;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\KeyHandleResolver;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
@@ -14,7 +13,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 
 /**
  * Asymmetric signing and verification (RSA / DSA / ECDSA). One shape covers every asymmetric method because
- * openssl_sign is polymorphic over the key type. HMAC lives outside this primitive (shared-secret input).
+ * openssl_sign is polymorphic over the key type.
  */
 final class Signer
 {
@@ -61,8 +60,6 @@ final class Signer
             SignatureMethod::RSA_SHA256 => OPENSSL_ALGO_SHA256,
             SignatureMethod::RSA_SHA384 => OPENSSL_ALGO_SHA384,
             SignatureMethod::RSA_SHA512 => OPENSSL_ALGO_SHA512,
-            SignatureMethod::HMAC_SHA1, SignatureMethod::HMAC_SHA256
-                => throw UnsupportedAlgorithmException::forAlgorithm($method->value),
         };
     }
 }

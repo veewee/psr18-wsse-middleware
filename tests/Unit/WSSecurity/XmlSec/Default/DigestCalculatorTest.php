@@ -40,7 +40,7 @@ final class DigestCalculatorTest extends TestCase
         $canonicalizer = new class implements Canonicalizer {
             public function canonicalize(Node $node, SignatureCanonicalization $method, ?array $inclusivePrefixes = null): string
             {
-                throw CanonicalizationFailed::unsupportedAlgorithm($method);
+                throw CanonicalizationFailed::nativeError($node, $method);
             }
         };
 

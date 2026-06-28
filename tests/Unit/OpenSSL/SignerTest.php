@@ -6,7 +6,6 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
@@ -82,13 +81,19 @@ final class SignerTest extends TestCase
         $signer->sign(new Key($certificate->contents()), 'payload', SignatureMethod::RSA_SHA256);
     }
 
-    public function test_hmac_methods_are_not_supported_by_the_asymmetric_signer(): void
+    /**
+     * Every signature method the enum advertises must be executable by the signer: none may map to an
+     * unsupported algorithm. This guards the enum against re-introducing a case the engine cannot apply.
+     */
+    public function test_every_signature_method_is_executable(): void
     {
         $signer = new Signer();
         [$private] = $this->keyAndCertificate();
 
-        $this->expectException(UnsupportedAlgorithmException::class);
-        $signer->sign($private, 'payload', SignatureMethod::HMAC_SHA256);
+        foreach (SignatureMethod::cases() as $method) {
+            $signature = $signer->sign($private, 'payload', $method);
+            static::assertNotSame('', $signature);
+        }
     }
 
     /**

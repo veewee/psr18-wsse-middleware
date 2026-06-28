@@ -135,7 +135,7 @@ final class SignedInfoParser
 
         $transform = $transformElements[0];
         $algorithm = SignatureCanonicalization::tryFrom((string) $transform->getAttribute('Algorithm'));
-        if ($algorithm === null || !$algorithm->isExclusive()) {
+        if ($algorithm === null) {
             throw SignatureVerificationFailed::withReason('A reference transform is not an accepted canonicalization.');
         }
 

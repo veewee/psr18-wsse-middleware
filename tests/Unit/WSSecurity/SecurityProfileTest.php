@@ -43,7 +43,6 @@ final class SecurityProfileTest extends TestCase
         $profile = SecurityProfile::default();
 
         static::assertFalse($profile->acceptsSignatureMethod(SignatureMethod::RSA_SHA1));
-        static::assertFalse($profile->acceptsSignatureMethod(SignatureMethod::HMAC_SHA1));
         static::assertFalse($profile->acceptsSignatureMethod(SignatureMethod::DSA_SHA1));
         static::assertFalse($profile->acceptsDigestMethod(DigestMethod::SHA1));
         static::assertFalse($profile->acceptsDigestMethod(DigestMethod::RIPEMD160));
@@ -57,7 +56,6 @@ final class SecurityProfileTest extends TestCase
         $profile = SecurityProfile::default();
 
         static::assertTrue($profile->acceptsSignatureMethod(SignatureMethod::RSA_SHA256));
-        static::assertTrue($profile->acceptsSignatureMethod(SignatureMethod::HMAC_SHA256));
         static::assertTrue($profile->acceptsDigestMethod(DigestMethod::SHA256));
         static::assertTrue($profile->acceptsKeyEncryptionMethod(KeyEncryptionMethod::RSA_OAEP));
         static::assertTrue($profile->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_GCM));

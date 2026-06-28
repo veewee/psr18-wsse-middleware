@@ -5,7 +5,6 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
@@ -113,8 +112,6 @@ final class Signer implements XmlSigner
 
         try {
             $signature = $this->opensslSigner->sign($key, $canonical, $request->signatureMethod);
-        } catch (UnsupportedAlgorithmException) {
-            throw SigningFailed::unsupportedAlgorithm($request->signatureMethod);
         } catch (OpenSslException $exception) {
             throw SigningFailed::cryptoError($exception->getMessage());
         }

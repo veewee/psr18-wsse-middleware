@@ -30,11 +30,6 @@ final class DomCanonicalizer implements Canonicalizer
         SignatureCanonicalization $method,
         ?array $inclusivePrefixes = null,
     ): string {
-        // Inclusive C14N silently drops inherited namespaces on the new DOM, so it would sign wrong bytes.
-        if (!$method->isExclusive()) {
-            throw CanonicalizationFailed::unsupportedAlgorithm($method);
-        }
-
         try {
             // A libxml C14N failure must never escape as a raw exception through the SPI.
             $canonical = disallow_libxml_false_returns(

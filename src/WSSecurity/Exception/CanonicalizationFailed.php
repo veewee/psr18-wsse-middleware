@@ -38,12 +38,4 @@ final class CanonicalizationFailed extends RuntimeException
             $previous,
         );
     }
-
-    public static function unsupportedAlgorithm(SignatureCanonicalization $method): self
-    {
-        return new self(sprintf(
-            'Canonicalization method %s is not supported; only exclusive C14N (EXC_C14N, EXC_C14N_COMMENTS) is available.',
-            $method->name,
-        ));
-    }
 }

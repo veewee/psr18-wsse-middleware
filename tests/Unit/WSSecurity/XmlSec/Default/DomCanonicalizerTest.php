@@ -50,18 +50,13 @@ final class DomCanonicalizerTest extends TestCase
         (new DomCanonicalizer())->canonicalize($detached, SignatureCanonicalization::EXC_C14N);
     }
 
-    public function test_inclusive_c14n_is_rejected_before_calling_the_primitive(): void
+    public function test_every_method_can_be_canonicalized(): void
     {
-        $body = $this->newBody();
         $canonicalizer = new DomCanonicalizer();
 
-        foreach ([SignatureCanonicalization::C14N, SignatureCanonicalization::C14N_COMMENTS] as $method) {
-            try {
-                $canonicalizer->canonicalize($body, $method);
-                static::fail('Expected inclusive C14N to be rejected.');
-            } catch (CanonicalizationFailed $exception) {
-                static::assertStringContainsString('not supported', $exception->getMessage());
-            }
+        foreach (SignatureCanonicalization::cases() as $method) {
+            $output = $canonicalizer->canonicalize($this->newBody(), $method);
+            static::assertNotSame('', $output);
         }
     }
 

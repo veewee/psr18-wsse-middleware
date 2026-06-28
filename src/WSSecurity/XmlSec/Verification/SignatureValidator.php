@@ -6,7 +6,6 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 use Dom\Element;
 use Dom\Node;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
@@ -73,9 +72,9 @@ final class SignatureValidator
 
         try {
             return $this->opensslSigner->verify($signerCertificate, $canonical, $expectedSignature, $signatureMethod);
-        } catch (UnsupportedAlgorithmException | OpenSslException) {
-            // A signature method the OpenSSL boundary cannot apply, or a key/setup error: treated as a failed
-            // verification so the caller learns only that the signature did not verify.
+        } catch (OpenSslException) {
+            // A key or setup error: treated as a failed verification so the caller learns only that the
+            // signature did not verify.
             return false;
         }
     }

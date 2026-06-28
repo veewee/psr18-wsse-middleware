@@ -66,7 +66,7 @@ final class DigestVerifierTest extends TestCase
         $canonicalizer = new class implements Canonicalizer {
             public function canonicalize($node, $method, ?array $inclusivePrefixes = null): string
             {
-                throw CanonicalizationFailed::unsupportedAlgorithm($method);
+                throw CanonicalizationFailed::nativeError($node, $method);
             }
         };
 

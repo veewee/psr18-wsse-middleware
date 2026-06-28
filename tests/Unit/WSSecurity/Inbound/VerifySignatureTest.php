@@ -78,11 +78,12 @@ final class VerifySignatureTest extends TestCase
 
     public function test_it_maps_a_verifier_canonicalization_failure_to_a_security_fault(): void
     {
-        $cause = CanonicalizationFailed::unsupportedAlgorithm(SignatureCanonicalization::C14N);
+        $context = $this->context();
+        $cause = CanonicalizationFailed::nativeError($this->body($context->document()), SignatureCanonicalization::EXC_C14N);
         $verifier = new ThrowingVerifier($cause);
 
         $this->expectException(SecurityFault::class);
-        (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($this->context());
+        (new VerifySignature($this->trustStore(), signed: [Part::body()], verifier: $verifier, requiredParts: $this->requiredParts()))($context);
     }
 
     public function test_it_does_not_rewrap_unexpected_exceptions(): void
@@ -108,7 +109,6 @@ final class VerifySignatureTest extends TestCase
             SignatureMethod::RSA_SHA256,
             SignatureMethod::RSA_SHA384,
             SignatureMethod::RSA_SHA512,
-            SignatureMethod::HMAC_SHA256,
         ], $policy->acceptedSignatureMethods);
         static::assertSame([
             DigestMethod::SHA256,

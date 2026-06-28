@@ -602,7 +602,7 @@ Constructor arguments:
 - `KeyEncryptionMethod $keyEncryptionMethod = KeyEncryptionMethod::RSA_OAEP` — the outbound key-transport
   algorithm.
 - `?array $acceptedSignatureMethods = null` — the inbound allow-list for signature algorithms. `null` (default)
-  applies secure defaults: RSA-SHA256/384/512 and HMAC-SHA256, rejecting SHA-1.
+  applies secure defaults: RSA-SHA256/384/512, rejecting SHA-1 and HMAC methods.
 - `?array $acceptedDigestMethods = null` — the inbound allow-list for digests. Default: SHA-256/384/512.
 - `?array $acceptedKeyEncryptionMethods = null` — the inbound allow-list for key transport. Default: RSA-OAEP and
   RSA-OAEP-MGF1P, rejecting RSA-1_5.
