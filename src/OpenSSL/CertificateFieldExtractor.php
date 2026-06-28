@@ -34,7 +34,7 @@ final class CertificateFieldExtractor
      */
     public function subjectKeyIdentifier(Certificate $certificate): string
     {
-        $hex = ($this->parse($certificate)['extensions'] ?? [])['subjectKeyIdentifier'] ?? null;
+        $hex = $this->parse($certificate)['extensions']['subjectKeyIdentifier'] ?? null;
         if ($hex === null) {
             throw CryptoOperationFailed::missingCertificateField('subjectKeyIdentifier');
         }
@@ -132,7 +132,7 @@ final class CertificateFieldExtractor
      */
     public function keyUsage(Certificate $certificate): ?string
     {
-        return ($this->parse($certificate)['extensions'] ?? [])['keyUsage'] ?? null;
+        return $this->parse($certificate)['extensions']['keyUsage'] ?? null;
     }
 
     /**
