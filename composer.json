@@ -37,7 +37,8 @@
         "symfony/uid": "^7.4 || ^8.0",
         "php-standard-library/secure-random": "^6.1",
         "php-standard-library/hash": "^6.1",
-        "phpro/resource-stream": "^1.4"
+        "phpro/resource-stream": "^1.4",
+        "phpseclib/phpseclib": "^3.0"
     },
     "require-dev": {
         "nyholm/psr7": "^1.5",
@@ -47,8 +48,7 @@
         "vimeo/psalm": "~6.13",
         "php-cs-fixer/shim": "~3.88",
         "php-standard-library/psalm-plugin": "^2.4",
-        "robrichards/xmlseclibs": "^3.1",
-        "phpseclib/phpseclib": "^3.0"
+        "robrichards/xmlseclibs": "^3.1"
     },
     "config": {
         "allow-plugins": {

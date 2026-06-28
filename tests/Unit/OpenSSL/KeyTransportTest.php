@@ -51,10 +51,12 @@ final class KeyTransportTest extends TestCase
 
         $oaepSha1 = $this->captureFailureMessage($transport, $garbage, $private, KeyTransportAlgorithm::oaepSha1());
         $oaepSha256 = $this->captureFailureMessage($transport, $garbage, $private, KeyTransportAlgorithm::oaepSha256());
+        $oaepMgf1p = $this->captureFailureMessage($transport, $garbage, $private, KeyTransportAlgorithm::legacyMgf1p());
         $pkcs1 = $this->captureFailureMessage($transport, $garbage, $private, KeyTransportAlgorithm::rsa1_5());
 
         static::assertSame($oaepSha1, $pkcs1);
         static::assertSame($oaepSha256, $pkcs1);
+        static::assertSame($oaepMgf1p, $pkcs1);
     }
 
     private function captureFailureMessage(KeyTransport $transport, string $wrapped, Key $private, KeyTransportAlgorithm $algorithm): string

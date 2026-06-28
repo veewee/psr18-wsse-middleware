@@ -16,6 +16,11 @@ final class CryptoOperationFailed extends RuntimeException
         return new self('Unable to decrypt the provided data.');
     }
 
+    public static function encryptionFailed(): self
+    {
+        return new self('Unable to encrypt the provided data.');
+    }
+
     public static function invalidAuthenticationTag(): self
     {
         return new self('The authentication tag is invalid.');
