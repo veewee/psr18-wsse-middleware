@@ -14,6 +14,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
@@ -91,6 +92,20 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         (new Encryption($recipientCertificate, $this->realEncryptor()))($context);
 
         static::assertCount(1, $this->elements($document, self::DS, 'SignatureValue'));
+    }
+
+    public function test_signing_and_encrypting_with_one_certificate_share_a_single_token(): void
+    {
+        // When the signature and the encryption both reference the same certificate by direct reference, the
+        // token is embedded once and reused, not duplicated.
+        $clientCertificate = $this->clientCertificate();
+        $document = $this->signableEnvelope();
+        $context = $this->context($document);
+
+        (new Signature($clientCertificate, $this->realSigner(), keyRef: KeyRef::BinarySecurityToken))($context);
+        (new Encryption($clientCertificate->publicCertificate(), $this->realEncryptor(), encKeyRef: EncKeyRef::BinarySecurityToken))($context);
+
+        static::assertCount(1, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
     }
 
     private function realSigner(): Signer

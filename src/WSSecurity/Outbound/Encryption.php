@@ -14,7 +14,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIde
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\BinaryTokenLocator;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
@@ -145,10 +144,7 @@ final class Encryption implements OutboundAction
 
     private function embedBinarySecurityToken(WsseContext $context): DirectReferenceKeyIdentifier
     {
-        $token = new BinarySecurityToken($this->recipientCertificate);
-        $token($context);
-
-        $id = (new BinaryTokenLocator())->locate($context->document(), $this->recipientCertificate);
+        $id = (new BinarySecurityToken($this->recipientCertificate))->embed($context);
 
         return new DirectReferenceKeyIdentifier($id, self::VALUE_TYPE_X509V3);
     }

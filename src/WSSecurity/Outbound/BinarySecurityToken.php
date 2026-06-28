@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\BinaryTokenLocator;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -19,6 +21,9 @@ use function VeeWee\Xml\Dom\Builder\value;
  * receiver has the public key it needs to verify a signature made with the matching private key. A
  * wsu:Id is minted on the token so a DirectReference key identifier can point a SecurityTokenReference
  * at exactly this token; the block keeps no state, so it is safe to reuse across messages.
+ *
+ * Embedding is idempotent: a token already carrying this certificate is reused rather than duplicated, so a
+ * signature and an encryption that both reference the same certificate share one token.
  */
 final class BinarySecurityToken implements OutboundAction
 {
@@ -32,11 +37,28 @@ final class BinarySecurityToken implements OutboundAction
 
     public function __invoke(WsseContext $context): void
     {
-        $document = $context->document();
-        $body = $this->certificate->toBase64Der();
+        $this->embed($context);
+    }
 
-        $header = SecurityHeader::locateOrCreate($document, $context->soapVersion());
-        $header->appendChildren($this->build($document, $body));
+    /**
+     * Ensures the token is present and returns its wsu:Id. An existing token carrying this certificate is
+     * reused; only when none is present is a new one appended.
+     *
+     * @return non-empty-string the token's wsu:Id, without the '#' prefix
+     */
+    public function embed(WsseContext $context): string
+    {
+        $document = $context->document();
+        $locator = new BinaryTokenLocator();
+
+        try {
+            return $locator->locate($document, $this->certificate);
+        } catch (WsseHeaderException) {
+            $header = SecurityHeader::locateOrCreate($document, $context->soapVersion());
+            $header->appendChildren($this->build($document, $this->certificate->toBase64Der()));
+
+            return $locator->locate($document, $this->certificate);
+        }
     }
 
     /**

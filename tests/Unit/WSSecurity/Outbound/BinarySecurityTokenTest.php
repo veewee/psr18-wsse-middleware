@@ -71,6 +71,19 @@ final class BinarySecurityTokenTest extends OutboundTestCase
         static::assertMatchesRegularExpression('/^id-[0-9a-f-]{36}$/', $id);
     }
 
+    public function test_embedding_the_same_certificate_twice_reuses_one_token(): void
+    {
+        $document = $this->envelope();
+        $context = $this->context($document);
+        $token = new BinarySecurityToken($this->certificate());
+
+        $first = $token->embed($context);
+        $second = $token->embed($context);
+
+        static::assertCount(1, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
+        static::assertSame($first, $second);
+    }
+
     public function test_the_token_precedes_a_timestamp_in_canonical_order(): void
     {
         $document = $this->envelope();

@@ -14,7 +14,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIde
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\KeyHandle;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\BinaryTokenLocator;
 use Soap\Psr18WsseMiddleware\WSSecurity\Wsse\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
@@ -134,11 +133,7 @@ final class Signature implements OutboundAction
     private function embedBinarySecurityToken(WsseContext $context): DirectReferenceKeyIdentifier
     {
         $certificate = $this->clientCertificate->publicCertificate();
-
-        $token = new BinarySecurityToken($certificate);
-        $token($context);
-
-        $id = (new BinaryTokenLocator())->locate($context->document(), $certificate);
+        $id = (new BinarySecurityToken($certificate))->embed($context);
 
         return new DirectReferenceKeyIdentifier($id, self::VALUE_TYPE_X509V3);
     }
