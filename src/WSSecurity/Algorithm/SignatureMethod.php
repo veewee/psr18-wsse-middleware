@@ -24,8 +24,8 @@ enum SignatureMethod: string
     }
 
     /**
-     * ECDSA produces a SignatureValue in the fixed-width r||s encoding rather than the DER that OpenSSL emits,
-     * so the signer must convert around the OpenSSL boundary for these methods only.
+     * ECDSA selects an elliptic-curve key for the signer, distinguishing these methods from the RSA and DSA
+     * cases that share the enum.
      */
     public function isEcdsa(): bool
     {

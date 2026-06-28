@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 
 use OpenSSLAsymmetricKey;
+use phpseclib3\Crypt\DSA;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
-use Soap\Psr18WsseMiddleware\OpenSSL\Internal\EcdsaSignature;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
@@ -28,6 +28,39 @@ final class SignerTest extends TestCase
         }
     }
 
+    public function test_it_signs_and_verifies_with_every_ecdsa_method(): void
+    {
+        $signer = new Signer();
+        $data = 'the canonicalized SignedInfo';
+
+        foreach ([
+            [SignatureMethod::ECDSA_SHA256, 'prime256v1', 64],
+            [SignatureMethod::ECDSA_SHA384, 'secp384r1', 96],
+            [SignatureMethod::ECDSA_SHA512, 'secp521r1', 132],
+        ] as [$method, $curve, $width]) {
+            [$private, $certificate] = $this->ecKeyAndCertificate($curve);
+            $signature = $signer->sign($private, $data, $method);
+
+            // The ECDSA SignatureValue is the fixed-width r||s pair XML Signature carries, two coordinates each
+            // padded to the curve size, so the library emits it directly with no DER conversion.
+            static::assertSame($width, strlen($signature));
+            static::assertTrue($signer->verify($certificate, $data, $signature, $method));
+        }
+    }
+
+    public function test_it_signs_and_verifies_with_dsa_sha1(): void
+    {
+        $signer = new Signer();
+        [$private, $certificate] = $this->dsaKeyAndCertificate();
+        $data = 'the canonicalized SignedInfo';
+
+        $signature = $signer->sign($private, $data, SignatureMethod::DSA_SHA1);
+
+        // DSA-SHA1 carries r||s with each coordinate padded to the 160-bit subgroup, twenty bytes apiece.
+        static::assertSame(40, strlen($signature));
+        static::assertTrue($signer->verify($certificate, $data, $signature, SignatureMethod::DSA_SHA1));
+    }
+
     public function test_verify_fails_for_tampered_data(): void
     {
         $signer = new Signer();
@@ -36,6 +69,16 @@ final class SignerTest extends TestCase
         $signature = $signer->sign($private, 'original', SignatureMethod::RSA_SHA256);
 
         static::assertFalse($signer->verify($certificate, 'tampered', $signature, SignatureMethod::RSA_SHA256));
+    }
+
+    public function test_verify_fails_for_a_tampered_ecdsa_signature(): void
+    {
+        $signer = new Signer();
+        [$private, $certificate] = $this->ecKeyAndCertificate('prime256v1');
+
+        $signature = $signer->sign($private, 'payload', SignatureMethod::ECDSA_SHA256);
+
+        static::assertFalse($signer->verify($certificate, 'payload', strrev($signature), SignatureMethod::ECDSA_SHA256));
     }
 
     public function test_verify_fails_for_a_different_key(): void
@@ -71,70 +114,40 @@ final class SignerTest extends TestCase
         static::assertFalse($signer->verify($certificate, 'payload', str_repeat('A', 5000), SignatureMethod::RSA_SHA256));
     }
 
+    public function test_a_malformed_ecdsa_signature_is_rejected(): void
+    {
+        $signer = new Signer();
+        [, $certificate] = $this->ecKeyAndCertificate('prime256v1');
+
+        // An odd-length pair cannot split into r and s, and a wrong-width pair cannot match the curve; both are
+        // a normal verification failure, never an error that leaks detail.
+        static::assertFalse($signer->verify($certificate, 'payload', 'odd', SignatureMethod::ECDSA_SHA256));
+        static::assertFalse($signer->verify($certificate, 'payload', '', SignatureMethod::ECDSA_SHA256));
+        static::assertFalse($signer->verify($certificate, 'payload', str_repeat('A', 64), SignatureMethod::ECDSA_SHA256));
+    }
+
     public function test_signing_fails_when_the_key_is_not_a_private_key(): void
     {
         $signer = new Signer();
         [, $certificate] = $this->keyAndCertificate();
 
-        // A certificate PEM carries no private key, so resolving it for signing fails. The key is our own
-        // (a non-oracle path), so the real reason surfaces as OpenSslException.
+        // A certificate PEM carries no private key, so loading it for signing fails. The key is our own
+        // (a non-oracle path), so the failure surfaces as OpenSslException.
         $this->expectException(OpenSslException::class);
         $signer->sign(new Key($certificate->contents()), 'payload', SignatureMethod::RSA_SHA256);
     }
 
-    public function test_it_signs_and_verifies_with_every_ecdsa_method(): void
+    public function test_verify_fails_when_the_certificate_is_not_readable(): void
     {
         $signer = new Signer();
-        $data = 'the canonicalized SignedInfo';
+        [$private] = $this->keyAndCertificate();
 
-        foreach ([
-            [SignatureMethod::ECDSA_SHA256, 'prime256v1'],
-            [SignatureMethod::ECDSA_SHA384, 'secp384r1'],
-            [SignatureMethod::ECDSA_SHA512, 'secp521r1'],
-        ] as [$method, $curve]) {
-            [$private, $certificate] = $this->ecKeyAndCertificate($curve);
-            $signature = $signer->sign($private, $data, $method);
+        $signature = $signer->sign($private, 'payload', SignatureMethod::RSA_SHA256);
 
-            static::assertNotSame('', $signature);
-            static::assertTrue($signer->verify($certificate, $data, $signature, $method));
-        }
-    }
-
-    /**
-     * An ECDSA signature our signer produces is the fixed-width r||s pair; converting it back to DER lets a
-     * plain openssl_verify accept it. OpenSSL is the independent oracle for the outbound conversion.
-     */
-    public function test_ecdsa_signature_is_accepted_by_openssl_as_an_oracle(): void
-    {
-        $signer = new Signer();
-        [$private, $certificate] = $this->ecKeyAndCertificate('prime256v1');
-        $data = 'oracle payload';
-
-        $p1363 = $signer->sign($private, $data, SignatureMethod::ECDSA_SHA256);
-        $der = EcdsaSignature::p1363ToDer($p1363);
-
-        $publicKey = openssl_pkey_get_public($certificate->contents());
-        static::assertInstanceOf(OpenSSLAsymmetricKey::class, $publicKey);
-        static::assertSame(1, openssl_verify($data, $der, $publicKey, OPENSSL_ALGO_SHA256));
-    }
-
-    /**
-     * A DER signature produced directly by openssl_sign, converted to the fixed-width pair, is accepted by our
-     * verify path. OpenSSL is the independent oracle for the inbound conversion.
-     */
-    public function test_ecdsa_signature_from_openssl_is_accepted_by_our_verify(): void
-    {
-        $signer = new Signer();
-        [$private, $certificate] = $this->ecKeyAndCertificate('prime256v1');
-        $data = 'oracle payload';
-
-        $privateKey = openssl_pkey_get_private($private->contents());
-        static::assertInstanceOf(OpenSSLAsymmetricKey::class, $privateKey);
-        static::assertTrue(openssl_sign($data, $der, $privateKey, OPENSSL_ALGO_SHA256));
-        static::assertIsString($der);
-
-        $p1363 = EcdsaSignature::derToP1363($der, 32);
-        static::assertTrue($signer->verify($certificate, $data, $p1363, SignatureMethod::ECDSA_SHA256));
+        // An unreadable certificate is a setup error on a trusted input, so it surfaces rather than being
+        // silently swallowed; the SignatureValidator translates it into a failed verification.
+        $this->expectException(OpenSslException::class);
+        $signer->verify(new Certificate('not a certificate'), 'payload', $signature, SignatureMethod::RSA_SHA256);
     }
 
     /**
@@ -146,12 +159,22 @@ final class SignerTest extends TestCase
         $signer = new Signer();
 
         foreach (SignatureMethod::cases() as $method) {
-            // ECDSA needs an EC key for the DER to fixed-width conversion to derive a coordinate width; the
-            // other methods only select a hash, so an RSA key serves them all.
-            [$private] = $method->isEcdsa() ? $this->ecKeyAndCertificate('prime256v1') : $this->keyAndCertificate();
+            [$private] = $this->keyForMethod($method);
             $signature = $signer->sign($private, 'payload', $method);
             static::assertNotSame('', $signature);
         }
+    }
+
+    /**
+     * @return array{0: Key, 1: Certificate}
+     */
+    private function keyForMethod(SignatureMethod $method): array
+    {
+        return match (true) {
+            $method->isEcdsa() => $this->ecKeyAndCertificate('prime256v1'),
+            $method === SignatureMethod::DSA_SHA1 => $this->dsaKeyAndCertificate(),
+            default => $this->keyAndCertificate(),
+        };
     }
 
     /**
@@ -162,6 +185,20 @@ final class SignerTest extends TestCase
         $private = openssl_pkey_new(['curve_name' => $curve, 'private_key_type' => OPENSSL_KEYTYPE_EC]);
 
         return $this->exportKeyAndCertificate($private);
+    }
+
+    /**
+     * @return array{0: Key, 1: Certificate}
+     */
+    private function dsaKeyAndCertificate(): array
+    {
+        // DSA keys generated through openssl_pkey_new cannot be self-signed into a certificate by every libssl
+        // build, so the key pair is produced by the RSA/EC library and exported as PEM directly.
+        $private = DSA::createKey(1024, 160);
+        $privatePem = (string) $private;
+        $publicPem = (string) $private->getPublicKey();
+
+        return [new Key($privatePem), new Certificate($publicPem)];
     }
 
     /**
