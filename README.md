@@ -422,15 +422,29 @@ $transport = Psr18Transport::createForClient(
 );
 ```
 
-Starting from a `.p12` / `.pfx` file? Convert it to a public certificate and a private key first:
+Starting from a `.p12` / `.pfx` file? Load it directly, no PEM conversion needed. The passphrase decrypts the
+file; the extracted private key is returned ready to use.
 
-```bash
-openssl pkcs12 -in your.p12 -out security_token.pub -clcerts -nokeys
-openssl pkcs12 -in your.p12 -out security_token.priv -nocerts -nodes
+```php
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+
+// Your signing identity (certificate + private key), straight from the .p12:
+$clientCertificate = ClientCertificate::fromPkcs12File('client.p12', 'secret');
+new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken);
+
+// A recipient / BinarySecurityToken certificate from its own .p12:
+$recipient = Certificate::fromPkcs12File('service.p12', 'secret');
+
+// The trust anchors from the CA chain embedded in the .p12:
+$trustStore = TrustStore::fromPkcs12File('service.p12', 'secret');
 ```
 
-Then load them with `Certificate::fromFile(...)` and `Key::fromFile(...)`, or keep them in a single bundle and
-use `ClientCertificate::fromFile(...)` (see [Key stores](#key-stores)).
+`fromPkcs12File()` reads the file for you; the `fromPkcs12()` variants take the raw bytes instead.
+`TrustStore::fromPkcs12()` builds its anchors from the CA chain embedded in the file (the `extracerts`), so it
+throws if the file embeds no chain. To keep using separate PEM files, see `Certificate::fromFile(...)`,
+`Key::fromFile(...)` and `ClientCertificate::fromFile(...)` under [Key stores](#key-stores).
 
 ## SAML assertion flow
 
@@ -542,6 +556,7 @@ The package wraps your keys and certificates in small value objects:
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
 
 $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 $certificate = Certificate::fromFile('security_token.pub');
@@ -557,12 +572,26 @@ $certificate = $bundle->publicCertificate();  // returns a KeyStore\Certificate
 - `ClientCertificate::fromFile(string $file): ClientCertificate` then `->withPassphrase(string)`; it exposes
   `->privateKey(): Key` and `->publicCertificate(): Certificate`.
 
-Starting from a `.p12` file? Convert it to a private key and a public certificate first:
+Got a `.p12` / `.pfx` file? Load it directly, no conversion needed. The passphrase decrypts the file; the
+extracted private key is returned ready to use, so no `->withPassphrase(...)` follows.
 
-```bash
-openssl pkcs12 -in your.p12 -out security_token.pub -clcerts -nokeys
-openssl pkcs12 -in your.p12 -out security_token.priv -nocerts -nodes
+```php
+// Certificate + key bundle, ready to sign with:
+$bundle = ClientCertificate::fromPkcs12File('client.p12', 'secret');
+
+// Just the leaf certificate (recipient / BinarySecurityToken):
+$certificate = Certificate::fromPkcs12File('service.p12', 'secret');
+
+// Trust anchors from the CA chain embedded in the file:
+$trustStore = TrustStore::fromPkcs12File('service.p12', 'secret');
 ```
+
+- `ClientCertificate::fromPkcs12File(string $file, string $passphrase = ''): ClientCertificate`, and
+  `Certificate::fromPkcs12File(...)`, `TrustStore::fromPkcs12File(...)`. Each has a `fromPkcs12(string $contents,
+  string $passphrase = '')` sibling that takes the raw bytes instead of a path.
+- `TrustStore::fromPkcs12()` builds its anchors from the CA chain embedded in the file (the `extracerts`); it
+  throws if the file embeds no chain.
+- A wrong passphrase or a file that is not a PKCS#12 throws a `Pkcs12Exception` with a generic message.
 
 # Choosing parts and key references
 

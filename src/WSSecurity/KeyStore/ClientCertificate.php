@@ -32,6 +32,25 @@ final class ClientCertificate implements KeyInterface
     }
 
     /**
+     * Loads the certificate-and-key bundle straight from a PKCS#12 blob. The passphrase only decrypts the
+     * blob; the extracted private key is already in plain PEM, so no withPassphrase() is needed afterwards.
+     */
+    public static function fromPkcs12(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase = ''): self
+    {
+        $bundle = Pkcs12Bundle::read($contents, $passphrase);
+
+        return new self($bundle->privateKey.$bundle->certificate);
+    }
+
+    /**
+     * @param non-empty-string $file
+     */
+    public static function fromPkcs12File(string $file, #[SensitiveParameter] string $passphrase = ''): self
+    {
+        return self::fromPkcs12(read($file), $passphrase);
+    }
+
+    /**
      * Parse out the private part of the bundled X509 certificate.
      */
     public function privateKey(): Key
