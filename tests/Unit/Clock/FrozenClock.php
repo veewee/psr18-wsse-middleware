@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
+namespace SoapTest\Psr18WsseMiddleware\Unit\Clock;
 
 use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\Clock\Clock;

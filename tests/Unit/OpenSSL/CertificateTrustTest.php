@@ -4,11 +4,13 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 
 use PHPUnit\Framework\TestCase;
+use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
+use SoapTest\Psr18WsseMiddleware\Unit\Clock\FrozenClock;
 
 final class CertificateTrustTest extends TestCase
 {
@@ -54,10 +56,13 @@ final class CertificateTrustTest extends TestCase
 
     public function test_an_expired_certificate_is_rejected(): void
     {
+        // Pin the clock past any certificate's validity so the expiry check fires independently of wall time.
+        $farFuture = (new CertificateTrust())->withClock(new FrozenClock(Timestamp::fromParts(253402300799)));
+
         $this->expectException(CertificateTrustException::class);
 
-        (new CertificateTrust())->verify(
-            CertificateChain::fromCertificates($this->certificate('expired.crt')),
+        $farFuture->verify(
+            CertificateChain::fromCertificates($this->certificate('leaf.crt')),
             TrustStore::fromCertificates($this->certificate('ca.crt')),
         );
     }

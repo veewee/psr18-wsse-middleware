@@ -8,7 +8,7 @@ use DateTimeZone;
 use Psl\DateTime\SecondsStyle;
 use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
-use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound\FrozenClock;
+use SoapTest\Psr18WsseMiddleware\Unit\Clock\FrozenClock;
 use VeeWee\Xml\Dom\Document;
 
 final class TimestampTest extends OutboundTestCase

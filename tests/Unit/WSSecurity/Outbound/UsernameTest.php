@@ -9,7 +9,7 @@ use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Username;
-use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound\FrozenClock;
+use SoapTest\Psr18WsseMiddleware\Unit\Clock\FrozenClock;
 use VeeWee\Xml\Dom\Document;
 
 final class UsernameTest extends OutboundTestCase

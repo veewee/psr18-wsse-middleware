@@ -22,9 +22,19 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
  */
 final class CertificateTrust
 {
-    public function __construct(
-        private readonly Clock $clock = new SystemClock(),
-    ) {
+    private Clock $clock;
+
+    public function __construct(Clock $clock = new SystemClock())
+    {
+        $this->clock = $clock;
+    }
+
+    public function withClock(Clock $clock): self
+    {
+        $clone = clone $this;
+        $clone->clock = $clock;
+
+        return $clone;
     }
 
     public function verify(CertificateChain $chain, TrustStore $trust): TrustedSigner
