@@ -6,6 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyStore;
 use ParagonIE\HiddenString\HiddenString;
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\CertificateInfo;
 use function Psl\File\read;
 
 /**
@@ -14,10 +15,19 @@ use function Psl\File\read;
 final class Certificate implements KeyInterface
 {
     private HiddenString $key;
+    private ?CertificateInfo $info = null;
 
     public function __construct(string $key)
     {
         $this->key = new HiddenString($key);
+    }
+
+    /**
+     * The certificate's fields, read once per instance.
+     */
+    public function info(): CertificateInfo
+    {
+        return $this->info ??= CertificateInfo::fromCertificate($this);
     }
 
     /**
@@ -45,15 +55,20 @@ final class Certificate implements KeyInterface
     }
 
     /**
-     * Wraps base64-encoded DER bytes back into a PEM certificate. Whitespace in the input is normalised
-     * away first so the result round-trips with toBase64Der().
+     * Wraps base64-encoded DER bytes back into a PEM certificate. The input is validated and re-encoded so the
+     * result round-trips with toBase64Der(); this is the single entry for the base64-DER to PEM conversion.
+     *
+     * @throws WsseHeaderException when the input is not valid base64
      */
     public static function fromBase64Der(string $base64Der): self
     {
-        $normalised = (string) preg_replace('/\s/', '', $base64Der);
+        $der = base64_decode((string) preg_replace('/\s/', '', $base64Der), true);
+        if ($der === false || $der === '') {
+            throw WsseHeaderException::bstEncodingFailed('the certificate bytes are not valid base64');
+        }
 
         $pem = "-----BEGIN CERTIFICATE-----\n"
-            .chunk_split($normalised, 64, "\n")
+            .chunk_split(base64_encode($der), 64, "\n")
             .'-----END CERTIFICATE-----'."\n";
 
         return new self($pem);
