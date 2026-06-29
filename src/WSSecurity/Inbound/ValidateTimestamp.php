@@ -10,7 +10,7 @@ use Psl\DateTime\Timezone;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
-use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Internal\Validator\TimestampValidator;
+use Soap\Psr18WsseMiddleware\WSSecurity\Validator\TimestampValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;

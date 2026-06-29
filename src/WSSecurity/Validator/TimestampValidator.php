@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Internal\Validator;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Validator;
 
 use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;

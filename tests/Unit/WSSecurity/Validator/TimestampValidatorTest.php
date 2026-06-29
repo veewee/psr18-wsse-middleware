@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound\Internal\Validator;
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Validator;
 
 use PHPUnit\Framework\TestCase;
 use Psl\DateTime\Timestamp;
 use Psl\DateTime\Timezone;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
-use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Internal\Validator\TimestampValidator;
+use Soap\Psr18WsseMiddleware\WSSecurity\Validator\TimestampValidator;
 
 /**
  * The TimestampValidator runs the three freshness checks on already-parsed instants, applying the clock skew
