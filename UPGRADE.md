@@ -42,6 +42,32 @@ blocks builds the bundled implementation by default; for the rare case where you
 with a `with*()` method (`Outbound\Signature::withSigner`, `Outbound\Encryption::withEncryptor`,
 `Inbound\Decrypt::withDecryptor`, `Inbound\VerifySignature::withVerifier`) rather than a constructor argument.
 
+### Keys, certificates and trust anchors live under `KeyStore`
+
+The credentials the blocks take are value objects under the `Soap\Psr18WsseMiddleware\KeyStore` namespace (the
+clock seam used by the timestamp blocks sits under `Soap\Psr18WsseMiddleware\Clock`):
+
+- `KeyStore\Certificate` — a public X.509 certificate (`Certificate::fromFile('cert.pub')`).
+- `KeyStore\Key` — a private key (`Key::fromFile('key.priv')->withPassphrase('…')` when encrypted).
+- `KeyStore\ClientCertificate` — a combined certificate-and-key bundle to sign with.
+- `KeyStore\TrustStore` — the anchors inbound verification trusts (`TrustStore::fromCertificates(...)`).
+
+Loading from a `.p12` / `.pfx` goes through `KeyStore\Pkcs12Bundle`: decode the blob once, then derive each
+credential from the bundle so it is parsed a single time.
+
+```php
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+
+$bundle = Pkcs12Bundle::fromFile('client.p12', 'secret');   // or Pkcs12Bundle::fromString($bytes, 'secret')
+
+$clientCertificate = ClientCertificate::fromPkcs12($bundle);
+$recipient = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
+$trustStore = TrustStore::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
+```
+
 ### Two block lists instead of one
 
 The constructor arguments were renamed to say what they do:
