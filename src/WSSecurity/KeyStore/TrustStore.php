@@ -54,8 +54,8 @@ final class TrustStore
     /**
      * The anchors concatenated into one PEM bundle, the trusted-CA file a chain-to-anchor check loads.
      */
-    public function toPem(): string
+    public function toPem(): Pem
     {
-        return implode("\n", array_map(static fn (Certificate $certificate): string => $certificate->contents(), $this->anchors));
+        return Pem::fromCertificates(...$this->anchors);
     }
 }

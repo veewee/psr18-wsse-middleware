@@ -42,16 +42,16 @@ final class CertificateChain
     }
 
     /**
-     * The certificates above the leaf concatenated into one PEM bundle, or null when the chain is the leaf
-     * alone. This is the untrusted-intermediates bundle a chain-to-anchor check feeds to the platform verifier.
+     * The certificates above the leaf as one PEM bundle, or null when the chain is the leaf alone. This is the
+     * untrusted-intermediates bundle a chain-to-anchor check feeds to the platform verifier.
      */
-    public function intermediatesPem(): ?string
+    public function intermediatesPem(): ?Pem
     {
         $intermediates = array_slice($this->certificates, 1);
         if ($intermediates === []) {
             return null;
         }
 
-        return implode("\n", array_map(static fn (Certificate $certificate): string => $certificate->contents(), $intermediates));
+        return Pem::fromCertificates(...$intermediates);
     }
 }

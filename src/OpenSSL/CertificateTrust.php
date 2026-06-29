@@ -5,14 +5,15 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
 use Phpro\ResourceStream\Factory\TmpStream;
 use Phpro\ResourceStream\ResourceStream;
-use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
+use Soap\Psr18WsseMiddleware\WSSecurity\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\KeyUsage;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\ValidityWindow;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Pem;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
@@ -24,6 +25,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
  */
 final class CertificateTrust
 {
+    public function __construct(
+        private readonly Clock $clock = new SystemClock(),
+    ) {
+    }
+
     public function verify(CertificateChain $chain, TrustStore $trust): TrustedSigner
     {
         if ($trust->isEmpty()) {
@@ -32,8 +38,6 @@ final class CertificateTrust
 
         $leaf = $chain->leaf();
 
-        // Only reading the fields can fail (the certificate is parsed lazily on first access); the accessors
-        // below are plain getters over the parsed value.
         try {
             $info = $leaf->info();
         } catch (CryptoOperationFailed) {
@@ -49,7 +53,7 @@ final class CertificateTrust
 
     private function assertWithinValidity(ValidityWindow $validity): void
     {
-        if (!$validity->permits(Timestamp::now())) {
+        if (!$validity->permits($this->clock->now())) {
             throw CertificateTrustException::expired();
         }
     }
@@ -93,10 +97,10 @@ final class CertificateTrust
     /**
      * @return ResourceStream<resource>
      */
-    private function materialise(string $contents): ResourceStream
+    private function materialise(Pem $pem): ResourceStream
     {
         $stream = TmpStream::create();
-        $stream->write($contents);
+        $stream->write($pem->toString());
         // Flush: openssl_x509_checkpurpose opens the path with a separate descriptor and would otherwise
         // read an empty file. unwrap() returns the live resource (it throws if the stream is closed).
         fflush($stream->unwrap());

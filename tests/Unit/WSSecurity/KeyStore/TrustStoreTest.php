@@ -13,7 +13,7 @@ final class TrustStoreTest extends TestCase
     {
         $store = TrustStore::fromCertificates(new Certificate('first-pem'), new Certificate('second-pem'));
 
-        $bundle = $store->toPem();
+        $bundle = $store->toPem()->toString();
 
         static::assertStringContainsString('first-pem', $bundle);
         static::assertStringContainsString('second-pem', $bundle);

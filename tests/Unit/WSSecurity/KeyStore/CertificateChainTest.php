@@ -24,7 +24,7 @@ final class CertificateChainTest extends TestCase
             new Certificate('root-pem'),
         );
 
-        $intermediates = (string) $chain->intermediatesPem();
+        $intermediates = (string) $chain->intermediatesPem()?->toString();
 
         static::assertStringContainsString('intermediate-pem', $intermediates);
         static::assertStringContainsString('root-pem', $intermediates);
