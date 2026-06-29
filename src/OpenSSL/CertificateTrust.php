@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
-use Phpro\ResourceStream\Factory\TmpStream;
-use Phpro\ResourceStream\ResourceStream;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
@@ -13,7 +11,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\KeyUsage;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\ValidityWindow;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Pem;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
@@ -68,12 +65,11 @@ final class CertificateTrust
 
     private function assertChainsToAnchor(CertificateChain $chain, TrustStore $trust): void
     {
-        // openssl_x509_checkpurpose loads CA / intermediate certs from disk by path, so the in-memory PEMs
-        // are materialised to temp files. The TmpStream resources delete their files when they go out of
-        // scope at the end of this method (including on the throw below) - no manual cleanup needed.
-        $anchors = $this->materialise($trust->toPem());
+        // openssl_x509_checkpurpose loads CA / intermediate certs from disk by path; the bundles materialise
+        // themselves to temp files whose streams are held for this method (deleting on scope exit, throw included).
+        $anchors = $trust->toPem()->toResource();
         $intermediatesPem = $chain->intermediatesPem();
-        $untrusted = $intermediatesPem === null ? null : $this->materialise($intermediatesPem);
+        $untrusted = $intermediatesPem?->toResource();
 
         // A null path would make openssl fall back to the system CA store, bypassing the configured anchors;
         // refusing trust is the only safe outcome.
@@ -92,19 +88,5 @@ final class CertificateTrust
         if ($trusted !== true) {
             throw CertificateTrustException::notTrusted();
         }
-    }
-
-    /**
-     * @return ResourceStream<resource>
-     */
-    private function materialise(Pem $pem): ResourceStream
-    {
-        $stream = TmpStream::create();
-        $stream->write($pem->toString());
-        // Flush: openssl_x509_checkpurpose opens the path with a separate descriptor and would otherwise
-        // read an empty file. unwrap() returns the live resource (it throws if the stream is closed).
-        fflush($stream->unwrap());
-
-        return $stream;
     }
 }
