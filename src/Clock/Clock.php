@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Clock;
+namespace Soap\Psr18WsseMiddleware\Clock;
 
 use Psl\DateTime\Timestamp;
 

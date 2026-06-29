@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
 use Psl\DateTime\Timestamp;
-use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
+use Soap\Psr18WsseMiddleware\Clock\Clock;
 
 /**
  * A clock pinned to a fixed instant so timestamp freshness boundaries can be asserted exactly.

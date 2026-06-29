@@ -7,7 +7,7 @@ use PHPUnit\Framework\TestCase;
 use Psl\DateTime\SecondsStyle;
 use Psl\DateTime\Timestamp;
 use Psl\DateTime\Timezone;
-use Soap\Psr18WsseMiddleware\WSSecurity\Clock\Clock;
+use Soap\Psr18WsseMiddleware\Clock\Clock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ValidateTimestamp;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
