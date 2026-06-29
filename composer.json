@@ -31,7 +31,7 @@
         "php-soap/psr18-transport": "^2.0",
         "php-soap/engine": "^2.20",
         "php-soap/xml": "^1.11",
-        "veewee/xml": "4.x-dev@dev",
+        "veewee/xml": "^4.12.0",
         "php-http/client-common": "^2.7",
         "symfony/uid": "^7.4 || ^8.0",
         "php-standard-library/secure-random": "^6.1",
