@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
@@ -140,9 +139,9 @@ final class Encryption implements OutboundAction
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier
     {
         return match ($this->encKeyRef) {
-            EncKeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
-            EncKeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(new CertificateFieldExtractor()),
-            EncKeyRef::Thumbprint => new ThumbprintKeyIdentifier(new CertificateFieldExtractor()),
+            EncKeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(),
+            EncKeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(),
+            EncKeyRef::Thumbprint => new ThumbprintKeyIdentifier(),
             EncKeyRef::BinarySecurityToken => $this->embedBinarySecurityToken($context),
         };
     }

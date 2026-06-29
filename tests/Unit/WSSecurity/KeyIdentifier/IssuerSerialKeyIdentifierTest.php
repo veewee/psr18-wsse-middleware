@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyIdentifier;
 
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyIdentifier;
 
 final class IssuerSerialKeyIdentifierTest extends KeyIdentifierTestCase
@@ -12,9 +11,9 @@ final class IssuerSerialKeyIdentifierTest extends KeyIdentifierTestCase
     {
         $document = $this->document();
         $certificate = $this->certificate();
-        $expected = (new CertificateFieldExtractor())->issuerSerial($certificate);
+        $expected = $certificate->info()->issuerSerial();
 
-        $keyInfo = (new IssuerSerialKeyIdentifier(new CertificateFieldExtractor()))
+        $keyInfo = (new IssuerSerialKeyIdentifier())
             ->apply($document, $certificate);
 
         static::assertSame('KeyInfo', $keyInfo->localName);
@@ -34,11 +33,11 @@ final class IssuerSerialKeyIdentifierTest extends KeyIdentifierTestCase
 
         $issuerName = $this->childByLocalName($issuerSerial, 'X509IssuerName');
         static::assertSame(self::DS, $issuerName->namespaceURI);
-        static::assertSame($expected['issuerName'], $issuerName->textContent);
+        static::assertSame($expected->issuer->toString(), $issuerName->textContent);
 
         $serialNumber = $this->childByLocalName($issuerSerial, 'X509SerialNumber');
         static::assertSame(self::DS, $serialNumber->namespaceURI);
-        static::assertSame($expected['serialNumber'], $serialNumber->textContent);
+        static::assertSame($expected->serialNumber, $serialNumber->textContent);
         static::assertSame('4242', $serialNumber->textContent);
     }
 }

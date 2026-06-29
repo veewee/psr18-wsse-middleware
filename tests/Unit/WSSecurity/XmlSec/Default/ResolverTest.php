@@ -20,7 +20,7 @@ final class ResolverTest extends TestCase
             TrustStore::fromCertificates($this->certificate('ca.crt')),
         );
 
-        static::assertStringContainsString('WSSE Leaf', $signer->subjectDistinguishedName());
+        static::assertStringContainsString('WSSE Leaf', $signer->subjectDistinguishedName()->toString());
     }
 
     public function test_it_propagates_the_trust_failure_for_an_untrusted_certificate(): void

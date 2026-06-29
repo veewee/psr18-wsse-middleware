@@ -14,6 +14,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -205,7 +206,7 @@ final class VerifySignatureTest extends TestCase
 
     private function signer(): TrustedSigner
     {
-        return new TrustedSigner('CN=test', new Certificate('pem'));
+        return new TrustedSigner(DistinguishedName::fromString('CN=test'), new Certificate('pem'));
     }
 
     private function trustStore(): TrustStore

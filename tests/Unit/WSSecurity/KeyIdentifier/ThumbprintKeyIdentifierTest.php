@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyIdentifier;
 
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
 
 final class ThumbprintKeyIdentifierTest extends KeyIdentifierTestCase
@@ -15,9 +14,9 @@ final class ThumbprintKeyIdentifierTest extends KeyIdentifierTestCase
     {
         $document = $this->document();
         $certificate = $this->certificate();
-        $expected = (new CertificateFieldExtractor())->thumbprintSha1($certificate);
+        $expected = $certificate->info()->thumbprintSha1()->toBase64();
 
-        $keyInfo = (new ThumbprintKeyIdentifier(new CertificateFieldExtractor()))
+        $keyInfo = (new ThumbprintKeyIdentifier())
             ->apply($document, $certificate);
 
         static::assertSame('KeyInfo', $keyInfo->localName);

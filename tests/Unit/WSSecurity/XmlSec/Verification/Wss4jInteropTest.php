@@ -38,7 +38,7 @@ final class Wss4jInteropTest extends TestCase
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
         static::assertTrue($result->signedElements->wasSigned($this->timestamp($document)));
-        static::assertStringContainsString('java-server', $result->signer->subjectDistinguishedName());
+        static::assertStringContainsString('java-server', $result->signer->subjectDistinguishedName()->toString());
     }
 
     public function test_it_verifies_a_real_wss4j_ecdsa_signed_message(): void
@@ -51,7 +51,7 @@ final class Wss4jInteropTest extends TestCase
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
-        static::assertStringContainsString('ec client', $result->signer->subjectDistinguishedName());
+        static::assertStringContainsString('ec client', $result->signer->subjectDistinguishedName()->toString());
     }
 
     private function ecdsaPolicy(): VerificationPolicy
@@ -78,7 +78,7 @@ final class Wss4jInteropTest extends TestCase
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
-        static::assertStringContainsString('java-server', $result->signer->subjectDistinguishedName());
+        static::assertStringContainsString('java-server', $result->signer->subjectDistinguishedName()->toString());
     }
 
     private function inclusiveC14nPolicy(): VerificationPolicy

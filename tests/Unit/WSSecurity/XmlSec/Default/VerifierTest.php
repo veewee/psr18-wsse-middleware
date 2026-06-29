@@ -6,7 +6,6 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Default;
 use Dom\Element;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
@@ -49,7 +48,7 @@ final class VerifierTest extends TestCase
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
-        static::assertStringContainsString('WSSE Round Trip Leaf', $result->signer->subjectDistinguishedName());
+        static::assertStringContainsString('WSSE Round Trip Leaf', $result->signer->subjectDistinguishedName()->toString());
     }
 
     /**
@@ -403,7 +402,7 @@ final class VerifierTest extends TestCase
             new SignatureLocator(),
             new SignedInfoParser(),
             new AlgorithmPolicyEnforcer(),
-            new CertificateExtractor(new CertificateFieldExtractor()),
+            new CertificateExtractor(),
             new ReferenceResolver(),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),

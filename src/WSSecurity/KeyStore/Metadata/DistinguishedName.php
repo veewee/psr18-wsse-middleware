@@ -13,6 +13,9 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
  */
 final readonly class DistinguishedName
 {
+    /**
+     * @param non-empty-string $value
+     */
     private function __construct(
         private string $value,
         private string $comparable,
@@ -55,13 +58,17 @@ final readonly class DistinguishedName
      */
     public static function fromString(string $name): self
     {
-        if (trim($name) === '') {
+        $name = trim($name);
+        if ($name === '') {
             throw CryptoOperationFailed::unreadableCertificate();
         }
 
         return new self($name, self::normalize($name));
     }
 
+    /**
+     * @return non-empty-string
+     */
     public function toString(): string
     {
         return $this->value;

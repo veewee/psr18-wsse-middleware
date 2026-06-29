@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec;
 
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
@@ -69,7 +68,7 @@ final class DefaultEngine
             new SignatureLocator(),
             new SignedInfoParser(),
             new AlgorithmPolicyEnforcer(),
-            new CertificateExtractor(new CertificateFieldExtractor()),
+            new CertificateExtractor(),
             new ReferenceResolver(),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),

@@ -5,6 +5,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Trust;
 
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
@@ -38,9 +39,9 @@ final class TrustTest extends TestCase
     public function test_trusted_signer_carries_identity_and_certificate(): void
     {
         $cert = new Certificate('-----BEGIN CERTIFICATE-----leaf-----END CERTIFICATE-----');
-        $signer = new TrustedSigner('CN=example,O=Acme', $cert);
+        $signer = new TrustedSigner(DistinguishedName::fromString('CN=example,O=Acme'), $cert);
 
-        static::assertSame('CN=example,O=Acme', $signer->subjectDistinguishedName());
+        static::assertSame('CN=example,O=Acme', $signer->subjectDistinguishedName()->toString());
         static::assertSame($cert, $signer->certificate());
     }
 }

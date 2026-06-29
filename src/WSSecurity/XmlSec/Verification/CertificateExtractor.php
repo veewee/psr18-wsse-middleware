@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
@@ -35,11 +35,10 @@ final class CertificateExtractor
     private readonly KeyInfoReader $reader;
     private readonly TrustStoreCertificateResolver $resolver;
 
-    public function __construct(
-        CertificateFieldExtractor $fieldExtractor,
-    ) {
+    public function __construct()
+    {
         $this->reader = new KeyInfoReader();
-        $this->resolver = new TrustStoreCertificateResolver($fieldExtractor);
+        $this->resolver = new TrustStoreCertificateResolver();
     }
 
     /**
@@ -51,21 +50,15 @@ final class CertificateExtractor
         $reference = $this->reader->read($document, $signatureElement);
 
         if ($reference->form === CertificateReference::FORM_CARRIED) {
-            return CertificateChain::fromCertificates($this->certificateFromBase64Der($reference->base64Der));
+            try {
+                $certificate = Certificate::fromBase64Der($reference->base64Der);
+            } catch (WsseHeaderException) {
+                throw SignatureVerificationFailed::withReason('The certificate bytes are not valid base64.');
+            }
+
+            return CertificateChain::fromCertificates($certificate);
         }
 
         return CertificateChain::fromCertificates($this->resolver->resolve($reference, $trustStore));
-    }
-
-    private function certificateFromBase64Der(string $base64Der): Certificate
-    {
-        $der = base64_decode($base64Der, true);
-        if ($der === false || $der === '') {
-            throw SignatureVerificationFailed::withReason('The certificate bytes are not valid base64.');
-        }
-
-        // The token body is the base64 of a DER certificate; rewrap it as PEM, the form the OpenSSL boundary
-        // reads. Malformed bytes are caught later when the certificate is loaded for trust and verification.
-        return Certificate::fromBase64Der($base64Der);
     }
 }

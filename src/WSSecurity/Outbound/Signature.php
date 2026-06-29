@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
@@ -127,9 +126,9 @@ final class Signature implements OutboundAction
     {
         return match ($this->keyRef) {
             KeyRef::BinarySecurityToken => $this->embedBinarySecurityToken($context),
-            KeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
-            KeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(new CertificateFieldExtractor()),
-            KeyRef::Thumbprint => new ThumbprintKeyIdentifier(new CertificateFieldExtractor()),
+            KeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(),
+            KeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(),
+            KeyRef::Thumbprint => new ThumbprintKeyIdentifier(),
         };
     }
 

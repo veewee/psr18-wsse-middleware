@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyIdentifier;
 
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
 
 final class X509SubjectKeyIdentifierTest extends KeyIdentifierTestCase
@@ -15,9 +14,9 @@ final class X509SubjectKeyIdentifierTest extends KeyIdentifierTestCase
     {
         $document = $this->document();
         $certificate = $this->certificate();
-        $expected = (new CertificateFieldExtractor())->subjectKeyIdentifier($certificate);
+        $expected = $certificate->info()->subjectKeyIdentifier()->toBase64();
 
-        $keyInfo = (new X509SubjectKeyIdentifier(new CertificateFieldExtractor()))
+        $keyInfo = (new X509SubjectKeyIdentifier())
             ->apply($document, $certificate);
 
         static::assertSame('KeyInfo', $keyInfo->localName);

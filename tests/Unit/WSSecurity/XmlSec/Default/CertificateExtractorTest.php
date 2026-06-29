@@ -5,7 +5,6 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Default;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
@@ -148,7 +147,7 @@ final class CertificateExtractorTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->withKeyInfo(
-            new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
+            new X509SubjectKeyIdentifier(),
             $fixture->leafCertificate,
         );
 
@@ -165,7 +164,7 @@ final class CertificateExtractorTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->withKeyInfo(
-            new ThumbprintKeyIdentifier(new CertificateFieldExtractor()),
+            new ThumbprintKeyIdentifier(),
             $fixture->leafCertificate,
         );
 
@@ -182,7 +181,7 @@ final class CertificateExtractorTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->withKeyInfo(
-            new IssuerSerialKeyIdentifier(new CertificateFieldExtractor()),
+            new IssuerSerialKeyIdentifier(),
             $fixture->leafCertificate,
         );
 
@@ -202,7 +201,7 @@ final class CertificateExtractorTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->withKeyInfo(
-            new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
+            new X509SubjectKeyIdentifier(),
             $fixture->leafCertificate,
         );
 
@@ -219,7 +218,7 @@ final class CertificateExtractorTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->withKeyInfo(
-            new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
+            new X509SubjectKeyIdentifier(),
             $fixture->leafCertificate,
         );
 
@@ -234,7 +233,7 @@ final class CertificateExtractorTest extends TestCase
 
     private function extractor(): CertificateExtractor
     {
-        return new CertificateExtractor(new CertificateFieldExtractor());
+        return new CertificateExtractor();
     }
 
     /**

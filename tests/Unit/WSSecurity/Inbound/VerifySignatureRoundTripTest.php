@@ -6,7 +6,6 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 use Dom\Element;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
@@ -136,7 +135,7 @@ final class VerifySignatureRoundTripTest extends TestCase
         // must resolve it from the trust store, which holds the CA and the signer leaf.
         $document = $fixture->sign(
             [Part::body()],
-            keyIdentifier: new X509SubjectKeyIdentifier(new CertificateFieldExtractor()),
+            keyIdentifier: new X509SubjectKeyIdentifier(),
         );
 
         $this->expectNotToPerformAssertions();

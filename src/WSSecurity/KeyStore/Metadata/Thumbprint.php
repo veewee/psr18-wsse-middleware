@@ -13,6 +13,9 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
  */
 final readonly class Thumbprint
 {
+    /**
+     * @param non-empty-string $bytes
+     */
     private function __construct(
         private string $bytes,
     ) {
@@ -43,6 +46,9 @@ final readonly class Thumbprint
         return new self($bytes);
     }
 
+    /**
+     * @return non-empty-string
+     */
     public function toBase64(): string
     {
         return base64_encode($this->bytes);

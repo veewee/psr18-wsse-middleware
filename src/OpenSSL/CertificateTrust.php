@@ -5,10 +5,12 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
 use Phpro\ResourceStream\Factory\TmpStream;
 use Phpro\ResourceStream\ResourceStream;
+use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\ValidityWindow;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
@@ -21,13 +23,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
  */
 final class CertificateTrust
 {
-    private readonly CertificateFieldExtractor $fields;
-
-    public function __construct()
-    {
-        $this->fields = new CertificateFieldExtractor();
-    }
-
     public function verify(CertificateChain $chain, TrustStore $trust): TrustedSigner
     {
         if ($trust->isEmpty()) {
@@ -37,24 +32,24 @@ final class CertificateTrust
         $leaf = $chain->leaf();
 
         try {
-            $subjectName = $this->fields->subjectName($leaf);
-            $validity = $this->fields->validityWindow($leaf);
-            $keyUsage = $this->fields->keyUsage($leaf);
+            $info = $leaf->info();
+            $subject = $info->subject();
+            $validity = $info->validity();
+            $keyUsage = $info->keyUsage();
         } catch (CryptoOperationFailed) {
             throw CertificateTrustException::unreadable();
         }
 
-        $this->assertWithinValidity($validity['from'], $validity['to']);
+        $this->assertWithinValidity($validity);
         $this->assertMaySign($keyUsage);
         $this->assertChainsToAnchor($chain, $trust);
 
-        return new TrustedSigner($subjectName, $leaf);
+        return new TrustedSigner($subject, $leaf);
     }
 
-    private function assertWithinValidity(int $validFrom, int $validTo): void
+    private function assertWithinValidity(ValidityWindow $validity): void
     {
-        $now = time();
-        if ($now < $validFrom || $now > $validTo) {
+        if (!$validity->permits(Timestamp::now())) {
             throw CertificateTrustException::expired();
         }
     }

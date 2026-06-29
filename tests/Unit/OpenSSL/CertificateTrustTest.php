@@ -19,7 +19,7 @@ final class CertificateTrustTest extends TestCase
             TrustStore::fromCertificates($this->certificate('ca.crt')),
         );
 
-        static::assertStringContainsString('WSSE Leaf', $signer->subjectDistinguishedName());
+        static::assertStringContainsString('WSSE Leaf', $signer->subjectDistinguishedName()->toString());
     }
 
     public function test_a_pinned_certificate_is_accepted(): void
@@ -29,7 +29,7 @@ final class CertificateTrustTest extends TestCase
             TrustStore::fromCertificates($this->certificate('pinned.crt')),
         );
 
-        static::assertStringContainsString('WSSE Pinned', $signer->subjectDistinguishedName());
+        static::assertStringContainsString('WSSE Pinned', $signer->subjectDistinguishedName()->toString());
     }
 
     public function test_a_self_signed_certificate_not_in_the_truststore_is_rejected(): void

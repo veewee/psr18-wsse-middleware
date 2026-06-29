@@ -13,6 +13,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
@@ -94,7 +95,7 @@ final class SpiContractTest extends TestCase
     public function test_verified_signature_pairs_the_signed_set_with_the_signer(): void
     {
         $references = new VerifiedReferences([]);
-        $signer = new TrustedSigner('CN=test', new Certificate('cert'));
+        $signer = new TrustedSigner(DistinguishedName::fromString('CN=test'), new Certificate('cert'));
 
         $signature = new VerifiedSignature($references, $signer);
 

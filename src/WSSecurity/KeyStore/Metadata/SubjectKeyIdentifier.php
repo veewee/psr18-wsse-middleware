@@ -12,6 +12,9 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
  */
 final readonly class SubjectKeyIdentifier
 {
+    /**
+     * @param non-empty-string $bytes
+     */
     private function __construct(
         private string $bytes,
     ) {
@@ -30,11 +33,12 @@ final readonly class SubjectKeyIdentifier
         }
 
         $hex = str_replace(':', '', $hex);
-        if ($hex === '' || strlen($hex) % 2 !== 0 || preg_match('/^[0-9A-Fa-f]+$/', $hex) !== 1) {
+        $bytes = $hex !== '' && strlen($hex) % 2 === 0 && ctype_xdigit($hex) ? hex2bin($hex) : false;
+        if ($bytes === false || $bytes === '') {
             throw CryptoOperationFailed::missingCertificateField('subjectKeyIdentifier');
         }
 
-        return new self((string) hex2bin($hex));
+        return new self($bytes);
     }
 
     /**
@@ -50,6 +54,9 @@ final readonly class SubjectKeyIdentifier
         return new self($bytes);
     }
 
+    /**
+     * @return non-empty-string
+     */
     public function toBase64(): string
     {
         return base64_encode($this->bytes);

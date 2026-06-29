@@ -3,11 +3,10 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateFieldExtractor;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
-use Soap\Psr18WsseMiddleware\OpenSSL\Formatter\DistinguishedName;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 
@@ -20,12 +19,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
  */
 final class TrustStoreCertificateResolver
 {
-    public function __construct(
-        private CertificateFieldExtractor $fieldExtractor,
-        private DistinguishedName $distinguishedName = new DistinguishedName(),
-    ) {
-    }
-
     /**
      * @throws SignatureVerificationFailed when the reference is unsupported, names no trust store certificate,
      *         or matches more than one
@@ -44,8 +37,10 @@ final class TrustStoreCertificateResolver
     private function resolveByKeyIdentifier(CertificateReference $reference, TrustStore $trustStore): Certificate
     {
         $identifierOf = match ($reference->valueType) {
-            WsSecurityValueType::X509SubjectKeyIdentifier->value => $this->fieldExtractor->subjectKeyIdentifier(...),
-            WsSecurityValueType::ThumbprintSha1->value => $this->fieldExtractor->thumbprintSha1(...),
+            WsSecurityValueType::X509SubjectKeyIdentifier->value
+                => static fn (Certificate $candidate): string => $candidate->info()->subjectKeyIdentifier()->toBase64(),
+            WsSecurityValueType::ThumbprintSha1->value
+                => static fn (Certificate $candidate): string => $candidate->info()->thumbprintSha1()->toBase64(),
             default => throw SignatureVerificationFailed::withReason('The key identifier value type is unsupported.'),
         };
 
@@ -62,19 +57,19 @@ final class TrustStoreCertificateResolver
             throw SignatureVerificationFailed::withReason('The issuer-serial reference is empty.');
         }
 
-        $wantedIssuer = $this->distinguishedName->normalize($reference->issuerName);
+        $wantedIssuer = DistinguishedName::fromString($reference->issuerName);
 
         $matches = array_values(array_filter(
             $trustStore->anchors(),
-            function (Certificate $candidate) use ($wantedIssuer, $reference): bool {
+            static function (Certificate $candidate) use ($wantedIssuer, $reference): bool {
                 try {
-                    $fields = $this->fieldExtractor->issuerSerial($candidate);
+                    $issuerSerial = $candidate->info()->issuerSerial();
                 } catch (CryptoOperationFailed) {
                     return false;
                 }
 
-                return $fields['serialNumber'] === $reference->serialNumber
-                    && $this->distinguishedName->normalize($fields['issuerName']) === $wantedIssuer;
+                return $issuerSerial->serialNumber === $reference->serialNumber
+                    && $issuerSerial->issuer->equals($wantedIssuer);
             },
         ));
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Trust;
 
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\DistinguishedName;
 
 /**
  * The validated signer identity returned to the policy layer after trust establishment succeeds.
@@ -11,12 +12,12 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 final readonly class TrustedSigner
 {
     public function __construct(
-        private string $subjectDistinguishedName,
+        private DistinguishedName $subjectDistinguishedName,
         private Certificate $certificate,
     ) {
     }
 
-    public function subjectDistinguishedName(): string
+    public function subjectDistinguishedName(): DistinguishedName
     {
         return $this->subjectDistinguishedName;
     }
