@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyStore;
 
 use ParagonIE\HiddenString\HiddenString;
-use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\CertificateInfo;
 use function Psl\File\read;
@@ -39,19 +38,11 @@ final class Certificate implements KeyInterface
     }
 
     /**
-     * Loads the leaf public certificate from a PKCS#12 blob. The passphrase only decrypts the blob.
+     * The leaf public certificate of an already-decoded PKCS#12 bundle.
      */
-    public static function fromPkcs12(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase = ''): self
+    public static function fromPkcs12(Pkcs12Bundle $bundle): self
     {
-        return Pkcs12Bundle::fromString($contents, $passphrase)->leaf();
-    }
-
-    /**
-     * @param non-empty-string $file
-     */
-    public static function fromPkcs12File(string $file, #[SensitiveParameter] string $passphrase = ''): self
-    {
-        return Pkcs12Bundle::fromFile($file, $passphrase)->leaf();
+        return $bundle->leaf();
     }
 
     /**

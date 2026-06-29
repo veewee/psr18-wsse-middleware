@@ -3,9 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyStore;
 
-use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\Pkcs12Exception;
-use function Psl\File\read;
 
 /**
  * The set of trust anchors / pinned certificates the inbound verifier is willing to accept. A credential
@@ -27,25 +25,17 @@ final class TrustStore
     }
 
     /**
-     * Builds the trust anchors from the CA chain embedded in a PKCS#12 blob. A store with zero anchors is
-     * unusable, so a blob without an embedded chain is rejected rather than returned as an empty store.
+     * Builds the trust anchors from the CA chain embedded in an already-decoded PKCS#12 bundle. A store with
+     * zero anchors is unusable, so a bundle without an embedded chain is rejected rather than returned empty.
      */
-    public static function fromPkcs12(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase = ''): self
+    public static function fromPkcs12(Pkcs12Bundle $bundle): self
     {
-        $caCertificates = array_slice(Pkcs12Bundle::fromString($contents, $passphrase)->chain->all(), 1);
+        $caCertificates = array_slice($bundle->chain->all(), 1);
         if ($caCertificates === []) {
             throw Pkcs12Exception::withoutCaChain();
         }
 
         return new self(...$caCertificates);
-    }
-
-    /**
-     * @param non-empty-string $file
-     */
-    public static function fromPkcs12File(string $file, #[SensitiveParameter] string $passphrase = ''): self
-    {
-        return self::fromPkcs12(read($file), $passphrase);
     }
 
     /**
