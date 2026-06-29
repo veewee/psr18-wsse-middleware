@@ -1,9 +1,8 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Trust;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyStore;
 
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\DistinguishedName;
 
 /**

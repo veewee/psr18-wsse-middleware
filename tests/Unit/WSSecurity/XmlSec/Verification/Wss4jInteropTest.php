@@ -10,7 +10,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedSignature;

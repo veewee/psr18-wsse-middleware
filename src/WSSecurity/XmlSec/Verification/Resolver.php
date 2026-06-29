@@ -5,9 +5,9 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustedSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
 /**
  * The trust-establishment adapter: it delegates verifyTrust to OpenSSL\CertificateTrust, which is the only

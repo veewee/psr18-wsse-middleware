@@ -5,7 +5,6 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyStore;
 
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\OpenSSL\Parser\Pkcs12Parser;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
 use function Psl\File\read;
 
 /**

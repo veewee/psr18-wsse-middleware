@@ -7,8 +7,8 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 use VeeWee\Xml\Dom\Document;
 
 /**

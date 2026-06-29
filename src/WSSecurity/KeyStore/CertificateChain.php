@@ -1,10 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Trust;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyStore;
 
 use InvalidArgumentException;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 
 /**
  * An ordered certificate chain (leaf first) extracted from a BST / ds:KeyInfo. A value object only: it does

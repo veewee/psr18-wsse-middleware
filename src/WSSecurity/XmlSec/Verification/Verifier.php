@@ -6,8 +6,8 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustedSigner;
 use VeeWee\Xml\Dom\Document;
 
 /**

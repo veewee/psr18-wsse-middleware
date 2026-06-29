@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustedSigner;
 
 /**
  * The evidence a signature verification produced: which elements were signed (by exact instance) and which

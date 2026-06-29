@@ -10,7 +10,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyId
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\CertificateExtractor;
 use SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\WsseSignatureFixture;

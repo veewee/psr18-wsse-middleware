@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
 /**
  * The policy a signature is verified against: the trust anchors plus the accepted-algorithm allow-lists. The

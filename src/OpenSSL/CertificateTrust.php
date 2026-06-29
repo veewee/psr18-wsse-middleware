@@ -10,10 +10,10 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\ValidityWindow;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustedSigner;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustedSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
 /**
  * The verifyTrust primitive: establish that a signing certificate is trusted. Trust is decided against a

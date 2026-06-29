@@ -1,12 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Trust;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyStore;
 
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\Pkcs12Exception;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Pkcs12Bundle;
 use function Psl\File\read;
 
 /**

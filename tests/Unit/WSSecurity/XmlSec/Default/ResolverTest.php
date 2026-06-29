@@ -7,8 +7,8 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\Resolver;
 
 final class ResolverTest extends TestCase
