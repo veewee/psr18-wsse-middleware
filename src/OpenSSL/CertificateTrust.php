@@ -32,20 +32,19 @@ final class CertificateTrust
 
         $leaf = $chain->leaf();
 
+        // Only reading the fields can fail (the certificate is parsed lazily on first access); the accessors
+        // below are plain getters over the parsed value.
         try {
             $info = $leaf->info();
-            $subject = $info->subject();
-            $validity = $info->validity();
-            $keyUsage = $info->keyUsage();
         } catch (CryptoOperationFailed) {
             throw CertificateTrustException::unreadable();
         }
 
-        $this->assertWithinValidity($validity);
-        $this->assertMaySign($keyUsage);
+        $this->assertWithinValidity($info->validity());
+        $this->assertMaySign($info->keyUsage());
         $this->assertChainsToAnchor($chain, $trust);
 
-        return new TrustedSigner($subject, $leaf);
+        return new TrustedSigner($info->subject(), $leaf);
     }
 
     private function assertWithinValidity(ValidityWindow $validity): void
@@ -65,20 +64,19 @@ final class CertificateTrust
 
     private function assertChainsToAnchor(CertificateChain $chain, TrustStore $trust): void
     {
-        $leaf = $chain->leaf()->contents();
         // openssl_x509_checkpurpose loads CA / intermediate certs from disk by path, so the in-memory PEMs
         // are materialised to temp files. The TmpStream resources delete their files when they go out of
         // scope at the end of this method (including on the throw below) - no manual cleanup needed.
-        $anchors = $this->materialise($this->concatenate($trust->anchors()));
-        $intermediates = array_slice($chain->all(), 1);
-        $untrusted = $intermediates === [] ? null : $this->materialise($this->concatenate($intermediates));
+        $anchors = $this->materialise($trust->toPem());
+        $intermediatesPem = $chain->intermediatesPem();
+        $untrusted = $intermediatesPem === null ? null : $this->materialise($intermediatesPem);
 
         $anchorsPath = $anchors->uri();
 
         // false / -1 are both "not trusted"; only an explicit true is a verified chain to an anchor.
         [$trusted] = OpenSslCall::capture(
             static fn () => openssl_x509_checkpurpose(
-                $leaf,
+                $chain->leaf()->contents(),
                 X509_PURPOSE_ANY,
                 $anchorsPath === null ? [] : [$anchorsPath],
                 $untrusted?->uri(),
@@ -88,14 +86,6 @@ final class CertificateTrust
         if ($trusted !== true) {
             throw CertificateTrustException::notTrusted();
         }
-    }
-
-    /**
-     * @param list<Certificate> $certificates
-     */
-    private function concatenate(array $certificates): string
-    {
-        return implode("\n", array_map(static fn (Certificate $certificate): string => $certificate->contents(), $certificates));
     }
 
     /**
