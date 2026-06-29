@@ -303,7 +303,7 @@ as signed.
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
 $trustStore = TrustStore::fromCertificates(Certificate::fromFile('service-ca.pub'));
 
@@ -388,7 +388,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
 // Your signing identity (certificate + private key):
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
@@ -428,23 +428,29 @@ file; the extracted private key is returned ready to use.
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Pkcs12Bundle;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
-// Your signing identity (certificate + private key), straight from the .p12:
-$clientCertificate = ClientCertificate::fromPkcs12File('client.p12', 'secret');
+// Decode the .p12 once, then derive each credential from the bundle:
+$bundle = Pkcs12Bundle::fromFile('client.p12', 'secret');
+
+// Your signing identity (certificate + private key):
+$clientCertificate = ClientCertificate::fromPkcs12($bundle);
 new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken);
 
 // A recipient / BinarySecurityToken certificate from its own .p12:
-$recipient = Certificate::fromPkcs12File('service.p12', 'secret');
+$recipient = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
 
 // The trust anchors from the CA chain embedded in the .p12:
-$trustStore = TrustStore::fromPkcs12File('service.p12', 'secret');
+$trustStore = TrustStore::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
 ```
 
-`fromPkcs12File()` reads the file for you; the `fromPkcs12()` variants take the raw bytes instead.
-`TrustStore::fromPkcs12()` builds its anchors from the CA chain embedded in the file (the `extracerts`), so it
-throws if the file embeds no chain. To keep using separate PEM files, see `Certificate::fromFile(...)`,
-`Key::fromFile(...)` and `ClientCertificate::fromFile(...)` under [Key stores](#key-stores).
+`Pkcs12Bundle::fromFile()` reads the file for you; `Pkcs12Bundle::fromString()` takes the raw bytes instead.
+Decode the bundle once and pass it to `Certificate`, `ClientCertificate` and `TrustStore::fromPkcs12()`, so the
+blob is parsed a single time. `TrustStore::fromPkcs12()` builds its anchors from the CA chain embedded in the
+bundle (the `extracerts`), so it throws if the bundle embeds no chain. To keep using separate PEM files, see
+`Certificate::fromFile(...)`, `Key::fromFile(...)` and `ClientCertificate::fromFile(...)` under
+[Key stores](#key-stores).
 
 ## SAML assertion flow
 
@@ -514,7 +520,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
 $recipient = Certificate::fromFile('service.pub');          // who we encrypt to
@@ -556,7 +562,7 @@ The package wraps your keys and certificates in small value objects:
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\Trust\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
 $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 $certificate = Certificate::fromFile('security_token.pub');
@@ -576,21 +582,27 @@ Got a `.p12` / `.pfx` file? Load it directly, no conversion needed. The passphra
 extracted private key is returned ready to use, so no `->withPassphrase(...)` follows.
 
 ```php
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Pkcs12Bundle;
+
+// Decode the .p12 once:
+$p12 = Pkcs12Bundle::fromFile('client.p12', 'secret');
+
 // Certificate + key bundle, ready to sign with:
-$bundle = ClientCertificate::fromPkcs12File('client.p12', 'secret');
+$clientCertificate = ClientCertificate::fromPkcs12($p12);
 
 // Just the leaf certificate (recipient / BinarySecurityToken):
-$certificate = Certificate::fromPkcs12File('service.p12', 'secret');
+$certificate = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
 
 // Trust anchors from the CA chain embedded in the file:
-$trustStore = TrustStore::fromPkcs12File('service.p12', 'secret');
+$trustStore = TrustStore::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
 ```
 
-- `ClientCertificate::fromPkcs12File(string $file, string $passphrase = ''): ClientCertificate`, and
-  `Certificate::fromPkcs12File(...)`, `TrustStore::fromPkcs12File(...)`. Each has a `fromPkcs12(string $contents,
-  string $passphrase = '')` sibling that takes the raw bytes instead of a path.
-- `TrustStore::fromPkcs12()` builds its anchors from the CA chain embedded in the file (the `extracerts`); it
-  throws if the file embeds no chain.
+- `Pkcs12Bundle::fromFile(string $file, string $passphrase = ''): Pkcs12Bundle` decodes the blob (or
+  `Pkcs12Bundle::fromString(string $contents, ...)` for raw bytes). Decode once.
+- `ClientCertificate::fromPkcs12(Pkcs12Bundle): ClientCertificate`, `Certificate::fromPkcs12(Pkcs12Bundle)` and
+  `TrustStore::fromPkcs12(Pkcs12Bundle)` derive each credential from the decoded bundle.
+- `TrustStore::fromPkcs12()` builds its anchors from the CA chain embedded in the bundle (the `extracerts`); it
+  throws if the bundle embeds no chain.
 - A wrong passphrase or a file that is not a PKCS#12 throws a `Pkcs12Exception` with a generic message.
 
 # Choosing parts and key references
@@ -611,7 +623,7 @@ A few value objects let you say which parts to protect and how a token is refere
 - `Outbound\EncKeyRef`: `SubjectKeyIdentifier` (the default for encryption), `IssuerSerial`, `Thumbprint`,
   `BinarySecurityToken`.
 
-`Trust\TrustStore::fromCertificates(Certificate ...$anchors)` lists the certificates you trust when verifying a
+`KeyStore\TrustStore::fromCertificates(Certificate ...$anchors)` lists the certificates you trust when verifying a
 response.
 
 # Security profile and defaults
