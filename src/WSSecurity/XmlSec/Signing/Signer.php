@@ -8,8 +8,10 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
@@ -48,9 +50,15 @@ final class Signer implements XmlSigner
 
         $references = $this->referenceCollector->collect($document, $request->parts);
 
+        // Digest a fresh parse of the serialized document, not the live DOM. Elements minted with
+        // createElementNS carry namespace declarations the live DOM omits but the serialized wire
+        // materialises; inclusive C14N folds those declarations into the digest, so digesting the live DOM
+        // would produce bytes no verifier reading the wire could reproduce. The reparse is exactly what the
+        // wire is, so the digests match across libxml versions.
+        $wire = $this->wire($document);
         $digests = array_map(
             fn (ResolvedReference $reference): DigestResult => $this->digestCalculator->calculate(
-                $reference,
+                new ResolvedReference(WsuId::resolve($wire, $reference->wsuId), $reference->wsuId),
                 $request->canonicalization,
                 $request->digestMethod,
             ),
@@ -70,10 +78,9 @@ final class Signer implements XmlSigner
         $signatureValue = $this->buildSignatureValueElement($document);
         $signature = $this->buildSignature($document, $signedInfo, $signatureValue, $keyInfo);
         append($signature)($security);
-
-        $this->signInto($signatureValue, $request, $signedInfo);
-
         NodeOrder::sort($security);
+
+        $this->signInto($signatureValue, $request, $document);
     }
 
     /**
@@ -85,13 +92,16 @@ final class Signer implements XmlSigner
     }
 
     /**
-     * Canonicalizes the now-attached ds:SignedInfo, signs it, and writes the base64 signature into the
-     * ds:SignatureValue element.
+     * Canonicalizes ds:SignedInfo from a fresh parse of the now-complete document, signs it, and writes the
+     * base64 signature into the ds:SignatureValue element. SignedInfo carries the same live-versus-wire
+     * namespace divergence as the signed parts, so the bytes that get signed must be the wire bytes a
+     * verifier re-canonicalizes, not the live DOM bytes.
      *
      * @throws SigningFailed
      */
-    private function signInto(Element $signatureValue, SigningRequest $request, Element $signedInfo): void
+    private function signInto(Element $signatureValue, SigningRequest $request, Document $document): void
     {
+        $signedInfo = $this->locateSignedInfo($this->wire($document));
         $canonical = $this->canonicalizer->canonicalize($signedInfo, $request->canonicalization);
 
         try {
@@ -101,6 +111,24 @@ final class Signer implements XmlSigner
         }
 
         value(base64_encode($signature))($signatureValue);
+    }
+
+    /**
+     * The serialized document parsed back into a fresh DOM: exactly the bytes that travel on the wire and the
+     * tree a verifier re-canonicalizes from.
+     */
+    private function wire(Document $document): Document
+    {
+        return Document::fromXmlString($document->toXmlString());
+    }
+
+    /**
+     * The just-attached ds:SignedInfo, relocated in the reparsed wire. Exactly one exists: this method runs
+     * only after the signer attached it, so expectSingle guards an invariant rather than handling input.
+     */
+    private function locateSignedInfo(Document $document): Element
+    {
+        return Query::elements($document, '//'.Namespaces::Ds->qualify('SignedInfo'))->expectSingle();
     }
 
     private function buildSignatureValueElement(Document $document): Element
