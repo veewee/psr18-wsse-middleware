@@ -5,10 +5,10 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL\Parser;
 
 use ParagonIE\HiddenString\HiddenString;
 use Psl\Ref;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\InvalidKeyException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 
 final class X509PublicCertificateParser
 {

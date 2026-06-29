@@ -5,10 +5,10 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;

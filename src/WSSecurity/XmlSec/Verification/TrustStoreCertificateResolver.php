@@ -3,11 +3,11 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\DistinguishedName;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 
 /**

@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\OaepHash;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
 use VeeWee\Xml\Dom\Document;

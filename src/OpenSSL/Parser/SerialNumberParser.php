@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\OpenSSL\Parser;
 
 use phpseclib3\Math\BigInteger;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\SerialNumber;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\SerialNumber;
 use function Psl\Type\non_empty_string;
 
 /**

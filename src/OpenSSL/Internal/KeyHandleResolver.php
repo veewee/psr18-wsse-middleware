@@ -5,8 +5,8 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL\Internal;
 
 use OpenSSLAsymmetricKey;
 use SensitiveParameter;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
 
 /**
  * Turns the HiddenString-backed KeyStore PEM value objects into live openssl key handles. This is the only

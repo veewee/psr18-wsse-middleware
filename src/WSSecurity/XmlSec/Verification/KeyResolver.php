@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustedSigner;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 /**
  * Establishes that a signing certificate chain is trusted, against a caller-supplied TrustStore (configured

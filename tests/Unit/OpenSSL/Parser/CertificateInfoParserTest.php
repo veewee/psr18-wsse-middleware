@@ -6,10 +6,10 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL\Parser;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\TestCase;
 use Psl\DateTime\Timestamp;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\CertificateInfo;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Parser\CertificateInfoParser;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\CertificateInfo;
 
 final class CertificateInfoParserTest extends TestCase
 {

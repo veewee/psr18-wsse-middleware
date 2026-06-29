@@ -5,14 +5,14 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
 use Soap\Psr18WsseMiddleware\Clock\Clock;
 use Soap\Psr18WsseMiddleware\Clock\SystemClock;
+use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\KeyUsage;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\ValidityWindow;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\KeyUsage;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\ValidityWindow;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustedSigner;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
 
 /**
  * The verifyTrust primitive: establish that a signing certificate is trusted. Trust is decided against a

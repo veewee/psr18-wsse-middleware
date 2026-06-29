@@ -6,7 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyIdentifier;
 use Dom\Element;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use VeeWee\Xml\Dom\Document;
 
 abstract class KeyIdentifierTestCase extends TestCase

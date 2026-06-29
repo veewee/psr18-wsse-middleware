@@ -135,7 +135,7 @@ Attaches your X.509 certificate as a `wsse:BinarySecurityToken` (base64-DER), so
 it needs to verify your signature. A `wsu:Id` is minted on the token so a direct reference can point at it.
 
 ```php
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
 new Outbound\BinarySecurityToken(Certificate::fromFile('security_token.pub'));
@@ -153,7 +153,7 @@ advertised certificate), how that certificate is referenced in `ds:KeyInfo`, whi
 algorithms.
 
 ```php
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 
@@ -211,7 +211,7 @@ Encrypts the requested parts of the message via XML-Enc. It wraps a fresh sessio
 certificate and encrypts the parts with it. Place it **after** `Signature` (sign-then-encrypt).
 
 ```php
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
 $recipient = Certificate::fromFile('service.pub');
@@ -280,7 +280,7 @@ plaintext.
 
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
 
 $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 
@@ -301,9 +301,9 @@ as signed.
 
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 $trustStore = TrustStore::fromCertificates(Certificate::fromFile('service-ca.pub'));
 
@@ -383,12 +383,12 @@ use Http\Client\Common\PluginClient;
 use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 // Your signing identity (certificate + private key):
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
@@ -426,10 +426,10 @@ Starting from a `.p12` / `.pfx` file? Load it directly, no PEM conversion needed
 file; the extracted private key is returned ready to use.
 
 ```php
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Pkcs12Bundle;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 // Decode the .p12 once, then derive each credential from the bundle:
 $bundle = Pkcs12Bundle::fromFile('client.p12', 'secret');
@@ -462,7 +462,7 @@ that call too.
 use Http\Client\Common\PluginClient;
 use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -514,13 +514,13 @@ use Http\Client\Common\PluginClient;
 use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
 $recipient = Certificate::fromFile('service.pub');          // who we encrypt to
@@ -559,10 +559,10 @@ The package wraps your keys and certificates in small value objects:
 - `KeyStore\ClientCertificate`: a certificate and a private key together in one PEM bundle.
 
 ```php
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 $certificate = Certificate::fromFile('security_token.pub');
@@ -582,7 +582,7 @@ Got a `.p12` / `.pfx` file? Load it directly, no conversion needed. The passphra
 extracted private key is returned ready to use, so no `->withPassphrase(...)` follows.
 
 ```php
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Pkcs12Bundle;
+use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
 
 // Decode the .p12 once:
 $p12 = Pkcs12Bundle::fromFile('client.p12', 'secret');

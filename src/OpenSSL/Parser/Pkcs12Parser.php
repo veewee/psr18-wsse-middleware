@@ -4,12 +4,12 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\OpenSSL\Parser;
 
 use SensitiveParameter;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\Pkcs12Exception;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Pkcs12Bundle;
 
 /**
  * The single openssl_pkcs12_read boundary: it decodes a PKCS#12 blob into the leaf certificate, its already

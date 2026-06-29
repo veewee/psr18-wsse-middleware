@@ -6,11 +6,11 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL\Parser;
 use ParagonIE\HiddenString\HiddenString;
 use Psl\Ref;
 use SensitiveParameter;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\InvalidKeyException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\KeyHandleResolver;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 
 final class PrivateKeyParser
 {

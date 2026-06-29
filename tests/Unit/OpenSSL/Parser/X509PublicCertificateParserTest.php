@@ -5,9 +5,9 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL\Parser;
 
 use ParagonIE\HiddenString\HiddenString;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\InvalidKeyException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Parser\X509PublicCertificateParser;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use function Psl\File\read;
 
 final class X509PublicCertificateParserTest extends TestCase

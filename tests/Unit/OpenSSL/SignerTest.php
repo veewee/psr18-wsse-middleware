@@ -6,11 +6,11 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 use OpenSSLAsymmetricKey;
 use phpseclib3\Crypt\DSA;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 
 final class SignerTest extends TestCase
 {

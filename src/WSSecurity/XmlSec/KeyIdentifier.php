@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use VeeWee\Xml\Dom\Document;
 
 /**

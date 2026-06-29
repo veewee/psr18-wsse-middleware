@@ -7,9 +7,9 @@ use phpseclib3\Crypt\AES;
 use phpseclib3\Crypt\Common\BlockCipher;
 use phpseclib3\Crypt\TripleDES;
 use SensitiveParameter;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 use Throwable;
 
 /**
