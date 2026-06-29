@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 
 final class KeyTransportTest extends TestCase
 {
@@ -32,12 +33,12 @@ final class KeyTransportTest extends TestCase
     {
         $transport = new KeyTransport();
         [$private, $certificate] = $this->keyAndCertificate();
-        $sessionKey = random_bytes(32);
+        $sessionKey = SessionKey::fromBytes(random_bytes(32));
 
         $wrapped = $transport->wrap($sessionKey, $certificate, $algorithm);
 
-        static::assertNotSame($sessionKey, $wrapped);
-        static::assertSame($sessionKey, $transport->unwrap($wrapped, $private, $algorithm));
+        static::assertNotSame($sessionKey->bytes(), $wrapped);
+        static::assertSame($sessionKey->bytes(), $transport->unwrap($wrapped, $private, $algorithm)->bytes());
     }
 
     public function test_unwrap_failures_are_uniform_regardless_of_padding(): void

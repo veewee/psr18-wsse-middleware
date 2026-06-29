@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedKeyReader;
 use VeeWee\Xml\Dom\Document;
@@ -30,7 +31,7 @@ final class EncryptedKeyReaderTest extends TestCase
     public function test_it_reads_a_sha256_encrypted_key(): void
     {
         [$key, $certificate] = $this->keyAndCertificate();
-        $sessionKey = random_bytes(32);
+        $sessionKey = SessionKey::fromBytes(random_bytes(32));
         $wrapped = (new KeyTransport())->wrap($sessionKey, $certificate, KeyTransportAlgorithm::oaepSha256());
 
         $document = $this->envelope($wrapped, [
@@ -38,15 +39,15 @@ final class EncryptedKeyReaderTest extends TestCase
             ['MGF', self::XENC11, self::MGF1_SHA256],
         ]);
 
-        $unwrapped = (new EncryptedKeyReader(new KeyTransport()))->read($document, $key);
+        $sessionKeyRead = (new EncryptedKeyReader(new KeyTransport()))->read($document, $key);
 
-        static::assertSame($sessionKey, $unwrapped->sessionKey);
+        static::assertSame($sessionKey->bytes(), $sessionKeyRead->bytes());
     }
 
     public function test_a_disallowed_digest_collapses_to_a_uniform_failure(): void
     {
         [$key, $certificate] = $this->keyAndCertificate();
-        $wrapped = (new KeyTransport())->wrap(random_bytes(32), $certificate, KeyTransportAlgorithm::oaepSha256());
+        $wrapped = (new KeyTransport())->wrap(SessionKey::fromBytes(random_bytes(32)), $certificate, KeyTransportAlgorithm::oaepSha256());
 
         // SHA-384 has no OAEP-hash counterpart, so it is rejected before any unwrap.
         $document = $this->envelope($wrapped, [
@@ -60,7 +61,7 @@ final class EncryptedKeyReaderTest extends TestCase
     public function test_a_profile_excluding_sha256_collapses_to_a_uniform_failure(): void
     {
         [$key, $certificate] = $this->keyAndCertificate();
-        $wrapped = (new KeyTransport())->wrap(random_bytes(32), $certificate, KeyTransportAlgorithm::oaepSha256());
+        $wrapped = (new KeyTransport())->wrap(SessionKey::fromBytes(random_bytes(32)), $certificate, KeyTransportAlgorithm::oaepSha256());
 
         $document = $this->envelope($wrapped, [
             ['DigestMethod', self::DS, self::SHA256],
@@ -76,7 +77,7 @@ final class EncryptedKeyReaderTest extends TestCase
     public function test_a_digest_mgf_mismatch_collapses_to_a_uniform_failure(): void
     {
         [$key, $certificate] = $this->keyAndCertificate();
-        $wrapped = (new KeyTransport())->wrap(random_bytes(32), $certificate, KeyTransportAlgorithm::oaepSha256());
+        $wrapped = (new KeyTransport())->wrap(SessionKey::fromBytes(random_bytes(32)), $certificate, KeyTransportAlgorithm::oaepSha256());
 
         // A SHA-256 digest paired with an MGF1-SHA1 child is an inconsistent pair and is rejected.
         $document = $this->envelope($wrapped, [
@@ -90,7 +91,7 @@ final class EncryptedKeyReaderTest extends TestCase
     public function test_a_non_empty_oaep_params_collapses_to_a_uniform_failure(): void
     {
         [$key, $certificate] = $this->keyAndCertificate();
-        $wrapped = (new KeyTransport())->wrap(random_bytes(32), $certificate, KeyTransportAlgorithm::oaepSha256());
+        $wrapped = (new KeyTransport())->wrap(SessionKey::fromBytes(random_bytes(32)), $certificate, KeyTransportAlgorithm::oaepSha256());
 
         $document = $this->envelope($wrapped, [
             ['DigestMethod', self::DS, self::SHA256],

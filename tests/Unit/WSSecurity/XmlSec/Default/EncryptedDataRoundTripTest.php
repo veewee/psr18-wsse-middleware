@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataReader;
@@ -40,7 +41,7 @@ final class EncryptedDataRoundTripTest extends TestCase
     #[DataProvider('methods')]
     public function test_it_round_trips_content_mode(DataEncryptionMethod $method, int $keyLength): void
     {
-        $key = str_repeat("\x01", $keyLength);
+        $key = SessionKey::fromBytes(str_repeat("\x01", $keyLength));
         $document = $this->envelope();
         $body = $this->body($document);
 
@@ -58,7 +59,7 @@ final class EncryptedDataRoundTripTest extends TestCase
     #[DataProvider('methods')]
     public function test_it_round_trips_element_mode(DataEncryptionMethod $method, int $keyLength): void
     {
-        $key = str_repeat("\x02", $keyLength);
+        $key = SessionKey::fromBytes(str_repeat("\x02", $keyLength));
         $document = $this->envelope();
         $custom = $this->custom($document);
 
@@ -77,7 +78,7 @@ final class EncryptedDataRoundTripTest extends TestCase
 
     public function test_a_truncated_gcm_tag_is_rejected_before_decrypt(): void
     {
-        $key = str_repeat("\x03", 32);
+        $key = SessionKey::fromBytes(str_repeat("\x03", 32));
         $document = $this->envelope();
         $body = $this->body($document);
 
@@ -95,7 +96,7 @@ final class EncryptedDataRoundTripTest extends TestCase
 
     public function test_a_tampered_gcm_ciphertext_is_rejected(): void
     {
-        $key = str_repeat("\x04", 32);
+        $key = SessionKey::fromBytes(str_repeat("\x04", 32));
         $document = $this->envelope();
         $body = $this->body($document);
 
@@ -117,12 +118,12 @@ final class EncryptedDataRoundTripTest extends TestCase
         $this->placeEncryptedData($document, $body, 'not valid base64 ###', DataEncryptionMethod::AES256_GCM);
 
         $this->expectException(DecryptionFailed::class);
-        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), str_repeat("\x05", 32));
+        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), SessionKey::fromBytes(str_repeat("\x05", 32)));
     }
 
     public function test_a_doctype_in_the_decrypted_plaintext_is_rejected(): void
     {
-        $key = str_repeat("\x08", 32);
+        $key = SessionKey::fromBytes(str_repeat("\x08", 32));
         $document = $this->envelope();
         $body = $this->body($document);
 
@@ -144,11 +145,11 @@ final class EncryptedDataRoundTripTest extends TestCase
         // ~1/256 chance of yielding valid padding), so each case retries with a fresh random IV until it does
         // fail; the assertion is on the uniform failure, not on any single attempt.
         $wrongKeyError = $this->captureCbcDecryptFailure(
-            str_repeat("\x07", 32),
+            SessionKey::fromBytes(str_repeat("\x07", 32)),
             static fn (string $bytes): string => $bytes,
         );
         $badPaddingError = $this->captureCbcDecryptFailure(
-            str_repeat("\x06", 32),
+            SessionKey::fromBytes(str_repeat("\x06", 32)),
             $this->corruptLastByte(...),
         );
 
@@ -163,11 +164,11 @@ final class EncryptedDataRoundTripTest extends TestCase
      *
      * @param callable(string): string $mutate
      */
-    private function captureCbcDecryptFailure(string $decryptKey, callable $mutate): DecryptionFailed
+    private function captureCbcDecryptFailure(SessionKey $decryptKey, callable $mutate): DecryptionFailed
     {
         for ($attempt = 0; $attempt < 16; $attempt++) {
             $document = $this->envelope();
-            $cipherText = (new Cipher())->encrypt('<a>secret</a>', str_repeat("\x06", 32), DataEncryptionMethod::AES256_CBC);
+            $cipherText = (new Cipher())->encrypt('<a>secret</a>', SessionKey::fromBytes(str_repeat("\x06", 32)), DataEncryptionMethod::AES256_CBC);
             $framed = base64_encode($cipherText->iv.$mutate($cipherText->bytes));
             $this->placeEncryptedData($document, $this->body($document), $framed, DataEncryptionMethod::AES256_CBC);
             $encryptedData = $this->onlyEncryptedData($document);

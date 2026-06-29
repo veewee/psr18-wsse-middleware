@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
 use Soap\Psr18WsseMiddleware\OpenSSL\Random;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 
 /**
  * Generates a fresh random session key of the correct length for the given data-encryption method, drawing
@@ -19,12 +20,9 @@ final class SessionKeyFactory
     ) {
     }
 
-    /**
-     * @return non-empty-string
-     */
-    public function generate(DataEncryptionMethod $method): string
+    public function generate(DataEncryptionMethod $method): SessionKey
     {
-        return $this->random->bytes($this->keyLength($method));
+        return SessionKey::fromBytes($this->random->bytes($this->keyLength($method)));
     }
 
     /**

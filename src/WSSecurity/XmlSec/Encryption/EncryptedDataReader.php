@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\CipherText;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
@@ -44,7 +45,7 @@ final class EncryptedDataReader
     public function read(
         Document $document,
         Element $encryptedDataElement,
-        #[SensitiveParameter] string $sessionKey,
+        SessionKey $sessionKey,
     ): void {
         try {
             $method = $this->method($encryptedDataElement);

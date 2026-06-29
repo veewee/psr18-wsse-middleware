@@ -41,11 +41,11 @@ final class Decryptor implements XmlDecryptor
                 throw DecryptionFailed::withReason('The message declares too many encrypted parts.');
             }
 
-            $unwrapped = $this->encryptedKeyReader->read($document, $request->privateKey, $request->profile);
+            $sessionKey = $this->encryptedKeyReader->read($document, $request->privateKey, $request->profile);
 
             foreach ($references as $id) {
                 $element = EncryptedData::resolve($document, $id);
-                $this->encryptedDataReader->read($document, $element, $unwrapped->sessionKey);
+                $this->encryptedDataReader->read($document, $element, $sessionKey);
             }
         } catch (Throwable) {
             // Every cause collapses to one message so the inbound path is never a padding or validation oracle.

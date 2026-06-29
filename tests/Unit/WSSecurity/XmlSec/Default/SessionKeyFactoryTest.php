@@ -29,7 +29,7 @@ final class SessionKeyFactoryTest extends TestCase
     {
         $key = (new SessionKeyFactory())->generate($method);
 
-        static::assertSame($length, strlen($key));
+        static::assertSame($length, strlen($key->bytes()));
     }
 
     public function test_it_does_not_reuse_key_material(): void
@@ -37,8 +37,8 @@ final class SessionKeyFactoryTest extends TestCase
         $factory = new SessionKeyFactory();
 
         static::assertNotSame(
-            $factory->generate(DataEncryptionMethod::AES256_GCM),
-            $factory->generate(DataEncryptionMethod::AES256_GCM),
+            $factory->generate(DataEncryptionMethod::AES256_GCM)->bytes(),
+            $factory->generate(DataEncryptionMethod::AES256_GCM)->bytes(),
         );
     }
 }

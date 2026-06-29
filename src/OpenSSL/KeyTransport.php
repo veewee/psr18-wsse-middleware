@@ -12,6 +12,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 use Throwable;
 
 /**
@@ -25,7 +26,7 @@ use Throwable;
 final class KeyTransport
 {
     public function wrap(
-        #[SensitiveParameter] string $sessionKey,
+        SessionKey $sessionKey,
         Certificate $recipientCertificate,
         KeyTransportAlgorithm $algorithm,
     ): string {
@@ -40,7 +41,7 @@ final class KeyTransport
         }
 
         // A failure here is a non-oracle path (our recipient key / data), so the real reason may surface.
-        $wrapped = $configured->encrypt($sessionKey);
+        $wrapped = $configured->encrypt($sessionKey->bytes());
         if (!is_string($wrapped)) {
             throw CryptoOperationFailed::encryptionFailed();
         }
@@ -52,7 +53,7 @@ final class KeyTransport
         #[SensitiveParameter] string $wrappedKey,
         #[SensitiveParameter] Key $privateKey,
         KeyTransportAlgorithm $algorithm,
-    ): string {
+    ): SessionKey {
         try {
             $key = PublicKeyLoader::load($privateKey->contents(), $privateKey->passphrase());
 
@@ -66,7 +67,7 @@ final class KeyTransport
                 throw CryptoOperationFailed::decryptionFailed();
             }
 
-            return $sessionKey;
+            return SessionKey::fromBytes($sessionKey);
         } catch (Throwable) {
             // Uniform: never reveal whether RSA padding was valid (Bleichenbacher / Marvin).
             throw CryptoOperationFailed::decryptionFailed();

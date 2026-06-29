@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\CipherText;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 
 final class CipherTest extends TestCase
 {
@@ -32,7 +33,7 @@ final class CipherTest extends TestCase
     public function test_it_round_trips_every_method(DataEncryptionMethod $method, int $keySize): void
     {
         $cipher = new Cipher();
-        $key = random_bytes($keySize);
+        $key = SessionKey::fromBytes(random_bytes($keySize));
         $plaintext = 'the SOAP body to protect';
 
         $cipherText = $cipher->encrypt($plaintext, $key, $method);
@@ -43,7 +44,7 @@ final class CipherTest extends TestCase
     public function test_gcm_uses_a_fresh_96_bit_iv_per_operation(): void
     {
         $cipher = new Cipher();
-        $key = random_bytes(32);
+        $key = SessionKey::fromBytes(random_bytes(32));
 
         $first = $cipher->encrypt('same', $key, DataEncryptionMethod::AES256_GCM);
         $second = $cipher->encrypt('same', $key, DataEncryptionMethod::AES256_GCM);
@@ -56,7 +57,7 @@ final class CipherTest extends TestCase
     public function test_gcm_rejects_a_truncated_authentication_tag_before_decrypt(): void
     {
         $cipher = new Cipher();
-        $key = random_bytes(32);
+        $key = SessionKey::fromBytes(random_bytes(32));
         $cipherText = $cipher->encrypt('secret', $key, DataEncryptionMethod::AES256_GCM);
         $truncated = new CipherText($cipherText->iv, $cipherText->bytes, substr((string) $cipherText->tag, 0, 8));
 
@@ -67,7 +68,7 @@ final class CipherTest extends TestCase
     public function test_gcm_rejects_a_non_96_bit_iv(): void
     {
         $cipher = new Cipher();
-        $key = random_bytes(32);
+        $key = SessionKey::fromBytes(random_bytes(32));
         $cipherText = $cipher->encrypt('secret', $key, DataEncryptionMethod::AES256_GCM);
         $badIv = new CipherText(substr($cipherText->iv, 0, 8), $cipherText->bytes, $cipherText->tag);
 
@@ -78,7 +79,7 @@ final class CipherTest extends TestCase
     public function test_gcm_rejects_tampered_ciphertext(): void
     {
         $cipher = new Cipher();
-        $key = random_bytes(32);
+        $key = SessionKey::fromBytes(random_bytes(32));
         $cipherText = $cipher->encrypt('secret', $key, DataEncryptionMethod::AES256_GCM);
         $tampered = new CipherText($cipherText->iv, $cipherText->bytes ^ str_repeat("\x01", strlen($cipherText->bytes)), $cipherText->tag);
 
@@ -89,11 +90,11 @@ final class CipherTest extends TestCase
     public function test_cbc_rejects_an_invalid_pad_length(): void
     {
         $cipher = new Cipher();
-        $key = random_bytes(32);
+        $key = SessionKey::fromBytes(random_bytes(32));
         $iv = random_bytes(16);
         // Craft plaintext whose last byte is an impossible pad length (0), encrypted with zero padding.
         $raw = str_repeat('A', 15)."\x00";
-        $bytes = openssl_encrypt($raw, 'aes-256-cbc', $key, OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING, $iv);
+        $bytes = openssl_encrypt($raw, 'aes-256-cbc', $key->bytes(), OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING, $iv);
         static::assertIsString($bytes);
 
         $this->expectException(CryptoOperationFailed::class);
@@ -103,21 +104,21 @@ final class CipherTest extends TestCase
     public function test_cbc_failures_are_uniform_regardless_of_cause(): void
     {
         $cipher = new Cipher();
-        $key = random_bytes(32);
+        $key = SessionKey::fromBytes(random_bytes(32));
         $iv = random_bytes(16);
 
         // Cause A: ciphertext length is not a block multiple (openssl returns false).
         $a = $this->captureFailureMessage($cipher, new CipherText($iv, 'not-a-block', null), $key);
         // Cause B: a clean decrypt that yields an invalid pad length.
         $raw = str_repeat('A', 15)."\xff";
-        $bytes = openssl_encrypt($raw, 'aes-256-cbc', $key, OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING, $iv);
+        $bytes = openssl_encrypt($raw, 'aes-256-cbc', $key->bytes(), OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING, $iv);
         static::assertIsString($bytes);
         $b = $this->captureFailureMessage($cipher, new CipherText($iv, $bytes, null), $key);
 
         static::assertSame($a, $b);
     }
 
-    private function captureFailureMessage(Cipher $cipher, CipherText $cipherText, string $key): string
+    private function captureFailureMessage(Cipher $cipher, CipherText $cipherText, SessionKey $key): string
     {
         try {
             $cipher->decrypt($cipherText, $key, DataEncryptionMethod::AES256_CBC);

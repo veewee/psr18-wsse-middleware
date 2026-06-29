@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
@@ -44,7 +45,7 @@ final class EncryptedKeyReader
         Document $document,
         #[SensitiveParameter] Key $privateKey,
         ?SecurityProfile $profile = null,
-    ): UnwrappedKey {
+    ): SessionKey {
         $profile ??= SecurityProfile::default();
 
         try {
@@ -65,7 +66,7 @@ final class EncryptedKeyReader
             throw DecryptionFailed::withReason('Unable to unwrap the session key.');
         }
 
-        return new UnwrappedKey($sessionKey);
+        return $sessionKey;
     }
 
     /**

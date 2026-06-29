@@ -9,6 +9,7 @@ use phpseclib3\Crypt\TripleDES;
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\SessionKey;
 use Throwable;
 
 /**
@@ -27,13 +28,13 @@ final class Cipher
 
     public function encrypt(
         #[SensitiveParameter] string $plaintext,
-        #[SensitiveParameter] string $key,
+        SessionKey $key,
         DataEncryptionMethod $method,
     ): CipherText {
         $iv = $this->random->bytes($this->ivLength($method));
 
         try {
-            $cipher = $this->cipher($method, $key, $iv);
+            $cipher = $this->cipher($method, $key->bytes(), $iv);
 
             if ($method->isGcm()) {
                 $bytes = $cipher->encrypt($plaintext);
@@ -52,7 +53,7 @@ final class Cipher
 
     public function decrypt(
         CipherText $cipherText,
-        #[SensitiveParameter] string $key,
+        SessionKey $key,
         DataEncryptionMethod $method,
     ): string {
         $ivLength = $this->ivLength($method);
@@ -70,7 +71,7 @@ final class Cipher
             $tag = $cipherText->tag;
 
             try {
-                $cipher = $this->cipher($method, $key, $cipherText->iv);
+                $cipher = $this->cipher($method, $key->bytes(), $cipherText->iv);
                 $cipher->setTag($tag);
                 $plaintext = $cipher->decrypt($cipherText->bytes);
             } catch (Throwable) {
@@ -85,7 +86,7 @@ final class Cipher
         }
 
         try {
-            $cipher = $this->cipher($method, $key, $cipherText->iv);
+            $cipher = $this->cipher($method, $key->bytes(), $cipherText->iv);
             $padded = $cipher->decrypt($cipherText->bytes);
         } catch (Throwable) {
             throw CryptoOperationFailed::decryptionFailed();
