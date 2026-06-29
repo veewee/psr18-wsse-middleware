@@ -43,7 +43,7 @@ final class Certificate implements KeyInterface
      */
     public static function fromPkcs12(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase = ''): self
     {
-        return new self(Pkcs12Bundle::read($contents, $passphrase)->certificate);
+        return Pkcs12Bundle::fromString($contents, $passphrase)->leaf();
     }
 
     /**
@@ -51,7 +51,7 @@ final class Certificate implements KeyInterface
      */
     public static function fromPkcs12File(string $file, #[SensitiveParameter] string $passphrase = ''): self
     {
-        return self::fromPkcs12(read($file), $passphrase);
+        return Pkcs12Bundle::fromFile($file, $passphrase)->leaf();
     }
 
     /**

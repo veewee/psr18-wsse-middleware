@@ -37,9 +37,9 @@ final class ClientCertificate implements KeyInterface
      */
     public static function fromPkcs12(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase = ''): self
     {
-        $bundle = Pkcs12Bundle::read($contents, $passphrase);
+        $bundle = Pkcs12Bundle::fromString($contents, $passphrase);
 
-        return new self($bundle->privateKey.$bundle->certificate);
+        return new self($bundle->privateKey->contents().$bundle->leaf()->contents());
     }
 
     /**

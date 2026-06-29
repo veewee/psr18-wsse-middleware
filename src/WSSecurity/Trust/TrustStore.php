@@ -34,15 +34,12 @@ final class TrustStore
      */
     public static function fromPkcs12(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase = ''): self
     {
-        $bundle = Pkcs12Bundle::read($contents, $passphrase);
-        if ($bundle->caChain === []) {
+        $caCertificates = array_slice(Pkcs12Bundle::fromString($contents, $passphrase)->chain->all(), 1);
+        if ($caCertificates === []) {
             throw Pkcs12Exception::withoutCaChain();
         }
 
-        return new self(...array_map(
-            static fn (string $pem): Certificate => new Certificate($pem),
-            $bundle->caChain,
-        ));
+        return new self(...$caCertificates);
     }
 
     /**

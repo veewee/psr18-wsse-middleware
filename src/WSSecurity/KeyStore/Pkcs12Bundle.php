@@ -4,55 +4,38 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyStore;
 
 use SensitiveParameter;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\Pkcs12Exception;
+use Soap\Psr18WsseMiddleware\OpenSSL\Parser\Pkcs12Parser;
+use Soap\Psr18WsseMiddleware\WSSecurity\Trust\CertificateChain;
+use function Psl\File\read;
 
 /**
- * The decoded contents of a PKCS#12 blob: the leaf certificate, its already-decrypted private key and any
- * embedded CA chain. This is the single openssl_pkcs12_read boundary the key store factories share so the
- * passphrase and the raw OpenSSL error queue stay contained here and never reach an exception message.
- *
- * @internal
+ * The decoded contents of a PKCS#12 blob: the certificate chain (the leaf first, then any embedded CA
+ * certificates) and the already-decrypted private key. The key material is held inside the Key and Certificate
+ * value objects, which keep it out of exception messages and var dumps.
  */
 final class Pkcs12Bundle
 {
-    /**
-     * @param non-empty-string $certificate
-     * @param non-empty-string $privateKey
-     * @param list<non-empty-string> $caChain
-     */
-    private function __construct(
-        public readonly string $certificate,
-        public readonly string $privateKey,
-        public readonly array $caChain,
+    public function __construct(
+        public readonly CertificateChain $chain,
+        public readonly Key $privateKey,
     ) {
     }
 
-    public static function read(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase): self
+    public static function fromString(#[SensitiveParameter] string $contents, #[SensitiveParameter] string $passphrase = ''): self
     {
-        $parsed = [];
+        return (new Pkcs12Parser())->parse($contents, $passphrase);
+    }
 
-        // Suppress the openssl warning: its text can carry key material, and the boolean return already
-        // tells us the read failed. The exception below stays deliberately generic.
-        if (!@openssl_pkcs12_read($contents, $parsed, $passphrase)) {
-            throw Pkcs12Exception::unreadable();
-        }
+    /**
+     * @param non-empty-string $file
+     */
+    public static function fromFile(string $file, #[SensitiveParameter] string $passphrase = ''): self
+    {
+        return self::fromString(read($file), $passphrase);
+    }
 
-        /** @var array{cert?: string, pkey?: string, extracerts?: list<string>} $out */
-        $out = $parsed;
-
-        $certificate = $out['cert'] ?? '';
-        $privateKey = $out['pkey'] ?? '';
-        if ($certificate === '' || $privateKey === '') {
-            throw Pkcs12Exception::unreadable();
-        }
-
-        $caChain = [];
-        foreach ($out['extracerts'] ?? [] as $pem) {
-            if ($pem !== '') {
-                $caChain[] = $pem;
-            }
-        }
-
-        return new self($certificate, $privateKey, $caChain);
+    public function leaf(): Certificate
+    {
+        return $this->chain->leaf();
     }
 }

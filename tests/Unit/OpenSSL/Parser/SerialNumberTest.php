@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL\Formatter;
+namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL\Parser;
 
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
-use Soap\Psr18WsseMiddleware\OpenSSL\Formatter\SerialNumber;
+use Soap\Psr18WsseMiddleware\OpenSSL\Parser\SerialNumber;
 
 final class SerialNumberTest extends TestCase
 {
