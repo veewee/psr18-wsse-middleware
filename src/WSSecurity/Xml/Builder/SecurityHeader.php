@@ -9,7 +9,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
-use Soap\Xml\Builder\Header\MustUnderstand;
 use Soap\Xml\Builder\SoapHeaders;
 use Soap\Xml\Locator\SoapHeaderLocator;
 use Soap\Xml\Manipulator\PrependSoapHeaders;
@@ -49,14 +48,22 @@ final class SecurityHeader
         $header = self::locateOrCreateSoapHeader($document);
         $security = self::locateOrCreateSecurity($document, $header);
 
+        $envelopeNamespace = $soapVersion->envelopeNamespace();
+        // Reuse the envelope's existing prefix for the SOAP-namespaced attributes. A fresh prefix would
+        // redeclare the envelope namespace on wsse:Security, a redundant declaration that is dropped on
+        // serialisation: inclusive C14N folds it into every descendant digest, so the signed bytes would no
+        // longer match the wire and no verifier could reproduce them.
+        $ancestorPrefix = $security->lookupPrefix($envelopeNamespace);
+        $envelopePrefix = is_string($ancestorPrefix) && $ancestorPrefix !== '' ? $ancestorPrefix : 'soap';
+
         if ($mustUnderstand) {
-            (new MustUnderstand())($security);
+            namespaced_attribute($envelopeNamespace, $envelopePrefix.':mustUnderstand', '1')($security);
         }
 
         if ($actorOrRole !== null) {
             namespaced_attribute(
-                $soapVersion->envelopeNamespace(),
-                'soap:'.$soapVersion->actorOrRoleName(),
+                $envelopeNamespace,
+                $envelopePrefix.':'.$soapVersion->actorOrRoleName(),
                 $actorOrRole,
             )($security);
         }
