@@ -20,11 +20,11 @@ final class CertificateInfoParserTest extends TestCase
         $info = (new CertificateInfoParser())->parse($certificate);
 
         static::assertStringContainsString('CertificateInfo Subject', $info->subject()->toString());
-        static::assertSame('4242', $info->issuerSerial()->serialNumber);
+        static::assertSame('4242', $info->issuerSerial()->serialNumber->toString());
         static::assertStringContainsString('CertificateInfo Subject', $info->issuerSerial()->issuer->toString());
         static::assertTrue($info->validity()->permits(Timestamp::now()));
         static::assertNotSame('', $info->subjectKeyIdentifier()->toBase64());
-        static::assertStringContainsString('Digital Signature', (string) $info->keyUsage());
+        static::assertTrue($info->keyUsage()?->permitsSigning());
 
         $expected = base64_encode((string) openssl_x509_fingerprint($certificate->contents(), 'sha1', true));
         static::assertSame($expected, $info->thumbprintSha1()->toBase64());
@@ -48,7 +48,7 @@ final class CertificateInfoParserTest extends TestCase
         $info = CertificateInfo::fromCertificate($certificate);
 
         static::assertStringContainsString('CertificateInfo Subject', $info->subject()->toString());
-        static::assertSame('99', $info->issuerSerial()->serialNumber);
+        static::assertSame('99', $info->issuerSerial()->serialNumber->toString());
     }
 
     public function test_it_throws_on_an_unparseable_certificate(): void

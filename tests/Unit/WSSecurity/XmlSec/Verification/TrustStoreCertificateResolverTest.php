@@ -58,7 +58,7 @@ final class TrustStoreCertificateResolverTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $issuerSerial = $fixture->leafCertificate->info()->issuerSerial();
-        $reference = CertificateReference::issuerSerial($issuerSerial->issuer->toString(), $issuerSerial->serialNumber);
+        $reference = CertificateReference::issuerSerial($issuerSerial->issuer->toString(), $issuerSerial->serialNumber->toString());
 
         $other = WsseSignatureFixture::selfSignedLeaf();
 

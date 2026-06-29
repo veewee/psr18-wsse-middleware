@@ -6,6 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyStore\Metadata;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\IssuerSerial;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\SerialNumber;
 
 final class IssuerSerialTest extends TestCase
 {
@@ -13,9 +14,9 @@ final class IssuerSerialTest extends TestCase
     {
         $issuer = DistinguishedName::fromStructured(['CN' => 'Test CA']);
 
-        $issuerSerial = new IssuerSerial($issuer, '4242');
+        $issuerSerial = new IssuerSerial($issuer, SerialNumber::fromDecimal('4242'));
 
         static::assertSame('CN=Test CA', $issuerSerial->issuer->toString());
-        static::assertSame('4242', $issuerSerial->serialNumber);
+        static::assertSame('4242', $issuerSerial->serialNumber->toString());
     }
 }

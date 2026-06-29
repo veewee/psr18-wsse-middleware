@@ -5,27 +5,23 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL\Parser;
 
 use phpseclib3\Math\BigInteger;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
-
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\SerialNumber;
 use function Psl\Type\non_empty_string;
 
 /**
- * Normalises a certificate serial number to a decimal integer string. openssl reports the serial in decimal
- * on some builds and hexadecimal on others; both are accepted, and serials larger than the platform integer
- * range are converted with arbitrary precision.
+ * Normalises the serial number openssl reports into a SerialNumber: openssl gives it in decimal on some builds
+ * and hexadecimal on others, and serials routinely exceed the platform integer range, so the conversion keeps
+ * arbitrary precision. The arbitrary-precision math is why this lives at the openssl/crypto boundary.
  */
-final class SerialNumber
+final class SerialNumberParser
 {
     /**
-     * @param non-empty-string $serialNumber
-     *
-     * @return non-empty-string
-     *
      * @throws CryptoOperationFailed when the serial number is neither decimal nor hexadecimal
      */
-    public function toDecimal(string $serialNumber): string
+    public function parse(string $serialNumber): SerialNumber
     {
         if (preg_match('/^\d+$/', $serialNumber) === 1) {
-            return $serialNumber;
+            return SerialNumber::fromDecimal($serialNumber);
         }
 
         $hex = str_starts_with($serialNumber, '0x') ? substr($serialNumber, 2) : $serialNumber;
@@ -33,7 +29,6 @@ final class SerialNumber
             throw CryptoOperationFailed::unreadableCertificate();
         }
 
-        // Serial numbers routinely exceed the platform integer range, so the conversion keeps arbitrary precision.
-        return non_empty_string()->coerce((new BigInteger($hex, 16))->toString());
+        return SerialNumber::fromDecimal(non_empty_string()->coerce((new BigInteger($hex, 16))->toString()));
     }
 }

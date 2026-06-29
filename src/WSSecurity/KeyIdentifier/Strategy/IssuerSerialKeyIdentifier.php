@@ -20,7 +20,7 @@ final class IssuerSerialKeyIdentifier implements KeyIdentifierInterface
     {
         $issuerSerial = $certificate->info()->issuerSerial();
 
-        return SecurityTokenReference::x509IssuerSerial($issuerSerial->issuer->toString(), $issuerSerial->serialNumber)
+        return SecurityTokenReference::x509IssuerSerial($issuerSerial->issuer->toString(), $issuerSerial->serialNumber->toString())
             ->buildKeyInfo($document);
     }
 }

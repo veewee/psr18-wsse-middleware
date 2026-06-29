@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\KeyUsage;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\ValidityWindow;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\TrustStore;
@@ -54,10 +55,10 @@ final class CertificateTrust
         }
     }
 
-    private function assertMaySign(?string $keyUsage): void
+    private function assertMaySign(?KeyUsage $keyUsage): void
     {
         // No keyUsage extension means signing is not forbidden; if present it must allow digital signatures.
-        if ($keyUsage !== null && !str_contains($keyUsage, 'Digital Signature')) {
+        if ($keyUsage !== null && !$keyUsage->permitsSigning()) {
             throw CertificateTrustException::invalidKeyUsage();
         }
     }

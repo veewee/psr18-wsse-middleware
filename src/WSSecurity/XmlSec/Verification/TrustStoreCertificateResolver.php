@@ -68,7 +68,7 @@ final class TrustStoreCertificateResolver
                     return false;
                 }
 
-                return $issuerSerial->serialNumber === $reference->serialNumber
+                return $issuerSerial->serialNumber->toString() === $reference->serialNumber
                     && $issuerSerial->issuer->equals($wantedIssuer);
             },
         ));

@@ -11,6 +11,11 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\CertificateInfo;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\DistinguishedName;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\IssuerSerial;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\KeyUsage;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\SerialNumber;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\SubjectKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\Thumbprint;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Metadata\ValidityWindow;
 use function Psl\Type\dict;
 use function Psl\Type\int;
@@ -65,17 +70,22 @@ final class CertificateInfoParser
             throw CryptoOperationFailed::unreadableCertificate();
         }
 
+        $subjectKeyIdentifierHex = $fields['extensions']['subjectKeyIdentifier'] ?? null;
+        $keyUsage = $fields['extensions']['keyUsage'] ?? null;
+
         return new CertificateInfo(
             DistinguishedName::fromStructured($fields['subject']),
-            DistinguishedName::fromStructured($fields['issuer']),
-            (new SerialNumber())->toDecimal($fields['serialNumber']),
+            new IssuerSerial(
+                DistinguishedName::fromStructured($fields['issuer']),
+                SerialNumber::fromRaw($fields['serialNumber']),
+            ),
             new ValidityWindow(
                 Timestamp::fromParts($fields['validFrom_time_t']),
                 Timestamp::fromParts($fields['validTo_time_t']),
             ),
-            $fields['extensions']['subjectKeyIdentifier'] ?? null,
-            $fields['extensions']['keyUsage'] ?? null,
-            $fingerprint,
+            $subjectKeyIdentifierHex !== null ? SubjectKeyIdentifier::fromHex($subjectKeyIdentifierHex) : null,
+            $keyUsage !== null ? KeyUsage::fromExtension($keyUsage) : null,
+            Thumbprint::fromRawBytes($fingerprint),
         );
     }
 }

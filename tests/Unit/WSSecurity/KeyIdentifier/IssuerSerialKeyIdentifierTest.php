@@ -37,7 +37,7 @@ final class IssuerSerialKeyIdentifierTest extends KeyIdentifierTestCase
 
         $serialNumber = $this->childByLocalName($issuerSerial, 'X509SerialNumber');
         static::assertSame(self::DS, $serialNumber->namespaceURI);
-        static::assertSame($expected->serialNumber, $serialNumber->textContent);
+        static::assertSame($expected->serialNumber->toString(), $serialNumber->textContent);
         static::assertSame('4242', $serialNumber->textContent);
     }
 }
