@@ -71,14 +71,16 @@ final class CertificateTrust
         $intermediatesPem = $chain->intermediatesPem();
         $untrusted = $intermediatesPem === null ? null : $this->materialise($intermediatesPem);
 
-        $anchorsPath = $anchors->uri();
+        // A null path would make openssl fall back to the system CA store, bypassing the configured anchors;
+        // refusing trust is the only safe outcome.
+        $anchorsPath = $anchors->uri() ?? throw CertificateTrustException::notTrusted();
 
         // false / -1 are both "not trusted"; only an explicit true is a verified chain to an anchor.
         [$trusted] = OpenSslCall::capture(
             static fn () => openssl_x509_checkpurpose(
                 $chain->leaf()->contents(),
                 X509_PURPOSE_ANY,
-                $anchorsPath === null ? [] : [$anchorsPath],
+                [$anchorsPath],
                 $untrusted?->uri(),
             ),
         );
