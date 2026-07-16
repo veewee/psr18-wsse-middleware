@@ -7,6 +7,7 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Symfony\Component\Uid\Uuid;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -17,7 +18,7 @@ use function VeeWee\Xml\Dom\Builder\namespaced_attribute;
  * encryption can later reference exactly that element by id. A v4 UUID gives uniqueness without any
  * shared state; the "id-" prefix makes the value a valid XML NCName (which cannot start with a digit).
  */
-final class WsuIdMinter
+final class WsuIdMinter implements IdMinter
 {
     /**
      * @return non-empty-string the minted id, without the '#' fragment prefix

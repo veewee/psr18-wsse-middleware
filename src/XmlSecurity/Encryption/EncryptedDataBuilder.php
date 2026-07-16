@@ -7,9 +7,9 @@ use Dom\Element;
 use Dom\Node;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\OpenSSL\CipherText;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
@@ -25,13 +25,13 @@ use function VeeWee\Xml\Dom\Manipulator\Node\replace_by_external_node;
  *
  * For Content-mode Parts (soap:Body, wsu:Timestamp) the target element survives: its children are replaced by
  * the single xenc:EncryptedData. For Element-mode Parts the whole element is replaced by the xenc:EncryptedData.
- * The CipherValue carries base64(IV || ciphertext [|| tag]); a wsu:Id is stamped on the xenc:EncryptedData so
- * the xenc:DataReference in the EncryptedKey can address it.
+ * The CipherValue carries base64(IV || ciphertext [|| tag]); the injected IdMinter stamps an id on the
+ * xenc:EncryptedData so the xenc:DataReference in the EncryptedKey can address it.
  */
 final class EncryptedDataBuilder
 {
     public function __construct(
-        private readonly WsuIdMinter $idMinter,
+        private readonly IdMinter $idMinter,
     ) {
     }
 

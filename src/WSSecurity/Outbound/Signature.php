@@ -14,6 +14,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIde
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
@@ -51,7 +52,9 @@ final class Signature implements OutboundAction
         private readonly ClientCertificate $clientCertificate,
         private readonly KeyRef $keyRef = KeyRef::BinarySecurityToken,
     ) {
-        $this->signer = Signer::create();
+        // The WS-Security profile mandates wsu:Id on signed parts, so the block injects a WsuIdMinter; the
+        // engine's own default (XmlIdMinter) would stamp xml:id and break the WSSE wire format.
+        $this->signer = Signer::create(new WsuIdMinter());
     }
 
     public function withSigner(XmlSigner $signer): self
@@ -105,13 +108,14 @@ final class Signature implements OutboundAction
     {
         $document = $context->document();
 
-        SecurityHeader::locateOrCreate($document, $context->soapVersion(), mustUnderstand: true);
+        $security = SecurityHeader::locateOrCreate($document, $context->soapVersion(), mustUnderstand: true);
 
         $keyIdentifier = $this->resolveKeyIdentifier($context);
         $profile = $context->profile();
 
         $parts = $this->parts ?? [Part::body(), Part::timestamp()];
         $request = new SigningRequest(
+            container: $security->element(),
             targets: array_map(
                 static fn (Part $part): Target => $part->toTarget($context->soapVersion()),
                 $parts,

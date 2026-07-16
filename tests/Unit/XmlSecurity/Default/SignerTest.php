@@ -15,9 +15,9 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
@@ -106,17 +106,6 @@ final class SignerTest extends TestCase
         static::assertSame(['Timestamp', 'Signature'], $order);
     }
 
-    public function test_it_throws_when_no_security_header_exists(): void
-    {
-        [$key, $certificate] = $this->keyAndCertificate();
-        $document = Document::fromXmlString(
-            '<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Header/><soap:Body><data>x</data></soap:Body></soap:Envelope>'
-        );
-
-        $this->expectException(SigningFailed::class);
-        $this->signer()->sign($document, $this->request([Target::element(self::SOAP, 'Body')], $key, $certificate));
-    }
-
     public function test_it_signs_the_parts_not_an_existing_signature(): void
     {
         // A pre-existing ds:Signature must never become a signed target: only the Body is referenced. The
@@ -158,7 +147,7 @@ final class SignerTest extends TestCase
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelope($withTimestamp, $withCustom, $withStaleSignature, $presetBodyId);
 
-        $this->signer()->sign($document, $this->request($targets, $key, $certificate));
+        $this->signer()->sign($document, $this->request($this->security($document), $targets, $key, $certificate));
 
         return [$key, $certificate, $document];
     }
@@ -166,9 +155,10 @@ final class SignerTest extends TestCase
     /**
      * @param non-empty-list<Target> $targets
      */
-    private function request(array $targets, Key $key, Certificate $certificate): SigningRequest
+    private function request(Element $container, array $targets, Key $key, Certificate $certificate): SigningRequest
     {
         return new SigningRequest(
+            container: $container,
             targets: $targets,
             signingKey: $key,
             signingCertificate: $certificate,
@@ -210,6 +200,14 @@ final class SignerTest extends TestCase
             .'<soap:Body'.$bodyId.'><data>x</data></soap:Body>'
             .'</soap:Envelope>'
         );
+    }
+
+    private function security(Document $document): Element
+    {
+        $security = SecurityHeader::locate($document);
+        static::assertInstanceOf(Element::class, $security);
+
+        return $security;
     }
 
     /**

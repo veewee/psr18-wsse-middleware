@@ -5,16 +5,17 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Resolves each Target in a signing request to the DOM element it describes, minting a wsu:Id on the element
- * when it does not already carry one. Returns one ResolvedReference per distinct element, in first-seen
+ * Resolves each Target in a signing request to the DOM element it describes, reusing the element's existing
+ * wsu:Id or minting a fresh id via the injected IdMinter when it carries none. Returns one ResolvedReference
+ * per distinct element, in first-seen
  * order: when several Targets resolve to the same element instance, only the first is kept so the signature
  * carries one ds:Reference per signed element.
  *
@@ -24,7 +25,7 @@ use VeeWee\Xml\Dom\Document;
 final class ReferenceCollector
 {
     public function __construct(
-        private WsuIdMinter $minter,
+        private IdMinter $minter,
         private TargetLocator $locator,
     ) {
     }

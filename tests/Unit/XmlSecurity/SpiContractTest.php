@@ -35,8 +35,10 @@ final class SpiContractTest extends TestCase
         $target = Target::element('urn:example', 'Body');
         $certificate = new Certificate('cert');
         $key = new Key('key');
+        $container = $this->container();
 
         $request = new SigningRequest(
+            container: $container,
             targets: [$target],
             signingKey: $key,
             signingCertificate: $certificate,
@@ -56,8 +58,10 @@ final class SpiContractTest extends TestCase
     {
         $target = new EncryptionTarget(Target::element('urn:example', 'Body'), EncryptionMode::Content);
         $recipient = new Certificate('cert');
+        $container = $this->container();
 
         $request = new EncryptionRequest(
+            container: $container,
             targets: [$target],
             recipientCertificate: $recipient,
             keyIdentifier: $this->keyIdentifier(),
@@ -103,6 +107,13 @@ final class SpiContractTest extends TestCase
 
         static::assertSame($references, $signature->signedElements);
         static::assertSame($signer, $signature->signer);
+    }
+
+    private function container(): Element
+    {
+        // The DTO only stores the container element; these construction-only tests never append into it, so any
+        // element serves.
+        return Document::fromXmlString('<container/>')->locateDocumentElement();
     }
 
     private function keyIdentifier(): KeyIdentifier

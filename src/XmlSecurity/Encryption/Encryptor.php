@@ -7,36 +7,35 @@ use Dom\Element;
 use Dom\Node;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdMinter;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Manipulator\append;
 
 /**
- * Orchestrates the WSSE XML encryption flow for one request: resolve every target first (fail fast before any
+ * Orchestrates the XML encryption flow for one request: resolve every target first (fail fast before any
  * mutation), generate one shared session key, encrypt and replace each target as xenc:EncryptedData, wrap the
  * session key under the recipient certificate, build one xenc:EncryptedKey carrying the ReferenceList, insert
- * it into the existing wsse:Security header and re-sort the header.
+ * it into the container element the caller supplies on the request and re-sort that container.
  *
- * The Encryptor does not create the Security header (the outbound caller does that before encrypt() runs, as
- * for signing); it only locates the existing element and throws EncryptionFailed when it is absent. No
- * openssl_* calls live here: every cipher operation goes through OpenSSL\Cipher and every key-wrap through
- * OpenSSL\KeyTransport.
+ * The Encryptor does not locate or create the container (the caller does that and passes the element in — the
+ * WS-Security profile hands over its wsse:Security header). No openssl_* calls live here: every cipher operation
+ * goes through OpenSSL\Cipher and every key-wrap through OpenSSL\KeyTransport.
  */
 final class Encryptor implements XmlEncryptor
 {
-    public static function create(): self
+    public static function create(?IdMinter $idMinter = null): self
     {
         return new self(
             new TargetLocator(),
             new SessionKeyFactory(),
             new Cipher(),
-            new EncryptedDataBuilder(new WsuIdMinter()),
+            new EncryptedDataBuilder($idMinter ?? new XmlIdMinter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
         );
@@ -54,7 +53,7 @@ final class Encryptor implements XmlEncryptor
 
     public function encrypt(Document $document, EncryptionRequest $request): void
     {
-        $security = $this->locateSecurity($document);
+        $container = $request->container;
 
         $targets = $this->resolveTargets($document, $request);
 
@@ -90,8 +89,8 @@ final class Encryptor implements XmlEncryptor
                 $partIds,
             );
 
-            append($encryptedKey)($security);
-            NodeOrder::sort($security);
+            append($encryptedKey)($container);
+            NodeOrder::sort($container);
         } catch (EncryptionFailed $exception) {
             throw $exception;
         } catch (Throwable $exception) {
@@ -133,14 +132,5 @@ final class Encryptor implements XmlEncryptor
         }
 
         return $serialized;
-    }
-
-    /**
-     * @throws EncryptionFailed
-     */
-    private function locateSecurity(Document $document): Element
-    {
-        return SecurityHeader::locate($document)
-            ?? throw EncryptionFailed::withReason('No wsse:Security header was found to attach the encrypted key to.');
     }
 }

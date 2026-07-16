@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
@@ -56,7 +57,9 @@ final class Encryption implements OutboundAction
         private readonly Certificate $recipientCertificate,
         private readonly EncKeyRef $encKeyRef = EncKeyRef::SubjectKeyIdentifier,
     ) {
-        $this->encryptor = Encryptor::create();
+        // The WS-Security profile mandates wsu:Id on the xenc:EncryptedData, so the block injects a WsuIdMinter;
+        // the engine's own default (XmlIdMinter) would stamp xml:id and break the WSSE wire format.
+        $this->encryptor = Encryptor::create(new WsuIdMinter());
     }
 
     public function withEncryptor(XmlEncryptor $encryptor): self
@@ -118,7 +121,7 @@ final class Encryption implements OutboundAction
     {
         $document = $context->document();
 
-        SecurityHeader::locateOrCreate($document, $context->soapVersion());
+        $security = SecurityHeader::locateOrCreate($document, $context->soapVersion());
 
         $keyIdentifier = $this->resolveKeyIdentifier($context);
         $profile = $context->profile();
@@ -131,6 +134,7 @@ final class Encryption implements OutboundAction
         $parts = $this->parts ?? [Part::body()];
         $soapVersion = $context->soapVersion();
         $request = new EncryptionRequest(
+            container: $security->element(),
             targets: array_map(
                 static fn (Part $part): EncryptionTarget => new EncryptionTarget(
                     $part->toTarget($soapVersion),

@@ -142,6 +142,22 @@ $profile = new SecurityProfile(crypto: new CryptoPolicy(signatureMethod: Signatu
 Read the settings back through `$profile->crypto()`. `SecurityProfile::default()` is unchanged. The split lets
 the XML-Security engine be driven by a `CryptoPolicy` alone, without the SOAP profile.
 
+### The XML-Security engine no longer reaches into the SOAP header (custom engine services only)
+
+This affects you only if you drive the signer/encryptor directly or ship a custom `XmlSigner`/`XmlEncryptor` —
+the `Outbound\Signature` and `Outbound\Encryption` blocks are configured exactly as before.
+
+The engine used to locate the `wsse:Security` header itself. It now takes the container element to attach to as
+an explicit input, so it carries no SOAP knowledge:
+
+- `SigningRequest` and `EncryptionRequest` gained a required first argument, `Dom\Element $container` — the
+  element the `ds:Signature` / `xenc:EncryptedKey` is appended to. The caller locates it (the blocks pass their
+  `wsse:Security` header).
+- How a signed or encrypted node gets its referenceable id is now a `Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter`.
+  `Signer::create()` and `Encryptor::create()` accept an optional one and default to the shipped `XmlIdMinter`
+  (which stamps the W3C `xml:id`), so a standalone caller works with zero config. The blocks inject a minter that
+  stamps `wsu:Id`, as the WS-Security profile mandates — the wire output is unchanged.
+
 ### New opt-in algorithms (existing behaviour is unchanged)
 
 A few algorithm choices were added. They are all opt-in, so a profile you carry over keeps signing and

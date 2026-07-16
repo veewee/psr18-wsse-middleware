@@ -18,6 +18,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKe
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
@@ -50,7 +51,7 @@ final class DecryptRoundTripTest extends TestCase
         $document = $this->envelope();
         $originalBody = $this->innerXml($this->body($document));
 
-        $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
         static::assertCount(1, $this->encryptedData($document));
 
         (new Decrypt($key))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
@@ -65,7 +66,7 @@ final class DecryptRoundTripTest extends TestCase
         $document = $this->envelope();
         $originalBody = $this->innerXml($this->body($document));
 
-        $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
 
         // Relabel the minted wsu:Id to a native, namespace-less @Id, as some interop peers emit.
         $this->relabelToNativeId($document);
@@ -81,7 +82,7 @@ final class DecryptRoundTripTest extends TestCase
         [, $certificate] = $this->keyAndCertificate();
         [$otherKey] = $this->keyAndCertificate();
         $document = $this->envelope();
-        $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
 
         $this->expectException(SecurityFault::class);
         (new Decrypt($otherKey))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
@@ -91,7 +92,7 @@ final class DecryptRoundTripTest extends TestCase
     {
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelope();
-        $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
 
         $cipherValue = $this->body($document)->getElementsByTagNameNS(self::XENC, 'CipherValue')->item(0);
         static::assertInstanceOf(Element::class, $cipherValue);
@@ -118,12 +119,12 @@ final class DecryptRoundTripTest extends TestCase
         $causes = [
             'wrong-key' => function () use ($certificate, $otherKey): void {
                 $document = $this->envelope();
-                $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
+                $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
                 (new Decrypt($otherKey))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
             },
             'tampered' => function () use ($certificate, $key): void {
                 $document = $this->envelope();
-                $this->encryptor()->encrypt($document, $this->encryptionRequest($certificate));
+                $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
                 $cipherValue = $this->body($document)->getElementsByTagNameNS(self::XENC, 'CipherValue')->item(0);
                 static::assertInstanceOf(Element::class, $cipherValue);
                 $cipherValue->textContent = base64_encode('garbage that will not decrypt');
@@ -165,9 +166,10 @@ final class DecryptRoundTripTest extends TestCase
     }
 
 
-    private function encryptionRequest(Certificate $certificate): EncryptionRequest
+    private function encryptionRequest(Element $container, Certificate $certificate): EncryptionRequest
     {
         return new EncryptionRequest(
+            container: $container,
             targets: [new EncryptionTarget(Target::element(self::SOAP, 'Body'), EncryptionMode::Content)],
             recipientCertificate: $certificate,
             keyIdentifier: new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
@@ -192,6 +194,14 @@ final class DecryptRoundTripTest extends TestCase
         static::assertInstanceOf(Element::class, $body);
 
         return $body;
+    }
+
+    private function security(Document $document): Element
+    {
+        $security = SecurityHeader::locate($document);
+        static::assertInstanceOf(Element::class, $security);
+
+        return $security;
     }
 
     /**

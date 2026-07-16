@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity;
 
+use Dom\Element;
 use OpenSSLAsymmetricKey;
 use OpenSSLCertificate;
 use RuntimeException;
@@ -14,6 +15,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
@@ -146,6 +148,7 @@ final class WsseSignatureFixture
         $document = $this->envelope($withTimestamp);
 
         $this->signer()->sign($document, new SigningRequest(
+            container: $this->security($document),
             targets: $targets,
             signingKey: $this->leafKey,
             signingCertificate: $this->leafCertificate,
@@ -156,6 +159,12 @@ final class WsseSignatureFixture
         ));
 
         return $document;
+    }
+
+    public function security(Document $document): Element
+    {
+        return SecurityHeader::locate($document)
+            ?? throw new RuntimeException('The fixture envelope is missing its wsse:Security header.');
     }
 
     public function envelope(bool $withTimestamp = false): Document
