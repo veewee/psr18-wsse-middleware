@@ -15,8 +15,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
-use Soap\Psr18WsseMiddleware\XmlSecurity\DefaultEngine;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
 
@@ -50,7 +50,7 @@ final class Signature implements OutboundAction
         private readonly ClientCertificate $clientCertificate,
         private readonly KeyRef $keyRef = KeyRef::BinarySecurityToken,
     ) {
-        $this->signer = DefaultEngine::signer();
+        $this->signer = Signer::create();
     }
 
     public function withSigner(XmlSigner $signer): self

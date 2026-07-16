@@ -12,6 +12,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Throwable;
@@ -31,6 +32,18 @@ use function VeeWee\Xml\Dom\Manipulator\append;
  */
 final class Encryptor implements XmlEncryptor
 {
+    public static function create(): self
+    {
+        return new self(
+            new PartLocator(),
+            new SessionKeyFactory(),
+            new Cipher(),
+            new EncryptedDataBuilder(new WsuIdMinter()),
+            new KeyTransport(),
+            new EncryptedKeyBuilder(),
+        );
+    }
+
     public function __construct(
         private readonly PartLocator $partLocator,
         private readonly SessionKeyFactory $sessionKeyFactory,

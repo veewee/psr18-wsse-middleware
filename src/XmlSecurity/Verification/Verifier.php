@@ -6,7 +6,11 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
+use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
+use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
+use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use VeeWee\Xml\Dom\Document;
 
@@ -28,6 +32,24 @@ use VeeWee\Xml\Dom\Document;
  */
 final class Verifier implements XmlSignatureVerifier
 {
+    public static function create(): self
+    {
+        // The signer and verifier share one canonicalizer instance because digesting and verifying read the
+        // same canonical form.
+        $canonicalizer = new DomCanonicalizer();
+
+        return new self(
+            new SignatureLocator(),
+            new SignedInfoParser(),
+            new AlgorithmPolicyEnforcer(),
+            new CertificateExtractor(),
+            new ReferenceResolver(),
+            new DigestVerifier($canonicalizer, new Digest()),
+            new SignatureValidator($canonicalizer, new OpenSslSigner()),
+            new Resolver(new CertificateTrust()),
+        );
+    }
+
     public function __construct(
         private SignatureLocator $signatureLocator,
         private SignedInfoParser $signedInfoParser,

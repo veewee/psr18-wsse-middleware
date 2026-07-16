@@ -4,15 +4,19 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;
@@ -34,6 +38,22 @@ use function VeeWee\Xml\Dom\Manipulator\append;
  */
 final class Signer implements XmlSigner
 {
+    public static function create(): self
+    {
+        // The signer and verifier share one canonicalizer instance because digesting and signing read the
+        // same canonical form.
+        $canonicalizer = new DomCanonicalizer();
+
+        return new self(
+            new ReferenceCollector(new WsuIdMinter(), new PartLocator()),
+            new DigestCalculator($canonicalizer, new Digest()),
+            new SignedInfoBuilder(),
+            new KeyInfoBuilder(),
+            $canonicalizer,
+            new OpenSslSigner(),
+        );
+    }
+
     public function __construct(
         private ReferenceCollector $referenceCollector,
         private DigestCalculator $digestCalculator,

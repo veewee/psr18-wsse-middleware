@@ -6,8 +6,8 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\XmlSecurity\DefaultEngine;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 
@@ -28,7 +28,7 @@ final class Decrypt implements InboundAction
     public function __construct(
         private readonly Key $privateKey,
     ) {
-        $this->decryptor = DefaultEngine::decryptor();
+        $this->decryptor = Decryptor::create();
     }
 
     public function withDecryptor(XmlDecryptor $decryptor): self

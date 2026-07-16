@@ -15,8 +15,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
-use Soap\Psr18WsseMiddleware\XmlSecurity\DefaultEngine;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlEncryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 
@@ -53,7 +53,7 @@ final class Encryption implements OutboundAction
         private readonly Certificate $recipientCertificate,
         private readonly EncKeyRef $encKeyRef = EncKeyRef::SubjectKeyIdentifier,
     ) {
-        $this->encryptor = DefaultEngine::encryptor();
+        $this->encryptor = Encryptor::create();
     }
 
     public function withEncryptor(XmlEncryptor $encryptor): self

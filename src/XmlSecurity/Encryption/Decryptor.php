@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
+use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
+use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\EncryptedData;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Throwable;
@@ -25,6 +27,14 @@ final class Decryptor implements XmlDecryptor
      * ceiling far above any legitimate WSSE message. Enforced before any unwrap or decrypt work.
      */
     public const int MAX_ENCRYPTED_PARTS = 32;
+
+    public static function create(): self
+    {
+        return new self(
+            new EncryptedKeyReader(new KeyTransport()),
+            new EncryptedDataReader(new Cipher()),
+        );
+    }
 
     public function __construct(
         private readonly EncryptedKeyReader $encryptedKeyReader,

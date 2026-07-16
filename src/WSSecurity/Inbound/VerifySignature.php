@@ -13,11 +13,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\RequiredPartsValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\XmlSecurity\DefaultEngine;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\Verifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\XmlSignatureVerifier;
 
 /**
@@ -43,7 +43,7 @@ final class VerifySignature implements InboundAction
         private readonly TrustStore $trustStore,
         private readonly array $signed = [],
     ) {
-        $this->verifier = DefaultEngine::verifier();
+        $this->verifier = Verifier::create();
         $this->requiredParts = new RequiredPartsValidator(new PartLocator());
     }
 

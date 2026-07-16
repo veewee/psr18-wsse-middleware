@@ -11,9 +11,9 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
-use Soap\Psr18WsseMiddleware\XmlSecurity\DefaultEngine;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedSignature;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\Verifier;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -33,7 +33,7 @@ final class Wss4jInteropTest extends TestCase
             FIXTURE_DIR.'/interop/wss4j-signed.xml',
         ));
 
-        $result = DefaultEngine::verifier()->verify($document, $this->policy());
+        $result = Verifier::create()->verify($document, $this->policy());
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -47,7 +47,7 @@ final class Wss4jInteropTest extends TestCase
             FIXTURE_DIR.'/interop/wss4j-signed-ecdsa.xml',
         ));
 
-        $result = DefaultEngine::verifier()->verify($document, $this->ecdsaPolicy());
+        $result = Verifier::create()->verify($document, $this->ecdsaPolicy());
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -74,7 +74,7 @@ final class Wss4jInteropTest extends TestCase
             FIXTURE_DIR.'/interop/wss4j-signed-inclusive-c14n.xml',
         ));
 
-        $result = DefaultEngine::verifier()->verify($document, $this->inclusiveC14nPolicy());
+        $result = Verifier::create()->verify($document, $this->inclusiveC14nPolicy());
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
