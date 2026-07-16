@@ -1,7 +1,5 @@
 # Mago is wired ONLY as the architecture layer guard (`mago guard --perimeter`). The formatter, linter and
 # analyzer sections are deliberately left off so it never competes with psalm/cs-fixer — those stay the truth.
-# The perimeter encodes the strictly-downward dependency graph the re-layering establishes: nothing in the
-# lower layers (Algorithm, Xml, Clock, KeyStore, OpenSSL, XmlSecurity) may import the WS-Security SOAP profile.
 php-version = "8.4.0"
 
 [source]
@@ -11,48 +9,52 @@ includes = ["vendor"]
 [guard]
 excludes = ["tests"]
 
+# `layering` is the single source of truth for the internal structure, top of the list = lowest layer. Mago
+# enforces it on its own: a layer may depend on any layer BELOW it, never on one above. So the per-namespace
+# rules below only have to declare each layer's *external* (vendor) reach plus the few sanctioned exceptions —
+# the internal downward graph needs no repetition here.
 [guard.perimeter]
 layering = [
-    "Soap\\Psr18WsseMiddleware\\Algorithm",
-    "Soap\\Psr18WsseMiddleware\\Xml",
-    "Soap\\Psr18WsseMiddleware\\Clock",
-    "Soap\\Psr18WsseMiddleware\\KeyStore",
-    "Soap\\Psr18WsseMiddleware\\OpenSSL",
-    "Soap\\Psr18WsseMiddleware\\XmlSecurity",
-    "Soap\\Psr18WsseMiddleware\\WSSecurity",
-    "Soap\\Psr18WsseMiddleware\\Wsa",
+    "Soap\\Psr18WsseMiddleware\\Algorithm",   # W3C spec identifiers — pure enums/VOs
+    "Soap\\Psr18WsseMiddleware\\Xml",          # generic XXE-safe DOM helpers
+    "Soap\\Psr18WsseMiddleware\\Clock",        # the "now" seam
+    "Soap\\Psr18WsseMiddleware\\KeyStore",     # credential domain kernel
+    "Soap\\Psr18WsseMiddleware\\OpenSSL",      # crypto primitives (the openssl/phpseclib boundary)
+    "Soap\\Psr18WsseMiddleware\\XmlSecurity",  # XML-DSig + XML-Enc engine — the standalone core, no SOAP
+    "Soap\\Psr18WsseMiddleware\\WSSecurity",   # the WS-Security SOAP profile
+    "Soap\\Psr18WsseMiddleware\\Wsa",          # WS-Addressing (sibling of WSSecurity, above it here)
 ]
 
+# Named groups of external (vendor / native) symbols, referenced as @layer:<name> in the permits below.
 [guard.perimeter.layers]
 base   = ["@native", "Dom\\**", "Psl\\**", "Symfony\\Component\\Uid\\**"]
 xml    = ["VeeWee\\Xml\\**", "Soap\\Xml\\**"]
 crypto = ["phpseclib3\\**", "ParagonIE\\HiddenString\\**"]
 http   = ["Psr\\Http\\**", "Http\\**", "Soap\\Psr18Transport\\**"]
 
-# Layer 0 — pure spec identifiers, no internal deps.
+# Layer 0 — pure spec identifiers.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\Algorithm"
 permit = ["@layer:base"]
 
-# Layer 0 — generic XXE-safe DOM helpers, no security deps.
+# Layer 0 — generic DOM helpers.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\Xml"
-permit = ["@layer:base", "@layer:xml", "Soap\\Psr18WsseMiddleware\\Algorithm\\**"]
+permit = ["@layer:base", "@layer:xml"]
 
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\Clock"
 permit = ["@layer:base"]
 
-# Layer 1 — credential kernel. The KeyStore VO ⇄ OpenSSL Parser seam is the one sanctioned same-cluster
-# exception (architecture invariant #1): KeyStore reaches OpenSSL only through the Parser and the crypto
-# exception those parsers throw. Pem streams key material through phpro/resource-stream.
+# Layer 1 — credential kernel. The KeyStore VO ⇄ OpenSSL Parser seam is the one sanctioned upward exception
+# (architecture invariant #1): KeyStore reaches OpenSSL only through the Parser and the crypto exception those
+# parsers throw. Pem streams key material through phpro/resource-stream.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\KeyStore"
 permit = [
     "@layer:base",
     "@layer:crypto",
     "Phpro\\ResourceStream\\**",
-    "Soap\\Psr18WsseMiddleware\\Algorithm\\**",
     "Soap\\Psr18WsseMiddleware\\OpenSSL\\Parser\\**",
     "Soap\\Psr18WsseMiddleware\\OpenSSL\\Exception\\**",
 ]
@@ -60,51 +62,26 @@ permit = [
 # Layer 2 — crypto primitives.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\OpenSSL"
-permit = [
-    "@layer:base",
-    "@layer:crypto",
-    "Soap\\Psr18WsseMiddleware\\Algorithm\\**",
-    "Soap\\Psr18WsseMiddleware\\KeyStore\\**",
-    "Soap\\Psr18WsseMiddleware\\Clock\\**",
-]
+permit = ["@layer:base", "@layer:crypto"]
 
-# Layer 3 — the standalone XML-DSig/XML-Enc core. NO WSSecurity, NO Wsa.
+# Layer 3 — the standalone XML-DSig/XML-Enc core.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\XmlSecurity"
-permit = [
-    "@layer:base",
-    "@layer:xml",
-    "@layer:crypto",
-    "Soap\\Psr18WsseMiddleware\\Algorithm\\**",
-    "Soap\\Psr18WsseMiddleware\\Xml\\**",
-    "Soap\\Psr18WsseMiddleware\\KeyStore\\**",
-    "Soap\\Psr18WsseMiddleware\\OpenSSL\\**",
-    "Soap\\Psr18WsseMiddleware\\Clock\\**",
-]
+permit = ["@layer:base", "@layer:xml", "@layer:crypto"]
 
-# Layer 4 — the SOAP profile may see every layer below it, but NOT the sibling Wsa layer above it. Listing the
-# lower layers explicitly (rather than a Soap\Psr18WsseMiddleware\** wildcard) keeps the WSSecurity -> Wsa
-# boundary enforced; a wildcard would silently permit that upward edge.
+# Layer 4 — the SOAP profile. It sees every layer below it (via `layering`) but NOT the sibling Wsa above it.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\WSSecurity"
-permit = [
-    "@layer:base",
-    "@layer:xml",
-    "@layer:crypto",
-    "@layer:http",
-    "Soap\\Psr18WsseMiddleware\\Algorithm\\**",
-    "Soap\\Psr18WsseMiddleware\\Xml\\**",
-    "Soap\\Psr18WsseMiddleware\\Clock\\**",
-    "Soap\\Psr18WsseMiddleware\\KeyStore\\**",
-    "Soap\\Psr18WsseMiddleware\\OpenSSL\\**",
-    "Soap\\Psr18WsseMiddleware\\XmlSecurity\\**",
-]
+permit = ["@layer:base", "@layer:xml", "@layer:crypto", "@layer:http"]
 
+# WS-Addressing — an independent top layer; needs no WS-Security.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\Wsa"
-permit = ["@layer:base", "@layer:xml", "@layer:http", "Soap\\Psr18WsseMiddleware\\Xml\\**"]
+permit = ["@layer:base", "@layer:xml", "@layer:http"]
 
-# The composition root — the WsseMiddleware and WsaMiddleware PSR-18 plugins wire everything below them.
+# The composition root — the WsseMiddleware and WsaMiddleware PSR-18 plugins wire everything below them. This
+# bare-root namespace is not a layer; the wildcard is safe because mago matches most-specific-first, so the
+# per-layer rules above still bind their own files.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware"
 permit = ["@layer:base", "@layer:xml", "@layer:http", "Soap\\Psr18WsseMiddleware\\**"]
