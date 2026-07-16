@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL\Parser;
 
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\KeyStore\Exception\Pkcs12Exception;
 use Soap\Psr18WsseMiddleware\OpenSSL\Parser\Pkcs12Parser;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\Pkcs12Exception;
 use SoapTest\Psr18WsseMiddleware\Unit\KeyStore\Fixture\Pkcs12Fixture;
 
 final class Pkcs12ParserTest extends TestCase

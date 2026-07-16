@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\Algorithm;
 
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\UnsupportedAlgorithmException;
+use Soap\Psr18WsseMiddleware\Algorithm\Exception\UnsupportedAlgorithmException;
 
 /**
  * The hash that parameterizes OAEP key transport: it drives both the OAEP label digest and the MGF1 hash. The

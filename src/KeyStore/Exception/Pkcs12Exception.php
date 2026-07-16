@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Exception;
+namespace Soap\Psr18WsseMiddleware\KeyStore\Exception;
 
 use RuntimeException;
 

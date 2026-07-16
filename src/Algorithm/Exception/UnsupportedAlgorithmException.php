@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\OpenSSL\Exception;
+namespace Soap\Psr18WsseMiddleware\Algorithm\Exception;
 
 use RuntimeException;
 

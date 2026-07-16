@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\KeyStore;
 
 use ParagonIE\HiddenString\HiddenString;
+use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\CertificateInfo;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use function Psl\File\read;
 
 /**
@@ -49,13 +49,13 @@ final class Certificate implements KeyInterface
      * Wraps base64-encoded DER bytes back into a PEM certificate. The input is validated and re-encoded so the
      * result round-trips with toBase64Der(); this is the single entry for the base64-DER to PEM conversion.
      *
-     * @throws WsseHeaderException when the input is not valid base64
+     * @throws InvalidCertificate when the input is not valid base64
      */
     public static function fromBase64Der(string $base64Der): self
     {
         $der = base64_decode((string) preg_replace('/\s/', '', $base64Der), true);
         if ($der === false || $der === '') {
-            throw WsseHeaderException::bstEncodingFailed('the certificate bytes are not valid base64');
+            throw InvalidCertificate::malformedEncoding('the certificate bytes are not valid base64');
         }
 
         $pem = "-----BEGIN CERTIFICATE-----\n"
@@ -69,7 +69,7 @@ final class Certificate implements KeyInterface
      * The base64-encoded DER body of the certificate: the PEM with its armor lines and all whitespace
      * removed. This is the wire form a wsse:BinarySecurityToken carries.
      *
-     * @throws WsseHeaderException when the certificate is not decodable PEM
+     * @throws InvalidCertificate when the certificate is not decodable PEM
      */
     public function toBase64Der(): string
     {
@@ -77,7 +77,7 @@ final class Certificate implements KeyInterface
         $der = base64_decode((string) $stripped, true);
 
         if ($der === false || $der === '') {
-            throw WsseHeaderException::bstEncodingFailed('the certificate is not valid base64-encoded PEM');
+            throw InvalidCertificate::malformedEncoding('the certificate is not valid base64-encoded PEM');
         }
 
         return base64_encode($der);

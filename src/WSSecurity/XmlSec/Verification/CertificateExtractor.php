@@ -6,9 +6,9 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -52,7 +52,7 @@ final class CertificateExtractor
         if ($reference->form === CertificateReference::FORM_CARRIED) {
             try {
                 $certificate = Certificate::fromBase64Der($reference->base64Der);
-            } catch (WsseHeaderException) {
+            } catch (InvalidCertificate) {
                 throw SignatureVerificationFailed::withReason('The certificate bytes are not valid base64.');
             }
 

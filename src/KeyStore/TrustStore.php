@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\KeyStore;
 
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\Pkcs12Exception;
+use Soap\Psr18WsseMiddleware\KeyStore\Exception\Pkcs12Exception;
 
 /**
  * The set of trust anchors / pinned certificates the inbound verifier is willing to accept. A credential

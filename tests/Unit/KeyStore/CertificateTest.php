@@ -5,8 +5,8 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\KeyStore;
 
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use SoapTest\Psr18WsseMiddleware\Unit\KeyStore\Fixture\Pkcs12Fixture;
 
 final class CertificateTest extends TestCase
@@ -44,7 +44,7 @@ final class CertificateTest extends TestCase
 
     public function test_it_rejects_invalid_base64_der(): void
     {
-        $this->expectException(WsseHeaderException::class);
+        $this->expectException(InvalidCertificate::class);
         Certificate::fromBase64Der('!!!not base64!!!');
     }
 }

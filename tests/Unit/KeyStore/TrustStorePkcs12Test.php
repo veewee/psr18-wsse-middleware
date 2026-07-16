@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\KeyStore;
 
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\KeyStore\Exception\Pkcs12Exception;
 use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\Pkcs12Exception;
 use SoapTest\Psr18WsseMiddleware\Unit\KeyStore\Fixture\Pkcs12Fixture;
 
 final class TrustStorePkcs12Test extends TestCase

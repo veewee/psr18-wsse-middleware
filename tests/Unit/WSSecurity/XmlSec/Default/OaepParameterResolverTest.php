@@ -5,10 +5,10 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Default;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\Algorithm\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\OaepParameterResolver;
 use VeeWee\Xml\Dom\Document;

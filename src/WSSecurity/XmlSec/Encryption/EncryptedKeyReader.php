@@ -5,11 +5,11 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
 use Dom\Element;
 use SensitiveParameter;
+use Soap\Psr18WsseMiddleware\Algorithm\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
