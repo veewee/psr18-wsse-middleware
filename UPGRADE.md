@@ -126,6 +126,22 @@ The algorithm enums (`SignatureMethod`, `DigestMethod`, `SignatureCanonicalizati
 layer. Update your `use` statements. The defaults are secure on their own, so in most cases you can stop passing
 these explicitly.
 
+### SecurityProfile split: algorithm settings moved to CryptoPolicy
+
+`SecurityProfile` now carries only the WS-Security timestamp window (`timestampTtl`, `clockSkew`) and composes a
+`Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy` that holds the algorithm choices and inbound accept
+allow-lists. Pass algorithm settings through the `crypto:` argument:
+
+```php
+// before
+$profile = new SecurityProfile(signatureMethod: SignatureMethod::RSA_SHA512);
+// after
+$profile = new SecurityProfile(crypto: new CryptoPolicy(signatureMethod: SignatureMethod::RSA_SHA512));
+```
+
+Read the settings back through `$profile->crypto()`. `SecurityProfile::default()` is unchanged. The split lets
+the XML-Security engine be driven by a `CryptoPolicy` alone, without the SOAP profile.
+
 ### New opt-in algorithms (existing behaviour is unchanged)
 
 A few algorithm choices were added. They are all opt-in, so a profile you carry over keeps signing and

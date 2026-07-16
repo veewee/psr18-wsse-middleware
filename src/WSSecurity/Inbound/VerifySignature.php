@@ -89,7 +89,7 @@ final class VerifySignature implements InboundAction
     {
         $accepted = array_values(array_filter(
             SignatureMethod::cases(),
-            $profile->acceptsSignatureMethod(...),
+            $profile->crypto()->acceptsSignatureMethod(...),
         ));
         if ($accepted === []) {
             throw new InvalidArgumentException('The security profile accepts no signature methods.');
@@ -105,7 +105,7 @@ final class VerifySignature implements InboundAction
     {
         $accepted = array_values(array_filter(
             DigestMethod::cases(),
-            $profile->acceptsDigestMethod(...),
+            $profile->crypto()->acceptsDigestMethod(...),
         ));
         if ($accepted === []) {
             throw new InvalidArgumentException('The security profile accepts no digest methods.');
@@ -121,7 +121,7 @@ final class VerifySignature implements InboundAction
     {
         $accepted = array_values(array_filter(
             SignatureCanonicalization::cases(),
-            $profile->acceptsCanonicalization(...),
+            $profile->crypto()->acceptsCanonicalization(...),
         ));
         if ($accepted === []) {
             throw new InvalidArgumentException('The security profile accepts no canonicalizations.');

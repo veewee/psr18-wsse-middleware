@@ -16,6 +16,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 
 /**
@@ -104,10 +105,10 @@ final class VerifySignatureRoundTripTest extends TestCase
         ))(new WsseContext(
             $document,
             SoapVersion::Soap12,
-            new SecurityProfile(acceptedCanonicalizations: [
+            new SecurityProfile(crypto: new CryptoPolicy(acceptedCanonicalizations: [
                 SignatureCanonicalization::C14N,
                 SignatureCanonicalization::EXC_C14N,
-            ]),
+            ])),
         ));
         $this->addToAssertionCount(1);
     }

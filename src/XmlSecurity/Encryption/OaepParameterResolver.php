@@ -10,10 +10,10 @@ use Soap\Psr18WsseMiddleware\Algorithm\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
-use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 /**
  * Resolves the OAEP parameterization a xenc:EncryptionMethod declares into one KeyTransportAlgorithm.
@@ -35,7 +35,7 @@ final class OaepParameterResolver
     public function resolve(
         KeyEncryptionMethod $method,
         Element $encryptionMethod,
-        SecurityProfile $profile,
+        CryptoPolicy $policy,
     ): KeyTransportAlgorithm {
         if ($method === KeyEncryptionMethod::RSA_1_5) {
             return KeyTransportAlgorithm::rsa1_5();
@@ -43,7 +43,7 @@ final class OaepParameterResolver
 
         $oaepHash = $this->resolveOaepHash($method, $encryptionMethod);
 
-        if (!$profile->acceptsOaepHash($oaepHash)) {
+        if (!$policy->acceptsOaepHash($oaepHash)) {
             throw UnsupportedAlgorithmException::forAlgorithm($oaepHash->digestMethod()->value);
         }
 

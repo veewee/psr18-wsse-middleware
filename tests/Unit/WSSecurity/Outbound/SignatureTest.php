@@ -19,6 +19,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
@@ -46,7 +47,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_a_context_profile_overrides_the_default(): void
     {
         $signer = new RecordingSigner();
-        $profile = new SecurityProfile(signatureMethod: SignatureMethod::RSA_SHA512);
+        $profile = new SecurityProfile(crypto: new CryptoPolicy(signatureMethod: SignatureMethod::RSA_SHA512));
         (new Signature($this->clientCertificate()))->withSigner($signer)($this->context($this->signableEnvelope(), $profile));
 
         static::assertSame(SignatureMethod::RSA_SHA512, $signer->lastRequest()->signatureMethod);

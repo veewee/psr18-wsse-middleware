@@ -639,28 +639,37 @@ use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 // Secure defaults — equivalent to SecurityProfile::default():
 $profile = new SecurityProfile();
 
-// A fully spelled-out profile:
+// A fully spelled-out profile: the WS-Security timestamp window plus an XML-Security CryptoPolicy that
+// carries the algorithm choices and the inbound accept allow-lists.
 $profile = new SecurityProfile(
     timestampTtl: 300,
     clockSkew: 60,
-    signatureMethod: SignatureMethod::RSA_SHA256,
-    digestMethod: DigestMethod::SHA256,
-    canonicalization: SignatureCanonicalization::EXC_C14N,
-    dataEncryptionMethod: DataEncryptionMethod::AES256_GCM,
-    keyEncryptionMethod: KeyEncryptionMethod::RSA_OAEP,
+    crypto: new CryptoPolicy(
+        signatureMethod: SignatureMethod::RSA_SHA256,
+        digestMethod: DigestMethod::SHA256,
+        canonicalization: SignatureCanonicalization::EXC_C14N,
+        dataEncryptionMethod: DataEncryptionMethod::AES256_GCM,
+        keyEncryptionMethod: KeyEncryptionMethod::RSA_OAEP,
+    ),
 );
 ```
 
-Constructor arguments:
+`SecurityProfile` carries the WS-Security freshness window and composes a `CryptoPolicy`:
 
 - `int $timestampTtl = 300` — the outbound timestamp window in seconds, and the maximum accepted age of an
   inbound timestamp.
 - `int $clockSkew = 60` — the tolerance, in seconds, applied when checking an inbound timestamp against the
   local clock.
+- `?CryptoPolicy $crypto = null` — the XML-Security algorithm policy below; `null` uses `CryptoPolicy::default()`.
+
+`CryptoPolicy` (namespace `Soap\Psr18WsseMiddleware\XmlSecurity`) carries the algorithm choices and allow-lists,
+and can be used to drive the signing/encryption engine without the SOAP profile:
+
 - `SignatureMethod $signatureMethod = SignatureMethod::RSA_SHA256` — the outbound signature algorithm.
 - `DigestMethod $digestMethod = DigestMethod::SHA256` — the outbound per-reference digest.
 - `SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N` — the outbound
@@ -684,13 +693,13 @@ Constructor arguments:
   ```php
   use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 
-  $profile = new SecurityProfile(
+  $profile = new SecurityProfile(crypto: new CryptoPolicy(
       acceptedCanonicalizations: [
           SignatureCanonicalization::EXC_C14N,
           SignatureCanonicalization::EXC_C14N_COMMENTS,
           SignatureCanonicalization::C14N,
       ],
-  );
+  ));
   ```
 
 The defaults reject weak algorithms (SHA-1, RSA-1_5, 3DES) and use SHA-256 with exclusive canonicalization. The

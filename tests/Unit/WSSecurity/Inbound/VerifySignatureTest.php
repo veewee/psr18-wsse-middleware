@@ -19,6 +19,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
@@ -136,10 +137,10 @@ final class VerifySignatureTest extends TestCase
 
     public function test_a_custom_profile_narrows_the_accepted_algorithms(): void
     {
-        $profile = new SecurityProfile(
+        $profile = new SecurityProfile(crypto: new CryptoPolicy(
             acceptedSignatureMethods: [SignatureMethod::RSA_SHA512],
             acceptedDigestMethods: [DigestMethod::SHA512],
-        );
+        ));
         $context = $this->context($profile);
         $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
 

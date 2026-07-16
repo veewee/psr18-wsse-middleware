@@ -11,7 +11,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
-use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use VeeWee\Xml\Dom\Document;
@@ -68,7 +68,7 @@ final class EncryptedKeyReaderTest extends TestCase
             ['MGF', self::XENC11, self::MGF1_SHA256],
         ]);
 
-        $profile = new SecurityProfile(acceptedOaepHashes: [OaepHash::Sha1]);
+        $profile = new CryptoPolicy(acceptedOaepHashes: [OaepHash::Sha1]);
 
         $message = $this->captureFailure($document, $key, $profile);
         static::assertSame($this->uniformMessage(), $message);
@@ -107,7 +107,7 @@ final class EncryptedKeyReaderTest extends TestCase
         return DecryptionFailed::withReason('Unable to unwrap the session key.')->getMessage();
     }
 
-    private function captureFailure(Document $document, Key $key, ?SecurityProfile $profile = null): string
+    private function captureFailure(Document $document, Key $key, ?CryptoPolicy $profile = null): string
     {
         try {
             (new EncryptedKeyReader(new KeyTransport()))->read($document, $key, $profile);

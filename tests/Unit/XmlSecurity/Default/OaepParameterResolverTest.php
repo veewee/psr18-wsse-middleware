@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
-use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\OaepParameterResolver;
 use VeeWee\Xml\Dom\Document;
 
@@ -33,7 +33,7 @@ final class OaepParameterResolverTest extends TestCase
         $algorithm = (new OaepParameterResolver())->resolve(
             KeyEncryptionMethod::RSA_OAEP,
             $element,
-            SecurityProfile::default(),
+            CryptoPolicy::default(),
         );
 
         static::assertSame(KeyTransportAlgorithm::oaepSha1()->method, $algorithm->method);
@@ -48,7 +48,7 @@ final class OaepParameterResolverTest extends TestCase
         $algorithm = (new OaepParameterResolver())->resolve(
             KeyEncryptionMethod::RSA_1_5,
             $element,
-            SecurityProfile::default(),
+            CryptoPolicy::default(),
         );
 
         static::assertSame(KeyEncryptionMethod::RSA_1_5, $algorithm->method);
@@ -65,7 +65,7 @@ final class OaepParameterResolverTest extends TestCase
         $algorithm = (new OaepParameterResolver())->resolve(
             KeyEncryptionMethod::RSA_OAEP,
             $element,
-            SecurityProfile::default(),
+            CryptoPolicy::default(),
         );
 
         static::assertSame(OaepHash::Sha256, $algorithm->oaepHash);
@@ -116,7 +116,7 @@ final class OaepParameterResolverTest extends TestCase
         $algorithm = (new OaepParameterResolver())->resolve(
             KeyEncryptionMethod::RSA_OAEP_MGF1P,
             $element,
-            SecurityProfile::default(),
+            CryptoPolicy::default(),
         );
 
         static::assertSame(OaepHash::Sha1, $algorithm->oaepHash);
@@ -143,7 +143,7 @@ final class OaepParameterResolverTest extends TestCase
         $this->expectRejection(
             $element,
             KeyEncryptionMethod::RSA_OAEP,
-            new SecurityProfile(acceptedOaepHashes: [OaepHash::Sha1]),
+            new CryptoPolicy(acceptedOaepHashes: [OaepHash::Sha1]),
         );
     }
 
@@ -159,13 +159,13 @@ final class OaepParameterResolverTest extends TestCase
     private function expectRejection(
         Element $element,
         KeyEncryptionMethod $method,
-        ?SecurityProfile $profile = null,
+        ?CryptoPolicy $profile = null,
     ): void {
         // Every disallowed, inconsistent, or garbage input surfaces as the same exception type, so the caller
         // can fold them all into one uniform failure with no distinguishing detail.
         $this->expectException(UnsupportedAlgorithmException::class);
 
-        (new OaepParameterResolver())->resolve($method, $element, $profile ?? SecurityProfile::default());
+        (new OaepParameterResolver())->resolve($method, $element, $profile ?? CryptoPolicy::default());
     }
 
     /**

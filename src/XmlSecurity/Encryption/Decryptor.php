@@ -51,7 +51,7 @@ final class Decryptor implements XmlDecryptor
                 throw DecryptionFailed::withReason('The message declares too many encrypted parts.');
             }
 
-            $sessionKey = $this->encryptedKeyReader->read($document, $request->privateKey, $request->profile);
+            $sessionKey = $this->encryptedKeyReader->read($document, $request->privateKey, $request->policy);
 
             foreach ($references as $id) {
                 $element = EncryptedData::resolve($document, $id);

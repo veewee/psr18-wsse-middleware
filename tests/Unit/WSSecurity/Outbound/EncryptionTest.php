@@ -23,6 +23,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
@@ -101,7 +102,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_a_context_profile_drives_the_outbound_oaep_hash(): void
     {
         $encryptor = new RecordingEncryptor();
-        $profile = new SecurityProfile(oaepHash: OaepHash::Sha256);
+        $profile = new SecurityProfile(crypto: new CryptoPolicy(oaepHash: OaepHash::Sha256));
         (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope(), $profile));
 
         static::assertSame(OaepHash::Sha256, $encryptor->lastRequest()->keyTransportAlgorithm->oaepHash);
@@ -132,7 +133,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_a_context_profile_overrides_the_default(): void
     {
         $encryptor = new RecordingEncryptor();
-        $profile = new SecurityProfile(dataEncryptionMethod: DataEncryptionMethod::AES256_CBC);
+        $profile = new SecurityProfile(crypto: new CryptoPolicy(dataEncryptionMethod: DataEncryptionMethod::AES256_CBC));
         (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope(), $profile));
 
         static::assertSame(DataEncryptionMethod::AES256_CBC, $encryptor->lastRequest()->dataEncryptionMethod);

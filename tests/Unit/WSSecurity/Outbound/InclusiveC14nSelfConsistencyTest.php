@@ -22,6 +22,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
@@ -49,7 +50,7 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         $document = $this->bareEnvelope();
         $context = $this->context(
             $document,
-            new SecurityProfile(canonicalization: SignatureCanonicalization::C14N),
+            new SecurityProfile(crypto: new CryptoPolicy(canonicalization: SignatureCanonicalization::C14N)),
         );
 
         (new Timestamp())($context);
@@ -62,10 +63,10 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         ))($this->context(
             // The verifier reads the wire: a fresh parse of the serialized document, never the signer's DOM.
             $this->wire($document),
-            new SecurityProfile(acceptedCanonicalizations: [
+            new SecurityProfile(crypto: new CryptoPolicy(acceptedCanonicalizations: [
                 SignatureCanonicalization::C14N,
                 SignatureCanonicalization::EXC_C14N,
-            ]),
+            ])),
         ));
 
         // A SecurityFault would have escaped above; reaching here proves the wire verified.
@@ -78,7 +79,7 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         $document = $this->bareEnvelope();
         $context = $this->context(
             $document,
-            new SecurityProfile(canonicalization: SignatureCanonicalization::C14N),
+            new SecurityProfile(crypto: new CryptoPolicy(canonicalization: SignatureCanonicalization::C14N)),
         );
 
         (new Timestamp())($context);

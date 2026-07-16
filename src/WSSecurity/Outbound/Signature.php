@@ -114,9 +114,9 @@ final class Signature implements OutboundAction
             signingKey: $this->clientCertificate->privateKey(),
             signingCertificate: $this->clientCertificate->publicCertificate(),
             keyIdentifier: $keyIdentifier,
-            signatureMethod: $this->signatureMethod ?? $profile->signatureMethod(),
-            digestMethod: $this->digestMethod ?? $profile->digestMethod(),
-            canonicalization: $this->canonicalization ?? $profile->canonicalization(),
+            signatureMethod: $this->signatureMethod ?? $profile->crypto()->signatureMethod(),
+            digestMethod: $this->digestMethod ?? $profile->crypto()->digestMethod(),
+            canonicalization: $this->canonicalization ?? $profile->crypto()->canonicalization(),
         );
 
         $this->signer->sign($document, $request);

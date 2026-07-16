@@ -121,15 +121,15 @@ final class Encryption implements OutboundAction
         $profile = $context->profile();
 
         $keyTransportAlgorithm = $this->keyTransportAlgorithm ?? KeyTransportAlgorithm::fromMethod(
-            $this->keyEncryptionMethod ?? $profile->keyEncryptionMethod(),
-            $profile->oaepHash(),
+            $this->keyEncryptionMethod ?? $profile->crypto()->keyEncryptionMethod(),
+            $profile->crypto()->oaepHash(),
         );
 
         $request = new EncryptionRequest(
             parts: $this->parts ?? [Part::body()],
             recipientCertificate: $this->recipientCertificate,
             keyIdentifier: $keyIdentifier,
-            dataEncryptionMethod: $this->dataEncryptionMethod ?? $profile->dataEncryptionMethod(),
+            dataEncryptionMethod: $this->dataEncryptionMethod ?? $profile->crypto()->dataEncryptionMethod(),
             keyTransportAlgorithm: $keyTransportAlgorithm,
         );
 

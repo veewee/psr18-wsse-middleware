@@ -4,20 +4,20 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 /**
  * The inputs to a single decryption operation: the recipient private key the OpenSSL\ module resolves
- * internally, and the profile whose allow-lists govern which inbound algorithms are accepted.
+ * internally, and the crypto policy whose allow-lists govern which inbound algorithms are accepted.
  */
 final readonly class DecryptionRequest
 {
-    public SecurityProfile $profile;
+    public CryptoPolicy $policy;
 
     public function __construct(
         public Key $privateKey,
-        ?SecurityProfile $profile = null,
+        ?CryptoPolicy $policy = null,
     ) {
-        $this->profile = $profile ?? SecurityProfile::default();
+        $this->policy = $policy ?? CryptoPolicy::default();
     }
 }

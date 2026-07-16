@@ -11,11 +11,11 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
-use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -44,9 +44,9 @@ final class EncryptedKeyReader
     public function read(
         Document $document,
         #[SensitiveParameter] Key $privateKey,
-        ?SecurityProfile $profile = null,
+        ?CryptoPolicy $policy = null,
     ): SessionKey {
-        $profile ??= SecurityProfile::default();
+        $policy ??= CryptoPolicy::default();
 
         try {
             $encryptedKey = $this->locate($document);
@@ -56,7 +56,7 @@ final class EncryptedKeyReader
 
             // The OAEP parameterization is resolved and allow-list checked here, before any unwrap, and folded
             // into the one uniform failure so it cannot be told apart from a key-unwrap error.
-            $algorithm = $this->oaepParameterResolver->resolve($method, $encryptionMethod, $profile);
+            $algorithm = $this->oaepParameterResolver->resolve($method, $encryptionMethod, $policy);
 
             $wrappedKey = $this->wrappedKey($encryptedKey);
             $sessionKey = $this->keyTransport->unwrap($wrappedKey, $privateKey, $algorithm);
