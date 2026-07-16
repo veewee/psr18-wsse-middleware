@@ -19,6 +19,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
 /**
  * Adds a detached, multi-reference ds:Signature to the outbound Security header. Configuration:
@@ -109,8 +110,12 @@ final class Signature implements OutboundAction
         $keyIdentifier = $this->resolveKeyIdentifier($context);
         $profile = $context->profile();
 
+        $parts = $this->parts ?? [Part::body(), Part::timestamp()];
         $request = new SigningRequest(
-            parts: $this->parts ?? [Part::body(), Part::timestamp()],
+            targets: array_map(
+                static fn (Part $part): Target => $part->toTarget($context->soapVersion()),
+                $parts,
+            ),
             signingKey: $this->clientCertificate->privateKey(),
             signingCertificate: $this->clientCertificate->publicCertificate(),
             keyIdentifier: $keyIdentifier,

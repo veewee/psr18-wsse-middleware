@@ -27,12 +27,12 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -112,7 +112,7 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new PartLocator()),
+            new ReferenceCollector(new WsuIdMinter(), new TargetLocator()),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),
@@ -124,7 +124,7 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
     private function realEncryptor(): Encryptor
     {
         return new Encryptor(
-            new PartLocator(),
+            new TargetLocator(),
             new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder(new WsuIdMinter()),

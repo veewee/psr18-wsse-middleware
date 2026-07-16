@@ -23,6 +23,8 @@ enum SoapVersion
 
     /**
      * The envelope namespace URI: the namespace the mustUnderstand and actor/role attributes live in.
+     *
+     * @return non-empty-string
      */
     public function envelopeNamespace(): string
     {

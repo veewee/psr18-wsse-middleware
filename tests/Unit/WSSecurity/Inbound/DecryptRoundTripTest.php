@@ -15,17 +15,19 @@ use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -153,7 +155,7 @@ final class DecryptRoundTripTest extends TestCase
     private function encryptor(): Encryptor
     {
         return new Encryptor(
-            new PartLocator(),
+            new TargetLocator(),
             new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder(new WsuIdMinter()),
@@ -166,7 +168,7 @@ final class DecryptRoundTripTest extends TestCase
     private function encryptionRequest(Certificate $certificate): EncryptionRequest
     {
         return new EncryptionRequest(
-            parts: [Part::body()],
+            targets: [new EncryptionTarget(Target::element(self::SOAP, 'Body'), EncryptionMode::Content)],
             recipientCertificate: $certificate,
             keyIdentifier: new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
             dataEncryptionMethod: DataEncryptionMethod::AES256_GCM,

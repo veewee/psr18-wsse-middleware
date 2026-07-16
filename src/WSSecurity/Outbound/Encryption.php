@@ -12,10 +12,13 @@ use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\IssuerSerialKeyId
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlEncryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
@@ -125,8 +128,16 @@ final class Encryption implements OutboundAction
             $profile->crypto()->oaepHash(),
         );
 
+        $parts = $this->parts ?? [Part::body()];
+        $soapVersion = $context->soapVersion();
         $request = new EncryptionRequest(
-            parts: $this->parts ?? [Part::body()],
+            targets: array_map(
+                static fn (Part $part): EncryptionTarget => new EncryptionTarget(
+                    $part->toTarget($soapVersion),
+                    self::modeFor($part),
+                ),
+                $parts,
+            ),
             recipientCertificate: $this->recipientCertificate,
             keyIdentifier: $keyIdentifier,
             dataEncryptionMethod: $this->dataEncryptionMethod ?? $profile->crypto()->dataEncryptionMethod(),
@@ -134,6 +145,19 @@ final class Encryption implements OutboundAction
         );
 
         $this->encryptor->encrypt($document, $request);
+    }
+
+    /**
+     * The SOAP Body and the Timestamp are encrypted as Content (the element survives, its children are
+     * replaced); a targeted element is encrypted whole as Element. This is a WS-Security profile decision, so
+     * it lives here rather than in the XML-Security engine.
+     */
+    private static function modeFor(Part $part): EncryptionMode
+    {
+        return match ($part->kind()) {
+            PartKind::Body, PartKind::Timestamp => EncryptionMode::Content,
+            PartKind::Element, PartKind::Id => EncryptionMode::Element,
+        };
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier

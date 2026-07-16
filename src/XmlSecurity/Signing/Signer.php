@@ -16,7 +16,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;
@@ -25,13 +25,13 @@ use function VeeWee\Xml\Dom\Builder\value;
 use function VeeWee\Xml\Dom\Manipulator\append;
 
 /**
- * Orchestrates the WSSE signing flow: resolve Parts to (element, wsu:Id) pairs (minting ids as needed),
+ * Orchestrates the WSSE signing flow: resolve Targets to (element, wsu:Id) pairs (minting ids as needed),
  * digest each element, assemble ds:SignedInfo, canonicalize and sign it, build ds:KeyInfo, then assemble the
  * detached ds:Signature, append it to the existing wsse:Security header, and re-sort the header.
  *
  * The Security header is located from the document (the WSSE namespace is fixed regardless of SOAP version),
  * so this carries no SOAP-version or mustUnderstand dependency; the outbound caller must create the header
- * before signing. The signature is inserted last, so no Part can resolve to it. The private key never leaves
+ * before signing. The signature is inserted last, so no Target can resolve to it. The private key never leaves
  * the OpenSSL\ boundary: its Key is handed to OpenSSL\Signer, which resolves the live handle internally.
  *
  * Mutates the document in place (wsu:Id stamps on referenced elements, then ds:Signature insertion).
@@ -45,7 +45,7 @@ final class Signer implements XmlSigner
         $canonicalizer = new DomCanonicalizer();
 
         return new self(
-            new ReferenceCollector(new WsuIdMinter(), new PartLocator()),
+            new ReferenceCollector(new WsuIdMinter(), new TargetLocator()),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),
@@ -68,7 +68,7 @@ final class Signer implements XmlSigner
     {
         $security = $this->locateSecurity($document);
 
-        $references = $this->referenceCollector->collect($document, $request->parts);
+        $references = $this->referenceCollector->collect($document, $request->targets);
 
         // Digest a fresh parse of the serialized document, not the live DOM. Elements minted with
         // createElementNS carry namespace declarations the live DOM omits but the serialized wire

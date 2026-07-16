@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 use Dom\Element;
 
 /**
- * A resolved Part: the DOM element to be canonicalized and digested and its already-stamped wsu:Id. Internal
+ * A resolved Target: the DOM element to be canonicalized and digested and its already-stamped wsu:Id. Internal
  * to the signing flow, not a public SPI.
  */
 final readonly class ResolvedReference

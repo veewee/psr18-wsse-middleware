@@ -14,7 +14,6 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\AlgorithmPolicyEnforcer;
@@ -42,7 +41,7 @@ final class VerifierTest extends TestCase
     public function test_it_verifies_a_b3_signed_body_and_reports_the_signed_element(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
 
@@ -67,7 +66,7 @@ final class VerifierTest extends TestCase
         DigestMethod $digestMethod,
     ): void {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()], signatureMethod: $signatureMethod, digestMethod: $digestMethod);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()], signatureMethod: $signatureMethod, digestMethod: $digestMethod);
 
         $result = $this->verifier()->verify($document, new VerificationPolicy(
             trustStore: TrustStore::fromCertificates($fixture->caCertificate),
@@ -83,7 +82,7 @@ final class VerifierTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign(
-            [Part::body()],
+            [WsseSignatureFixture::bodyTarget()],
             signatureMethod: SignatureMethod::RSA_SHA1,
             digestMethod: DigestMethod::SHA1,
         );
@@ -101,7 +100,7 @@ final class VerifierTest extends TestCase
     public function test_it_verifies_a_signed_timestamp(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::timestamp()], withTimestamp: true);
+        $document = $fixture->sign([WsseSignatureFixture::timestampTarget()], withTimestamp: true);
 
         $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
 
@@ -111,7 +110,7 @@ final class VerifierTest extends TestCase
     public function test_it_verifies_the_body_and_the_timestamp_together(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body(), Part::timestamp()], withTimestamp: true);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget(), WsseSignatureFixture::timestampTarget()], withTimestamp: true);
 
         $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
 
@@ -123,7 +122,7 @@ final class VerifierTest extends TestCase
     public function test_was_signed_uses_object_identity_not_structural_equality(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
 
@@ -138,7 +137,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_a_tampered_body(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $body = $this->body($document);
         $injected = $document->toUnsafeDocument()->createElement('injected');
@@ -152,7 +151,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_a_tampered_signature_value(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $signatureValue = $document->toUnsafeDocument()
             ->getElementsByTagNameNS(WsseSignatureFixture::DS, 'SignatureValue')->item(0);
@@ -166,7 +165,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_a_reference_with_a_duplicate_digest_method(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $native = $document->toUnsafeDocument();
         $reference = $native->getElementsByTagNameNS(WsseSignatureFixture::DS, 'Reference')->item(0);
@@ -182,7 +181,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_a_self_signed_signer_not_in_the_trust_store(): void
     {
         $fixture = WsseSignatureFixture::selfSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         // Anchor the trust store to a different CA, so the self-signed signer does not chain.
         $other = WsseSignatureFixture::caSignedLeaf();
@@ -194,7 +193,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_a_signer_chaining_to_an_unknown_ca(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $unknown = WsseSignatureFixture::caSignedLeaf();
 
@@ -205,7 +204,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_an_empty_trust_store(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $this->expectException(SignatureVerificationFailed::class);
         $this->verifier()->verify($document, new VerificationPolicy(
@@ -219,7 +218,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_a_signature_method_not_in_the_allow_list(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $this->expectException(SignatureVerificationFailed::class);
         $this->verifier()->verify($document, new VerificationPolicy(
@@ -234,7 +233,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_a_digest_method_not_in_the_allow_list(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $this->expectException(SignatureVerificationFailed::class);
         $this->verifier()->verify($document, new VerificationPolicy(
@@ -248,7 +247,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_an_unknown_signature_method_uri(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
         $this->rewriteAttribute($document, WsseSignatureFixture::DS, 'SignatureMethod', 'Algorithm', 'urn:made-up');
 
         $this->expectException(SignatureVerificationFailed::class);
@@ -271,7 +270,7 @@ final class VerifierTest extends TestCase
     public function test_it_rejects_more_than_one_signature(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $security = $document->toUnsafeDocument()
             ->getElementsByTagNameNS(WsseSignatureFixture::WSSE, 'Security')->item(0);
@@ -288,7 +287,7 @@ final class VerifierTest extends TestCase
     public function test_a_relocated_signed_element_is_resolved_by_id_so_a_wrapper_copy_is_not_signed(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $dom = $document->toUnsafeDocument();
         $body = $this->body($document);
@@ -315,7 +314,7 @@ final class VerifierTest extends TestCase
     public function test_a_duplicate_wsu_id_is_rejected(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $dom = $document->toUnsafeDocument();
         $body = $this->body($document);
@@ -348,18 +347,18 @@ final class VerifierTest extends TestCase
             },
             'untrusted signer' => function (): void {
                 $fixture = WsseSignatureFixture::caSignedLeaf();
-                $document = $fixture->sign([Part::body()]);
+                $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
                 $this->verifier()->verify($document, $this->policy(WsseSignatureFixture::caSignedLeaf()->caCertificate));
             },
             'tampered body' => function (): void {
                 $fixture = WsseSignatureFixture::caSignedLeaf();
-                $document = $fixture->sign([Part::body()]);
+                $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
                 $this->body($document)->setAttribute('tampered', 'yes');
                 $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
             },
             'disallowed algorithm' => function (): void {
                 $fixture = WsseSignatureFixture::caSignedLeaf();
-                $document = $fixture->sign([Part::body()]);
+                $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
                 $this->verifier()->verify($document, new VerificationPolicy(
                     trustStore: TrustStore::fromCertificates($fixture->caCertificate),
                     acceptedSignatureMethods: [SignatureMethod::RSA_SHA512],

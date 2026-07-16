@@ -8,8 +8,8 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
 /**
  * The inputs to a single signing operation. The signing key is the private key material, which the
@@ -20,10 +20,10 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 final readonly class SigningRequest
 {
     /**
-     * @param non-empty-list<Part> $parts
+     * @param non-empty-list<Target> $targets
      */
     public function __construct(
-        public array $parts,
+        public array $targets,
         public Key $signingKey,
         public Certificate $signingCertificate,
         public KeyIdentifier $keyIdentifier,

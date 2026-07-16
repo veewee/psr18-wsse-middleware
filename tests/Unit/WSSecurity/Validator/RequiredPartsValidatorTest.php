@@ -7,9 +7,10 @@ use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\RequiredPartsValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
 use VeeWee\Xml\Dom\Document;
 
@@ -27,7 +28,7 @@ final class RequiredPartsValidatorTest extends TestCase
         $document = $this->envelope();
         $body = $this->body($document);
 
-        $this->validator()->validate($document, new VerifiedReferences([$body]), [Part::body()]);
+        $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([$body]), [Part::body()]);
         $this->addToAssertionCount(1);
     }
 
@@ -36,7 +37,7 @@ final class RequiredPartsValidatorTest extends TestCase
         $document = $this->envelope();
 
         $this->expectException(SecurityFault::class);
-        $this->validator()->validate($document, new VerifiedReferences([]), [Part::body()]);
+        $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([]), [Part::body()]);
     }
 
     public function test_it_rejects_a_structurally_identical_but_different_instance(): void
@@ -50,7 +51,7 @@ final class RequiredPartsValidatorTest extends TestCase
         static::assertNotSame($liveBody, $foreignBody);
 
         $this->expectException(SecurityFault::class);
-        $this->validator()->validate($document, new VerifiedReferences([$foreignBody]), [Part::body()]);
+        $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([$foreignBody]), [Part::body()]);
     }
 
     public function test_it_maps_a_missing_required_element_to_a_security_fault(): void
@@ -58,7 +59,7 @@ final class RequiredPartsValidatorTest extends TestCase
         $document = $this->envelope();
 
         try {
-            $this->validator()->validate($document, new VerifiedReferences([]), [Part::timestamp()]);
+            $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([]), [Part::timestamp()]);
             static::fail('Expected a SecurityFault.');
         } catch (SecurityFault $fault) {
             static::assertInstanceOf(IdReferenceException::class, $fault->getPrevious());
@@ -70,12 +71,12 @@ final class RequiredPartsValidatorTest extends TestCase
         $document = $this->envelope();
 
         $this->expectNotToPerformAssertions();
-        $this->validator()->validate($document, new VerifiedReferences([]), []);
+        $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([]), []);
     }
 
     private function validator(): RequiredPartsValidator
     {
-        return new RequiredPartsValidator(new PartLocator());
+        return new RequiredPartsValidator(new TargetLocator());
     }
 
     private function envelope(): Document

@@ -30,7 +30,7 @@ final class VerifySignatureRoundTripTest extends TestCase
     public function test_it_verifies_a_real_signed_body_and_timestamp(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body(), Part::timestamp()], withTimestamp: true);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget(), WsseSignatureFixture::timestampTarget()], withTimestamp: true);
 
         $this->expectNotToPerformAssertions();
         (new VerifySignature(
@@ -43,7 +43,7 @@ final class VerifySignatureRoundTripTest extends TestCase
     {
         $fixture = WsseSignatureFixture::ecCaSignedLeaf();
         $document = $fixture->sign(
-            [Part::body(), Part::timestamp()],
+            [WsseSignatureFixture::bodyTarget(), WsseSignatureFixture::timestampTarget()],
             withTimestamp: true,
             signatureMethod: SignatureMethod::ECDSA_SHA256,
         );
@@ -58,7 +58,7 @@ final class VerifySignatureRoundTripTest extends TestCase
     public function test_it_rejects_a_real_message_missing_a_required_signed_part(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $this->expectException(SecurityFault::class);
         (new VerifySignature(
@@ -70,7 +70,7 @@ final class VerifySignatureRoundTripTest extends TestCase
     public function test_it_rejects_an_untrusted_signer(): void
     {
         $fixture = WsseSignatureFixture::selfSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         $this->expectException(SecurityFault::class);
         (new VerifySignature(
@@ -83,7 +83,7 @@ final class VerifySignatureRoundTripTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign(
-            [Part::body(), Part::timestamp()],
+            [WsseSignatureFixture::bodyTarget(), WsseSignatureFixture::timestampTarget()],
             withTimestamp: true,
             canonicalization: SignatureCanonicalization::C14N,
         );
@@ -117,7 +117,7 @@ final class VerifySignatureRoundTripTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign(
-            [Part::body(), Part::timestamp()],
+            [WsseSignatureFixture::bodyTarget(), WsseSignatureFixture::timestampTarget()],
             withTimestamp: true,
             canonicalization: SignatureCanonicalization::C14N,
         );
@@ -135,7 +135,7 @@ final class VerifySignatureRoundTripTest extends TestCase
         // The message names the signer by its Subject Key Identifier and carries no certificate; the verifier
         // must resolve it from the trust store, which holds the CA and the signer leaf.
         $document = $fixture->sign(
-            [Part::body()],
+            [WsseSignatureFixture::bodyTarget()],
             keyIdentifier: new X509SubjectKeyIdentifier(),
         );
 

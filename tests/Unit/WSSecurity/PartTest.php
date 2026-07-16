@@ -6,6 +6,8 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
 final class PartTest extends TestCase
 {
@@ -48,5 +50,37 @@ final class PartTest extends TestCase
         static::assertFalse(Part::body()->equals(Part::timestamp()));
         static::assertFalse(Part::element('urn:a', 'X')->equals(Part::element('urn:a', 'Y')));
         static::assertFalse(Part::byId('a')->equals(Part::byId('b')));
+    }
+
+    public function test_it_lowers_the_body_to_the_soap_envelope_body_of_the_version(): void
+    {
+        static::assertTrue(
+            Part::body()->toTarget(SoapVersion::Soap11)
+                ->equals(Target::element('http://schemas.xmlsoap.org/soap/envelope/', 'Body')),
+        );
+        static::assertTrue(
+            Part::body()->toTarget(SoapVersion::Soap12)
+                ->equals(Target::element('http://www.w3.org/2003/05/soap-envelope', 'Body')),
+        );
+    }
+
+    public function test_it_lowers_the_timestamp_to_the_wsu_timestamp(): void
+    {
+        static::assertTrue(
+            Part::timestamp()->toTarget(SoapVersion::Soap12)->equals(Target::element(
+                'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd',
+                'Timestamp',
+            )),
+        );
+    }
+
+    public function test_it_lowers_element_and_id_shortcuts_verbatim(): void
+    {
+        static::assertTrue(
+            Part::element('urn:a', 'X')->toTarget(SoapVersion::Soap12)->equals(Target::element('urn:a', 'X')),
+        );
+        static::assertTrue(
+            Part::byId('TS-1')->toTarget(SoapVersion::Soap12)->equals(Target::byId('TS-1')),
+        );
     }
 }

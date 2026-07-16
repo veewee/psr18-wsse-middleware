@@ -16,11 +16,13 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedSignature;
@@ -30,12 +32,12 @@ final class SpiContractTest extends TestCase
 {
     public function test_signing_request_exposes_its_inputs(): void
     {
-        $part = Part::body();
+        $target = Target::element('urn:example', 'Body');
         $certificate = new Certificate('cert');
         $key = new Key('key');
 
         $request = new SigningRequest(
-            parts: [$part],
+            targets: [$target],
             signingKey: $key,
             signingCertificate: $certificate,
             keyIdentifier: $this->keyIdentifier(),
@@ -44,7 +46,7 @@ final class SpiContractTest extends TestCase
             canonicalization: SignatureCanonicalization::EXC_C14N,
         );
 
-        static::assertSame([$part], $request->parts);
+        static::assertSame([$target], $request->targets);
         static::assertSame($key, $request->signingKey);
         static::assertSame($certificate, $request->signingCertificate);
         static::assertSame(SignatureMethod::RSA_SHA256, $request->signatureMethod);
@@ -52,18 +54,18 @@ final class SpiContractTest extends TestCase
 
     public function test_encryption_request_exposes_its_inputs(): void
     {
-        $part = Part::body();
+        $target = new EncryptionTarget(Target::element('urn:example', 'Body'), EncryptionMode::Content);
         $recipient = new Certificate('cert');
 
         $request = new EncryptionRequest(
-            parts: [$part],
+            targets: [$target],
             recipientCertificate: $recipient,
             keyIdentifier: $this->keyIdentifier(),
             dataEncryptionMethod: DataEncryptionMethod::AES256_GCM,
             keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha1(),
         );
 
-        static::assertSame([$part], $request->parts);
+        static::assertSame([$target], $request->targets);
         static::assertSame($recipient, $request->recipientCertificate);
         static::assertSame(DataEncryptionMethod::AES256_GCM, $request->dataEncryptionMethod);
     }

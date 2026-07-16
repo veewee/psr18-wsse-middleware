@@ -4,18 +4,18 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Resolves each Part in a signing request to the DOM element it describes, minting a wsu:Id on the element
+ * Resolves each Target in a signing request to the DOM element it describes, minting a wsu:Id on the element
  * when it does not already carry one. Returns one ResolvedReference per distinct element, in first-seen
- * order: when several Parts resolve to the same element instance, only the first is kept so the signature
+ * order: when several Targets resolve to the same element instance, only the first is kept so the signature
  * carries one ds:Reference per signed element.
  *
  * Callers must pass the same Document the signing flow operates on; the minted ids are stamped onto its
@@ -25,26 +25,26 @@ final class ReferenceCollector
 {
     public function __construct(
         private WsuIdMinter $minter,
-        private PartLocator $locator,
+        private TargetLocator $locator,
     ) {
     }
 
     /**
-     * @param non-empty-list<Part> $parts
+     * @param non-empty-list<Target> $targets
      *
      * @return non-empty-list<ResolvedReference> one per distinct resolved element (deduplicated)
      *
-     * @throws IdReferenceException when a Part cannot be located
+     * @throws IdReferenceException when a Target cannot be located
      */
-    public function collect(Document $document, array $parts): array
+    public function collect(Document $document, array $targets): array
     {
         $references = [];
         $seen = [];
 
-        foreach ($parts as $part) {
-            $element = $this->locator->locate($document, $part);
+        foreach ($targets as $target) {
+            $element = $this->locator->locate($document, $target);
 
-            // Deduplicate by element identity: a second Part pointing at the same node adds no reference.
+            // Deduplicate by element identity: a second Target pointing at the same node adds no reference.
             if (in_array($element, $seen, true)) {
                 continue;
             }
@@ -53,7 +53,7 @@ final class ReferenceCollector
             $references[] = new ResolvedReference($element, $this->wsuId($document, $element));
         }
 
-        // At least one Part is guaranteed, and the first is always kept, so the list is non-empty.
+        // At least one Target is guaranteed, and the first is always kept, so the list is non-empty.
         assert($references !== []);
 
         return $references;

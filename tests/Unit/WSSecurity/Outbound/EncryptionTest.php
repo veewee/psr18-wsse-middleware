@@ -30,9 +30,11 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -163,9 +165,10 @@ final class EncryptionTest extends OutboundTestCase
         $encryptor = new RecordingEncryptor();
         (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
 
-        $parts = $encryptor->lastRequest()->parts;
-        static::assertCount(1, $parts);
-        static::assertTrue($parts[0]->equals(Part::body()));
+        $targets = $encryptor->lastRequest()->targets;
+        static::assertCount(1, $targets);
+        static::assertTrue($targets[0]->target->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertSame(EncryptionMode::Content, $targets[0]->mode);
     }
 
     public function test_explicit_parts_override_the_default(): void
@@ -175,10 +178,10 @@ final class EncryptionTest extends OutboundTestCase
             ->withParts([Part::body(), Part::timestamp()]);
         $block($this->context($this->plainEnvelope()));
 
-        $parts = $encryptor->lastRequest()->parts;
-        static::assertCount(2, $parts);
-        static::assertTrue($parts[0]->equals(Part::body()));
-        static::assertTrue($parts[1]->equals(Part::timestamp()));
+        $targets = $encryptor->lastRequest()->targets;
+        static::assertCount(2, $targets);
+        static::assertTrue($targets[0]->target->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertTrue($targets[1]->target->equals(Target::element(self::WSU, 'Timestamp')));
     }
 
     public function test_the_default_key_reference_does_not_use_deprecated_rsa_padding(): void
@@ -276,7 +279,7 @@ final class EncryptionTest extends OutboundTestCase
     private function realEncryptor(): Encryptor
     {
         return new Encryptor(
-            new PartLocator(),
+            new TargetLocator(),
             new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder(new WsuIdMinter()),

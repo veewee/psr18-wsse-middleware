@@ -23,12 +23,12 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -149,7 +149,7 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new PartLocator()),
+            new ReferenceCollector(new WsuIdMinter(), new TargetLocator()),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),

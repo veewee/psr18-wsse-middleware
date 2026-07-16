@@ -20,12 +20,13 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 #[RequiresPhp('>= 8.4.21')]
@@ -86,10 +87,10 @@ final class SignatureTest extends OutboundTestCase
         $signer = new RecordingSigner();
         (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
 
-        $parts = $signer->lastRequest()->parts;
-        static::assertCount(2, $parts);
-        static::assertTrue($parts[0]->equals(Part::body()));
-        static::assertTrue($parts[1]->equals(Part::timestamp()));
+        $targets = $signer->lastRequest()->targets;
+        static::assertCount(2, $targets);
+        static::assertTrue($targets[0]->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertTrue($targets[1]->equals(Target::element(self::WSU, 'Timestamp')));
     }
 
     public function test_explicit_parts_override_the_default(): void
@@ -98,9 +99,9 @@ final class SignatureTest extends OutboundTestCase
         $block = (new Signature($this->clientCertificate()))->withSigner($signer)->withParts([Part::body()]);
         $block($this->signableContext());
 
-        $parts = $signer->lastRequest()->parts;
-        static::assertCount(1, $parts);
-        static::assertTrue($parts[0]->equals(Part::body()));
+        $targets = $signer->lastRequest()->targets;
+        static::assertCount(1, $targets);
+        static::assertTrue($targets[0]->equals(Target::element(self::SOAP12, 'Body')));
     }
 
     public function test_direct_reference_embeds_a_bst_and_wires_the_key_info(): void
@@ -182,7 +183,7 @@ final class SignatureTest extends OutboundTestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new PartLocator()),
+            new ReferenceCollector(new WsuIdMinter(), new TargetLocator()),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),

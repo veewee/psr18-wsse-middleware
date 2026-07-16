@@ -10,7 +10,6 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignatureValidator;
@@ -100,7 +99,7 @@ final class SignatureValidatorTest extends TestCase
     private function signed(): array
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $fixture->sign([Part::body()]);
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         return [$this->signature($document), $fixture->leafCertificate];
     }

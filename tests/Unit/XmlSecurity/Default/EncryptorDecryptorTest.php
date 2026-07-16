@@ -14,7 +14,6 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
@@ -22,12 +21,15 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -39,6 +41,7 @@ final class EncryptorDecryptorTest extends TestCase
 {
     private const SOAP = 'http://www.w3.org/2003/05/soap-envelope';
     private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
+    private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
     private const X509_TOKEN = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
@@ -59,7 +62,7 @@ final class EncryptorDecryptorTest extends TestCase
         $document = $this->envelope();
         $originalBody = $this->innerXml($this->body($document));
 
-        $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, $method));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, $method));
 
         // The Body now carries an xenc:EncryptedData and the header an xenc:EncryptedKey.
         static::assertCount(1, $this->encryptedData($document));
@@ -78,7 +81,7 @@ final class EncryptorDecryptorTest extends TestCase
 
         $this->encryptor()->encrypt(
             $document,
-            $this->encryptionRequest([Part::element('urn:app', 'Custom')], $certificate, DataEncryptionMethod::AES256_GCM),
+            $this->encryptionRequest([$this->elementTarget('urn:app', 'Custom')], $certificate, DataEncryptionMethod::AES256_GCM),
         );
 
         $encryptedData = $this->encryptedData($document);
@@ -98,7 +101,7 @@ final class EncryptorDecryptorTest extends TestCase
 
         $this->encryptor()->encrypt(
             $document,
-            $this->encryptionRequest([Part::body(), Part::timestamp()], $certificate, DataEncryptionMethod::AES256_GCM),
+            $this->encryptionRequest([$this->bodyTarget(), $this->timestampTarget()], $certificate, DataEncryptionMethod::AES256_GCM),
         );
 
         // One EncryptedKey, two DataReferences, two EncryptedData.
@@ -116,7 +119,7 @@ final class EncryptorDecryptorTest extends TestCase
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelope(withStaleSignature: true);
 
-        $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
 
         $order = [];
         foreach ($this->security($document)->childNodes as $child) {
@@ -136,7 +139,7 @@ final class EncryptorDecryptorTest extends TestCase
         );
 
         $this->expectException(EncryptionFailed::class);
-        $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
     }
 
     public function test_a_wrong_private_key_fails_uniformly(): void
@@ -144,7 +147,7 @@ final class EncryptorDecryptorTest extends TestCase
         [, $certificate] = $this->keyAndCertificate();
         [$otherKey] = $this->keyAndCertificate();
         $document = $this->envelope();
-        $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
 
         $this->expectException(DecryptionFailed::class);
         $this->decryptor()->decrypt($document, new DecryptionRequest($otherKey));
@@ -154,7 +157,7 @@ final class EncryptorDecryptorTest extends TestCase
     {
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelope();
-        $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
 
         $cipherValue = $this->body($document)->getElementsByTagNameNS(self::XENC, 'CipherValue')->item(0);
         static::assertInstanceOf(Element::class, $cipherValue);
@@ -168,7 +171,7 @@ final class EncryptorDecryptorTest extends TestCase
     {
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelope();
-        $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
 
         // Inject a SHA-256 DigestMethod into the EncryptedKey's EncryptionMethod.
         $encryptionMethod = $this->encryptedKey($document)->getElementsByTagNameNS(self::XENC, 'EncryptionMethod')->item(0);
@@ -185,7 +188,7 @@ final class EncryptorDecryptorTest extends TestCase
     {
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelope();
-        $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
 
         // A non-SHA-1 MGF in the canonical xenc11 namespace must be refused.
         $encryptionMethod = $this->encryptedKey($document)->getElementsByTagNameNS(self::XENC, 'EncryptionMethod')->item(0);
@@ -202,7 +205,7 @@ final class EncryptorDecryptorTest extends TestCase
     {
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelope();
-        $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
 
         // No DigestMethod child: SHA-1 default applies and the round-trip succeeds.
         $this->decryptor()->decrypt($document, new DecryptionRequest($key));
@@ -214,7 +217,7 @@ final class EncryptorDecryptorTest extends TestCase
     {
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelope();
-        $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+        $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
 
         // Inflate the ReferenceList past the cap. Also corrupt the wrapped key so that, were the cap not
         // enforced first, the unwrap would fail too: the test proves the cap rejects before that work runs.
@@ -238,12 +241,12 @@ final class EncryptorDecryptorTest extends TestCase
         $causes = [
             'wrong-key' => function () use ($certificate, $otherKey): void {
                 $document = $this->envelope();
-                $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+                $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
                 $this->decryptor()->decrypt($document, new DecryptionRequest($otherKey));
             },
             'tampered' => function () use ($certificate, $key): void {
                 $document = $this->envelope();
-                $this->encryptor()->encrypt($document, $this->encryptionRequest([Part::body()], $certificate, DataEncryptionMethod::AES256_GCM));
+                $this->encryptor()->encrypt($document, $this->encryptionRequest([$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
                 $cipherValue = $this->body($document)->getElementsByTagNameNS(self::XENC, 'CipherValue')->item(0);
                 static::assertInstanceOf(Element::class, $cipherValue);
                 $cipherValue->textContent = base64_encode('garbage that will not decrypt');
@@ -273,7 +276,7 @@ final class EncryptorDecryptorTest extends TestCase
     private function encryptor(): Encryptor
     {
         return new Encryptor(
-            new PartLocator(),
+            new TargetLocator(),
             new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder(new WsuIdMinter()),
@@ -291,17 +294,32 @@ final class EncryptorDecryptorTest extends TestCase
     }
 
     /**
-     * @param non-empty-list<Part> $parts
+     * @param non-empty-list<EncryptionTarget> $targets
      */
-    private function encryptionRequest(array $parts, Certificate $certificate, DataEncryptionMethod $method): EncryptionRequest
+    private function encryptionRequest(array $targets, Certificate $certificate, DataEncryptionMethod $method): EncryptionRequest
     {
         return new EncryptionRequest(
-            parts: $parts,
+            targets: $targets,
             recipientCertificate: $certificate,
             keyIdentifier: new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
             dataEncryptionMethod: $method,
             keyTransportAlgorithm: KeyTransportAlgorithm::legacyMgf1p(),
         );
+    }
+
+    private function bodyTarget(): EncryptionTarget
+    {
+        return new EncryptionTarget(Target::element(self::SOAP, 'Body'), EncryptionMode::Content);
+    }
+
+    private function timestampTarget(): EncryptionTarget
+    {
+        return new EncryptionTarget(Target::element(self::WSU, 'Timestamp'), EncryptionMode::Content);
+    }
+
+    private function elementTarget(string $namespace, string $localName): EncryptionTarget
+    {
+        return new EncryptionTarget(Target::element($namespace, $localName), EncryptionMode::Element);
     }
 
     private function envelope(bool $withTimestamp = false, bool $withCustom = false, bool $withStaleSignature = false): Document

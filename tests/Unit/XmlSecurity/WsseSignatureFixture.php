@@ -14,17 +14,17 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -115,12 +115,28 @@ final class WsseSignatureFixture
     }
 
     /**
-     * Signs the given parts into a fresh envelope carrying a BinarySecurityToken the signature references.
+     * The soap:Body target in the SOAP 1.2 envelope this fixture builds.
+     */
+    public static function bodyTarget(): Target
+    {
+        return Target::element(self::SOAP, 'Body');
+    }
+
+    /**
+     * The wsu:Timestamp target.
+     */
+    public static function timestampTarget(): Target
+    {
+        return Target::element(self::WSU, 'Timestamp');
+    }
+
+    /**
+     * Signs the given targets into a fresh envelope carrying a BinarySecurityToken the signature references.
      *
-     * @param non-empty-list<Part> $parts
+     * @param non-empty-list<Target> $targets
      */
     public function sign(
-        array $parts,
+        array $targets,
         bool $withTimestamp = false,
         SignatureMethod $signatureMethod = SignatureMethod::RSA_SHA256,
         DigestMethod $digestMethod = DigestMethod::SHA256,
@@ -130,7 +146,7 @@ final class WsseSignatureFixture
         $document = $this->envelope($withTimestamp);
 
         $this->signer()->sign($document, new SigningRequest(
-            parts: $parts,
+            targets: $targets,
             signingKey: $this->leafKey,
             signingCertificate: $this->leafCertificate,
             keyIdentifier: $keyIdentifier ?? new DirectReferenceKeyIdentifier(self::BST_ID, self::X509_TOKEN),
@@ -189,7 +205,7 @@ final class WsseSignatureFixture
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new PartLocator()),
+            new ReferenceCollector(new WsuIdMinter(), new TargetLocator()),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),

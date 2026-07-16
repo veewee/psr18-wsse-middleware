@@ -6,7 +6,6 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 
 /**
@@ -16,10 +15,10 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 final readonly class EncryptionRequest
 {
     /**
-     * @param non-empty-list<Part> $parts
+     * @param non-empty-list<EncryptionTarget> $targets
      */
     public function __construct(
-        public array $parts,
+        public array $targets,
         public Certificate $recipientCertificate,
         public KeyIdentifier $keyIdentifier,
         public DataEncryptionMethod $dataEncryptionMethod,

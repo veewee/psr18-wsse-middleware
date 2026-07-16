@@ -5,8 +5,9 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Validator;
 
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
 use VeeWee\Xml\Dom\Document;
 
@@ -21,7 +22,7 @@ use VeeWee\Xml\Dom\Document;
 final class RequiredPartsValidator
 {
     public function __construct(
-        private readonly PartLocator $partLocator,
+        private readonly TargetLocator $targetLocator,
     ) {
     }
 
@@ -30,11 +31,15 @@ final class RequiredPartsValidator
      *
      * @throws SecurityFault
      */
-    public function validate(Document $document, VerifiedReferences $signedElements, array $requiredParts): void
-    {
+    public function validate(
+        Document $document,
+        SoapVersion $soapVersion,
+        VerifiedReferences $signedElements,
+        array $requiredParts,
+    ): void {
         foreach ($requiredParts as $part) {
             try {
-                $element = $this->partLocator->locate($document, $part);
+                $element = $this->targetLocator->locate($document, $part->toTarget($soapVersion));
             } catch (IdReferenceException $exception) {
                 throw SecurityFault::inboundFailure($exception);
             }

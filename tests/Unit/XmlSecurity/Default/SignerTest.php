@@ -15,17 +15,17 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\DirectReferenceKeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -43,7 +43,7 @@ final class SignerTest extends TestCase
 
     public function test_it_signs_the_body(): void
     {
-        [, , $document] = $this->sign([Part::body()]);
+        [, , $document] = $this->sign([Target::element(self::SOAP, 'Body')]);
 
         $references = $this->references($document);
         static::assertCount(1, $references);
@@ -52,35 +52,35 @@ final class SignerTest extends TestCase
 
     public function test_it_signs_the_timestamp(): void
     {
-        [, , $document] = $this->sign([Part::timestamp()], withTimestamp: true);
+        [, , $document] = $this->sign([Target::element(self::WSU, 'Timestamp')], withTimestamp: true);
 
         static::assertCount(1, $this->references($document));
     }
 
     public function test_it_signs_the_body_and_the_timestamp_with_two_references(): void
     {
-        [, , $document] = $this->sign([Part::body(), Part::timestamp()], withTimestamp: true);
+        [, , $document] = $this->sign([Target::element(self::SOAP, 'Body'), Target::element(self::WSU, 'Timestamp')], withTimestamp: true);
 
         static::assertCount(2, $this->references($document));
     }
 
     public function test_it_signs_a_specific_header_element(): void
     {
-        [, , $document] = $this->sign([Part::element('urn:app', 'Custom')], withCustom: true);
+        [, , $document] = $this->sign([Target::element('urn:app', 'Custom')], withCustom: true);
 
         static::assertCount(1, $this->references($document));
     }
 
     public function test_it_reuses_an_existing_wsu_id(): void
     {
-        [, , $document] = $this->sign([Part::byId('Body-Preset')], presetBodyId: 'Body-Preset');
+        [, , $document] = $this->sign([Target::byId('Body-Preset')], presetBodyId: 'Body-Preset');
 
         static::assertSame('#Body-Preset', $this->references($document)[0]->getAttribute('URI'));
     }
 
     public function test_it_emits_the_signature_structure(): void
     {
-        [, , $document] = $this->sign([Part::body()]);
+        [, , $document] = $this->sign([Target::element(self::SOAP, 'Body')]);
 
         $signature = $this->signature($document);
         static::assertNotNull($this->child($signature, 'SignedInfo'));
@@ -90,7 +90,7 @@ final class SignerTest extends TestCase
 
     public function test_the_signature_is_appended_to_the_security_header_in_canonical_order(): void
     {
-        [, , $document] = $this->sign([Part::body()], withTimestamp: true);
+        [, , $document] = $this->sign([Target::element(self::SOAP, 'Body')], withTimestamp: true);
 
         $security = $document->toUnsafeDocument()->getElementsByTagNameNS(self::WSSE, 'Security')->item(0);
         static::assertInstanceOf(Element::class, $security);
@@ -114,14 +114,14 @@ final class SignerTest extends TestCase
         );
 
         $this->expectException(SigningFailed::class);
-        $this->signer()->sign($document, $this->request([Part::body()], $key, $certificate));
+        $this->signer()->sign($document, $this->request([Target::element(self::SOAP, 'Body')], $key, $certificate));
     }
 
     public function test_it_signs_the_parts_not_an_existing_signature(): void
     {
-        // A pre-existing ds:Signature must never become a signed Part: only the Body is referenced. The
+        // A pre-existing ds:Signature must never become a signed target: only the Body is referenced. The
         // body id is referenced, never the signature element, so signing the signature itself is impossible.
-        [, , $document] = $this->sign([Part::body()], withStaleSignature: true);
+        [, , $document] = $this->sign([Target::element(self::SOAP, 'Body')], withStaleSignature: true);
 
         $references = $this->references($document);
         static::assertSame('#'.$this->bodyId($document), $references[0]->getAttribute('URI'));
@@ -132,7 +132,7 @@ final class SignerTest extends TestCase
 
     public function test_the_body_digest_is_byte_stable_for_rsa_sha256(): void
     {
-        [, , $document] = $this->sign([Part::body()]);
+        [, , $document] = $this->sign([Target::element(self::SOAP, 'Body')]);
 
         $body = $document->toUnsafeDocument()->getElementsByTagNameNS(self::SOAP, 'Body')->item(0);
         static::assertInstanceOf(Element::class, $body);
@@ -144,12 +144,12 @@ final class SignerTest extends TestCase
     }
 
     /**
-     * @param non-empty-list<Part> $parts
+     * @param non-empty-list<Target> $targets
      *
      * @return array{0: Key, 1: Certificate, 2: Document}
      */
     private function sign(
-        array $parts,
+        array $targets,
         bool $withTimestamp = false,
         bool $withCustom = false,
         bool $withStaleSignature = false,
@@ -158,18 +158,18 @@ final class SignerTest extends TestCase
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelope($withTimestamp, $withCustom, $withStaleSignature, $presetBodyId);
 
-        $this->signer()->sign($document, $this->request($parts, $key, $certificate));
+        $this->signer()->sign($document, $this->request($targets, $key, $certificate));
 
         return [$key, $certificate, $document];
     }
 
     /**
-     * @param non-empty-list<Part> $parts
+     * @param non-empty-list<Target> $targets
      */
-    private function request(array $parts, Key $key, Certificate $certificate): SigningRequest
+    private function request(array $targets, Key $key, Certificate $certificate): SigningRequest
     {
         return new SigningRequest(
-            parts: $parts,
+            targets: $targets,
             signingKey: $key,
             signingCertificate: $certificate,
             keyIdentifier: new DirectReferenceKeyIdentifier('SignedToken', self::X509_TOKEN),
@@ -184,7 +184,7 @@ final class SignerTest extends TestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new PartLocator()),
+            new ReferenceCollector(new WsuIdMinter(), new TargetLocator()),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),

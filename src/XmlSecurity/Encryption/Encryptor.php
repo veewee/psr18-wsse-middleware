@@ -7,21 +7,19 @@ use Dom\Element;
 use Dom\Node;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Manipulator\append;
 
 /**
- * Orchestrates the WSSE XML encryption flow for one request: resolve every Part first (fail fast before any
- * mutation), generate one shared session key, encrypt and replace each Part as xenc:EncryptedData, wrap the
+ * Orchestrates the WSSE XML encryption flow for one request: resolve every target first (fail fast before any
+ * mutation), generate one shared session key, encrypt and replace each target as xenc:EncryptedData, wrap the
  * session key under the recipient certificate, build one xenc:EncryptedKey carrying the ReferenceList, insert
  * it into the existing wsse:Security header and re-sort the header.
  *
@@ -35,7 +33,7 @@ final class Encryptor implements XmlEncryptor
     public static function create(): self
     {
         return new self(
-            new PartLocator(),
+            new TargetLocator(),
             new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder(new WsuIdMinter()),
@@ -45,7 +43,7 @@ final class Encryptor implements XmlEncryptor
     }
 
     public function __construct(
-        private readonly PartLocator $partLocator,
+        private readonly TargetLocator $targetLocator,
         private readonly SessionKeyFactory $sessionKeyFactory,
         private readonly Cipher $cipher,
         private readonly EncryptedDataBuilder $encryptedDataBuilder,
@@ -108,28 +106,18 @@ final class Encryptor implements XmlEncryptor
      */
     private function resolveTargets(Document $document, EncryptionRequest $request): array
     {
-        $targets = [];
-        foreach ($request->parts as $part) {
+        $resolved = [];
+        foreach ($request->targets as $encryptionTarget) {
             try {
-                $element = $this->partLocator->locate($document, $part);
+                $element = $this->targetLocator->locate($document, $encryptionTarget->target);
             } catch (IdReferenceException $exception) {
                 throw EncryptionFailed::withReason($exception->getMessage());
             }
 
-            $targets[] = [$element, $this->modeFor($part)];
+            $resolved[] = [$element, $encryptionTarget->mode];
         }
 
-        return $targets;
-    }
-
-    private function modeFor(Part $part): EncryptionMode
-    {
-        // The SOAP Body and the Timestamp are encrypted as Content (the element survives, its children are
-        // replaced); a targeted header element is encrypted whole as Element.
-        return match ($part->kind()) {
-            PartKind::Body, PartKind::Timestamp => EncryptionMode::Content,
-            PartKind::Element, PartKind::Id => EncryptionMode::Element,
-        };
+        return $resolved;
     }
 
     private function serialize(Document $document, Element $element, EncryptionMode $mode): string

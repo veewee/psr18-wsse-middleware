@@ -4,11 +4,11 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Default;
 
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 final class ReferenceCollectorTest extends TestCase
@@ -19,7 +19,7 @@ final class ReferenceCollectorTest extends TestCase
     public function test_it_mints_a_wsu_id_when_the_element_has_none(): void
     {
         $document = $this->document('<soap:Body><a/></soap:Body>');
-        $references = $this->collector()->collect($document, [Part::body()]);
+        $references = $this->collector()->collect($document, [Target::element(self::SOAP, 'Body')]);
 
         $body = $references[0]->element;
         static::assertNotSame('', $references[0]->wsuId);
@@ -29,7 +29,7 @@ final class ReferenceCollectorTest extends TestCase
     public function test_it_reuses_an_existing_wsu_id(): void
     {
         $document = $this->document('<soap:Body wsu:Id="Body-Existing"><a/></soap:Body>');
-        $references = $this->collector()->collect($document, [Part::body()]);
+        $references = $this->collector()->collect($document, [Target::element(self::SOAP, 'Body')]);
 
         static::assertSame('Body-Existing', $references[0]->wsuId);
     }
@@ -38,8 +38,8 @@ final class ReferenceCollectorTest extends TestCase
     {
         $document = $this->document('<soap:Body wsu:Id="Body-1"><x:Extra xmlns:x="urn:x" wsu:Id="Extra-1"/></soap:Body>');
         $references = $this->collector()->collect($document, [
-            Part::element('urn:x', 'Extra'),
-            Part::body(),
+            Target::element('urn:x', 'Extra'),
+            Target::element(self::SOAP, 'Body'),
         ]);
 
         static::assertSame(['Extra-1', 'Body-1'], [$references[0]->wsuId, $references[1]->wsuId]);
@@ -48,7 +48,7 @@ final class ReferenceCollectorTest extends TestCase
     public function test_it_deduplicates_two_parts_resolving_to_the_same_element(): void
     {
         $document = $this->document('<soap:Body wsu:Id="Body-1"><a/></soap:Body>');
-        $references = $this->collector()->collect($document, [Part::body(), Part::byId('Body-1')]);
+        $references = $this->collector()->collect($document, [Target::element(self::SOAP, 'Body'), Target::byId('Body-1')]);
 
         static::assertCount(1, $references);
     }
@@ -58,12 +58,12 @@ final class ReferenceCollectorTest extends TestCase
         $document = $this->document('<soap:Body/>');
 
         $this->expectException(IdReferenceException::class);
-        $this->collector()->collect($document, [Part::byId('absent')]);
+        $this->collector()->collect($document, [Target::byId('absent')]);
     }
 
     private function collector(): ReferenceCollector
     {
-        return new ReferenceCollector(new WsuIdMinter(), new PartLocator());
+        return new ReferenceCollector(new WsuIdMinter(), new TargetLocator());
     }
 
     private function document(string $bodyXml): Document
