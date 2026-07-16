@@ -9,7 +9,6 @@ use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
 
 /**

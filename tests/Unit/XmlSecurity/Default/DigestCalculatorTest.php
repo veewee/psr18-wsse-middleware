@@ -14,7 +14,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ResolvedReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ResolvedReference;
 use VeeWee\Xml\Dom\Document;
 
 final class DigestCalculatorTest extends TestCase

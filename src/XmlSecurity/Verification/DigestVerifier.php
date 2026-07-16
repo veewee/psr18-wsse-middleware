@@ -30,17 +30,18 @@ final class DigestVerifier
      */
     public function verify(ResolvedVerificationReference $reference): bool
     {
-        $expected = base64_decode($reference->expectedDigestValueBase64, true);
+        $parsed = $reference->parsed;
+        $expected = base64_decode($parsed->expectedDigestValueBase64, true);
         if ($expected === false) {
             throw SignatureVerificationFailed::withReason('The digest value is not valid base64.');
         }
 
         $canonical = $this->canonicalizer->canonicalize(
             $reference->element,
-            $reference->canonicalization,
-            $reference->inclusivePrefixes === [] ? null : $reference->inclusivePrefixes,
+            $parsed->canonicalization,
+            $parsed->inclusivePrefixes === [] ? null : $parsed->inclusivePrefixes,
         );
-        $actual = $this->digest->hash($canonical, $reference->digestMethod);
+        $actual = $this->digest->hash($canonical, $parsed->digestMethod);
 
         return $this->digest->equals($expected, $actual);
     }

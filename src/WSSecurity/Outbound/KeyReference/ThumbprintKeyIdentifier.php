@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;

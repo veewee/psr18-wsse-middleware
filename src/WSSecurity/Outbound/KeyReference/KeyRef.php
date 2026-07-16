@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference;
 
 /**
  * Selects which WSSE key-reference type the Signature block puts in ds:KeyInfo. One of:

@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyIdentifier;
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound\KeyReference;
 
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\X509SubjectKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 
 final class X509SubjectKeyIdentifierTest extends KeyIdentifierTestCase
 {

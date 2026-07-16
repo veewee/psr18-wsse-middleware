@@ -16,7 +16,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ResolvedReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdMinter;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;

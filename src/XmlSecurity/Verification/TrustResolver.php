@@ -14,7 +14,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
  * boundary allowed to reason about certificate validity and chaining. The verifier owns no private key, so
  * this carries nothing beyond the delegation.
  */
-final class Resolver implements KeyResolver
+final class TrustResolver implements KeyResolver
 {
     public function __construct(
         private CertificateTrust $certificateTrust,

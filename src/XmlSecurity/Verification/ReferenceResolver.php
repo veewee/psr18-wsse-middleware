@@ -64,13 +64,7 @@ final class ReferenceResolver
             $element = $this->locate($document, $referenceElement);
             $this->assertNotSignatureInfrastructure($element, $signatureElement);
 
-            $resolved[] = new ResolvedVerificationReference(
-                $element,
-                $parsed->digestMethod,
-                $parsed->expectedDigestValueBase64,
-                $parsed->canonicalization,
-                $parsed->inclusivePrefixes,
-            );
+            $resolved[] = new ResolvedVerificationReference($parsed, $element);
         }
 
         return $resolved;

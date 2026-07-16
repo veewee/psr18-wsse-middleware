@@ -160,10 +160,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
 
 // Default: sign Body + Timestamp, reference the key via an embedded BinarySecurityToken.
-new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken);
+new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken);
 
 // Sign only the body, reference by Subject Key Identifier:
-(new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::SubjectKeyIdentifier))
+(new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::SubjectKeyIdentifier))
     ->withParts([Part::body()]);
 ```
 
@@ -183,7 +183,7 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecuri
   ```php
   use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 
-  (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken))
+  (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken))
       ->withSignatureMethod(SignatureMethod::ECDSA_SHA256);
   ```
   The ECDSA cases are `ECDSA_SHA256`, `ECDSA_SHA384` and `ECDSA_SHA512` (the xmldsig-more URIs). They require an
@@ -198,7 +198,7 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecuri
   ```php
   use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 
-  (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken))
+  (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken))
       ->withCanonicalization(SignatureCanonicalization::C14N);
   ```
   If you sign with an inclusive variant and also verify the response with one, add it to the profile's
@@ -220,7 +220,7 @@ $recipient = Certificate::fromFile('service.pub');
 new Outbound\Encryption($recipient);
 
 // Encrypt the body, reference by IssuerSerial:
-new Outbound\Encryption($recipient, encKeyRef: Outbound\EncKeyRef::IssuerSerial);
+new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::IssuerSerial);
 ```
 
 - `Certificate $recipientCertificate` — the recipient's public certificate, used to wrap the session key.
@@ -404,10 +404,10 @@ $transport = Psr18Transport::createForClient(
                 new Outbound\Timestamp(),
                 new Outbound\Signature(
                     $clientCertificate,
-                    keyRef: Outbound\KeyRef::BinarySecurityToken,
+                    keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken,
                 ),
                 // The default already signs Body + Timestamp. To be explicit:
-                // (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken))
+                // (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken))
                 //     ->withParts([Part::body(), Part::timestamp()]),
             ],
             inbound: [
@@ -436,7 +436,7 @@ $bundle = Pkcs12Bundle::fromFile('client.p12', 'secret');
 
 // Your signing identity (certificate + private key):
 $clientCertificate = ClientCertificate::fromPkcs12($bundle);
-new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken);
+new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken);
 
 // A recipient / BinarySecurityToken certificate from its own .p12:
 $recipient = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
@@ -476,7 +476,7 @@ $stsTransport = Psr18Transport::createForClient(
             new SecurityProfile(),
             outbound: [
                 new Outbound\Timestamp(),
-                new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken),
+                new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken),
             ],
         ),
     ])
@@ -497,7 +497,7 @@ $serviceTransport = Psr18Transport::createForClient(
                     $assertionXml,
                     Outbound\SamlVersion::Saml20,
                 ),
-                new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken),
+                new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken),
             ],
         ),
     ])
@@ -534,7 +534,7 @@ $transport = Psr18Transport::createForClient(
             outbound: [
                 new Outbound\Timestamp(),
                 // Sign first ...
-                new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken),
+                new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken),
                 // ... then encrypt:
                 new Outbound\Encryption($recipient),
             ],
@@ -618,9 +618,9 @@ A few value objects let you say which parts to protect and how a token is refere
 
 `KeyRef` (for signing) and `EncKeyRef` (for encryption) choose how your certificate is referenced:
 
-- `Outbound\KeyRef`: `BinarySecurityToken` (embed the token and point at it; the X.509 interop default for
+- `Outbound\KeyReference\KeyRef`: `BinarySecurityToken` (embed the token and point at it; the X.509 interop default for
   signing), `SubjectKeyIdentifier`, `IssuerSerial`, `Thumbprint`.
-- `Outbound\EncKeyRef`: `SubjectKeyIdentifier` (the default for encryption), `IssuerSerial`, `Thumbprint`,
+- `Outbound\KeyReference\EncKeyRef`: `SubjectKeyIdentifier` (the default for encryption), `IssuerSerial`, `Thumbprint`,
   `BinarySecurityToken`.
 
 `KeyStore\TrustStore::fromCertificates(Certificate ...$anchors)` lists the certificates you trust when verifying a

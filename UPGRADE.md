@@ -31,7 +31,7 @@ The signing, encryption, decryption and verification blocks build the engine ser
 with secure defaults. You construct them directly:
 
 ```php
-new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken);
+new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken);
 new Outbound\Encryption($recipientCertificate);
 new Inbound\Decrypt($privateKey);
 new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]);
@@ -113,10 +113,11 @@ outbound side:
 The `WSSecurity\KeyIdentifier\*` classes are gone, and the old factory-style calls
 (`KeyRef::binarySecurityToken()`) are gone with them. You now pick a reference style with a small enum case.
 For signatures, use `KeyRef::BinarySecurityToken`, `KeyRef::SubjectKeyIdentifier`, `KeyRef::IssuerSerial` or
-`KeyRef::Thumbprint`. For encryption, `EncKeyRef` offers the same set. Both live under `WSSecurity\Outbound\`.
+`KeyRef::Thumbprint`. For encryption, `EncKeyRef` offers the same set. Both live under
+`WSSecurity\Outbound\KeyReference\`.
 
 Because `Outbound\Signature` takes the optional engine service before the key reference, pass the reference as
-a named argument: `new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken)`.
+a named argument: `new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken)`.
 
 ### Algorithm enums moved
 

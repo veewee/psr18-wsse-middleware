@@ -9,13 +9,13 @@ use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\Resolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\TrustResolver;
 
-final class ResolverTest extends TestCase
+final class TrustResolverTest extends TestCase
 {
     public function test_it_returns_a_trusted_signer_for_a_chaining_certificate(): void
     {
-        $signer = (new Resolver(new CertificateTrust()))->verifyTrust(
+        $signer = (new TrustResolver(new CertificateTrust()))->verifyTrust(
             CertificateChain::fromCertificates($this->certificate('leaf.crt')),
             TrustStore::fromCertificates($this->certificate('ca.crt')),
         );
@@ -27,7 +27,7 @@ final class ResolverTest extends TestCase
     {
         $this->expectException(CertificateTrustException::class);
 
-        (new Resolver(new CertificateTrust()))->verifyTrust(
+        (new TrustResolver(new CertificateTrust()))->verifyTrust(
             CertificateChain::fromCertificates($this->certificate('pinned.crt')),
             TrustStore::fromCertificates($this->certificate('ca.crt')),
         );

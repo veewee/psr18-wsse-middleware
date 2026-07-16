@@ -8,7 +8,6 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ResolvedReference;
 
 /**
  * Canonicalizes one resolved element, then digests the canonical bytes. Returns a DigestResult the

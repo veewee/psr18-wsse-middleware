@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\KeyIdentifier;
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound\KeyReference;
 
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy\ThumbprintKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
 
 final class ThumbprintKeyIdentifierTest extends KeyIdentifierTestCase
 {

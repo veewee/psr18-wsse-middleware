@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
+namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
 
 use Dom\Element;
 
