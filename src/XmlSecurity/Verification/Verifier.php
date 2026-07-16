@@ -46,7 +46,7 @@ final class Verifier implements XmlSignatureVerifier
             new ReferenceResolver(),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),
-            new TrustResolver(new CertificateTrust()),
+            new OpenSslTrustResolver(new CertificateTrust()),
         );
     }
 
@@ -58,7 +58,7 @@ final class Verifier implements XmlSignatureVerifier
         private ReferenceResolver $referenceResolver,
         private DigestVerifier $digestVerifier,
         private SignatureValidator $signatureValidator,
-        private KeyResolver $keyResolver,
+        private TrustResolver $keyResolver,
     ) {
     }
 

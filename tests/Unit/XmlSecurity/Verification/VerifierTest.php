@@ -19,11 +19,11 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\AlgorithmPolicyEnforcer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\CertificateExtractor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\DigestVerifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\OpenSslTrustResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ReferenceResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignatureLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignatureValidator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfoParser;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\TrustResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\Verifier;
@@ -405,7 +405,7 @@ final class VerifierTest extends TestCase
             new ReferenceResolver(),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),
-            new TrustResolver(new CertificateTrust()),
+            new OpenSslTrustResolver(new CertificateTrust()),
         );
     }
 

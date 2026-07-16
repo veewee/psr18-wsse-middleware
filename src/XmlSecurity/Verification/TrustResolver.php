@@ -6,26 +6,19 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
-use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 
 /**
- * The trust-establishment adapter: it delegates verifyTrust to OpenSSL\CertificateTrust, which is the only
- * boundary allowed to reason about certificate validity and chaining. The verifier owns no private key, so
- * this carries nothing beyond the delegation.
+ * Establishes that a signing certificate chain is trusted, against a caller-supplied TrustStore (configured
+ * anchors / pinned certs), never the certificate embedded in the message.
+ *
+ * Trust only: there are no privateKey()/certificate() accessors. The raw OpenSSL key handle never leaves the
+ * OpenSSL\ module. Signing and encryption pass the Key/Certificate material down so OpenSSL\ resolves and uses
+ * it internally.
  */
-final class TrustResolver implements KeyResolver
+interface TrustResolver
 {
-    public function __construct(
-        private CertificateTrust $certificateTrust,
-    ) {
-    }
-
     /**
-     * @throws CertificateTrustException
+     * @throws \Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException when the chain is not trusted
      */
-    public function verifyTrust(CertificateChain $chain, TrustStore $trust): TrustedSigner
-    {
-        return $this->certificateTrust->verify($chain, $trust);
-    }
+    public function verifyTrust(CertificateChain $chain, TrustStore $trust): TrustedSigner;
 }
