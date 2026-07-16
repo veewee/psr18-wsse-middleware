@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Default;
+namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity;
 
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Result;
+namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification;
 
 use Dom\Element;
 use Dom\XMLDocument;
