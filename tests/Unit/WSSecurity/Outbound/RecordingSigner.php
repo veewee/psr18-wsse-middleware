@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use LogicException;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SigningRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\XmlSigner;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
 use VeeWee\Xml\Dom\Document;
 
 /**

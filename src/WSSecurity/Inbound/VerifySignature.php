@@ -8,17 +8,17 @@ use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\RequiredPartsValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerificationPolicy;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\XmlSignatureVerifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\DefaultEngine;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\XmlSignatureVerifier;
 
 /**
  * Enforces the signature policy over the evidence the verifier returns. The verifier reports which exact nodes

@@ -21,13 +21,13 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization\DomCanonicalizer;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\DigestCalculator;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\KeyInfoBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\ReferenceCollector;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SignedInfoBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\Signer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use VeeWee\Xml\Dom\Document;
 
 /**

@@ -13,16 +13,16 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedReferences;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\VerifiedSignature;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedSignature;
 use VeeWee\Xml\Dom\Document;
 
 /**

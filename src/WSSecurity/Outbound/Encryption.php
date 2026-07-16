@@ -15,10 +15,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlEncryptor;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\DefaultEngine;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlEncryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 
 /**
  * Encrypts the requested parts of the outbound message via XML-Enc. Configuration:
@@ -109,7 +109,7 @@ final class Encryption implements OutboundAction
 
     /**
      * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException when the header cannot be created
-     * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\EncryptionFailed when encryption fails
+     * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed when encryption fails
      */
     public function __invoke(WsseContext $context): void
     {

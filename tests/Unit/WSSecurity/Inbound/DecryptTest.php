@@ -6,14 +6,14 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlDecryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use VeeWee\Xml\Dom\Document;
 
 /**

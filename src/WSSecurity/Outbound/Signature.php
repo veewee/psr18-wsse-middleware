@@ -15,10 +15,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\SigningRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing\XmlSigner;
+use Soap\Psr18WsseMiddleware\XmlSecurity\DefaultEngine;
+use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
 
 /**
  * Adds a detached, multi-reference ds:Signature to the outbound Security header. Configuration:
@@ -98,7 +98,7 @@ final class Signature implements OutboundAction
 
     /**
      * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException when the header cannot be created
-     * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\SigningFailed when signing fails
+     * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed when signing fails
      */
     public function __invoke(WsseContext $context): void
     {

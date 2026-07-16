@@ -4,12 +4,12 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\DefaultEngine;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\XmlDecryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\DefaultEngine;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 
 /**
  * Decrypts the xenc:EncryptedData parts of the inbound message by delegating to the XmlDecryptor SPI. The

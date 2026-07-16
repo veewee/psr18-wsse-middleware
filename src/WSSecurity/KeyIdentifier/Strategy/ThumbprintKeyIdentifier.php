@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\KeyIdentifier\Strategy;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityTokenReference;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\KeyIdentifier as KeyIdentifierInterface;
+use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier as KeyIdentifierInterface;
 use VeeWee\Xml\Dom\Document;
 
 /**

@@ -20,12 +20,12 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedKeyBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\Encryptor;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\SessionKeyFactory;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
+use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**

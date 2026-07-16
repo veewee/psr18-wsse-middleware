@@ -23,15 +23,15 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\DecryptionRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\Decryptor;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedDataReader;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedKeyBuilder;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\EncryptedKeyReader;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\Encryptor;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption\SessionKeyFactory;
-use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\PartLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
+use Soap\Psr18WsseMiddleware\XmlSecurity\PartLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
