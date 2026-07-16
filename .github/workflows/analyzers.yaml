@@ -25,3 +25,5 @@ jobs:
             - name: Run the tests
               run: ./vendor/bin/psalm
               continue-on-error: ${{ matrix.php-versions == '8.5' }}
+            - name: Enforce the layering (architecture guard)
+              run: ./vendor/bin/mago guard --perimeter

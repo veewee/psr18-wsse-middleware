@@ -50,7 +50,8 @@
         "phpunit/phpunit": "~12.3",
         "vimeo/psalm": "~6.13",
         "php-cs-fixer/shim": "~3.88",
-        "php-standard-library/psalm-plugin": "^2.4"
+        "php-standard-library/psalm-plugin": "^2.4",
+        "carthage-software/mago": "^1.43"
     },
     "config": {
         "allow-plugins": {
