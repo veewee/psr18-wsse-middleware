@@ -14,6 +14,7 @@ final class TargetLocatorTest extends TestCase
     private const SOAP = 'http://www.w3.org/2003/05/soap-envelope';
     private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
     private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
+    private const XML = 'http://www.w3.org/XML/1998/namespace';
 
     public function test_it_locates_an_element_by_namespaced_tag_name(): void
     {
@@ -31,7 +32,7 @@ final class TargetLocatorTest extends TestCase
         static::assertSame(self::SOAP, $element->namespaceURI);
     }
 
-    public function test_it_locates_an_element_by_wsu_id(): void
+    public function test_it_locates_an_element_by_id_using_the_engine_default_convention(): void
     {
         $element = (new TargetLocator())->locate($this->document(), Target::byId('Body-1'));
 
@@ -48,10 +49,14 @@ final class TargetLocatorTest extends TestCase
 
     public function test_it_throws_when_an_id_is_ambiguous(): void
     {
+        // libxml rejects a duplicate xml:id at parse time, so the duplicate is injected onto the live DOM.
         $document = Document::fromXmlString(
-            '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsu="'.self::WSU.'">'
-            .'<soap:Body><a wsu:Id="dup"/><b wsu:Id="dup"/></soap:Body></soap:Envelope>'
+            '<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Body><a/><b/></soap:Body></soap:Envelope>'
         );
+        $unsafe = $document->toUnsafeDocument();
+        foreach (['a', 'b'] as $name) {
+            $unsafe->getElementsByTagName($name)->item(0)?->setAttributeNS(self::XML, 'xml:id', 'dup');
+        }
 
         $this->expectException(IdReferenceException::class);
         (new TargetLocator())->locate($document, Target::byId('dup'));
@@ -62,7 +67,7 @@ final class TargetLocatorTest extends TestCase
         return Document::fromXmlString(
             '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsse="'.self::WSSE.'" xmlns:wsu="'.self::WSU.'">'
             .'<soap:Header><wsse:Security><wsu:Timestamp/></wsse:Security></soap:Header>'
-            .'<soap:Body wsu:Id="Body-1"><p:Payload xmlns:p="urn:custom"/></soap:Body>'
+            .'<soap:Body xml:id="Body-1"><p:Payload xmlns:p="urn:custom"/></soap:Body>'
             .'</soap:Envelope>'
         );
     }

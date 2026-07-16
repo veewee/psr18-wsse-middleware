@@ -16,6 +16,11 @@ final class WsseHeaderException extends RuntimeException
         return new self('Unable to locate or create the SOAP header for the wsse:Security element.');
     }
 
+    public static function nothingToSign(): self
+    {
+        return new self('The configured signature parts matched no element to sign.');
+    }
+
     public static function invalidSoapVersion(string $foundNamespace): self
     {
         return new self('Unsupported SOAP envelope namespace "'.$foundNamespace.'"; expected SOAP 1.1 or 1.2.');

@@ -7,11 +7,12 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityEncodingType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
+use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -24,6 +25,11 @@ use VeeWee\Xml\Dom\Document;
  */
 final class KeyInfoReader
 {
+    public function __construct(
+        private IdLookup $idLookup = new XmlIdLookup(),
+    ) {
+    }
+
     /**
      * @throws SignatureVerificationFailed when ds:KeyInfo is absent or carries an unsupported or malformed
      *         certificate reference
@@ -75,10 +81,12 @@ final class KeyInfoReader
             throw SignatureVerificationFailed::withReason('The token reference URI is not a same-document id.');
         }
 
+        // The guard above rejected "#" and any non-# URI, so the fragment after '#' is non-empty.
         $tokenId = substr($uri, 1);
+        assert($tokenId !== '');
 
         try {
-            $token = WsuId::resolve($document, $tokenId);
+            $token = $this->idLookup->lookup($document, $tokenId);
         } catch (IdReferenceException) {
             throw SignatureVerificationFailed::withReason('The referenced security token was not found.');
         }

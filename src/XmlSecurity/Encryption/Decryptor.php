@@ -6,6 +6,8 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
+use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 
@@ -27,17 +29,23 @@ final class Decryptor implements XmlDecryptor
      */
     public const int MAX_ENCRYPTED_PARTS = 32;
 
-    public static function create(): self
+    /**
+     * The id lookup resolves each xenc:DataReference to its xenc:EncryptedData. It defaults to the engine's
+     * xml:id convention; the WS-Security profile injects the wsu:Id implementation.
+     */
+    public static function create(?IdLookup $idLookup = null): self
     {
         return new self(
             new EncryptedKeyReader(new KeyTransport()),
             new EncryptedDataReader(new Cipher()),
+            new EncryptedData($idLookup ?? new XmlIdLookup()),
         );
     }
 
     public function __construct(
         private readonly EncryptedKeyReader $encryptedKeyReader,
         private readonly EncryptedDataReader $encryptedDataReader,
+        private readonly EncryptedData $encryptedData = new EncryptedData(),
     ) {
     }
 
@@ -53,7 +61,7 @@ final class Decryptor implements XmlDecryptor
             $sessionKey = $this->encryptedKeyReader->read($document, $request->privateKey, $request->policy);
 
             foreach ($references as $id) {
-                $element = EncryptedData::resolve($document, $id);
+                $element = $this->encryptedData->resolve($document, $id);
                 $this->encryptedDataReader->read($document, $element, $sessionKey);
             }
         } catch (Throwable) {

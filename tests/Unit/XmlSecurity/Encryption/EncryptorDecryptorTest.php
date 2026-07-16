@@ -15,9 +15,11 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedData;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
@@ -279,6 +281,8 @@ final class EncryptorDecryptorTest extends TestCase
         return new Decryptor(
             new EncryptedKeyReader(new KeyTransport()),
             new EncryptedDataReader(new Cipher()),
+            // The encryptor mints wsu:Id, so the decryptor resolves through the matching convention.
+            new EncryptedData(new WsuIdLookup()),
         );
     }
 

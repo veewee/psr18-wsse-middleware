@@ -6,6 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
@@ -28,7 +29,9 @@ final class Decrypt implements InboundAction
     public function __construct(
         private readonly Key $privateKey,
     ) {
-        $this->decryptor = Decryptor::create();
+        // The WS-Security profile tags xenc:EncryptedData with wsu:Id, so the decryptor resolves references
+        // through the wsu:Id convention (native namespace-less @Id from interop peers is still accepted too).
+        $this->decryptor = Decryptor::create(new WsuIdLookup());
     }
 
     public function withDecryptor(XmlDecryptor $decryptor): self

@@ -17,6 +17,13 @@ drop that patch and the dev dependency from your project.
 `ext-intl` is now a required extension. The inbound timestamp validator parses instants with the ICU date
 formatter, so make sure `ext-intl` is installed wherever this package runs.
 
+### PHP 8.4.21 is the minimum
+
+The signing and verification paths canonicalize XML (C14N) through libxml. A libxml defect below the fix that
+shipped in **PHP 8.4.21** corrupts the attribute list during canonicalization, which silently breaks signature
+digests. The package now requires `~8.4.21 || ~8.5.0`; upgrade your PHP patch level if you are on an earlier
+8.4.
+
 ### Install ext-gmp or ext-bcmath for RSA performance
 
 phpseclib does the RSA and ECDSA big-integer math in PHP, so its speed depends on the arithmetic backend it
@@ -41,6 +48,22 @@ If you previously passed engine services into the blocks yourself, you can delet
 blocks builds the bundled implementation by default; for the rare case where you need a custom one, override it
 with a `with*()` method (`Outbound\Signature::withSigner`, `Outbound\Encryption::withEncryptor`,
 `Inbound\Decrypt::withDecryptor`, `Inbound\VerifySignature::withVerifier`) rather than a constructor argument.
+
+### The Signature block signs the Security-header contents by default
+
+`Outbound\Signature`'s default signed parts changed from `[Part::body(), Part::timestamp()]` to
+`[Part::body(), Part::securityHeaderContents()]`. The new `securityHeaderContents()` is a dynamic part that
+signs every element present in the `wsse:Security` header when the request is built — the Timestamp and any
+tokens — so the common setup (Timestamp + Signature) still signs the Body and the Timestamp, and additionally
+covers the tokens. Two consequences:
+
+- The default no longer fails when there is no Timestamp block; it signs whatever the header contains.
+- To keep the exact old set, configure it explicitly:
+  `->withParts([Part::body(), Part::timestamp()])`.
+
+New `Part` factories accompany the change: `securityHeaderContents()`, `soapHeaders()` (every SOAP header block
+except `wsse:Security` — the equivalent of `wse-php`'s `signAllHeaders`), and the `usernameToken()` /
+`binarySecurityToken()` shortcuts.
 
 ### Keys, certificates and trust anchors live under `KeyStore`
 
@@ -154,10 +177,17 @@ an explicit input, so it carries no SOAP knowledge:
 - `SigningRequest` and `EncryptionRequest` gained a required first argument, `Dom\Element $container` — the
   element the `ds:Signature` / `xenc:EncryptedKey` is appended to. The caller locates it (the blocks pass their
   `wsse:Security` header).
-- How a signed or encrypted node gets its referenceable id is now a `Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter`.
-  `Signer::create()` and `Encryptor::create()` accept an optional one and default to the shipped `XmlIdMinter`
-  (which stamps the W3C `xml:id`), so a standalone caller works with zero config. The blocks inject a minter that
-  stamps `wsu:Id`, as the WS-Security profile mandates — the wire output is unchanged.
+- How a signed or encrypted node gets its referenceable id is a `Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter`,
+  and how a reference resolves back to its element is its read-side twin, the new
+  `Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup`. The engine no longer hard-codes `wsu:Id` anywhere; both sides
+  of the id convention are injected. `Signer::create()`, `Encryptor::create()`, `Verifier::create()` and
+  `Decryptor::create()` each accept an optional `IdLookup` (the minters/lookups default to the shipped
+  `XmlIdMinter`/`XmlIdLookup`, which use the W3C `xml:id`), so a standalone caller works with zero config. The
+  blocks inject the `wsu:Id` pair (`WsuIdMinter`/`WsuIdLookup`), as the WS-Security profile mandates — the wire
+  output is unchanged. **A minter and lookup passed together must share one id convention.**
+- `IdMinter::mint()` is now idempotent: minting a node that already carries an id under the convention returns
+  that id rather than stamping a second one. The former `detectExistingId()` method is gone (folded into
+  `mint()`). This only affects a custom `IdMinter` implementation.
 
 ### New opt-in algorithms (existing behaviour is unchanged)
 

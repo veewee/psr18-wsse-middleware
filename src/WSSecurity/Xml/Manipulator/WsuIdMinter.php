@@ -27,6 +27,11 @@ final class WsuIdMinter implements IdMinter
      */
     public function mint(Element $node, Document $document): string
     {
+        $existing = $this->existingId($node);
+        if ($existing !== null) {
+            return $existing;
+        }
+
         $id = $this->uniqueId($document);
 
         try {
@@ -36,6 +41,17 @@ final class WsuIdMinter implements IdMinter
         }
 
         return $id;
+    }
+
+    /**
+     * @return non-empty-string|null
+     */
+    private function existingId(Element $node): ?string
+    {
+        // The new Dom\ API returns null for an absent attribute (unlike the old DOM "" sentinel).
+        $existing = $node->getAttributeNS(Namespaces::Wsu->value, 'Id');
+
+        return $existing === null || $existing === '' ? null : $existing;
     }
 
     /**

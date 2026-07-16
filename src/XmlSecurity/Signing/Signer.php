@@ -7,15 +7,16 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
-use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdMinter;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;
@@ -33,23 +34,30 @@ use function VeeWee\Xml\Dom\Manipulator\append;
  * no Target can resolve to it. The private key never leaves the OpenSSL\ boundary: its Key is handed to
  * OpenSSL\Signer, which resolves the live handle internally.
  *
- * Mutates the document in place (wsu:Id stamps on referenced elements, then ds:Signature insertion).
+ * Mutates the document in place (id stamps on referenced elements, then ds:Signature insertion).
  */
 final class Signer implements XmlSigner
 {
-    public static function create(?IdMinter $idMinter = null): self
+    /**
+     * The minter and lookup must share one id convention: the minter stamps the id and the lookup re-finds it
+     * on the reparsed wire. Both default to the engine's xml:id convention; a profile that overrides one (the
+     * WS-Security profile injects wsu:Id) must override the other with the matching implementation.
+     */
+    public static function create(?IdMinter $idMinter = null, ?IdLookup $idLookup = null): self
     {
         // The signer and verifier share one canonicalizer instance because digesting and signing read the
         // same canonical form.
         $canonicalizer = new DomCanonicalizer();
+        $idLookup ??= new XmlIdLookup();
 
         return new self(
-            new ReferenceCollector($idMinter ?? new XmlIdMinter(), new TargetLocator()),
+            new ReferenceCollector($idMinter ?? new XmlIdMinter(), new TargetLocator($idLookup)),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
+            $idLookup,
         );
     }
 
@@ -60,6 +68,7 @@ final class Signer implements XmlSigner
         private KeyInfoBuilder $keyInfoBuilder,
         private Canonicalizer $canonicalizer,
         private OpenSslSigner $opensslSigner,
+        private IdLookup $idLookup,
     ) {
     }
 
@@ -77,7 +86,7 @@ final class Signer implements XmlSigner
         $wire = $this->wire($document);
         $digests = array_map(
             fn (ResolvedReference $reference): DigestResult => $this->digestCalculator->calculate(
-                new ResolvedReference(WsuId::resolve($wire, $reference->wsuId), $reference->wsuId),
+                new ResolvedReference($this->idLookup->lookup($wire, $reference->id), $reference->id),
                 $request->canonicalization,
                 $request->digestMethod,
             ),

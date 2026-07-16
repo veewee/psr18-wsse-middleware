@@ -24,6 +24,9 @@ composer require php-soap/psr18-wsse-middleware
 
 This package includes the [php-soap/psr18-transport](https://github.com/php-soap/psr18-transport/) package and is meant to be used together with it.
 
+Requires **PHP 8.4.21+** (or 8.5): signature canonicalization relies on a libxml fix that shipped in 8.4.21, and
+`ext-intl` and `ext-openssl` must be enabled. Install `ext-gmp` or `ext-bcmath` for native-speed RSA/ECDSA math.
+
 # How it works
 
 You secure a message by composing building blocks. There are two lists.
@@ -159,7 +162,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
 
-// Default: sign Body + Timestamp, reference the key via an embedded BinarySecurityToken.
+// Default: sign the Body and everything in the Security header, reference the key via an embedded
+// BinarySecurityToken.
 new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken);
 
 // Sign only the body, reference by Subject Key Identifier:
@@ -175,8 +179,10 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   (`SubjectKeyIdentifier`, `IssuerSerial`, `Thumbprint`) put an inline reference derived from the certificate and
   embed no token. See [Choosing parts and key references](#choosing-parts-and-key-references).
 - `withParts(non-empty-list<Part> $parts): self` — which parts to sign. Default is `[Part::body(),
-  Part::timestamp()]`. Must be a non-empty list of `Part` descriptors. To sign the timestamp, include a
-  `Timestamp` block earlier in the list.
+  Part::securityHeaderContents()]`: the Body plus every element currently in the Security header (the Timestamp,
+  any tokens), resolved at send time. Because it signs whatever is present, the default never fails when a part
+  is absent. Must be a non-empty list of `Part` descriptors. See
+  [Choosing parts and key references](#choosing-parts-and-key-references) for the dynamic parts and shortcuts.
 - `withSignatureMethod(SignatureMethod $method): self` — the signature algorithm. Default: the profile's
   `signatureMethod()` (RSA-SHA256). RSA and ECDSA are both supported. Pick an ECDSA method when your signing
   identity is an EC certificate and key:
@@ -406,9 +412,9 @@ $transport = Psr18Transport::createForClient(
                     $clientCertificate,
                     keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken,
                 ),
-                // The default already signs Body + Timestamp. To be explicit:
+                // The default already signs the Body and the Security-header contents. To be explicit:
                 // (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken))
-                //     ->withParts([Part::body(), Part::timestamp()]),
+                //     ->withParts([Part::body(), Part::securityHeaderContents()]),
             ],
             inbound: [
                 new Inbound\VerifySignature(
@@ -615,6 +621,16 @@ A few value objects let you say which parts to protect and how a token is refere
 - `Part::timestamp()` — the `wsu:Timestamp` in the Security header (add a `Timestamp` block to produce one).
 - `Part::element(string $namespace, string $localName)` — a specific element by qualified name.
 - `Part::byId(string $id)` — an element by its `wsu:Id`.
+- `Part::usernameToken()` / `Part::binarySecurityToken()` — shortcuts for the `wsse:UsernameToken` and
+  `wsse:BinarySecurityToken` in the Security header (equivalent to `Part::element()` with the WS-Security namespace).
+
+Two **dynamic** parts (signing only) are expanded against the live message when the request is built, rather
+than naming one element — the equivalents of RobRichards `wse-php`'s header signing:
+
+- `Part::securityHeaderContents()` — every element currently in the `wsse:Security` header (the Timestamp, any
+  tokens). This is part of the signing default.
+- `Part::soapHeaders()` — every SOAP header block **except** the `wsse:Security` header itself (for example
+  WS-Addressing headers). Opt in with `withParts([Part::body(), Part::securityHeaderContents(), Part::soapHeaders()])`.
 
 `KeyRef` (for signing) and `EncKeyRef` (for encryption) choose how your certificate is referenced:
 

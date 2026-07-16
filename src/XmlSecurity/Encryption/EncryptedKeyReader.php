@@ -84,7 +84,7 @@ final class EncryptedKeyReader
      * Counts the xenc:DataReference entries declared inside the xenc:EncryptedKey's xenc:ReferenceList. The
      * caller enforces the part-count cap with this number before any unwrap or decrypt work.
      *
-     * @return list<string> the bare ids (without the '#' prefix) each DataReference URI points at
+     * @return list<non-empty-string> the bare ids (without the '#' prefix) each DataReference URI points at
      *
      * @throws DecryptionFailed
      */
@@ -100,7 +100,10 @@ final class EncryptedKeyReader
                 throw DecryptionFailed::withReason('A data reference URI must be a non-empty same-document id.');
             }
 
-            $ids[] = substr($uri, 1);
+            // The guard above rejected "#" and any non-# URI, so the fragment after '#' is non-empty.
+            $id = substr($uri, 1);
+            assert($id !== '');
+            $ids[] = $id;
         }
 
         if ($ids === []) {

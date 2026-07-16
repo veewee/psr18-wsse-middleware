@@ -31,7 +31,7 @@ final class DigestCalculatorTest extends TestCase
 
         $expected = base64_encode(hash('sha256', $reference->element->C14N(true, false), true));
         static::assertSame($expected, $result->digestValueBase64);
-        static::assertSame('Body-1', $result->wsuId);
+        static::assertSame('Body-1', $result->id);
     }
 
     public function test_it_propagates_a_canonicalization_failure(): void

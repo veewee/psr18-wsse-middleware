@@ -36,6 +36,6 @@ final class DigestCalculator
         $digest = base64_encode($this->digest->hash($canonical, $digestMethod));
         assert($digest !== '');
 
-        return new DigestResult($reference->wsuId, $digest, $digestMethod);
+        return new DigestResult($reference->id, $digest, $digestMethod);
     }
 }

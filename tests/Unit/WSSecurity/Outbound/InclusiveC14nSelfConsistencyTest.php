@@ -19,6 +19,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
@@ -149,12 +150,13 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new TargetLocator()),
+            new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup())),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
+            new WsuIdLookup(),
         );
     }
 

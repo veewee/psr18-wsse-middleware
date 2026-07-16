@@ -63,4 +63,25 @@ final class XmlIdMinterTest extends TestCase
         static::assertMatchesRegularExpression('/^[A-Za-z_][A-Za-z0-9_.\-]*$/', $id);
         static::assertStringNotContainsString('#', $id);
     }
+
+    public function test_mint_is_idempotent_and_returns_the_same_id_on_a_second_call(): void
+    {
+        $document = $this->document();
+        $a = $this->element($document, 'a');
+        $minter = new XmlIdMinter();
+
+        $first = $minter->mint($a, $document);
+        $second = $minter->mint($a, $document);
+
+        static::assertSame($first, $second);
+    }
+
+    public function test_mint_reuses_an_id_the_element_already_carries(): void
+    {
+        $document = $this->document();
+        $a = $this->element($document, 'a');
+        $a->setAttributeNS(self::XML_NS, 'xml:id', 'pre-existing');
+
+        static::assertSame('pre-existing', (new XmlIdMinter())->mint($a, $document));
+    }
 }

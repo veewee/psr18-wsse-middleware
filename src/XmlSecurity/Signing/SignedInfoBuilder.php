@@ -64,7 +64,7 @@ final class SignedInfoBuilder
         return namespaced_element(
             Namespaces::Ds->value,
             Namespaces::Ds->qualify('Reference'),
-            attribute('URI', '#'.$result->wsuId),
+            attribute('URI', '#'.$result->id),
             children(
                 namespaced_element(
                     Namespaces::Ds->value,

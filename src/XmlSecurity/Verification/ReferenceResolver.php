@@ -8,9 +8,10 @@ use Dom\Node;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
+use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -22,7 +23,7 @@ use VeeWee\Xml\Dom\Document;
  *
  * For each reference it refuses any non-same-document URI, requires exactly one known c14n transform and
  * nothing else (which canonicalizations are actually accepted is decided upstream by the policy enforcer),
- * resolves the bare id through the hardened wsu:Id lookup (which refuses a duplicate id and never falls back to
+ * resolves the bare id through the injected IdLookup (hardened to refuse a duplicate id and never fall back to
  * getElementById), and refuses a reference that resolves to the ds:Signature element itself or anything inside
  * it. The returned element instances are exactly what the lookup produced and are never re-queried afterwards.
  */
@@ -34,6 +35,11 @@ final class ReferenceResolver
      * deployment ever needs to tune it.
      */
     public const int MAX_REFERENCES = 32;
+
+    public function __construct(
+        private IdLookup $idLookup = new XmlIdLookup(),
+    ) {
+    }
 
     /**
      * @param non-empty-list<Element> $referenceElements the ds:Reference DOM elements, document order
@@ -61,30 +67,43 @@ final class ReferenceResolver
             $parsed = $parsedReferences[$index];
             $this->assertSingleKnownC14nTransform($referenceElement);
 
-            $element = $this->locate($document, $referenceElement);
+            $id = $this->referenceId($referenceElement);
+            $element = $this->locate($document, $id);
             $this->assertNotSignatureInfrastructure($element, $signatureElement);
 
-            $resolved[] = new ResolvedVerificationReference($parsed, $element);
+            $resolved[] = new ResolvedVerificationReference($parsed, $element, $id);
         }
 
         return $resolved;
     }
 
     /**
-     * Resolves the reference from the URI on its own ds:Reference element rather than trusting an id parsed
-     * elsewhere, so the element that gets canonicalized is the one this exact reference points at.
+     * The bare id from a ds:Reference's own URI, read from the reference element rather than trusting an id
+     * parsed elsewhere, so the element that gets canonicalized is the one this exact reference points at.
+     *
+     * @return non-empty-string
      */
-    private function locate(Document $document, Element $referenceElement): Element
+    private function referenceId(Element $referenceElement): string
     {
         $uri = (string) $referenceElement->getAttribute('URI');
         if (!str_starts_with($uri, '#') || $uri === '#') {
             throw SignatureVerificationFailed::withReason('A reference URI must be a non-empty same-document id.');
         }
 
+        // The guard above rejected "#" and any non-# URI, so the fragment after '#' is non-empty.
         $id = substr($uri, 1);
+        assert($id !== '');
 
+        return $id;
+    }
+
+    /**
+     * @param non-empty-string $id
+     */
+    private function locate(Document $document, string $id): Element
+    {
         try {
-            return WsuId::resolve($document, $id);
+            return $this->idLookup->lookup($document, $id);
         } catch (IdReferenceException) {
             throw SignatureVerificationFailed::withReason('A referenced element could not be resolved.');
         }

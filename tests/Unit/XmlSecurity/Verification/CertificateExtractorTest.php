@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\CertificateExtractor;
@@ -233,7 +234,7 @@ final class CertificateExtractorTest extends TestCase
 
     private function extractor(): CertificateExtractor
     {
-        return new CertificateExtractor();
+        return new CertificateExtractor(new WsuIdLookup());
     }
 
     /**

@@ -16,6 +16,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
@@ -174,12 +175,13 @@ final class SignerTest extends TestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new TargetLocator()),
+            new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup())),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
+            new WsuIdLookup(),
         );
     }
 

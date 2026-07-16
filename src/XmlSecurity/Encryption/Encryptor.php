@@ -10,8 +10,10 @@ use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdMinter;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -29,10 +31,15 @@ use function VeeWee\Xml\Dom\Manipulator\append;
  */
 final class Encryptor implements XmlEncryptor
 {
-    public static function create(?IdMinter $idMinter = null): self
+    /**
+     * The minter and lookup must share one id convention: the minter stamps the xenc:EncryptedData id and the
+     * lookup resolves a by-id encryption target. Both default to the engine's xml:id; the WS-Security profile
+     * overrides both with the wsu:Id implementations.
+     */
+    public static function create(?IdMinter $idMinter = null, ?IdLookup $idLookup = null): self
     {
         return new self(
-            new TargetLocator(),
+            new TargetLocator($idLookup ?? new XmlIdLookup()),
             new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder($idMinter ?? new XmlIdMinter()),

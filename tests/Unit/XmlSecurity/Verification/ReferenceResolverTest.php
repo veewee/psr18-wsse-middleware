@@ -7,6 +7,7 @@ use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ParsedReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ReferenceResolver;
@@ -23,7 +24,7 @@ final class ReferenceResolverTest extends TestCase
         $document = $this->document(['Body' => self::reference('#Body', self::EXC_C14N)]);
         [$elements, $parsed] = $this->references($document);
 
-        $resolved = (new ReferenceResolver())->resolve($document, $elements, $parsed, $this->signature($document));
+        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
         static::assertCount(1, $resolved);
         static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
@@ -35,7 +36,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver())->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_rejects_an_xslt_transform(): void
@@ -44,7 +45,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver())->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_rejects_an_unknown_transform(): void
@@ -53,7 +54,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver())->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_rejects_an_external_uri(): void
@@ -62,7 +63,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver())->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_rejects_a_reference_to_the_signature_itself(): void
@@ -71,7 +72,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver())->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_rejects_a_reference_count_over_the_cap_before_resolving(): void
@@ -89,7 +90,7 @@ final class ReferenceResolverTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver())->resolve($document, $referenceElements, $parsed, $this->signature($document));
+        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $referenceElements, $parsed, $this->signature($document));
     }
 
     private static function reference(string $uri, string $transform): string

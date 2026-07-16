@@ -12,6 +12,8 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
+use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -32,18 +34,23 @@ use VeeWee\Xml\Dom\Document;
  */
 final class Verifier implements XmlSignatureVerifier
 {
-    public static function create(): self
+    /**
+     * The id lookup resolves each ds:Reference (and the ds:KeyInfo token reference) back to its element. It
+     * defaults to the engine's xml:id convention; the WS-Security profile injects the wsu:Id implementation.
+     */
+    public static function create(?IdLookup $idLookup = null): self
     {
         // The signer and verifier share one canonicalizer instance because digesting and verifying read the
         // same canonical form.
         $canonicalizer = new DomCanonicalizer();
+        $idLookup ??= new XmlIdLookup();
 
         return new self(
             new SignatureLocator(),
             new SignedInfoParser(),
             new AlgorithmPolicyEnforcer(),
-            new CertificateExtractor(),
-            new ReferenceResolver(),
+            new CertificateExtractor($idLookup),
+            new ReferenceResolver($idLookup),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),
             new OpenSslTrustResolver(new CertificateTrust()),
@@ -95,8 +102,12 @@ final class Verifier implements XmlSignatureVerifier
             static fn (ResolvedVerificationReference $reference): Element => $reference->element,
             $resolved,
         );
+        $ids = array_map(
+            static fn (ResolvedVerificationReference $reference): string => $reference->id,
+            $resolved,
+        );
 
-        return new VerifiedSignature(new VerifiedReferences($elements), $signer);
+        return new VerifiedSignature(new VerifiedReferences($elements, $ids), $signer);
     }
 
     private function establishTrust(

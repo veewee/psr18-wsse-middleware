@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity;
 
+use LogicException;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
@@ -82,5 +83,49 @@ final class PartTest extends TestCase
         static::assertTrue(
             Part::byId('TS-1')->toTarget(SoapVersion::Soap12)->equals(Target::byId('TS-1')),
         );
+    }
+
+    public function test_username_token_shortcut_lowers_to_the_wsse_username_token_element(): void
+    {
+        static::assertTrue(
+            Part::usernameToken()->toTarget(SoapVersion::Soap12)->equals(Target::element(
+                'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd',
+                'UsernameToken',
+            )),
+        );
+    }
+
+    public function test_binary_security_token_shortcut_lowers_to_the_wsse_bst_element(): void
+    {
+        static::assertTrue(
+            Part::binarySecurityToken()->toTarget(SoapVersion::Soap12)->equals(Target::element(
+                'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd',
+                'BinarySecurityToken',
+            )),
+        );
+    }
+
+    public function test_security_header_contents_is_a_dynamic_part(): void
+    {
+        static::assertSame(PartKind::SecurityHeaderContents, Part::securityHeaderContents()->kind());
+    }
+
+    public function test_soap_headers_is_a_dynamic_part(): void
+    {
+        static::assertSame(PartKind::SoapHeaders, Part::soapHeaders()->kind());
+    }
+
+    public function test_a_dynamic_part_cannot_lower_to_a_single_target(): void
+    {
+        $this->expectException(LogicException::class);
+
+        Part::securityHeaderContents()->toTarget(SoapVersion::Soap12);
+    }
+
+    public function test_soap_headers_cannot_lower_to_a_single_target(): void
+    {
+        $this->expectException(LogicException::class);
+
+        Part::soapHeaders()->toTarget(SoapVersion::Soap12);
     }
 }

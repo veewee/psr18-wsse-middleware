@@ -15,7 +15,7 @@ use function VeeWee\Xml\Dom\Builder\namespaced_attribute;
  * uniqueness without any shared state; the "id-" prefix makes the value a valid XML NCName (which cannot start
  * with a digit).
  *
- * Parallel to the wsu:Id minter the WS-Security profile injects, but without the wsu namespace.
+ * Parallel to the profile-specific minter a WS-Security profile injects, but on the plain W3C xml:id.
  */
 final class XmlIdMinter implements IdMinter
 {
@@ -26,10 +26,26 @@ final class XmlIdMinter implements IdMinter
      */
     public function mint(Element $node, Document $document): string
     {
+        $existing = $this->existingId($node);
+        if ($existing !== null) {
+            return $existing;
+        }
+
         $id = $this->uniqueId($document);
         namespaced_attribute(self::XML_NS, 'xml:id', $id)($node);
 
         return $id;
+    }
+
+    /**
+     * @return non-empty-string|null
+     */
+    private function existingId(Element $node): ?string
+    {
+        // The new Dom\ API returns null for an absent attribute (unlike the old DOM "" sentinel).
+        $existing = $node->getAttributeNS(self::XML_NS, 'id');
+
+        return $existing === null || $existing === '' ? null : $existing;
     }
 
     /**

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity;
 
+use LogicException;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
@@ -29,6 +30,44 @@ final readonly class Part
     public static function timestamp(): self
     {
         return new self(PartKind::Timestamp);
+    }
+
+    /**
+     * The wsse:UsernameToken in the Security header (shortcut for element() with the WS-Security namespace).
+     */
+    public static function usernameToken(): self
+    {
+        return self::element(Namespaces::Wsse->value, 'UsernameToken');
+    }
+
+    /**
+     * The wsse:BinarySecurityToken in the Security header (shortcut for element() with the WS-Security
+     * namespace); signing it binds the carried certificate to the signature.
+     */
+    public static function binarySecurityToken(): self
+    {
+        return self::element(Namespaces::Wsse->value, 'BinarySecurityToken');
+    }
+
+    /**
+     * Every current child of the wsse:Security header (Timestamp, tokens, ...). A dynamic part the Signature
+     * block expands against the live header at send time; it targets whatever is present, so it never fails
+     * for an absent element the way naming one part explicitly would. The migration equivalent of wse-php
+     * signing the Security-header children.
+     */
+    public static function securityHeaderContents(): self
+    {
+        return new self(PartKind::SecurityHeaderContents);
+    }
+
+    /**
+     * Every current SOAP header block except the wsse:Security header itself (for example WS-Addressing
+     * headers). A dynamic part the Signature block expands against the live document at send time; the
+     * migration equivalent of wse-php's signAllHeaders.
+     */
+    public static function soapHeaders(): self
+    {
+        return new self(PartKind::SoapHeaders);
     }
 
     /**
@@ -79,7 +118,10 @@ final readonly class Part
     /**
      * Lowers this Part to the generic XmlSecurity\Target the engine resolves. The SOAP shortcuts bind to their
      * concrete element: Body to soap:Body in the envelope namespace of the message's SOAP version, Timestamp to
-     * wsu:Timestamp.
+     * wsu:Timestamp. The dynamic parts have no single Target; the Signature block expands them against the live
+     * document instead, so lowering one here is a programming error.
+     *
+     * @throws LogicException when called on a dynamic part (securityHeaderContents/soapHeaders)
      */
     public function toTarget(SoapVersion $soapVersion): Target
     {
@@ -88,6 +130,10 @@ final readonly class Part
             PartKind::Timestamp => Target::element(Namespaces::Wsu->value, 'Timestamp'),
             PartKind::Element => Target::element($this->require($this->namespace), $this->require($this->localName)),
             PartKind::Id => Target::byId($this->require($this->id)),
+            PartKind::SecurityHeaderContents, PartKind::SoapHeaders => throw new LogicException(
+                'A dynamic Part (securityHeaderContents/soapHeaders) is expanded by the Signature block against '
+                .'the live document; it does not lower to a single Target.',
+            ),
         };
     }
 

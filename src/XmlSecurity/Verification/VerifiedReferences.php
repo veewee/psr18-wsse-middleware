@@ -4,20 +4,22 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 
 /**
- * The exact element instances a verified signature covered. This is the XML Signature Wrapping defense
- * currency: wasSigned() compares by object identity, so a post-verification DOM swap cannot pass an unsigned
- * look-alike off as signed.
+ * The exact element instances a verified signature covered, each paired with the id its ds:Reference used.
+ * This is the XML Signature Wrapping defense currency: wasSigned() compares by object identity, so a
+ * post-verification DOM swap cannot pass an unsigned look-alike off as signed. The ids come from the reference
+ * URIs the verifier resolved, so this type carries no id-attribute convention of its own.
  */
 final readonly class VerifiedReferences
 {
     /**
-     * @param list<Element> $elements
+     * @param list<Element>          $elements the covered element instances, in reference order
+     * @param list<non-empty-string> $ids      the bare id each reference used, in the same order
      */
     public function __construct(
         private array $elements,
+        private array $ids = [],
     ) {
     }
 
@@ -33,19 +35,10 @@ final readonly class VerifiedReferences
     }
 
     /**
-     * @return list<string>
+     * @return list<non-empty-string>
      */
     public function signedIds(): array
     {
-        $ids = [];
-        foreach ($this->elements as $element) {
-            // The new Dom\ API returns null for an absent attribute (unlike the old DOM "" sentinel).
-            $id = $element->getAttributeNS(Namespaces::Wsu->value, 'Id');
-            if ($id !== null) {
-                $ids[] = $id;
-            }
-        }
-
-        return $ids;
+        return $this->ids;
     }
 }

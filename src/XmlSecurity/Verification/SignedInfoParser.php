@@ -79,8 +79,8 @@ final class SignedInfoParser
             throw SignatureVerificationFailed::withReason('A reference URI must be a non-empty same-document id.');
         }
 
-        $wsuId = substr($uri, 1);
-        if ($wsuId === '') {
+        $id = substr($uri, 1);
+        if ($id === '') {
             throw SignatureVerificationFailed::withReason('A reference URI must be a non-empty same-document id.');
         }
 

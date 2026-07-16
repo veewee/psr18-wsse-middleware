@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification;
 
 use Dom\Element;
-use Dom\XMLDocument;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
@@ -42,13 +41,13 @@ final class VerifiedReferencesTest extends TestCase
         static::assertFalse($references->wasSigned($lookAlike));
     }
 
-    public function test_signed_ids_lists_the_wsu_ids_of_the_signed_elements(): void
+    public function test_signed_ids_lists_the_ids_the_references_used(): void
     {
         $document = Document::fromXmlString($this->envelope());
         $timestamp = WsuId::resolve($document, 'TS-1');
         $body = WsuId::resolve($document, 'Body-1');
 
-        $references = new VerifiedReferences([$timestamp, $body]);
+        $references = new VerifiedReferences([$timestamp, $body], ['TS-1', 'Body-1']);
 
         static::assertSame(['TS-1', 'Body-1'], $references->signedIds());
     }
@@ -56,18 +55,6 @@ final class VerifiedReferencesTest extends TestCase
     public function test_signed_ids_is_empty_when_no_references_are_held(): void
     {
         static::assertSame([], (new VerifiedReferences([]))->signedIds());
-    }
-
-    public function test_signed_ids_skips_a_signed_element_without_a_wsu_id(): void
-    {
-        $timestamp = WsuId::resolve(Document::fromXmlString($this->envelope()), 'TS-1');
-        // The new Dom\ API returns null for the absent wsu:Id on this element, so it must not appear.
-        $withoutId = XMLDocument::createFromString('<root/>')->documentElement;
-        static::assertInstanceOf(Element::class, $withoutId);
-
-        $references = new VerifiedReferences([$withoutId, $timestamp]);
-
-        static::assertSame(['TS-1'], $references->signedIds());
     }
 
     /**

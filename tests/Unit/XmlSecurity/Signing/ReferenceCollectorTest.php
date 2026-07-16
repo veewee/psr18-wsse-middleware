@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Signing;
 
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
@@ -22,8 +23,8 @@ final class ReferenceCollectorTest extends TestCase
         $references = $this->collector()->collect($document, [Target::element(self::SOAP, 'Body')]);
 
         $body = $references[0]->element;
-        static::assertNotSame('', $references[0]->wsuId);
-        static::assertSame($references[0]->wsuId, $body->getAttributeNS(self::WSU, 'Id'));
+        static::assertNotSame('', $references[0]->id);
+        static::assertSame($references[0]->id, $body->getAttributeNS(self::WSU, 'Id'));
     }
 
     public function test_it_reuses_an_existing_wsu_id(): void
@@ -31,7 +32,7 @@ final class ReferenceCollectorTest extends TestCase
         $document = $this->document('<soap:Body wsu:Id="Body-Existing"><a/></soap:Body>');
         $references = $this->collector()->collect($document, [Target::element(self::SOAP, 'Body')]);
 
-        static::assertSame('Body-Existing', $references[0]->wsuId);
+        static::assertSame('Body-Existing', $references[0]->id);
     }
 
     public function test_it_preserves_first_seen_order(): void
@@ -42,7 +43,7 @@ final class ReferenceCollectorTest extends TestCase
             Target::element(self::SOAP, 'Body'),
         ]);
 
-        static::assertSame(['Extra-1', 'Body-1'], [$references[0]->wsuId, $references[1]->wsuId]);
+        static::assertSame(['Extra-1', 'Body-1'], [$references[0]->id, $references[1]->id]);
     }
 
     public function test_it_deduplicates_two_parts_resolving_to_the_same_element(): void
@@ -63,7 +64,8 @@ final class ReferenceCollectorTest extends TestCase
 
     private function collector(): ReferenceCollector
     {
-        return new ReferenceCollector(new WsuIdMinter(), new TargetLocator());
+        // The minter and locator's lookup must share the wsu:Id convention, as the WS-Security profile pairs them.
+        return new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup()));
     }
 
     private function document(string $bodyXml): Document

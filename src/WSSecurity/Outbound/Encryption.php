@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
+use LogicException;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
@@ -16,6 +17,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
@@ -58,9 +60,9 @@ final class Encryption implements OutboundAction
         private readonly Certificate $recipientCertificate,
         private readonly EncKeyRef $encKeyRef = EncKeyRef::SubjectKeyIdentifier,
     ) {
-        // The WS-Security profile mandates wsu:Id on the xenc:EncryptedData, so the block injects a WsuIdMinter;
-        // the engine's own default (XmlIdMinter) would stamp xml:id and break the WSSE wire format.
-        $this->encryptor = Encryptor::create(new WsuIdMinter());
+        // The WS-Security profile mandates wsu:Id on the xenc:EncryptedData, so the block injects the wsu:Id
+        // convention on both sides. The engine's own default (xml:id) would break the WSSE wire format.
+        $this->encryptor = Encryptor::create(new WsuIdMinter(), new WsuIdLookup());
     }
 
     public function withEncryptor(XmlEncryptor $encryptor): self
@@ -162,6 +164,11 @@ final class Encryption implements OutboundAction
         return match ($part->kind()) {
             PartKind::Body, PartKind::Timestamp => EncryptionMode::Content,
             PartKind::Element, PartKind::Id => EncryptionMode::Element,
+            // Dynamic parts are signing-only; toTarget() already rejects them before this runs, so this arm is
+            // defensive and only keeps the match exhaustive.
+            PartKind::SecurityHeaderContents, PartKind::SoapHeaders => throw new LogicException(
+                'A dynamic Part (securityHeaderContents/soapHeaders) is signing-only and cannot be encrypted.',
+            ),
         };
     }
 

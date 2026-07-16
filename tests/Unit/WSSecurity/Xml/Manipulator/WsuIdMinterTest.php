@@ -73,4 +73,25 @@ final class WsuIdMinterTest extends TestCase
         static::assertMatchesRegularExpression('/^[A-Za-z_][A-Za-z0-9_.\-]*$/', $id);
         static::assertStringNotContainsString('#', $id);
     }
+
+    public function test_mint_is_idempotent_and_returns_the_same_id_on_a_second_call(): void
+    {
+        $document = $this->document();
+        $body = $this->bodyElement($document);
+        $minter = new WsuIdMinter();
+
+        $first = $minter->mint($body, $document);
+        $second = $minter->mint($body, $document);
+
+        static::assertSame($first, $second);
+    }
+
+    public function test_mint_reuses_an_id_the_element_already_carries(): void
+    {
+        $document = $this->document();
+        $body = $this->bodyElement($document);
+        $body->setAttributeNS(self::WSU, 'wsu:Id', 'pre-existing');
+
+        static::assertSame('pre-existing', (new WsuIdMinter())->mint($body, $document));
+    }
 }

@@ -17,6 +17,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIden
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
@@ -82,15 +83,17 @@ final class SignatureTest extends OutboundTestCase
         static::assertInstanceOf(SignatureMethod::class, $signer->lastRequest()->signatureMethod);
     }
 
-    public function test_default_parts_are_body_and_timestamp(): void
+    public function test_default_parts_are_body_and_the_security_header_contents(): void
     {
         $signer = new RecordingSigner();
         (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
 
+        // Default keyRef embeds a BinarySecurityToken into the Security header, so the default parts resolve to
+        // the Body plus the security-header children (the embedded BST here), each targeted by id.
         $targets = $signer->lastRequest()->targets;
-        static::assertCount(2, $targets);
         static::assertTrue($targets[0]->equals(Target::element(self::SOAP12, 'Body')));
-        static::assertTrue($targets[1]->equals(Target::element(self::WSU, 'Timestamp')));
+        static::assertGreaterThanOrEqual(2, count($targets));
+        static::assertSame(\Soap\Psr18WsseMiddleware\XmlSecurity\TargetKind::Id, $targets[1]->kind());
     }
 
     public function test_explicit_parts_override_the_default(): void
@@ -183,12 +186,13 @@ final class SignatureTest extends OutboundTestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new TargetLocator()),
+            new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup())),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             new KeyInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
+            new WsuIdLookup(),
         );
     }
 

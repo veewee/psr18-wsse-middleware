@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption;
 
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedData;
 use VeeWee\Xml\Dom\Document;
@@ -13,6 +14,12 @@ final class EncryptedDataTest extends TestCase
     private const SOAP = 'http://www.w3.org/2003/05/soap-envelope';
     private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
+
+    /** The WS-Security profile tags xenc:EncryptedData with wsu:Id, so the resolver uses that convention. */
+    private function resolver(): EncryptedData
+    {
+        return new EncryptedData(new WsuIdLookup());
+    }
 
     private function envelope(string $body): Document
     {
@@ -26,7 +33,7 @@ final class EncryptedDataTest extends TestCase
     {
         $document = $this->envelope('<xenc:EncryptedData wsu:Id="ED-1"/>');
 
-        $element = EncryptedData::resolve($document, 'ED-1');
+        $element = $this->resolver()->resolve($document, 'ED-1');
 
         static::assertSame('EncryptedData', $element->localName);
         static::assertSame('ED-1', $element->getAttributeNS(self::WSU, 'Id'));
@@ -37,7 +44,7 @@ final class EncryptedDataTest extends TestCase
     {
         $document = $this->envelope('<xenc:EncryptedData Id="ED-1"/>');
 
-        $element = EncryptedData::resolve($document, 'ED-1');
+        $element = $this->resolver()->resolve($document, 'ED-1');
 
         static::assertSame('EncryptedData', $element->localName);
         static::assertSame('ED-1', $element->getAttribute('Id'));
@@ -48,7 +55,21 @@ final class EncryptedDataTest extends TestCase
         $document = $this->envelope('<xenc:EncryptedData wsu:Id="ED-1"/>');
 
         $this->expectException(IdReferenceException::class);
-        EncryptedData::resolve($document, 'does-not-exist');
+        $this->resolver()->resolve($document, 'does-not-exist');
+    }
+
+    /**
+     * An id shared across the native and profile conventions is still ambiguous: a native @Id on one
+     * EncryptedData plus a duplicated wsu:Id on others must be rejected, never resolved to the native one.
+     */
+    public function test_it_rejects_an_id_shared_across_conventions(): void
+    {
+        $document = $this->envelope(
+            '<xenc:EncryptedData Id="dup"/><xenc:EncryptedData wsu:Id="dup"/><xenc:EncryptedData wsu:Id="dup"/>'
+        );
+
+        $this->expectException(IdReferenceException::class);
+        $this->resolver()->resolve($document, 'dup');
     }
 
     /** Two EncryptedData sharing an id is ambiguous and must be rejected, never "pick the first". */
@@ -59,7 +80,7 @@ final class EncryptedDataTest extends TestCase
         );
 
         $this->expectException(IdReferenceException::class);
-        EncryptedData::resolve($document, 'dup');
+        $this->resolver()->resolve($document, 'dup');
     }
 
     /** A stray native @Id on a non-EncryptedData element must not be targeted. */
@@ -68,7 +89,7 @@ final class EncryptedDataTest extends TestCase
         $document = $this->envelope('<app:Op xmlns:app="urn:app" Id="ED-1"/>');
 
         $this->expectException(IdReferenceException::class);
-        EncryptedData::resolve($document, 'ED-1');
+        $this->resolver()->resolve($document, 'ED-1');
     }
 
     /** A crafted id must be treated as a literal value, never injected into the query. */
@@ -77,6 +98,6 @@ final class EncryptedDataTest extends TestCase
         $document = $this->envelope('<xenc:EncryptedData wsu:Id="ED-1"/>');
 
         $this->expectException(IdReferenceException::class);
-        EncryptedData::resolve($document, "x' or '1'='1");
+        $this->resolver()->resolve($document, "x' or '1'='1");
     }
 }
