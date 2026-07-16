@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Algorithm;
+namespace Soap\Psr18WsseMiddleware\Algorithm;
 
 /**
  * Asymmetric signature algorithms the engine can sign and verify with. Which are *accepted* is governed by

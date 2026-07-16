@@ -5,8 +5,8 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\XmlSec\Default;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ParsedReference;
 use Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Verification\ReferenceResolver;

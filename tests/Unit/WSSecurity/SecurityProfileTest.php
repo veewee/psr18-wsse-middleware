@@ -4,11 +4,11 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity;
 
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 
 final class SecurityProfileTest extends TestCase

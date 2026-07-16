@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization;
 
 use Dom\Node;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 
 /**
  * Canonicalises a node for signing or digesting. Implementations MUST throw a canonicalization failure on

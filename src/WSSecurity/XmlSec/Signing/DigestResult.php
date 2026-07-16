@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Signing;
 
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 
 /**
  * The canonicalized digest for one ds:Reference: the element's wsu:Id (without '#'), the base64-encoded

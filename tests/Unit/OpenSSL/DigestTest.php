@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
 
 final class DigestTest extends TestCase
 {

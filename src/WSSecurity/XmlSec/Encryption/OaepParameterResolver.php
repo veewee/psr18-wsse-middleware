@@ -5,11 +5,11 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
 use Dom\Element;
 use Dom\Node;
+use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
+use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\UnsupportedAlgorithmException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;

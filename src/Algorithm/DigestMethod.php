@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Algorithm;
+namespace Soap\Psr18WsseMiddleware\Algorithm;
 
 /**
  * XML-DSig / XML-Enc digest algorithms. All cases representable for parity; acceptance is governed by the

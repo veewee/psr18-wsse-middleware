@@ -181,7 +181,7 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecuri
   `signatureMethod()` (RSA-SHA256). RSA and ECDSA are both supported. Pick an ECDSA method when your signing
   identity is an EC certificate and key:
   ```php
-  use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
+  use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 
   (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken))
       ->withSignatureMethod(SignatureMethod::ECDSA_SHA256);
@@ -196,7 +196,7 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecuri
   `EXC_C14N_COMMENTS`) are the WSSE norm. The inclusive Canonical XML 1.0 variants (`C14N`, `C14N_COMMENTS`)
   are also available for a server that requires them:
   ```php
-  use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
+  use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 
   (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyRef::BinarySecurityToken))
       ->withCanonicalization(SignatureCanonicalization::C14N);
@@ -240,7 +240,7 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\EncKeyRef::IssuerSerial)
   over both `withKeyEncryptionMethod` and the profile. The default key transport is RSA-OAEP with SHA-1
   (byte-identical on the wire to the previous releases). Select RSA-OAEP-SHA256 when the server expects it:
   ```php
-  use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyTransportAlgorithm;
+  use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 
   (new Outbound\Encryption($recipient))
       ->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
@@ -633,11 +633,11 @@ per-message context. Outbound blocks read their algorithm choices and the timest
 override per block); inbound blocks read the accept allow-lists and the freshness window from it.
 
 ```php
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 
 // Secure defaults — equivalent to SecurityProfile::default():
@@ -682,7 +682,7 @@ Constructor arguments:
   `EXC_C14N_COMMENTS`). The inclusive variants are not the WSSE norm, so accepting them only widens the attack
   surface; opt in by listing `SignatureCanonicalization::C14N` and/or `C14N_COMMENTS` here:
   ```php
-  use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
+  use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 
   $profile = new SecurityProfile(
       acceptedCanonicalizations: [
@@ -694,7 +694,7 @@ Constructor arguments:
   ```
 
 The defaults reject weak algorithms (SHA-1, RSA-1_5, 3DES) and use SHA-256 with exclusive canonicalization. The
-algorithm enums live under `Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\`: `SignatureMethod`, `DigestMethod`,
+algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMethod`, `DigestMethod`,
 `SignatureCanonicalization`, `DataEncryptionMethod`, `KeyEncryptionMethod`, `KeyTransportAlgorithm` and
 `OaepHash`.
 

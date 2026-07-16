@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Algorithm;
+namespace Soap\Psr18WsseMiddleware\Algorithm;
 
 /**
  * Canonicalization methods for XML-DSig. A live value: it tells the Canonicalizer whether the form is

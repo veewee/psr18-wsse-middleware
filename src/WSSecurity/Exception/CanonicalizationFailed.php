@@ -5,7 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Exception;
 
 use Dom\Node;
 use RuntimeException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Throwable;
 
 /**

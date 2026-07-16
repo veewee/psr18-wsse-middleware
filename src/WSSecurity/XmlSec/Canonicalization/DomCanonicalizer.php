@@ -5,7 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Canonicalization;
 
 use Dom\Node;
 use DOMException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\CanonicalizationFailed;
 use VeeWee\Xml\Exception\RuntimeException as XmlException;
 use function VeeWee\Xml\ErrorHandling\disallow_libxml_false_returns;

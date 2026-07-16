@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
 use Psl\Hash\Algorithm;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use function Psl\Hash\equals;
 
 /**

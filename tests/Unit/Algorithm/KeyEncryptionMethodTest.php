@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Algorithm;
+namespace SoapTest\Psr18WsseMiddleware\Unit\Algorithm;
 
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\KeyEncryptionMethod;
+use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 
 final class KeyEncryptionMethodTest extends TestCase
 {

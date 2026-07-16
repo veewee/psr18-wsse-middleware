@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
+use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Random;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 
 /**
  * Generates a fresh random session key of the correct length for the given data-encryption method, drawing

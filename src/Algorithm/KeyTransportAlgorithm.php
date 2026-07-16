@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Algorithm;
+namespace Soap\Psr18WsseMiddleware\Algorithm;
 
 /**
  * The key-transport choice passed across the wrap/unwrap seam: the algorithm URI paired with the OAEP hash.

@@ -5,8 +5,8 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\XmlSec\Encryption;
 
 use Dom\Element;
 use Dom\Node;
+use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\OpenSSL\CipherText;
-use Soap\Psr18WsseMiddleware\WSSecurity\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;

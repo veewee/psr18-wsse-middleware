@@ -120,9 +120,11 @@ a named argument: `new Outbound\Signature($clientCertificate, keyRef: Outbound\K
 
 ### Algorithm enums moved
 
-The algorithm enums (`SignatureMethod`, `DigestMethod`, `SignatureCanonicalization`, `DataEncryptionMethod`
-and `KeyEncryptionMethod`) moved from the `WSSecurity\` root into `WSSecurity\Algorithm\`. Update your `use`
-statements. The defaults are secure on their own, so in most cases you can stop passing these explicitly.
+The algorithm enums (`SignatureMethod`, `DigestMethod`, `SignatureCanonicalization`, `DataEncryptionMethod`,
+`KeyEncryptionMethod`, `KeyTransportAlgorithm`, `OaepHash`) live at the package root under
+`Soap\Psr18WsseMiddleware\Algorithm\` — they are W3C XML-Security algorithm identifiers, independent of the SOAP
+layer. Update your `use` statements. The defaults are secure on their own, so in most cases you can stop passing
+these explicitly.
 
 ### New opt-in algorithms (existing behaviour is unchanged)
 
