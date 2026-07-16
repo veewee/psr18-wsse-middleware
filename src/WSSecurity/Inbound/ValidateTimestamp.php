@@ -12,10 +12,10 @@ use Soap\Psr18WsseMiddleware\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\TimestampValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\ElementText;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Query;
 
 /**
  * Rejects a stale, future-dated, or replayed-window message before the application sees it. It locates the

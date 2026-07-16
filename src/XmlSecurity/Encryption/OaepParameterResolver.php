@@ -10,9 +10,9 @@ use Soap\Psr18WsseMiddleware\Algorithm\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\ElementText;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 /**

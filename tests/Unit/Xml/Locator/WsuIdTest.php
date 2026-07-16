@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml\Locator;
+namespace SoapTest\Psr18WsseMiddleware\Unit\Xml\Locator;
 
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
 use VeeWee\Xml\Dom\Document;
 
 final class WsuIdTest extends TestCase

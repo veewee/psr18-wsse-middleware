@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
+namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 
 /**
  * The OASIS WS-Security ValueType URIs that identify what a token or reference carries. Each is a spec

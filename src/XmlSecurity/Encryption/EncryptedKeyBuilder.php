@@ -7,7 +7,7 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;

@@ -1,10 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
+namespace Soap\Psr18WsseMiddleware\Xml;
 
 /**
- * The XML namespaces used throughout the WSSE engine, backed by their canonical URI.
+ * The XML namespaces used across the XML-Security engine and the WS-Security profile, backed by their
+ * canonical URI. The bag is shared vocabulary and carries no behaviour, so it sits in the generic Xml layer.
  */
 enum Namespaces: string
 {

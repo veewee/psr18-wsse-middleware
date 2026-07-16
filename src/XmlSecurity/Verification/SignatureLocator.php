@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use VeeWee\Xml\Dom\Document;
 

@@ -5,7 +5,6 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\EncryptedData;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Throwable;
 use VeeWee\Xml\Dom\Document;

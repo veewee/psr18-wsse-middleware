@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
+namespace Soap\Psr18WsseMiddleware\Xml;
 
 use VeeWee\Xml\Dom\Document;
 use VeeWee\Xml\Dom\Xpath\Configurator\Configurator;
@@ -24,7 +24,7 @@ final class Xpath implements Configurator
         // `soap` binds to the document's root namespace; dropped for a bare fragment that has none.
         $prefixes = array_filter(['soap' => $this->document->locate(root_namespace_uri())]);
 
-        // Each WSSE namespace registers under the prefix it declares on the enum, keeping one source of truth.
+        // Each namespace registers under the prefix it declares on the enum, keeping one source of truth.
         foreach (Namespaces::cases() as $namespace) {
             $prefixes[$namespace->prefix()] = $namespace->value;
         }

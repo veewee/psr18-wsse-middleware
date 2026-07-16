@@ -7,7 +7,7 @@ use Dom\Element;
 use Dom\Node;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\OpenSSL\CipherText;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Throwable;

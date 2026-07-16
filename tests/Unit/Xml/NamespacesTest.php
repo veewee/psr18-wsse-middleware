@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml;
+namespace SoapTest\Psr18WsseMiddleware\Unit\Xml;
 
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 
 final class NamespacesTest extends TestCase
 {

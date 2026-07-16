@@ -7,9 +7,9 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\ElementText;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use function VeeWee\Xml\Dom\Locator\Element\children;
 

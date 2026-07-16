@@ -6,9 +6,9 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Query;
 use VeeWee\Xml\Dom\Document;
 
 /**

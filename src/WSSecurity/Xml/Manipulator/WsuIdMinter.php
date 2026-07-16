@@ -5,8 +5,8 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Symfony\Component\Uid\Uuid;
 use Throwable;
@@ -23,14 +23,14 @@ final class WsuIdMinter implements IdMinter
     /**
      * @return non-empty-string the minted id, without the '#' fragment prefix
      *
-     * @throws WsseHeaderException when the element cannot carry the attribute
+     * @throws WsseHeaderException when the node cannot carry the attribute
      */
-    public function mint(Element $element, Document $document): string
+    public function mint(Element $node, Document $document): string
     {
         $id = $this->uniqueId($document);
 
         try {
-            namespaced_attribute(Namespaces::Wsu->value, Namespaces::Wsu->qualify('Id'), $id)($element);
+            namespaced_attribute(Namespaces::Wsu->value, Namespaces::Wsu->qualify('Id'), $id)($node);
         } catch (Throwable $exception) {
             throw WsseHeaderException::idStampFailed($exception->getMessage());
         }

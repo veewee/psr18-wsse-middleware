@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml;
+namespace SoapTest\Psr18WsseMiddleware\Unit\Xml;
 
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Xpath;
+use Soap\Psr18WsseMiddleware\Xml\Xpath;
 use VeeWee\Xml\Dom\Document;
 
 final class XpathTest extends TestCase

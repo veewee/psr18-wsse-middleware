@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Validator;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
 use VeeWee\Xml\Dom\Document;

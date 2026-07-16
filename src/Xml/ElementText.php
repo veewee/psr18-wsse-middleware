@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
+namespace Soap\Psr18WsseMiddleware\Xml;
 
 use Dom\Node;
 

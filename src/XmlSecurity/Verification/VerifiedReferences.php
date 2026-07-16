@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 
 /**
  * The exact element instances a verified signature covered. This is the XML Signature Wrapping defense

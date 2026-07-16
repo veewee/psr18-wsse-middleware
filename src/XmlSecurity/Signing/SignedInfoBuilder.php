@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\children;

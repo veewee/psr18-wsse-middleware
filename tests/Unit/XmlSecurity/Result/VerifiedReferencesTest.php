@@ -6,8 +6,8 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Result;
 use Dom\Element;
 use Dom\XMLDocument;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
 use VeeWee\Xml\Dom\Document;
 

@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Locator\document_element;
 use function VeeWee\Xml\Dom\Locator\Element\locate_by_namespaced_tag_name;

@@ -1,12 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator;
+namespace Soap\Psr18WsseMiddleware\Xml\Locator;
 
 use Dom\Element;
 use Dom\XPath;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\Query;
 use VeeWee\Xml\Dom\Collection\NodeList;
 use VeeWee\Xml\Dom\Document;
 

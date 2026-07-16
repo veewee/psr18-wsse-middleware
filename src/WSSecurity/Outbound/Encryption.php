@@ -16,13 +16,13 @@ use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlEncryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 
 /**
  * Encrypts the requested parts of the outbound message via XML-Enc. Configuration:

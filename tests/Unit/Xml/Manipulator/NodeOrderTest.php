@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml\Manipulator;
+namespace SoapTest\Psr18WsseMiddleware\Unit\Xml\Manipulator;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
+use Soap\Psr18WsseMiddleware\Xml\Manipulator\NodeOrder;
 use VeeWee\Xml\Dom\Document;
 
 final class NodeOrderTest extends TestCase

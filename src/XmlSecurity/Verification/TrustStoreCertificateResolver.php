@@ -7,8 +7,8 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 
 /**
  * Resolves an identifier reference (Subject Key Identifier, SHA-1 thumbprint, or issuer DN plus serial) to a

@@ -4,14 +4,14 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ElementText;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
+use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\ElementText;
+use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityEncodingType;
+use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 use VeeWee\Xml\Dom\Document;
 
 /**

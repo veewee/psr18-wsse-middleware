@@ -6,10 +6,10 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 use Dom\Element;
 use Dom\Node;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use VeeWee\Xml\Dom\Document;
 

@@ -11,7 +11,7 @@ use Soap\Psr18WsseMiddleware\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;

@@ -5,8 +5,8 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml\Manipulator;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
 use VeeWee\Xml\Dom\Document;
 
 final class WsuIdMinterTest extends TestCase

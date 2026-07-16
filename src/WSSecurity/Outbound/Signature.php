@@ -15,12 +15,12 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
+use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 
 /**
  * Adds a detached, multi-reference ds:Signature to the outbound Security header. Configuration:
