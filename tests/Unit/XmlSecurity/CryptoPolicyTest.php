@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
@@ -93,5 +94,77 @@ final class CryptoPolicyTest extends TestCase
         static::assertTrue($policy->acceptsSignatureMethod(SignatureMethod::RSA_SHA1));
         static::assertTrue($policy->acceptsSignatureMethod(SignatureMethod::RSA_SHA256));
         static::assertFalse($policy->acceptsSignatureMethod(SignatureMethod::RSA_SHA512));
+    }
+
+    public function test_it_exposes_the_accepted_signature_methods_as_a_list(): void
+    {
+        static::assertSame(
+            [
+                SignatureMethod::RSA_SHA256,
+                SignatureMethod::RSA_SHA384,
+                SignatureMethod::RSA_SHA512,
+                SignatureMethod::ECDSA_SHA256,
+                SignatureMethod::ECDSA_SHA384,
+                SignatureMethod::ECDSA_SHA512,
+            ],
+            CryptoPolicy::default()->acceptedSignatureMethods(),
+        );
+    }
+
+    public function test_it_exposes_the_accepted_digest_methods_as_a_list(): void
+    {
+        static::assertSame(
+            [DigestMethod::SHA256, DigestMethod::SHA384, DigestMethod::SHA512],
+            CryptoPolicy::default()->acceptedDigestMethods(),
+        );
+    }
+
+    public function test_it_exposes_the_accepted_canonicalizations_as_a_list(): void
+    {
+        static::assertSame(
+            [SignatureCanonicalization::EXC_C14N, SignatureCanonicalization::EXC_C14N_COMMENTS],
+            CryptoPolicy::default()->acceptedCanonicalizations(),
+        );
+    }
+
+    public function test_an_accepted_list_getter_reflects_an_explicit_override(): void
+    {
+        $policy = new CryptoPolicy(
+            acceptedSignatureMethods: [SignatureMethod::RSA_SHA1, SignatureMethod::RSA_SHA256],
+        );
+
+        static::assertSame(
+            [SignatureMethod::RSA_SHA1, SignatureMethod::RSA_SHA256],
+            $policy->acceptedSignatureMethods(),
+        );
+    }
+
+    /** SECURITY: an empty allow-list would silently reject everything; a caller must not express it by accident. */
+    public function test_an_empty_signature_allow_list_is_rejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new CryptoPolicy(acceptedSignatureMethods: []);
+    }
+
+    public function test_an_empty_digest_allow_list_is_rejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new CryptoPolicy(acceptedDigestMethods: []);
+    }
+
+    public function test_an_empty_canonicalization_allow_list_is_rejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new CryptoPolicy(acceptedCanonicalizations: []);
+    }
+
+    public function test_an_empty_data_encryption_allow_list_is_rejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new CryptoPolicy(acceptedDataEncryptionMethods: []);
     }
 }

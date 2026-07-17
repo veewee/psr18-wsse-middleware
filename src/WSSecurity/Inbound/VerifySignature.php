@@ -3,10 +3,6 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
-use InvalidArgumentException;
-use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
-use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
-use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
@@ -78,59 +74,13 @@ final class VerifySignature implements InboundAction
 
     private function buildPolicy(SecurityProfile $profile): VerificationPolicy
     {
+        $crypto = $profile->crypto();
+
         return new VerificationPolicy(
             trustStore: $this->trustStore,
-            acceptedSignatureMethods: $this->acceptedSignatureMethods($profile),
-            acceptedDigestMethods: $this->acceptedDigestMethods($profile),
-            acceptedCanonicalizations: $this->acceptedCanonicalizations($profile),
+            acceptedSignatureMethods: $crypto->acceptedSignatureMethods(),
+            acceptedDigestMethods: $crypto->acceptedDigestMethods(),
+            acceptedCanonicalizations: $crypto->acceptedCanonicalizations(),
         );
-    }
-
-    /**
-     * @return non-empty-list<SignatureMethod>
-     */
-    private function acceptedSignatureMethods(SecurityProfile $profile): array
-    {
-        $accepted = array_values(array_filter(
-            SignatureMethod::cases(),
-            $profile->crypto()->acceptsSignatureMethod(...),
-        ));
-        if ($accepted === []) {
-            throw new InvalidArgumentException('The security profile accepts no signature methods.');
-        }
-
-        return $accepted;
-    }
-
-    /**
-     * @return non-empty-list<DigestMethod>
-     */
-    private function acceptedDigestMethods(SecurityProfile $profile): array
-    {
-        $accepted = array_values(array_filter(
-            DigestMethod::cases(),
-            $profile->crypto()->acceptsDigestMethod(...),
-        ));
-        if ($accepted === []) {
-            throw new InvalidArgumentException('The security profile accepts no digest methods.');
-        }
-
-        return $accepted;
-    }
-
-    /**
-     * @return non-empty-list<SignatureCanonicalization>
-     */
-    private function acceptedCanonicalizations(SecurityProfile $profile): array
-    {
-        $accepted = array_values(array_filter(
-            SignatureCanonicalization::cases(),
-            $profile->crypto()->acceptsCanonicalization(...),
-        ));
-        if ($accepted === []) {
-            throw new InvalidArgumentException('The security profile accepts no canonicalizations.');
-        }
-
-        return $accepted;
     }
 }

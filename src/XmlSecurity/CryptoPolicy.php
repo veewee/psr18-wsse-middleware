@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 
+use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
@@ -19,17 +20,17 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
  */
 final class CryptoPolicy
 {
-    /** @var list<SignatureMethod> */
+    /** @var non-empty-list<SignatureMethod> */
     private readonly array $acceptedSignatureMethods;
-    /** @var list<DigestMethod> */
+    /** @var non-empty-list<DigestMethod> */
     private readonly array $acceptedDigestMethods;
-    /** @var list<KeyEncryptionMethod> */
+    /** @var non-empty-list<KeyEncryptionMethod> */
     private readonly array $acceptedKeyEncryptionMethods;
-    /** @var list<DataEncryptionMethod> */
+    /** @var non-empty-list<DataEncryptionMethod> */
     private readonly array $acceptedDataEncryptionMethods;
-    /** @var list<OaepHash> */
+    /** @var non-empty-list<OaepHash> */
     private readonly array $acceptedOaepHashes;
-    /** @var list<SignatureCanonicalization> */
+    /** @var non-empty-list<SignatureCanonicalization> */
     private readonly array $acceptedCanonicalizations;
 
     /**
@@ -54,42 +55,58 @@ final class CryptoPolicy
         ?array $acceptedOaepHashes = null,
         ?array $acceptedCanonicalizations = null,
     ) {
-        $this->acceptedSignatureMethods = $acceptedSignatureMethods ?? [
+        $this->acceptedSignatureMethods = self::requireNonEmpty($acceptedSignatureMethods ?? [
             SignatureMethod::RSA_SHA256,
             SignatureMethod::RSA_SHA384,
             SignatureMethod::RSA_SHA512,
             SignatureMethod::ECDSA_SHA256,
             SignatureMethod::ECDSA_SHA384,
             SignatureMethod::ECDSA_SHA512,
-        ];
-        $this->acceptedDigestMethods = $acceptedDigestMethods ?? [
+        ], 'signature method');
+        $this->acceptedDigestMethods = self::requireNonEmpty($acceptedDigestMethods ?? [
             DigestMethod::SHA256,
             DigestMethod::SHA384,
             DigestMethod::SHA512,
-        ];
-        $this->acceptedKeyEncryptionMethods = $acceptedKeyEncryptionMethods ?? [
+        ], 'digest method');
+        $this->acceptedKeyEncryptionMethods = self::requireNonEmpty($acceptedKeyEncryptionMethods ?? [
             KeyEncryptionMethod::RSA_OAEP,
             KeyEncryptionMethod::RSA_OAEP_MGF1P,
-        ];
-        $this->acceptedDataEncryptionMethods = $acceptedDataEncryptionMethods ?? [
+        ], 'key encryption method');
+        $this->acceptedDataEncryptionMethods = self::requireNonEmpty($acceptedDataEncryptionMethods ?? [
             DataEncryptionMethod::AES128_GCM,
             DataEncryptionMethod::AES192_GCM,
             DataEncryptionMethod::AES256_GCM,
             DataEncryptionMethod::AES128_CBC,
             DataEncryptionMethod::AES192_CBC,
             DataEncryptionMethod::AES256_CBC,
-        ];
-        $this->acceptedOaepHashes = $acceptedOaepHashes ?? [
+        ], 'data encryption method');
+        $this->acceptedOaepHashes = self::requireNonEmpty($acceptedOaepHashes ?? [
             OaepHash::Sha1,
             OaepHash::Sha256,
-        ];
+        ], 'OAEP hash');
         // Both exclusive variants are accepted by default. The inclusive variants are not the WSSE norm, so
         // accepting them would only widen the attack surface; inclusive canonicalization is opt-in by passing
         // it here.
-        $this->acceptedCanonicalizations = $acceptedCanonicalizations ?? [
+        $this->acceptedCanonicalizations = self::requireNonEmpty($acceptedCanonicalizations ?? [
             SignatureCanonicalization::EXC_C14N,
             SignatureCanonicalization::EXC_C14N_COMMENTS,
-        ];
+        ], 'canonicalization');
+    }
+
+    /**
+     * @template T
+     *
+     * @param list<T> $list
+     *
+     * @return non-empty-list<T>
+     */
+    private static function requireNonEmpty(array $list, string $label): array
+    {
+        if ($list === []) {
+            throw new InvalidArgumentException(sprintf('The %s allow-list must not be empty.', $label));
+        }
+
+        return $list;
     }
 
     public static function default(): self
@@ -125,6 +142,30 @@ final class CryptoPolicy
     public function oaepHash(): OaepHash
     {
         return $this->oaepHash;
+    }
+
+    /**
+     * @return non-empty-list<SignatureMethod>
+     */
+    public function acceptedSignatureMethods(): array
+    {
+        return $this->acceptedSignatureMethods;
+    }
+
+    /**
+     * @return non-empty-list<DigestMethod>
+     */
+    public function acceptedDigestMethods(): array
+    {
+        return $this->acceptedDigestMethods;
+    }
+
+    /**
+     * @return non-empty-list<SignatureCanonicalization>
+     */
+    public function acceptedCanonicalizations(): array
+    {
+        return $this->acceptedCanonicalizations;
     }
 
     public function acceptsSignatureMethod(SignatureMethod $method): bool
