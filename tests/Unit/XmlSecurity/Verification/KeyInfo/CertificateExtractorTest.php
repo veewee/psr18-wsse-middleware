@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification;
+namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification\KeyInfo;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
