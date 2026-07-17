@@ -6,8 +6,8 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\CertificateReference;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\TrustStoreCertificateResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\TrustStoreCertificateResolver;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 
 /**

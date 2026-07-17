@@ -13,7 +13,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIden
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\CertificateExtractor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 

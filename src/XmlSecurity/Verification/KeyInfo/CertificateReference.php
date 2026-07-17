@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
+namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo;
 
 /**
  * What ds:KeyInfo names about the signer certificate, as one of three forms the reader produces and the

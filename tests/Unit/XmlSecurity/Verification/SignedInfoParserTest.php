@@ -7,7 +7,7 @@ use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfoParser;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParser;
 use VeeWee\Xml\Dom\Document;
 
 final class SignedInfoParserTest extends TestCase

@@ -13,6 +13,16 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\OpenSslTrustResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\TrustResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\AlgorithmPolicyEnforcer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\DigestVerifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ReferenceResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedVerificationReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureValidator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParser;
 use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
 

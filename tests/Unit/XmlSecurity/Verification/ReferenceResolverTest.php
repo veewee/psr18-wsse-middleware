@@ -9,8 +9,8 @@ use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ParsedReference;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ReferenceResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ParsedReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ReferenceResolver;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 

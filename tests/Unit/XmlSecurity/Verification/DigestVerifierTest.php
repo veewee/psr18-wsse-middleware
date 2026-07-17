@@ -13,9 +13,9 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\DigestVerifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ParsedReference;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ResolvedVerificationReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\DigestVerifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ParsedReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedVerificationReference;
 use VeeWee\Xml\Dom\Document;
 
 #[RequiresPhp('>= 8.4.21')]

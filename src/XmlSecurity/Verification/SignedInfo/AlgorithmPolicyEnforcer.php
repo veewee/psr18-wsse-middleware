@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
+namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo;
 
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 
 /**
  * Enforces the verification policy allow-lists against a parsed ds:SignedInfo: the SignatureMethod, the

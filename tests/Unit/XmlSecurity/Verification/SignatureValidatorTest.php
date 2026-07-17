@@ -12,7 +12,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignatureValidator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureValidator;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
