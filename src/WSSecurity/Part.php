@@ -58,10 +58,10 @@ final readonly class Part
     }
 
     /**
-     * Every current child of the wsse:Security header (Timestamp, tokens, ...). A dynamic part the Signature
-     * block expands against the live header at send time; it targets whatever is present, so it never fails
-     * for an absent element the way naming one part explicitly would. The migration equivalent of wse-php
-     * signing the Security-header children.
+     * Every current child of the wsse:Security header (Timestamp, tokens, ...). A dynamic part expanded against
+     * the live message: the Signature block signs each element it finds, VerifySignature can require each was
+     * signed. It targets whatever is present, so it never fails for an absent element the way naming one part
+     * explicitly would. The migration equivalent of wse-php signing the Security-header children.
      */
     public static function securityHeaderContents(): self
     {
@@ -70,7 +70,7 @@ final readonly class Part
 
     /**
      * Every current SOAP header block except the wsse:Security header itself (for example WS-Addressing
-     * headers). A dynamic part the Signature block expands against the live document at send time; the
+     * headers). A dynamic part expanded against the live message (signed outbound, required inbound); the
      * migration equivalent of wse-php's signAllHeaders.
      */
     public static function soapHeaders(): self

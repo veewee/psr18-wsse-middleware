@@ -63,7 +63,9 @@ covers the tokens. Two consequences:
 
 New `Part` factories accompany the change: `securityHeaderContents()`, `soapHeaders()` (every SOAP header block
 except `wsse:Security` — the equivalent of `wse-php`'s `signAllHeaders`), and the `usernameToken()` /
-`binarySecurityToken()` shortcuts.
+`binarySecurityToken()` shortcuts. The two dynamic parts also work inbound: pass them to
+`Inbound\VerifySignature`'s `signed:` list to require every Security-header token (or every other SOAP header)
+was signed.
 
 ### Keys, certificates and trust anchors live under `KeyStore`
 

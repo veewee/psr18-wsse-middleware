@@ -324,7 +324,9 @@ new Inbound\VerifySignature(
 - `signed: list<Part> $signed = []` — the parts that **must** be covered by a trusted signature. Pass it as a
   named argument (`signed:`). Default `[]`, which verifies the signature is valid and trusted but requires no
   particular part to be covered. Name the parts you depend on (typically the body and the timestamp) so an
-  attacker cannot strip the signature from the part that matters.
+  attacker cannot strip the signature from the part that matters. The dynamic parts work here too:
+  `Part::securityHeaderContents()` requires every token in the Security header to have been signed, and
+  `Part::soapHeaders()` requires every other SOAP header block to have been signed.
 
 The accepted signature, digest and canonicalization algorithms come from the profile's allow-lists. By default
 the signature allow-list covers RSA and ECDSA at SHA-256/384/512, and only the exclusive C14N variants are
@@ -624,11 +626,12 @@ A few value objects let you say which parts to protect and how a token is refere
 - `Part::usernameToken()` / `Part::binarySecurityToken()` — shortcuts for the `wsse:UsernameToken` and
   `wsse:BinarySecurityToken` in the Security header (equivalent to `Part::element()` with the WS-Security namespace).
 
-Two **dynamic** parts (signing only) are expanded against the live message when the request is built, rather
-than naming one element — the equivalents of RobRichards `wse-php`'s header signing:
+Two **dynamic** parts are expanded against the live message rather than naming one element — the equivalents of
+RobRichards `wse-php`'s header signing. They work in both directions: outbound the Signature block signs every
+element they expand to; inbound `VerifySignature` requires every such element to have been signed.
 
 - `Part::securityHeaderContents()` — every element currently in the `wsse:Security` header (the Timestamp, any
-  tokens). This is part of the signing default.
+  tokens; the `ds:Signature` itself is excluded). This is part of the signing default.
 - `Part::soapHeaders()` — every SOAP header block **except** the `wsse:Security` header itself (for example
   WS-Addressing headers). Opt in with `withParts([Part::body(), Part::securityHeaderContents(), Part::soapHeaders()])`.
 

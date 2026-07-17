@@ -5,7 +5,6 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
-use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use VeeWee\Xml\Dom\Document;
@@ -35,7 +34,7 @@ final readonly class PartResolver
     {
         $targets = [];
         foreach ($parts as $part) {
-            $dynamic = $this->dynamicMembers($part, $securityHeader, $document);
+            $dynamic = DynamicPartMembers::forPart($part, $document, $securityHeader);
             if ($dynamic !== null) {
                 foreach ($dynamic as $element) {
                     $targets[] = Target::byId($this->idMinter->mint($element, $document));
@@ -52,44 +51,5 @@ final readonly class PartResolver
         }
 
         return $targets;
-    }
-
-    /**
-     * The elements a dynamic part expands to, or null when the part is not dynamic. SecurityHeaderContents is
-     * every child of the Security header; SoapHeaders is every SOAP header block except the Security header
-     * itself.
-     *
-     * @return list<Element>|null
-     */
-    private function dynamicMembers(Part $part, Element $securityHeader, Document $document): ?array
-    {
-        return match ($part->kind()) {
-            PartKind::SecurityHeaderContents => $this->childElements($document, $securityHeader),
-            PartKind::SoapHeaders => array_values(array_filter(
-                $this->childElements($document, $this->soapHeader($securityHeader)),
-                static fn (Element $header): bool => $header !== $securityHeader,
-            )),
-            default => null,
-        };
-    }
-
-    /**
-     * The SOAP Header element carrying the Security header (always its parent element).
-     */
-    private function soapHeader(Element $securityHeader): Element
-    {
-        $header = $securityHeader->parentElement;
-        assert($header instanceof Element);
-
-        return $header;
-    }
-
-    /**
-     * @return list<Element>
-     */
-    private function childElements(Document $document, Element $element): array
-    {
-        return Query::elements($document, 'child::*', $element)
-            ->map(static fn (Element $child): Element => $child);
     }
 }

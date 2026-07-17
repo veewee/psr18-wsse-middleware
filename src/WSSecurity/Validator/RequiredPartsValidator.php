@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Validator;
 
+use Soap\Psr18WsseMiddleware\WSSecurity\DynamicPartMembers;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
@@ -18,6 +20,11 @@ use VeeWee\Xml\Dom\Document;
  * relocates or duplicates a signed-looking element produces a different instance, so the swap cannot satisfy
  * the requirement. The locator is the hardened one the verifier itself uses, so both sides agree on which node
  * a part addresses.
+ *
+ * A dynamic required part (securityHeaderContents/soapHeaders) is expanded against the received message and
+ * every member it resolves to must have been signed; unlike the outbound side it never mints, since a signed
+ * element already carries the wsu:Id its ds:Reference used. A dynamic part that expands to no member is
+ * vacuously satisfied.
  */
 final class RequiredPartsValidator
 {
@@ -37,7 +44,20 @@ final class RequiredPartsValidator
         VerifiedReferences $signedElements,
         array $requiredParts,
     ): void {
+        $securityHeader = SecurityHeader::locate($document);
+
         foreach ($requiredParts as $part) {
+            $dynamic = DynamicPartMembers::forPart($part, $document, $securityHeader);
+            if ($dynamic !== null) {
+                foreach ($dynamic as $member) {
+                    if (!$signedElements->wasSigned($member)) {
+                        throw SecurityFault::inboundFailure();
+                    }
+                }
+
+                continue;
+            }
+
             try {
                 $element = $this->targetLocator->locate($document, $part->toTarget($soapVersion));
             } catch (IdReferenceException $exception) {

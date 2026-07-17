@@ -22,6 +22,9 @@ use VeeWee\Xml\Dom\Document;
 final class RequiredPartsValidatorTest extends TestCase
 {
     private const SOAP = 'http://www.w3.org/2003/05/soap-envelope';
+    private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
+    private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
+    private const DS = 'http://www.w3.org/2000/09/xmldsig#';
 
     public function test_it_passes_when_every_required_part_is_in_the_signed_set(): void
     {
@@ -74,6 +77,107 @@ final class RequiredPartsValidatorTest extends TestCase
         $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([]), []);
     }
 
+    public function test_security_header_contents_passes_when_every_child_except_the_signature_was_signed(): void
+    {
+        $document = $this->envelopeWithSecurity(
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'"/><ds:Signature xmlns:ds="'.self::DS.'"/>'
+        );
+        $timestamp = $this->locate($document, self::WSU, 'Timestamp');
+
+        // The ds:Signature is intentionally NOT in the signed set — a signature never covers itself.
+        $this->validator()->validate(
+            $document,
+            SoapVersion::Soap12,
+            new VerifiedReferences([$timestamp]),
+            [Part::securityHeaderContents()],
+        );
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_security_header_contents_throws_when_a_non_signature_child_was_not_signed(): void
+    {
+        $document = $this->envelopeWithSecurity(
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'"/><ds:Signature xmlns:ds="'.self::DS.'"/>'
+        );
+
+        $this->expectException(SecurityFault::class);
+        $this->validator()->validate(
+            $document,
+            SoapVersion::Soap12,
+            new VerifiedReferences([]),
+            [Part::securityHeaderContents()],
+        );
+    }
+
+    public function test_soap_headers_passes_when_every_header_except_the_security_header_was_signed(): void
+    {
+        $document = $this->envelopeWithSecurity(
+            '<ds:Signature xmlns:ds="'.self::DS.'"/>',
+            '<wsa:To xmlns:wsa="urn:wsa">urn:svc</wsa:To>'
+        );
+        $to = $this->locate($document, 'urn:wsa', 'To');
+
+        $this->validator()->validate(
+            $document,
+            SoapVersion::Soap12,
+            new VerifiedReferences([$to]),
+            [Part::soapHeaders()],
+        );
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_soap_headers_throws_when_a_non_security_header_was_not_signed(): void
+    {
+        $document = $this->envelopeWithSecurity('', '<wsa:To xmlns:wsa="urn:wsa">urn:svc</wsa:To>');
+
+        $this->expectException(SecurityFault::class);
+        $this->validator()->validate(
+            $document,
+            SoapVersion::Soap12,
+            new VerifiedReferences([]),
+            [Part::soapHeaders()],
+        );
+    }
+
+    public function test_a_dynamic_part_is_vacuously_satisfied_when_it_expands_to_nothing(): void
+    {
+        // Only the signature is present, so securityHeaderContents (which excludes it) has no member to require.
+        $document = $this->envelopeWithSecurity('<ds:Signature xmlns:ds="'.self::DS.'"/>');
+
+        $this->expectNotToPerformAssertions();
+        $this->validator()->validate(
+            $document,
+            SoapVersion::Soap12,
+            new VerifiedReferences([]),
+            [Part::securityHeaderContents()],
+        );
+    }
+
+    public function test_a_dynamic_part_is_vacuously_satisfied_when_there_is_no_security_header(): void
+    {
+        $document = $this->envelope();
+
+        $this->expectNotToPerformAssertions();
+        $this->validator()->validate(
+            $document,
+            SoapVersion::Soap12,
+            new VerifiedReferences([]),
+            [Part::securityHeaderContents()],
+        );
+    }
+
+    public function test_soap_headers_does_not_crash_when_the_security_header_has_no_element_parent(): void
+    {
+        // A hostile response could relocate wsse:Security to the document root; parentElement is then null, and
+        // the check must stay vacuously satisfied rather than throw past the uniform SecurityFault.
+        $document = Document::fromXmlString(
+            '<wsse:Security xmlns:wsse="'.self::WSSE.'"><ds:Signature xmlns:ds="'.self::DS.'"/></wsse:Security>'
+        );
+
+        $this->expectNotToPerformAssertions();
+        $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([]), [Part::soapHeaders()]);
+    }
+
     private function validator(): RequiredPartsValidator
     {
         return new RequiredPartsValidator(new TargetLocator());
@@ -89,11 +193,26 @@ final class RequiredPartsValidatorTest extends TestCase
         return '<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Body><data>x</data></soap:Body></soap:Envelope>';
     }
 
+    private function envelopeWithSecurity(string $securityChildren, string $otherHeaders = ''): Document
+    {
+        return Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsse="'.self::WSSE.'">'
+            .'<soap:Header>'.$otherHeaders.'<wsse:Security>'.$securityChildren.'</wsse:Security></soap:Header>'
+            .'<soap:Body><data>x</data></soap:Body>'
+            .'</soap:Envelope>'
+        );
+    }
+
     private function body(Document $document): Element
     {
-        $body = $document->toUnsafeDocument()->getElementsByTagNameNS(self::SOAP, 'Body')->item(0);
-        static::assertInstanceOf(Element::class, $body);
+        return $this->locate($document, self::SOAP, 'Body');
+    }
 
-        return $body;
+    private function locate(Document $document, string $namespace, string $localName): Element
+    {
+        $element = $document->toUnsafeDocument()->getElementsByTagNameNS($namespace, $localName)->item(0);
+        static::assertInstanceOf(Element::class, $element);
+
+        return $element;
     }
 }
