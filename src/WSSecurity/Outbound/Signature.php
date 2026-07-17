@@ -3,32 +3,26 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
-use Dom\Element;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
-use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\WSSecurity\PartResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
-use VeeWee\Xml\Dom\Document;
 
 /**
  * Adds a detached, multi-reference ds:Signature to the outbound Security header. Configuration:
@@ -125,7 +119,7 @@ final class Signature implements OutboundAction
         $parts = $this->parts ?? [Part::body(), Part::securityHeaderContents()];
         $request = new SigningRequest(
             container: $security->element(),
-            targets: $this->resolveTargets($parts, $context->soapVersion(), $security->element(), $document),
+            targets: (new PartResolver(new WsuIdMinter()))->resolve($parts, $document, $context->soapVersion(), $security->element()),
             signingKey: $this->clientCertificate->privateKey(),
             signingCertificate: $this->clientCertificate->publicCertificate(),
             keyIdentifier: $keyIdentifier,
@@ -135,80 +129,6 @@ final class Signature implements OutboundAction
         );
 
         $this->signer->sign($document, $request);
-    }
-
-    /**
-     * Lowers the configured parts to engine Targets. Static parts lower directly; the dynamic parts
-     * (securityHeaderContents, soapHeaders) are expanded against the live header, stamping a wsu:Id on each
-     * matched element (idempotent: an id an earlier block already minted is reused) and targeting it by that id.
-     *
-     * @param non-empty-list<Part> $parts
-     *
-     * @return non-empty-list<Target>
-     *
-     * @throws WsseHeaderException when the parts match no element to sign
-     */
-    private function resolveTargets(array $parts, SoapVersion $soapVersion, Element $securityHeader, Document $document): array
-    {
-        $minter = new WsuIdMinter();
-        $targets = [];
-        foreach ($parts as $part) {
-            $dynamic = $this->dynamicMembers($part, $securityHeader, $document);
-            if ($dynamic !== null) {
-                foreach ($dynamic as $element) {
-                    $targets[] = Target::byId($minter->mint($element, $document));
-                }
-
-                continue;
-            }
-
-            $targets[] = $part->toTarget($soapVersion);
-        }
-
-        if ($targets === []) {
-            throw WsseHeaderException::nothingToSign();
-        }
-
-        return $targets;
-    }
-
-    /**
-     * The elements a dynamic part expands to, or null when the part is not dynamic. SecurityHeaderContents is
-     * every child of the Security header; SoapHeaders is every SOAP header block except the Security header
-     * itself.
-     *
-     * @return list<Element>|null
-     */
-    private function dynamicMembers(Part $part, Element $securityHeader, Document $document): ?array
-    {
-        return match ($part->kind()) {
-            PartKind::SecurityHeaderContents => $this->childElements($document, $securityHeader),
-            PartKind::SoapHeaders => array_values(array_filter(
-                $this->childElements($document, $this->soapHeader($securityHeader)),
-                static fn (Element $header): bool => $header !== $securityHeader,
-            )),
-            default => null,
-        };
-    }
-
-    /**
-     * The SOAP Header element carrying the Security header (always its parent element).
-     */
-    private function soapHeader(Element $securityHeader): Element
-    {
-        $header = $securityHeader->parentElement;
-        assert($header instanceof Element);
-
-        return $header;
-    }
-
-    /**
-     * @return list<Element>
-     */
-    private function childElements(Document $document, Element $element): array
-    {
-        return Query::elements($document, 'child::*', $element)
-            ->map(static fn (Element $child): Element => $child);
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier

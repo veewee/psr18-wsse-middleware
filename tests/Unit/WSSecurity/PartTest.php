@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
 final class PartTest extends TestCase
@@ -22,9 +23,13 @@ final class PartTest extends TestCase
         static::assertNull($part->id());
     }
 
-    public function test_timestamp_part(): void
+    public function test_timestamp_is_an_element_shortcut_for_the_wsu_timestamp(): void
     {
-        static::assertSame(PartKind::Timestamp, Part::timestamp()->kind());
+        $part = Part::timestamp();
+
+        static::assertSame(PartKind::Element, $part->kind());
+        static::assertSame('http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd', $part->namespace());
+        static::assertSame('Timestamp', $part->localName());
     }
 
     public function test_element_part_carries_namespace_and_local_name(): void
@@ -127,5 +132,39 @@ final class PartTest extends TestCase
         $this->expectException(LogicException::class);
 
         Part::soapHeaders()->toTarget(SoapVersion::Soap12);
+    }
+
+    public function test_the_body_is_encrypted_as_content(): void
+    {
+        static::assertSame(EncryptionMode::Content, Part::body()->encryptionMode());
+    }
+
+    public function test_targeted_parts_are_encrypted_as_element(): void
+    {
+        static::assertSame(EncryptionMode::Element, Part::element('urn:a', 'X')->encryptionMode());
+        static::assertSame(EncryptionMode::Element, Part::byId('X')->encryptionMode());
+        static::assertSame(EncryptionMode::Element, Part::usernameToken()->encryptionMode());
+        static::assertSame(EncryptionMode::Element, Part::binarySecurityToken()->encryptionMode());
+        static::assertSame(EncryptionMode::Element, Part::timestamp()->encryptionMode());
+    }
+
+    public function test_signing_only_dynamic_parts_have_no_encryption_mode(): void
+    {
+        static::assertNull(Part::securityHeaderContents()->encryptionMode());
+        static::assertNull(Part::soapHeaders()->encryptionMode());
+    }
+
+    public function test_the_encryption_mode_can_be_overridden(): void
+    {
+        $part = Part::element('urn:a', 'X')->withEncryptionMode(EncryptionMode::Content);
+
+        static::assertSame(EncryptionMode::Content, $part->encryptionMode());
+    }
+
+    public function test_the_encryption_mode_is_part_of_equality(): void
+    {
+        $element = Part::element('urn:a', 'X');
+
+        static::assertFalse($element->equals($element->withEncryptionMode(EncryptionMode::Content)));
     }
 }

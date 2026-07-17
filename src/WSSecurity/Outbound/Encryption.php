@@ -14,12 +14,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIde
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
@@ -141,7 +139,10 @@ final class Encryption implements OutboundAction
             targets: array_map(
                 static fn (Part $part): EncryptionTarget => new EncryptionTarget(
                     $part->toTarget($soapVersion),
-                    self::modeFor($part),
+                    // A null mode marks a signing-only part (securityHeaderContents/soapHeaders): not encryptable.
+                    $part->encryptionMode() ?? throw new LogicException(
+                        'A signing-only Part (securityHeaderContents/soapHeaders) cannot be encrypted.',
+                    ),
                 ),
                 $parts,
             ),
@@ -152,24 +153,6 @@ final class Encryption implements OutboundAction
         );
 
         $this->encryptor->encrypt($document, $request);
-    }
-
-    /**
-     * The SOAP Body and the Timestamp are encrypted as Content (the element survives, its children are
-     * replaced); a targeted element is encrypted whole as Element. This is a WS-Security profile decision, so
-     * it lives here rather than in the XML-Security engine.
-     */
-    private static function modeFor(Part $part): EncryptionMode
-    {
-        return match ($part->kind()) {
-            PartKind::Body, PartKind::Timestamp => EncryptionMode::Content,
-            PartKind::Element, PartKind::Id => EncryptionMode::Element,
-            // Dynamic parts are signing-only; toTarget() already rejects them before this runs, so this arm is
-            // defensive and only keeps the match exhaustive.
-            PartKind::SecurityHeaderContents, PartKind::SoapHeaders => throw new LogicException(
-                'A dynamic Part (securityHeaderContents/soapHeaders) is signing-only and cannot be encrypted.',
-            ),
-        };
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier
