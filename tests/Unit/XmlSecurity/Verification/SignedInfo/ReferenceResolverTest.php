@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ParsedReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ReferenceResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParser;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
@@ -37,6 +38,34 @@ final class ReferenceResolverTest extends TestCase
 
         $this->expectException(SignatureVerificationFailed::class);
         (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+    }
+
+    public function test_it_resolves_a_reference_that_declares_no_transforms(): void
+    {
+        $document = $this->document(['Body' => self::referenceWithoutTransforms('#Body')]);
+        [$elements, $parsed] = $this->references($document);
+
+        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+
+        static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
+    }
+
+    public function test_the_parser_and_the_resolver_agree_on_an_absent_transforms(): void
+    {
+        // The two used to contradict each other: the parser fell back to the SignedInfo canonicalization
+        // while the resolver refused the same reference outright, leaving the tolerant branch unreachable.
+        $document = $this->document(['Body' => self::referenceWithoutTransforms('#Body')]);
+        $signature = $this->signature($document);
+
+        $parsed = (new SignedInfoParser())->parse($signature);
+
+        static::assertSame(SignatureCanonicalization::EXC_C14N, $parsed->references[0]->canonicalization);
+        static::assertSame([], $parsed->references[0]->inclusivePrefixes);
+
+        $resolved = (new ReferenceResolver(new WsuIdLookup()))
+            ->resolve($document, $parsed->referenceElements, $parsed->references, $signature);
+
+        static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
     }
 
     public function test_it_rejects_an_xslt_transform(): void
@@ -97,9 +126,19 @@ final class ReferenceResolverTest extends TestCase
     {
         return '<ds:Reference URI="'.$uri.'">'
             .'<ds:Transforms><ds:Transform Algorithm="'.$transform.'"/></ds:Transforms>'
-            .'<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>'
-            .'<ds:DigestValue>'.base64_encode('digest').'</ds:DigestValue>'
+            .self::digest()
             .'</ds:Reference>';
+    }
+
+    private static function referenceWithoutTransforms(string $uri): string
+    {
+        return '<ds:Reference URI="'.$uri.'">'.self::digest().'</ds:Reference>';
+    }
+
+    private static function digest(): string
+    {
+        return '<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>'
+            .'<ds:DigestValue>'.base64_encode('digest').'</ds:DigestValue>';
     }
 
     /**
@@ -123,7 +162,10 @@ final class ReferenceResolverTest extends TestCase
             .' xmlns:ds="'.WsseSignatureFixture::DS.'">'
             .'<soap:Header><wsse:Security>'
             .$duplicate
-            .'<ds:Signature wsu:Id="TheSignature"><ds:SignedInfo>'.$references.'</ds:SignedInfo></ds:Signature>'
+            .'<ds:Signature wsu:Id="TheSignature"><ds:SignedInfo>'
+            .'<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>'
+            .'<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>'
+            .$references.'</ds:SignedInfo></ds:Signature>'
             .'</wsse:Security></soap:Header>'
             .'<soap:Body wsu:Id="Body"><data>x</data></soap:Body></soap:Envelope>';
     }

@@ -22,9 +22,10 @@ use VeeWee\Xml\Dom\Document;
  * declares an absurd number of references would otherwise amplify canonicalization and digest work far beyond
  * its own size, and a document-size limit cannot bound that because the message itself is small.
  *
- * For each reference it refuses any non-same-document URI, requires exactly one known c14n transform and
- * nothing else (which canonicalizations are actually accepted is decided upstream by the policy enforcer),
- * resolves the bare id through the injected IdLookup (hardened to refuse a duplicate id and never fall back to
+ * For each reference it refuses any non-same-document URI, requires a declared ds:Transforms to hold exactly
+ * one known c14n transform and nothing else (which canonicalizations are actually accepted is decided
+ * upstream by the policy enforcer, and an absent ds:Transforms falls back to the SignedInfo canonicalization
+ * the parser resolved), resolves the bare id through the injected IdLookup (hardened to refuse a duplicate id and never fall back to
  * getElementById), and refuses a reference that resolves to the ds:Signature element itself or anything inside
  * it. The returned element instances are exactly what the lookup produced and are never re-queried afterwards.
  */
@@ -104,11 +105,16 @@ final class ReferenceResolver
         }
     }
 
+    /**
+     * A reference that declares no ds:Transforms at all is left to the parser, which takes its digest under
+     * the SignedInfo canonicalization; the element is spec-legal and some signers emit it. What is refused
+     * here is a ds:Transforms that declares something other than one known canonicalization.
+     */
     private function assertSingleKnownC14nTransform(Element $referenceElement): void
     {
         $transforms = $this->onlyDsChild($referenceElement, 'Transforms');
         if ($transforms === null) {
-            throw SignatureVerificationFailed::withReason('A reference declares no transform.');
+            return;
         }
 
         $candidates = ChildElements::named($transforms, Namespaces::Ds, 'Transform');
