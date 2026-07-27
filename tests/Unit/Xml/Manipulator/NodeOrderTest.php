@@ -116,6 +116,26 @@ final class NodeOrderTest extends TestCase
         );
     }
 
+    public function test_two_children_of_the_same_rank_keep_their_relative_order(): void
+    {
+        // Two BinarySecurityTokens share a rank; a signature references one of them by wsu:Id, so reordering
+        // equals would change which token a receiver reads first.
+        $security = $this->security(
+            '<wsse:BinarySecurityToken wsu:Id="first"/><ds:Signature/><wsse:BinarySecurityToken wsu:Id="second"/>'
+        );
+
+        NodeOrder::sort($security);
+
+        $ids = [];
+        foreach ($security->childNodes as $child) {
+            if ($child instanceof Element && $child->localName === 'BinarySecurityToken') {
+                $ids[] = $child->getAttributeNS(self::WSU, 'Id');
+            }
+        }
+
+        static::assertSame(['first', 'second'], $ids);
+    }
+
     public function test_sorting_an_empty_element_is_a_noop(): void
     {
         $security = $this->security('');

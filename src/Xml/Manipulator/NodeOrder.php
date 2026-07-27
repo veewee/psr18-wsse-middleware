@@ -40,21 +40,15 @@ final class NodeOrder
 
     public static function sort(Element $securityElement): void
     {
-        $ranked = [];
-        foreach (children($securityElement) as $index => $child) {
-            // Pair each child with (canonical rank, original index) so a stable sort keeps unknown
-            // children, and ties within the same rank, in their original relative order.
-            $ranked[] = [self::rankOf($child), $index, $child];
-        }
-
-        usort(
-            $ranked,
-            static fn (array $a, array $b): int => [$a[0], $a[1]] <=> [$b[0], $b[1]],
-        );
+        // The sort is stable, so unknown children — and ties within one rank — keep their original
+        // relative order without a tiebreaker.
+        $sorted = children($securityElement)
+            ->sort(static fn (Element $a, Element $b): int => self::rankOf($a) <=> self::rankOf($b))
+            ->map(static fn (Element $child): Element => $child);
 
         // Re-appending an existing child moves it to the end, so appending in target order reorders
         // the element in place without detaching anything.
-        append(...array_map(static fn (array $entry): Element => $entry[2], $ranked))($securityElement);
+        append(...$sorted)($securityElement);
     }
 
     private static function rankOf(Element $element): int

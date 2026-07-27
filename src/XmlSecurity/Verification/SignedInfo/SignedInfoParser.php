@@ -160,14 +160,13 @@ final class SignedInfoParser
                     SignatureCanonicalization::EXC_C14N->value,
                     'InclusiveNamespaces',
                 ),
-            )
-            ->map(static fn (Element $child): Element => $child);
+            );
 
-        if (count($matches) > 1) {
+        if ($matches->count() > 1) {
             throw SignatureVerificationFailed::withReason('ec:InclusiveNamespaces must appear at most once.');
         }
 
-        $inclusiveNamespaces = $matches[0] ?? null;
+        $inclusiveNamespaces = $matches->first();
         if ($inclusiveNamespaces === null) {
             return [];
         }
