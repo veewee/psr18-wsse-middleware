@@ -53,7 +53,7 @@ final class Certificate
      */
     public static function fromBase64Der(string $base64Der): self
     {
-        $der = base64_decode((string) preg_replace('/\s/', '', $base64Der), true);
+        $der = base64_decode(self::normalizeBase64Der($base64Der), true);
         if ($der === false || $der === '') {
             throw InvalidCertificate::malformedEncoding('the certificate bytes are not valid base64');
         }
@@ -81,6 +81,15 @@ final class Certificate
         }
 
         return base64_encode($der);
+    }
+
+    /**
+     * Strips the whitespace a base64-DER body picks up on the wire, where it is routinely line-wrapped. This
+     * is the form toBase64Der() emits, so a normalized wire body compares equal to it.
+     */
+    public static function normalizeBase64Der(string $base64Der): string
+    {
+        return (string) preg_replace('/\s/', '', $base64Der);
     }
 
     public function contents(): string

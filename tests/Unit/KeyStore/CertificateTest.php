@@ -42,6 +42,14 @@ final class CertificateTest extends TestCase
         static::assertSame($certificate->toBase64Der(), $rebuilt->toBase64Der());
     }
 
+    public function test_it_normalizes_a_line_wrapped_base64_der_body(): void
+    {
+        $certificate = Certificate::fromPkcs12(Pkcs12Bundle::fromString(Pkcs12Fixture::create('secret')->p12, 'secret'));
+        $wrapped = chunk_split($certificate->toBase64Der(), 64, "\n");
+
+        static::assertSame($certificate->toBase64Der(), Certificate::normalizeBase64Der($wrapped));
+    }
+
     public function test_it_rejects_invalid_base64_der(): void
     {
         $this->expectException(InvalidCertificate::class);

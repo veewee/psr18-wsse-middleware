@@ -7,6 +7,7 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use VeeWee\Xml\Dom\Document;
@@ -30,7 +31,7 @@ final class BinaryToken
 
         foreach ($this->securityHeaders($document) as $security) {
             foreach (ChildElements::named($security, Namespaces::Wsse, 'BinarySecurityToken') as $token) {
-                if ($this->stripped((string) $token->textContent) !== $expected) {
+                if (Certificate::normalizeBase64Der(ElementText::trimmed($token)) !== $expected) {
                     continue;
                 }
 
@@ -51,10 +52,5 @@ final class BinaryToken
     {
         return Query::elements($document, '//'.Namespaces::Wsse->qualify('Security'))
             ->map(static fn (Element $element): Element => $element);
-    }
-
-    private function stripped(string $value): string
-    {
-        return (string) preg_replace('/\s/', '', $value);
     }
 }
