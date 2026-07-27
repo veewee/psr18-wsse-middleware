@@ -37,7 +37,7 @@ final class SignedInfoParser
         $canonicalization = $this->canonicalizationAlgorithm($canonicalizationMethod);
         $canonicalizationPrefixes = $this->inclusivePrefixes($canonicalizationMethod);
         $signatureMethod = $this->signatureMethod($signedInfo);
-        [$referenceElements, $parsedReferences] = $this->parseReferences($signedInfo, $canonicalization);
+        [$referenceElements, $parsedReferences] = $this->parseReferences($signedInfo);
 
         return new ParsedSignedInfo(
             $canonicalization,
@@ -53,13 +53,13 @@ final class SignedInfoParser
      *
      * @throws SignatureVerificationFailed
      */
-    private function parseReferences(Element $signedInfo, SignatureCanonicalization $signedInfoCanonicalization): array
+    private function parseReferences(Element $signedInfo): array
     {
         $elements = [];
         $parsed = [];
         foreach (ChildElements::named($signedInfo, Namespaces::Ds, 'Reference') as $child) {
             $elements[] = $child;
-            $parsed[] = $this->parseReference($child, $signedInfoCanonicalization);
+            $parsed[] = $this->parseReference($child);
         }
 
         if ($elements === [] || $parsed === []) {
@@ -72,10 +72,8 @@ final class SignedInfoParser
     /**
      * @throws SignatureVerificationFailed
      */
-    private function parseReference(
-        Element $reference,
-        SignatureCanonicalization $signedInfoCanonicalization,
-    ): ParsedReference {
+    private function parseReference(Element $reference): ParsedReference
+    {
         // The id itself is re-read from the element by the resolver; here it only has to be well-formed.
         if (SameDocumentId::parse((string) $reference->getAttribute('URI')) === null) {
             throw SignatureVerificationFailed::withReason('A reference URI must be a non-empty same-document id.');
@@ -83,10 +81,7 @@ final class SignedInfoParser
 
         $digestMethod = $this->digestMethod($reference);
         $digestValue = $this->requireDsChild($reference, 'DigestValue');
-        [$canonicalization, $inclusivePrefixes] = $this->referenceCanonicalization(
-            $reference,
-            $signedInfoCanonicalization,
-        );
+        [$canonicalization, $inclusivePrefixes] = $this->referenceCanonicalization($reference);
 
         return new ParsedReference(
             $digestMethod,
@@ -110,10 +105,8 @@ final class SignedInfoParser
      *
      * @throws SignatureVerificationFailed
      */
-    private function referenceCanonicalization(
-        Element $reference,
-        SignatureCanonicalization $signedInfoCanonicalization,
-    ): array {
+    private function referenceCanonicalization(Element $reference): array
+    {
         $transformsMatches = ChildElements::named($reference, Namespaces::Ds, 'Transforms');
         if (count($transformsMatches) > 1) {
             throw SignatureVerificationFailed::withReason('ds:Transforms must appear at most once in a reference.');
