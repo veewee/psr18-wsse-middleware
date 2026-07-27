@@ -50,14 +50,14 @@ final class BinarySecurityToken implements OutboundAction
     {
         $document = $context->document();
         $locator = new BinaryToken();
+        $header = SecurityHeader::locateOrCreate($document, $context->soapVersion());
 
         try {
-            return $locator->locate($document, $this->certificate);
+            return $locator->locate($header->element(), $this->certificate);
         } catch (WsseHeaderException) {
-            $header = SecurityHeader::locateOrCreate($document, $context->soapVersion());
             $header->appendChildren($this->build($document, $this->certificate->toBase64Der()));
 
-            return $locator->locate($document, $this->certificate);
+            return $locator->locate($header->element(), $this->certificate);
         }
     }
 
