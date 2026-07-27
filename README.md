@@ -336,9 +336,13 @@ accepted; to accept an inclusive variant, add it to the profile's `acceptedCanon
 
 ## Inbound: `ValidateTimestamp`
 
-Rejects a stale, future-dated, or replayed-window response before your application sees it. It locates the single
-`wsu:Timestamp` in the Security header and asserts the message is not expired, not older than the maximum age,
-and not stamped in the future, each within the configured clock skew.
+Rejects a stale or future-dated response before your application sees it. It locates the single `wsu:Timestamp`
+in the Security header and asserts the message is not expired, not older than the maximum age, and not stamped
+in the future, each within the configured clock skew.
+
+This is not replay detection. There is no nonce cache, so a captured response replayed inside the freshness
+window is accepted; what the block does is bound how long that window stays open. Narrow `timestampTtl` and
+`clockSkew` to shrink it.
 
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
@@ -752,6 +756,22 @@ algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMeth
 - **Canonicalization:** exclusive C14N (`EXC_C14N`, `EXC_C14N_COMMENTS`) is the default and the only form
   accepted inbound unless you opt in. Inclusive Canonical XML 1.0 (`C14N`, `C14N_COMMENTS`) is supported as an
   opt-in. Canonical XML 1.1 is **not** supported: the underlying platform does not provide it.
+
+## Limits on an inbound message
+
+Every parse rejects a DOCTYPE declaration before any block runs, which removes external entities and entity
+expansion as an attack surface. Beyond that the middleware relies on the parser's own default limits — it never
+asks for the "huge" parse mode that lifts them — so an inbound response is refused once it nests deeper than
+256 elements.
+
+Note what that does **not** cover: the parser does not bound the length of an individual text node, and there
+is deliberately no total message-size cap here. The response body is already fully in memory by the time a
+PSR-18 middleware sees it, so a cap at this layer would only bound parsing cost against a server you chose to
+call. Cap the body at the HTTP client if you need one.
+
+- **References per signature:** a `ds:SignedInfo` may declare at most 32 `ds:Reference` entries. A small
+  message declaring an absurd number of references would otherwise amplify canonicalization and digest work
+  far beyond its own size, which a size limit could not bound.
 
 # WsaMiddleware
 

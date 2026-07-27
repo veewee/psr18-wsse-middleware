@@ -21,6 +21,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
 use VeeWee\Xml\Exception\DoctypeNotAllowedException;
+use VeeWee\Xml\Exception\RuntimeException as XmlRuntimeException;
 use function VeeWee\Xml\Dom\Builder\element;
 
 final class WsseMiddlewareTest extends TestCase
@@ -140,6 +141,45 @@ final class WsseMiddlewareTest extends TestCase
             $this->next($sentRequest, $response),
             $this->first(),
         )->wait();
+    }
+
+    /**
+     * SECURITY: the middleware sets no message-size cap of its own and instead relies on the parser's
+     * default limits, which means it must never ask for the parse mode that lifts them. This pins the
+     * reliance: an inbound response nested past the parser's depth limit is refused, not parsed.
+     */
+    public function test_it_refuses_a_response_nested_past_the_parser_depth_limit(): void
+    {
+        $depth = 300;
+        $body = '<soap:Envelope xmlns:soap="'.self::SOAP12_NS.'"><soap:Body>'
+            .str_repeat('<a>', $depth).'x'.str_repeat('</a>', $depth)
+            .'</soap:Body></soap:Envelope>';
+        $middleware = new WsseMiddleware(new SecurityProfile(), [], [$this->versionCapturingBlock($ignored)]);
+
+        $this->expectException(XmlRuntimeException::class);
+        $middleware->handleRequest(
+            $this->soapRequest(self::SOAP12_NS),
+            $this->next($sentRequest, new Response(200, [], $body)),
+            $this->first(),
+        )->wait();
+    }
+
+    public function test_it_parses_a_response_within_the_parser_depth_limit(): void
+    {
+        $depth = 200;
+        $body = '<soap:Envelope xmlns:soap="'.self::SOAP12_NS.'"><soap:Body>'
+            .str_repeat('<a>', $depth).'x'.str_repeat('</a>', $depth)
+            .'</soap:Body></soap:Envelope>';
+        $version = null;
+        $middleware = new WsseMiddleware(new SecurityProfile(), [], [$this->versionCapturingBlock($version)]);
+
+        $middleware->handleRequest(
+            $this->soapRequest(self::SOAP12_NS),
+            $this->next($sentRequest, new Response(200, [], $body)),
+            $this->first(),
+        )->wait();
+
+        static::assertSame(SoapVersion::Soap12, $version);
     }
 
     public function test_an_inbound_block_failure_propagates(): void
