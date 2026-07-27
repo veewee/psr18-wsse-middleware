@@ -40,19 +40,40 @@ final class OaepParameterResolverTest extends TestCase
         static::assertSame(OaepHash::Sha1, $algorithm->oaepHash);
     }
 
-    public function test_it_resolves_rsa_1_5_without_oaep_params(): void
+    public function test_rsa_1_5_is_rejected_by_the_default_policy(): void
     {
-        // The rsa-1_5 method short-circuits before any OAEP resolution and carries no OAEP hash.
+        // The default allow-list excludes rsa-1_5 (Bleichenbacher/Marvin); the short-circuit that skips OAEP
+        // resolution must not also skip the allow-list, or a peer could force PKCS#1 v1.5 unwrapping.
+        $element = $this->encryptionMethod(self::RSA_1_5, []);
+
+        $this->expectRejection($element, KeyEncryptionMethod::RSA_1_5);
+    }
+
+    public function test_rsa_1_5_resolves_without_an_oaep_hash_when_the_policy_admits_it(): void
+    {
+        // Opting in is still possible for a legacy peer; the method carries no OAEP hash.
         $element = $this->encryptionMethod(self::RSA_1_5, []);
 
         $algorithm = (new OaepParameterResolver())->resolve(
             KeyEncryptionMethod::RSA_1_5,
             $element,
-            CryptoPolicy::default(),
+            new CryptoPolicy(acceptedKeyEncryptionMethods: [KeyEncryptionMethod::RSA_1_5]),
         );
 
         static::assertSame(KeyEncryptionMethod::RSA_1_5, $algorithm->method);
         static::assertNull($algorithm->oaepHash);
+    }
+
+    public function test_a_policy_excluding_oaep_rejects_an_oaep_method(): void
+    {
+        // The same gate must cover the OAEP methods, not just the legacy one.
+        $element = $this->encryptionMethod(self::RSA_OAEP, []);
+
+        $this->expectRejection(
+            $element,
+            KeyEncryptionMethod::RSA_OAEP,
+            new CryptoPolicy(acceptedKeyEncryptionMethods: [KeyEncryptionMethod::RSA_OAEP_MGF1P]),
+        );
     }
 
     public function test_it_resolves_explicit_sha256_children(): void

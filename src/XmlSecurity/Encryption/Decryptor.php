@@ -62,7 +62,7 @@ final class Decryptor implements XmlDecryptor
 
             foreach ($references as $id) {
                 $element = $this->encryptedData->resolve($document, $id);
-                $this->encryptedDataReader->read($document, $element, $sessionKey);
+                $this->encryptedDataReader->read($document, $element, $sessionKey, $request->policy);
             }
         } catch (Throwable) {
             // Every cause collapses to one message so the inbound path is never a padding or validation oracle.

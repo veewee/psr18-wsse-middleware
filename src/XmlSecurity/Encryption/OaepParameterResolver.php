@@ -35,6 +35,12 @@ final class OaepParameterResolver
         Element $encryptionMethod,
         CryptoPolicy $policy,
     ): KeyTransportAlgorithm {
+        // The allow-list is consulted before the method branches: rsa-1_5 carries no OAEP parameters to
+        // resolve, so its short-circuit would otherwise return an algorithm the policy never admitted.
+        if (!$policy->acceptsKeyEncryptionMethod($method)) {
+            throw UnsupportedAlgorithmException::forAlgorithm($method->value);
+        }
+
         if ($method === KeyEncryptionMethod::RSA_1_5) {
             return KeyTransportAlgorithm::rsa1_5();
         }

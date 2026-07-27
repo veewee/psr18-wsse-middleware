@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
@@ -38,6 +39,59 @@ final class EncryptedDataRoundTripTest extends TestCase
         yield 'aes-128-cbc' => [DataEncryptionMethod::AES128_CBC, 16];
     }
 
+    public function test_a_data_cipher_outside_the_policy_is_rejected(): void
+    {
+        // 3DES is off the default allow-list (Sweet32). Without this gate a peer picks the weakest cipher the
+        // enum can represent and the reader decrypts it regardless of what the policy documents.
+        $key = SessionKey::fromBytes(str_repeat("\x01", 24));
+        [$document] = $this->tripleDesEncryptedBody($key);
+
+        $this->expectException(DecryptionFailed::class);
+
+        (new EncryptedDataReader(new Cipher()))->read(
+            $document,
+            $this->onlyEncryptedData($document),
+            $key,
+            CryptoPolicy::default(),
+        );
+    }
+
+    public function test_a_widened_policy_admits_the_weak_data_cipher(): void
+    {
+        $key = SessionKey::fromBytes(str_repeat("\x01", 24));
+        [$document, $original] = $this->tripleDesEncryptedBody($key);
+
+        (new EncryptedDataReader(new Cipher()))->read(
+            $document,
+            $this->onlyEncryptedData($document),
+            $key,
+            new CryptoPolicy(acceptedDataEncryptionMethods: [DataEncryptionMethod::TRIPLEDES_CBC]),
+        );
+
+        static::assertSame($original, $this->innerXml($this->body($document)));
+    }
+
+    /**
+     * @return array{0: Document, 1: string} the document with its Body content encrypted, and that content
+     */
+    private function tripleDesEncryptedBody(SessionKey $key): array
+    {
+        $document = $this->envelope();
+        $body = $this->body($document);
+        $original = $this->innerXml($body);
+
+        $cipherText = (new Cipher())->encrypt($original, $key, DataEncryptionMethod::TRIPLEDES_CBC);
+        (new EncryptedDataBuilder(new WsuIdMinter()))->build(
+            $document,
+            $body,
+            $cipherText,
+            DataEncryptionMethod::TRIPLEDES_CBC,
+            EncryptionMode::Content,
+        );
+
+        return [$document, $original];
+    }
+
     #[DataProvider('methods')]
     public function test_it_round_trips_content_mode(DataEncryptionMethod $method, int $keyLength): void
     {
@@ -51,7 +105,7 @@ final class EncryptedDataRoundTripTest extends TestCase
         (new EncryptedDataBuilder(new WsuIdMinter()))->build($document, $body, $cipherText, $method, EncryptionMode::Content);
 
         $encryptedData = $this->onlyEncryptedData($document);
-        (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key);
+        (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key, CryptoPolicy::default());
 
         static::assertSame($original, $this->innerXml($this->body($document)));
     }
@@ -69,7 +123,7 @@ final class EncryptedDataRoundTripTest extends TestCase
         (new EncryptedDataBuilder(new WsuIdMinter()))->build($document, $custom, $cipherText, $method, EncryptionMode::Element);
 
         $encryptedData = $this->onlyEncryptedData($document);
-        (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key);
+        (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key, CryptoPolicy::default());
 
         static::assertStringContainsString('<app:Custom', $document->toXmlString());
         static::assertStringContainsString('payload', $document->toXmlString());
@@ -91,7 +145,7 @@ final class EncryptedDataRoundTripTest extends TestCase
         $this->placeEncryptedData($document, $body, base64_encode($framed), DataEncryptionMethod::AES256_GCM);
 
         $this->expectException(DecryptionFailed::class);
-        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), $key);
+        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), $key, CryptoPolicy::default());
     }
 
     public function test_a_tampered_gcm_ciphertext_is_rejected(): void
@@ -108,7 +162,7 @@ final class EncryptedDataRoundTripTest extends TestCase
         $this->placeEncryptedData($document, $body, base64_encode($framed), DataEncryptionMethod::AES256_GCM);
 
         $this->expectException(DecryptionFailed::class);
-        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), $key);
+        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), $key, CryptoPolicy::default());
     }
 
     public function test_malformed_base64_is_rejected(): void
@@ -118,7 +172,12 @@ final class EncryptedDataRoundTripTest extends TestCase
         $this->placeEncryptedData($document, $body, 'not valid base64 ###', DataEncryptionMethod::AES256_GCM);
 
         $this->expectException(DecryptionFailed::class);
-        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), SessionKey::fromBytes(str_repeat("\x05", 32)));
+        (new EncryptedDataReader(new Cipher()))->read(
+            $document,
+            $this->onlyEncryptedData($document),
+            SessionKey::fromBytes(str_repeat("\x05", 32)),
+            CryptoPolicy::default(),
+        );
     }
 
     public function test_a_doctype_in_the_decrypted_plaintext_is_rejected(): void
@@ -135,7 +194,7 @@ final class EncryptedDataRoundTripTest extends TestCase
         $this->placeEncryptedData($document, $body, base64_encode($framed), DataEncryptionMethod::AES256_GCM);
 
         $this->expectException(DecryptionFailed::class);
-        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), $key);
+        (new EncryptedDataReader(new Cipher()))->read($document, $this->onlyEncryptedData($document), $key, CryptoPolicy::default());
     }
 
     public function test_bad_cbc_padding_and_wrong_key_share_the_same_failure(): void
@@ -174,7 +233,7 @@ final class EncryptedDataRoundTripTest extends TestCase
             $encryptedData = $this->onlyEncryptedData($document);
 
             try {
-                (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $decryptKey);
+                (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $decryptKey, CryptoPolicy::default());
             } catch (DecryptionFailed $exception) {
                 return $exception;
             }

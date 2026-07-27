@@ -14,6 +14,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -44,9 +45,10 @@ final class EncryptedDataReader
         Document $document,
         Element $encryptedDataElement,
         SessionKey $sessionKey,
+        CryptoPolicy $policy,
     ): void {
         try {
-            $method = $this->method($encryptedDataElement);
+            $method = $this->method($encryptedDataElement, $policy);
             $cipherText = $this->frame($encryptedDataElement, $method);
 
             $plaintext = $this->cipher->decrypt($cipherText, $sessionKey, $method);
@@ -61,13 +63,22 @@ final class EncryptedDataReader
         }
     }
 
-    private function method(Element $encryptedDataElement): DataEncryptionMethod
+    /**
+     * The declared bulk cipher, gated on the policy allow-list. Being representable as an enum case is not
+     * acceptance: every case exists for parity, so without this gate a peer could name the weakest cipher the
+     * enum can express (3DES, Sweet32) and have it decrypted. An unknown and a disallowed method report the
+     * same failure, so the reader does not tell a peer which of the two it hit.
+     */
+    private function method(Element $encryptedDataElement, CryptoPolicy $policy): DataEncryptionMethod
     {
         $encryptionMethod = $this->child($encryptedDataElement, 'EncryptionMethod');
         $algorithm = DataEncryptionMethod::tryFrom((string) $encryptionMethod->getAttribute('Algorithm'));
 
-        return $algorithm
-            ?? throw DecryptionFailed::withReason('The data-encryption method is unknown.');
+        if ($algorithm === null || !$policy->acceptsDataEncryptionMethod($algorithm)) {
+            throw DecryptionFailed::withReason('The data-encryption method is unknown.');
+        }
+
+        return $algorithm;
     }
 
     private function frame(Element $encryptedDataElement, DataEncryptionMethod $method): CipherText
