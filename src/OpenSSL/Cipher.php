@@ -19,8 +19,6 @@ use Throwable;
  */
 final class Cipher
 {
-    private const int GCM_TAG_LENGTH = 16;
-
     public function __construct(
         private readonly Random $random = new Random(),
     ) {
@@ -31,7 +29,7 @@ final class Cipher
         SessionKey $key,
         DataEncryptionMethod $method,
     ): CipherText {
-        $iv = $this->random->bytes($this->ivLength($method));
+        $iv = $this->random->bytes($method->ivLength());
 
         try {
             $cipher = $this->cipher($method, $key->bytes(), $iv);
@@ -56,10 +54,10 @@ final class Cipher
         SessionKey $key,
         DataEncryptionMethod $method,
     ): string {
-        $ivLength = $this->ivLength($method);
+        $ivLength = $method->ivLength();
 
         if ($method->isGcm()) {
-            if ($cipherText->tag === null || strlen($cipherText->tag) !== self::GCM_TAG_LENGTH) {
+            if ($cipherText->tag === null || strlen($cipherText->tag) !== $method->tagLength()) {
                 // Reject a truncated/missing tag before decrypt (tag-forgery defense).
                 throw CryptoOperationFailed::invalidAuthenticationTag();
             }
@@ -173,25 +171,6 @@ final class Cipher
             DataEncryptionMethod::AES256_CBC,
             DataEncryptionMethod::AES256_GCM => 256,
             DataEncryptionMethod::TRIPLEDES_CBC => throw CryptoOperationFailed::encryptionFailed(),
-        };
-    }
-
-    /**
-     * The IV length per method: 96 bits for GCM, and the block size for CBC (where IV length == block size).
-     * Every arm is reachable: GCM uses it to mint/validate the IV; CBC uses it for the IV and the padding.
-     *
-     * @return positive-int
-     */
-    private function ivLength(DataEncryptionMethod $method): int
-    {
-        return match ($method) {
-            DataEncryptionMethod::TRIPLEDES_CBC => 8,
-            DataEncryptionMethod::AES128_CBC,
-            DataEncryptionMethod::AES192_CBC,
-            DataEncryptionMethod::AES256_CBC => 16,
-            DataEncryptionMethod::AES128_GCM,
-            DataEncryptionMethod::AES192_GCM,
-            DataEncryptionMethod::AES256_GCM => 12,
         };
     }
 }

@@ -31,6 +31,26 @@ enum OaepHash: string
     }
 
     /**
+     * The inverse of mgfUri(). An absent xenc11:MGF child means the spec default, MGF1-SHA1.
+     *
+     * @throws UnsupportedAlgorithmException for an MGF URI outside the supported set
+     */
+    public static function fromMgfUri(?string $uri): self
+    {
+        if ($uri === null || $uri === '') {
+            return self::Sha1;
+        }
+
+        foreach (self::cases() as $case) {
+            if ($case->mgfUri() === $uri) {
+                return $case;
+            }
+        }
+
+        throw UnsupportedAlgorithmException::forAlgorithm($uri);
+    }
+
+    /**
      * @throws UnsupportedAlgorithmException for a digest with no OAEP hash counterpart
      */
     public static function fromDigest(DigestMethod $digest): self

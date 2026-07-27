@@ -25,6 +25,30 @@ enum DataEncryptionMethod: string
         };
     }
 
+    /**
+     * The IV length per method: 96 bits for GCM, and the block size for CBC (where IV length == block size).
+     *
+     * @return positive-int
+     */
+    public function ivLength(): int
+    {
+        return match ($this) {
+            self::TRIPLEDES_CBC => 8,
+            self::AES128_CBC, self::AES192_CBC, self::AES256_CBC => 16,
+            self::AES128_GCM, self::AES192_GCM, self::AES256_GCM => 12,
+        };
+    }
+
+    /**
+     * The authentication-tag length: 128 bits for GCM, zero for the unauthenticated CBC modes.
+     *
+     * @return non-negative-int
+     */
+    public function tagLength(): int
+    {
+        return $this->isGcm() ? 16 : 0;
+    }
+
     public static function default(): self
     {
         return self::AES256_GCM;

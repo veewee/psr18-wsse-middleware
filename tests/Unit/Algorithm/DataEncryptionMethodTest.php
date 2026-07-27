@@ -24,6 +24,25 @@ final class DataEncryptionMethodTest extends TestCase
         static::assertSame(DataEncryptionMethod::AES256_GCM, DataEncryptionMethod::default());
     }
 
+    public function test_it_exposes_the_iv_length_per_method(): void
+    {
+        // 96 bits for GCM; the block size for CBC (where the IV length equals the block size).
+        static::assertSame(8, DataEncryptionMethod::TRIPLEDES_CBC->ivLength());
+        static::assertSame(16, DataEncryptionMethod::AES128_CBC->ivLength());
+        static::assertSame(16, DataEncryptionMethod::AES192_CBC->ivLength());
+        static::assertSame(16, DataEncryptionMethod::AES256_CBC->ivLength());
+        static::assertSame(12, DataEncryptionMethod::AES128_GCM->ivLength());
+        static::assertSame(12, DataEncryptionMethod::AES192_GCM->ivLength());
+        static::assertSame(12, DataEncryptionMethod::AES256_GCM->ivLength());
+    }
+
+    public function test_only_gcm_carries_an_authentication_tag(): void
+    {
+        static::assertSame(16, DataEncryptionMethod::AES256_GCM->tagLength());
+        static::assertSame(0, DataEncryptionMethod::AES256_CBC->tagLength());
+        static::assertSame(0, DataEncryptionMethod::TRIPLEDES_CBC->tagLength());
+    }
+
     public function test_it_reports_whether_the_mode_is_gcm(): void
     {
         static::assertTrue(DataEncryptionMethod::AES128_GCM->isGcm());

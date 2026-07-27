@@ -26,9 +26,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
  */
 final class OaepParameterResolver
 {
-    private const MGF1_SHA1 = 'http://www.w3.org/2009/xmlenc11#mgf1sha1';
-    private const MGF1_SHA256 = 'http://www.w3.org/2009/xmlenc11#mgf1sha256';
-
     /**
      * @throws UnsupportedAlgorithmException
      */
@@ -83,7 +80,7 @@ final class OaepParameterResolver
             ? OaepHash::Sha1
             : OaepHash::fromDigest($this->digest($digestUri));
 
-        $mgfHash = $this->mgfHash($mgfUri);
+        $mgfHash = OaepHash::fromMgfUri($mgfUri);
 
         // The MGF hash must match the OAEP digest hash; a mismatched pair is rejected.
         if ($mgfHash !== $digestHash) {
@@ -107,18 +104,6 @@ final class OaepParameterResolver
     {
         return DigestMethod::tryFrom($uri)
             ?? throw UnsupportedAlgorithmException::forAlgorithm($uri);
-    }
-
-    /**
-     * @throws UnsupportedAlgorithmException
-     */
-    private function mgfHash(?string $uri): OaepHash
-    {
-        return match ($uri) {
-            null, '', self::MGF1_SHA1 => OaepHash::Sha1,
-            self::MGF1_SHA256 => OaepHash::Sha256,
-            default => throw UnsupportedAlgorithmException::forAlgorithm($uri),
-        };
     }
 
     /**

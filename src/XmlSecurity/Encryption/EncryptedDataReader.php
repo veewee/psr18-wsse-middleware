@@ -32,8 +32,6 @@ use function VeeWee\Xml\Dom\Manipulator\Node\replace_by_external_node;
  */
 final class EncryptedDataReader
 {
-    private const int GCM_TAG_LENGTH = 16;
-
     public function __construct(
         private readonly Cipher $cipher,
     ) {
@@ -82,8 +80,8 @@ final class EncryptedDataReader
             throw DecryptionFailed::withReason('The cipher value is not valid base64.');
         }
 
-        $ivLength = $this->ivLength($method);
-        $tagLength = $method->isGcm() ? self::GCM_TAG_LENGTH : 0;
+        $ivLength = $method->ivLength();
+        $tagLength = $method->tagLength();
 
         if (strlen($decoded) < $ivLength + $tagLength) {
             throw DecryptionFailed::withReason('The framed cipher value is too short for the declared method.');
@@ -153,21 +151,5 @@ final class EncryptedDataReader
         }
 
         return $matches[0];
-    }
-
-    /**
-     * @return positive-int
-     */
-    private function ivLength(DataEncryptionMethod $method): int
-    {
-        return match ($method) {
-            DataEncryptionMethod::TRIPLEDES_CBC => 8,
-            DataEncryptionMethod::AES128_CBC,
-            DataEncryptionMethod::AES192_CBC,
-            DataEncryptionMethod::AES256_CBC => 16,
-            DataEncryptionMethod::AES128_GCM,
-            DataEncryptionMethod::AES192_GCM,
-            DataEncryptionMethod::AES256_GCM => 12,
-        };
     }
 }
