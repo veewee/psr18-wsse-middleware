@@ -22,15 +22,14 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedData;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
@@ -74,7 +73,7 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         );
 
         // The encrypted body still round-trips after the combined operation.
-        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedData(new WsuIdLookup())))
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator(new WsuIdLookup())))
             ->decrypt($document, new DecryptionRequest($recipientKey));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
@@ -117,7 +116,6 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
             new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup())),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
-            new KeyInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
             new WsuIdLookup(),

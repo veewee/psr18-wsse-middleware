@@ -10,7 +10,6 @@ use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedPartId;
 use VeeWee\Xml\Dom\Document;
 
 final class EncryptedKeyBuilderTest extends TestCase
@@ -32,7 +31,7 @@ final class EncryptedKeyBuilderTest extends TestCase
             new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
             new Certificate('cert'),
             KeyTransportAlgorithm::legacyMgf1p(),
-            [new EncryptedPartId('id-one'), new EncryptedPartId('id-two')],
+            ['id-one', 'id-two'],
         );
 
         static::assertSame('EncryptedKey', $encryptedKey->localName);
@@ -66,7 +65,7 @@ final class EncryptedKeyBuilderTest extends TestCase
             new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
             new Certificate('cert'),
             KeyTransportAlgorithm::oaepSha256(),
-            [new EncryptedPartId('id-one')],
+            ['id-one'],
         );
 
         $encryptionMethod = $this->child($encryptedKey, 'EncryptionMethod', self::XENC);

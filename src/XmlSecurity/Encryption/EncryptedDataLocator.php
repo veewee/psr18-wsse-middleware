@@ -24,7 +24,7 @@ use VeeWee\Xml\Dom\Document;
  * XPath, never getElementById or DTD-declared IDs, the id embedded as a string literal, and a duplicate carrier
  * rejected as ambiguous instead of silently resolving to the first match.
  */
-final class EncryptedData
+final class EncryptedDataLocator
 {
     public function __construct(
         private IdLookup $idLookup = new XmlIdLookup(),

@@ -28,8 +28,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedData;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
@@ -138,7 +138,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertInstanceOf(Element::class, $method);
         static::assertSame(1, $method->getElementsByTagNameNS('http://www.w3.org/2009/xmlenc11#', 'MGF')->count());
 
-        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedData(new WsuIdLookup())))
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator(new WsuIdLookup())))
             ->decrypt($document, new DecryptionRequest($key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
@@ -262,7 +262,7 @@ final class EncryptionTest extends OutboundTestCase
         $encryptedData = $this->only($document, self::XENC, 'EncryptedData');
         static::assertSame('http://www.w3.org/2001/04/xmlenc#Content', $encryptedData->getAttribute('Type'));
 
-        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedData(new WsuIdLookup())))
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator(new WsuIdLookup())))
             ->decrypt($document, new DecryptionRequest($key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
@@ -283,7 +283,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertInstanceOf(Element::class, $method);
         static::assertSame(DataEncryptionMethod::AES256_CBC->value, $method->getAttribute('Algorithm'));
 
-        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedData(new WsuIdLookup())))
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator(new WsuIdLookup())))
             ->decrypt($document, new DecryptionRequest($key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));

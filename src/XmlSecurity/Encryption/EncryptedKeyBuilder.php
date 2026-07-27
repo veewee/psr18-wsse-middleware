@@ -33,7 +33,7 @@ use function VeeWee\Xml\Dom\Builder\value;
 final class EncryptedKeyBuilder
 {
     /**
-     * @param non-empty-list<EncryptedPartId> $encryptedPartIds
+     * @param non-empty-list<non-empty-string> $encryptedPartIds
      */
     public function build(
         Document $document,
@@ -100,15 +100,15 @@ final class EncryptedKeyBuilder
     }
 
     /**
-     * @param non-empty-list<EncryptedPartId> $encryptedPartIds
+     * @param non-empty-list<non-empty-string> $encryptedPartIds
      */
     private function buildReferenceList(Document $document, array $encryptedPartIds): Element
     {
         $references = array_map(
-            static fn (EncryptedPartId $partId): callable => static fn (): Element => $document->map(namespaced_element(
+            static fn (string $partId): callable => static fn (): Element => $document->map(namespaced_element(
                 Namespaces::Xenc->value,
                 Namespaces::Xenc->qualify('DataReference'),
-                attribute('URI', '#'.$partId->id),
+                attribute('URI', '#'.$partId),
             )),
             $encryptedPartIds,
         );

@@ -25,7 +25,6 @@ use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\KeyInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
@@ -153,7 +152,6 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
             new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup())),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
-            new KeyInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
             new WsuIdLookup(),

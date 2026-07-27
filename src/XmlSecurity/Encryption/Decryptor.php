@@ -38,14 +38,14 @@ final class Decryptor implements XmlDecryptor
         return new self(
             new EncryptedKeyReader(new KeyTransport()),
             new EncryptedDataReader(new Cipher()),
-            new EncryptedData($idLookup ?? new XmlIdLookup()),
+            new EncryptedDataLocator($idLookup ?? new XmlIdLookup()),
         );
     }
 
     public function __construct(
         private readonly EncryptedKeyReader $encryptedKeyReader,
         private readonly EncryptedDataReader $encryptedDataReader,
-        private readonly EncryptedData $encryptedData = new EncryptedData(),
+        private readonly EncryptedDataLocator $encryptedData = new EncryptedDataLocator(),
     ) {
     }
 

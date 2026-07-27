@@ -55,7 +55,6 @@ final class Signer implements XmlSigner
             new ReferenceCollector($idMinter ?? new XmlIdMinter(), new TargetLocator($idLookup)),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
-            new KeyInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
             $idLookup,
@@ -66,7 +65,6 @@ final class Signer implements XmlSigner
         private ReferenceCollector $referenceCollector,
         private DigestCalculator $digestCalculator,
         private SignedInfoBuilder $signedInfoBuilder,
-        private KeyInfoBuilder $keyInfoBuilder,
         private Canonicalizer $canonicalizer,
         private OpenSslSigner $opensslSigner,
         private IdLookup $idLookup,
@@ -100,7 +98,7 @@ final class Signer implements XmlSigner
             $request->signatureMethod,
             $digests,
         );
-        $keyInfo = $this->keyInfoBuilder->build($document, $request->keyIdentifier, $request->signingCertificate);
+        $keyInfo = $request->keyIdentifier->apply($document, $request->signingCertificate);
 
         // The signature is attached first so ds:SignedInfo is in-document: C14N only works on attached nodes,
         // and the signed bytes are the canonical form of SignedInfo as it sits inside the signed message.

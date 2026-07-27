@@ -36,6 +36,9 @@ final class EncryptedDataBuilder
     }
 
     /**
+     * @return non-empty-string the id stamped on the xenc:EncryptedData, without the '#' fragment prefix, so
+     *         the caller can emit a matching xenc:DataReference URI
+     *
      * @throws EncryptionFailed
      */
     public function build(
@@ -44,7 +47,7 @@ final class EncryptedDataBuilder
         CipherText $cipherText,
         DataEncryptionMethod $method,
         EncryptionMode $mode,
-    ): EncryptedPartId {
+    ): string {
         try {
             $cipherValue = base64_encode($cipherText->iv.$cipherText->bytes.($cipherText->tag ?? ''));
             $encryptedData = $this->buildEncryptedData($document, $cipherValue, $method, $mode);
@@ -52,7 +55,7 @@ final class EncryptedDataBuilder
 
             $this->place($targetElement, $encryptedData, $mode);
 
-            return new EncryptedPartId($id);
+            return $id;
         } catch (EncryptionFailed $exception) {
             throw $exception;
         } catch (Throwable $exception) {
