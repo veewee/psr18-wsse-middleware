@@ -99,9 +99,12 @@ final class SignedInfoParser
     /**
      * Resolves the canonicalization a reference's digest is computed under. When ds:Transforms is present it
      * must declare exactly one c14n transform and nothing else; the optional PrefixList of an exclusive
-     * transform is read. When ds:Transforms is absent the digest is taken under the SignedInfo canonicalization
-     * with no prefixes, which preserves the behaviour for signers that omit Transforms. Whether the resolved
-     * canonicalization is accepted at all is decided later by the policy enforcer, not here.
+     * transform is read. When ds:Transforms is absent the reference's node-set is converted to octets with
+     * inclusive Canonical XML, the conversion XML-DSig prescribes when no transform says otherwise — not with
+     * whatever SignedInfo declares for itself, which governs only SignedInfo. Whether the resolved
+     * canonicalization is accepted at all is decided later by the policy enforcer, not here: the default
+     * allow-list is exclusive-only, so a transform-less reference is refused there unless a deployment opts
+     * inclusive c14n in.
      *
      * @return array{0: SignatureCanonicalization, 1: list<string>}
      *
@@ -118,7 +121,7 @@ final class SignedInfoParser
 
         $transforms = $transformsMatches[0] ?? null;
         if ($transforms === null) {
-            return [$signedInfoCanonicalization, []];
+            return [SignatureCanonicalization::C14N, []];
         }
 
         $transform = ChildElements::single($transforms, Namespaces::Ds, 'Transform')

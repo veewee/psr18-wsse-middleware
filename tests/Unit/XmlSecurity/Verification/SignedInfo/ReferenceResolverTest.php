@@ -59,7 +59,9 @@ final class ReferenceResolverTest extends TestCase
 
         $parsed = (new SignedInfoParser())->parse($signature);
 
-        static::assertSame(SignatureCanonicalization::EXC_C14N, $parsed->references[0]->canonicalization);
+        // Inclusive c14n, the XML-DSig default for a node-set with no transform — not the EXC_C14N this
+        // fixture's SignedInfo declares for itself.
+        static::assertSame(SignatureCanonicalization::C14N, $parsed->references[0]->canonicalization);
         static::assertSame([], $parsed->references[0]->inclusivePrefixes);
 
         $resolved = (new ReferenceResolver(new WsuIdLookup()))

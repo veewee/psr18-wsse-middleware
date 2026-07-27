@@ -70,24 +70,6 @@ final class SignedInfoParserTest extends TestCase
         static::assertSame([], $parsed->references[0]->inclusivePrefixes);
     }
 
-    public function test_an_absent_transforms_defaults_to_the_signed_info_canonicalization_with_no_prefixes(): void
-    {
-        $reference = '<ds:Reference URI="#Body">'
-            .'<ds:DigestMethod Algorithm="'.self::SHA256_DIGEST.'"/>'
-            .'<ds:DigestValue>'.base64_encode('digest').'</ds:DigestValue>'
-            .'</ds:Reference>';
-
-        $signedInfo = $this->signedInfo(
-            canonicalization: '<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>',
-            references: $reference,
-        );
-
-        $parsed = (new SignedInfoParser())->parse($signedInfo);
-
-        static::assertSame(SignatureCanonicalization::EXC_C14N, $parsed->references[0]->canonicalization);
-        static::assertSame([], $parsed->references[0]->inclusivePrefixes);
-    }
-
     public function test_it_rejects_a_non_canonicalization_reference_transform(): void
     {
         $signedInfo = $this->signedInfo(
@@ -142,6 +124,25 @@ final class SignedInfoParserTest extends TestCase
 
         $this->expectException(SignatureVerificationFailed::class);
         (new SignedInfoParser())->parse($signedInfo);
+    }
+
+    public function test_a_reference_without_transforms_digests_under_inclusive_c14n(): void
+    {
+        // XML-DSig converts a node-set to octets with Canonical XML when no transform says otherwise, so a
+        // reference that declares no ds:Transforms is digested under inclusive c14n — not under whatever
+        // SignedInfo happens to declare for itself.
+        $signedInfo = $this->signedInfo(
+            canonicalization: '<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>',
+            references: '<ds:Reference URI="#Body">'
+                .'<ds:DigestMethod Algorithm="'.self::SHA256_DIGEST.'"/>'
+                .'<ds:DigestValue>'.base64_encode('digest').'</ds:DigestValue>'
+                .'</ds:Reference>',
+        );
+
+        $parsed = (new SignedInfoParser())->parse($signedInfo);
+
+        static::assertSame(SignatureCanonicalization::C14N, $parsed->references[0]->canonicalization);
+        static::assertSame([], $parsed->references[0]->inclusivePrefixes);
     }
 
     private function reference(string $uri, string $transform, ?string $prefixList): string
