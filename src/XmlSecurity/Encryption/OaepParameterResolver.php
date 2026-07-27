@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
 use Dom\Element;
-use Dom\Node;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
@@ -15,6 +14,7 @@ use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
+use function VeeWee\Xml\Dom\Locator\Element\children;
 
 /**
  * Resolves the OAEP parameterization a xenc:EncryptionMethod declares into one KeyTransportAlgorithm.
@@ -62,12 +62,7 @@ final class OaepParameterResolver
         $digestUri = null;
         $mgfUri = null;
 
-        /** @var Node $child */
-        foreach ($encryptionMethod->childNodes as $child) {
-            if (!$child instanceof Element) {
-                continue;
-            }
-
+        foreach (children($encryptionMethod) as $child) {
             if (ElementName::matches($child, Namespaces::Ds, 'DigestMethod')) {
                 $digestUri = (string) $child->getAttribute('Algorithm');
             }

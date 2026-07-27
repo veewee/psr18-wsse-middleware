@@ -6,8 +6,8 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\Xml\Query;
 use VeeWee\Xml\Dom\Document;
+use function VeeWee\Xml\Dom\Locator\Element\children;
 
 /**
  * Expands a dynamic Part (securityHeaderContents/soapHeaders) to the live elements it addresses, or returns
@@ -24,8 +24,8 @@ final class DynamicPartMembers
     public static function forPart(Part $part, Document $document, ?Element $securityHeader): ?array
     {
         return match ($part->kind()) {
-            PartKind::SecurityHeaderContents => self::securityHeaderChildren($document, $securityHeader),
-            PartKind::SoapHeaders => self::soapHeaderBlocks($document, $securityHeader),
+            PartKind::SecurityHeaderContents => self::securityHeaderChildren($securityHeader),
+            PartKind::SoapHeaders => self::soapHeaderBlocks($securityHeader),
             default => null,
         };
     }
@@ -33,22 +33,21 @@ final class DynamicPartMembers
     /**
      * @return list<Element>
      */
-    private static function securityHeaderChildren(Document $document, ?Element $securityHeader): array
+    private static function securityHeaderChildren(?Element $securityHeader): array
     {
         if ($securityHeader === null) {
             return [];
         }
 
-        return array_values(array_filter(
-            self::childElements($document, $securityHeader),
-            static fn (Element $child): bool => !self::isSignature($child),
-        ));
+        return children($securityHeader)
+            ->filter(static fn (Element $child): bool => !self::isSignature($child))
+            ->map(static fn (Element $child): Element => $child);
     }
 
     /**
      * @return list<Element>
      */
-    private static function soapHeaderBlocks(Document $document, ?Element $securityHeader): array
+    private static function soapHeaderBlocks(?Element $securityHeader): array
     {
         if ($securityHeader === null) {
             return [];
@@ -62,23 +61,13 @@ final class DynamicPartMembers
             return [];
         }
 
-        return array_values(array_filter(
-            self::childElements($document, $soapHeader),
-            static fn (Element $header): bool => $header !== $securityHeader,
-        ));
+        return children($soapHeader)
+            ->filter(static fn (Element $header): bool => $header !== $securityHeader)
+            ->map(static fn (Element $header): Element => $header);
     }
 
     private static function isSignature(Element $element): bool
     {
         return ElementName::matches($element, Namespaces::Ds, 'Signature');
-    }
-
-    /**
-     * @return list<Element>
-     */
-    private static function childElements(Document $document, Element $element): array
-    {
-        return Query::elements($document, 'child::*', $element)
-            ->map(static fn (Element $child): Element => $child);
     }
 }
