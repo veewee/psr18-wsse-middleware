@@ -18,9 +18,13 @@ use function VeeWee\Xml\Dom\Locator\Element\children;
 final class DynamicPartMembers
 {
     /**
+     * The Security header is required, not nullable: a dynamic part that cannot be tied to a header has no
+     * members, and silently treating that as "nothing to require" is how a coverage check passes vacuously.
+     * A caller that cannot locate the header refuses the part instead of asking for its members.
+     *
      * @return list<Element>|null null when the Part is static (Body/Element/Id)
      */
-    public static function forPart(Part $part, ?Element $securityHeader): ?array
+    public static function forPart(Part $part, Element $securityHeader): ?array
     {
         return match ($part->kind()) {
             PartKind::SecurityHeaderContents => self::securityHeaderChildren($securityHeader),
@@ -32,12 +36,8 @@ final class DynamicPartMembers
     /**
      * @return list<Element>
      */
-    private static function securityHeaderChildren(?Element $securityHeader): array
+    private static function securityHeaderChildren(Element $securityHeader): array
     {
-        if ($securityHeader === null) {
-            return [];
-        }
-
         return children($securityHeader)
             ->filter(static fn (Element $child): bool => !self::isSignature($child))
             ->map(static fn (Element $child): Element => $child);
@@ -46,12 +46,8 @@ final class DynamicPartMembers
     /**
      * @return list<Element>
      */
-    private static function soapHeaderBlocks(?Element $securityHeader): array
+    private static function soapHeaderBlocks(Element $securityHeader): array
     {
-        if ($securityHeader === null) {
-            return [];
-        }
-
         // On a received message the located Security header can sit anywhere (a relocated header may even be
         // the document root); a missing element parent means there are no sibling SOAP headers to require, so
         // this stays vacuously satisfied rather than crashing past the uniform SecurityFault the caller expects.

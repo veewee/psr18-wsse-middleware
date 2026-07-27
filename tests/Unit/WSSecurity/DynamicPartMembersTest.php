@@ -57,12 +57,6 @@ final class DynamicPartMembersTest extends TestCase
         static::assertSame(['Action', 'To'], $this->localNames($members));
     }
 
-    public function test_an_absent_security_header_expands_to_an_empty_list(): void
-    {
-        static::assertSame([], DynamicPartMembers::forPart(Part::securityHeaderContents(), null));
-        static::assertSame([], DynamicPartMembers::forPart(Part::soapHeaders(), null));
-    }
-
     public function test_a_security_header_without_an_element_parent_expands_to_no_soap_headers(): void
     {
         $document = Document::fromXmlString('<wsse:Security xmlns:wsse="'.self::WSSE.'"/>');

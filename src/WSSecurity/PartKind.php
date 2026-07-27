@@ -22,4 +22,17 @@ enum PartKind
      * live document at send time.
      */
     case SoapHeaders;
+
+    /**
+     * Whether the part stands for a set of elements resolved against the live message rather than lowering to
+     * a single Target. A dynamic part can only be resolved once the Security header it is relative to is
+     * known, so a caller that cannot identify that header must refuse the part rather than expand it to none.
+     */
+    public function isDynamic(): bool
+    {
+        return match ($this) {
+            self::SecurityHeaderContents, self::SoapHeaders => true,
+            self::Body, self::Element, self::Id => false,
+        };
+    }
 }

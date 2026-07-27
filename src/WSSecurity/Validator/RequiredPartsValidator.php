@@ -52,8 +52,16 @@ final class RequiredPartsValidator
         }
 
         foreach ($requiredParts as $part) {
-            $dynamic = DynamicPartMembers::forPart($part, $securityHeader);
-            if ($dynamic !== null) {
+            if ($part->kind()->isDynamic()) {
+                // No header to expand against means the requirement cannot be met, and must not pass by
+                // expanding to nothing: the wsse:Security element is not itself a signed reference target, so
+                // stamping an actor/role on the genuine header — or moving it out of the SOAP header — is a
+                // signature-preserving way to make it read as some other hop's and slip the check.
+                if ($securityHeader === null) {
+                    throw SecurityFault::inboundFailure();
+                }
+
+                $dynamic = DynamicPartMembers::forPart($part, $securityHeader) ?? [];
                 foreach ($dynamic as $member) {
                     if (!$signedElements->wasSigned($member)) {
                         throw SecurityFault::inboundFailure();

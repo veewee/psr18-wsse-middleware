@@ -153,11 +153,13 @@ final class RequiredPartsValidatorTest extends TestCase
         );
     }
 
-    public function test_a_dynamic_part_is_vacuously_satisfied_when_there_is_no_security_header(): void
+    public function test_a_dynamic_part_is_refused_when_there_is_no_security_header(): void
     {
+        // Demanding that the Security header's contents be signed cannot be satisfied by a message that
+        // carries no such header: an empty member list would make the requirement vacuously true.
         $document = $this->envelope();
 
-        $this->expectNotToPerformAssertions();
+        $this->expectException(SecurityFault::class);
         $this->validator()->validate(
             $document,
             SoapVersion::Soap12,
@@ -166,15 +168,35 @@ final class RequiredPartsValidatorTest extends TestCase
         );
     }
 
-    public function test_soap_headers_does_not_crash_when_the_security_header_has_no_element_parent(): void
+    public function test_a_role_attribute_planted_on_the_security_header_cannot_void_the_requirement(): void
     {
-        // A hostile response could relocate wsse:Security to the document root; parentElement is then null, and
-        // the check must stay vacuously satisfied rather than throw past the uniform SecurityFault.
+        // The wsse:Security element is not itself a signed reference target, so an attacker in the middle can
+        // stamp an actor/role on the genuine header without disturbing the signature. That makes the header
+        // read as another hop's, and an unsigned token would ride along inside it unchecked.
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsse="'.self::WSSE.'"><soap:Header>'
+            .'<wsse:Security soap:role="urn:attacker"><wsse:UsernameToken/></wsse:Security>'
+            .'</soap:Header><soap:Body><data>x</data></soap:Body></soap:Envelope>'
+        );
+
+        $this->expectException(SecurityFault::class);
+        $this->validator()->validate(
+            $document,
+            SoapVersion::Soap12,
+            new VerifiedReferences([]),
+            [Part::securityHeaderContents()],
+        );
+    }
+
+    public function test_soap_headers_is_refused_when_the_security_header_was_relocated_out_of_the_soap_header(): void
+    {
+        // A hostile response could relocate wsse:Security to the document root. The header is then not the one
+        // addressed to us, so the requirement is refused through the uniform fault rather than passing empty.
         $document = Document::fromXmlString(
             '<wsse:Security xmlns:wsse="'.self::WSSE.'"><ds:Signature xmlns:ds="'.self::DS.'"/></wsse:Security>'
         );
 
-        $this->expectNotToPerformAssertions();
+        $this->expectException(SecurityFault::class);
         $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([]), [Part::soapHeaders()]);
     }
 
