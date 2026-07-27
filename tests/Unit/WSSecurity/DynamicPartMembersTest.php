@@ -23,14 +23,14 @@ final class DynamicPartMembersTest extends TestCase
 
     public function test_a_static_part_expands_to_nothing(): void
     {
-        [, $security] = $this->envelope();
+        $security = $this->securityHeaderInEnvelope();
 
         static::assertNull(DynamicPartMembers::forPart(Part::body(), $security));
     }
 
     public function test_security_header_contents_lists_every_child_except_the_signature(): void
     {
-        [, $security] = $this->envelope();
+        $security = $this->securityHeaderInEnvelope();
 
         $members = DynamicPartMembers::forPart(Part::securityHeaderContents(), $security);
 
@@ -40,7 +40,7 @@ final class DynamicPartMembersTest extends TestCase
 
     public function test_security_header_contents_keeps_document_order(): void
     {
-        [, $security] = $this->envelope();
+        $security = $this->securityHeaderInEnvelope();
         $members = DynamicPartMembers::forPart(Part::securityHeaderContents(), $security);
 
         static::assertNotNull($members);
@@ -49,7 +49,7 @@ final class DynamicPartMembersTest extends TestCase
 
     public function test_soap_headers_lists_the_sibling_header_blocks_but_not_the_security_header(): void
     {
-        [, $security] = $this->envelope();
+        $security = $this->securityHeaderInEnvelope();
 
         $members = DynamicPartMembers::forPart(Part::soapHeaders(), $security);
 
@@ -86,9 +86,10 @@ final class DynamicPartMembersTest extends TestCase
     }
 
     /**
-     * @return array{0: Document, 1: Element}
+     * The wsse:Security header of a full envelope: the Security header is what the enumeration reads, but it
+     * has to sit in a real envelope for the soapHeaders case to have siblings to find.
      */
-    private function envelope(): array
+    private function securityHeaderInEnvelope(): Element
     {
         $document = Document::fromXmlString(
             '<soap:Envelope'
@@ -113,6 +114,6 @@ final class DynamicPartMembersTest extends TestCase
         $security = $document->toUnsafeDocument()->getElementsByTagNameNS(self::WSSE, 'Security')->item(0);
         static::assertInstanceOf(Element::class, $security);
 
-        return [$document, $security];
+        return $security;
     }
 }
