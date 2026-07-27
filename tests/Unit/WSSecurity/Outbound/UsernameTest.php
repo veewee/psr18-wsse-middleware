@@ -129,6 +129,13 @@ final class UsernameTest extends OutboundTestCase
         static::assertNotSame($original, $original->withDigest(true));
     }
 
+    public function test_the_password_is_not_exposed_when_the_block_is_dumped(): void
+    {
+        // Same secret-at-rest discipline as Key and Certificate: a dumped block must not leak the credential.
+        static::assertStringNotContainsString('sup3rs3cr3t', print_r(new Username('alice', 'sup3rs3cr3t'), true));
+        static::assertStringNotContainsString('sup3rs3cr3t', print_r((new Username('alice'))->withPassword('sup3rs3cr3t'), true));
+    }
+
     public function test_a_pinned_clock_drives_the_digest_created_and_password(): void
     {
         $document = $this->envelope();

@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
 use Dom\Element;
 use InvalidArgumentException;
+use ParagonIE\HiddenString\HiddenString;
 use Psl\DateTime\SecondsStyle;
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
@@ -40,13 +41,15 @@ final class Username implements OutboundAction
     private readonly Random $random;
     private readonly Digest $digester;
     private Clock $clock;
+    private ?HiddenString $password;
 
     public function __construct(
         private readonly string $username,
         #[SensitiveParameter]
-        private ?string $password = null,
+        ?string $password = null,
         private bool $digest = false,
     ) {
+        $this->password = $password === null ? null : new HiddenString($password);
         $this->random = new Random();
         $this->digester = new Digest();
         $this->clock = new SystemClock();
@@ -55,7 +58,7 @@ final class Username implements OutboundAction
     public function withPassword(#[SensitiveParameter] string $password): self
     {
         $clone = clone $this;
-        $clone->password = $password;
+        $clone->password = new HiddenString($password);
 
         return $clone;
     }
@@ -96,7 +99,7 @@ final class Username implements OutboundAction
         ];
 
         if ($this->password !== null) {
-            $children = [...$children, ...$this->passwordChildren($this->password)];
+            $children = [...$children, ...$this->passwordChildren($this->password->getString())];
         }
 
         return namespaced_element(
