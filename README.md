@@ -738,6 +738,10 @@ and can be used to drive the signing/encryption engine without the SOAP profile:
       ],
   ));
   ```
+  This is also what a peer whose `ds:Reference` elements carry no `ds:Transforms` needs. XML-DSig digests such
+  a reference under inclusive canonicalization — `ds:SignedInfo`'s own `CanonicalizationMethod` covers only
+  `ds:SignedInfo` — so with the exclusive-only default those signatures are refused. Listing
+  `SignatureCanonicalization::C14N` above is the supported way to verify them.
 
 The defaults reject weak algorithms (SHA-1, RSA-1_5, 3DES) and use SHA-256 with exclusive canonicalization. The
 algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMethod`, `DigestMethod`,
