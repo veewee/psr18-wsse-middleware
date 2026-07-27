@@ -8,7 +8,6 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
@@ -23,7 +22,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlEncryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 
 /**
  * Encrypts the requested parts of the outbound message via XML-Enc. Configuration:
@@ -161,14 +159,10 @@ final class Encryption implements OutboundAction
             EncKeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(),
             EncKeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(),
             EncKeyRef::Thumbprint => new ThumbprintKeyIdentifier(),
-            EncKeyRef::BinarySecurityToken => $this->embedBinarySecurityToken($context),
+            EncKeyRef::BinarySecurityToken => BinarySecurityToken::embedAsDirectReference(
+                $context,
+                $this->recipientCertificate,
+            ),
         };
-    }
-
-    private function embedBinarySecurityToken(WsseContext $context): DirectReferenceKeyIdentifier
-    {
-        $id = (new BinarySecurityToken($this->recipientCertificate))->embed($context);
-
-        return new DirectReferenceKeyIdentifier($id, WsSecurityValueType::X509v3->value);
     }
 }

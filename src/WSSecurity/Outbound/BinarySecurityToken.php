@@ -6,6 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\BinaryToken;
@@ -58,6 +59,19 @@ final class BinarySecurityToken implements OutboundAction
 
             return $locator->locate($document, $this->certificate);
         }
+    }
+
+    /**
+     * Embeds the certificate and hands back the key identifier pointing at the embedded token — the X.509
+     * interop default both the Signature and the Encryption block reach for.
+     */
+    public static function embedAsDirectReference(
+        WsseContext $context,
+        Certificate $certificate,
+    ): DirectReferenceKeyIdentifier {
+        $id = (new self($certificate))->embed($context);
+
+        return new DirectReferenceKeyIdentifier($id, WsSecurityValueType::X509v3->value);
     }
 
     /**

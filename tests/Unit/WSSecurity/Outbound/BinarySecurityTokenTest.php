@@ -84,6 +84,21 @@ final class BinarySecurityTokenTest extends OutboundTestCase
         static::assertSame($first, $second);
     }
 
+    public function test_it_embeds_the_token_and_returns_a_direct_reference_to_it(): void
+    {
+        $document = $this->envelope();
+
+        $identifier = BinarySecurityToken::embedAsDirectReference($this->context($document), $this->certificate());
+
+        $bst = $this->only($document, self::WSSE, 'BinarySecurityToken');
+        $keyInfo = $identifier->apply($document, $this->certificate());
+        $reference = $keyInfo->getElementsByTagNameNS(self::WSSE, 'Reference')->item(0);
+
+        static::assertInstanceOf(Element::class, $reference);
+        static::assertSame('#'.$bst->getAttributeNS(self::WSU, 'Id'), $reference->getAttribute('URI'));
+        static::assertSame(self::X509V3, $reference->getAttribute('ValueType'));
+    }
+
     public function test_the_token_precedes_a_timestamp_in_canonical_order(): void
     {
         $document = $this->envelope();

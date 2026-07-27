@@ -7,7 +7,6 @@ use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
@@ -22,7 +21,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
-use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 
 /**
  * Adds a detached, multi-reference ds:Signature to the outbound Security header. Configuration:
@@ -134,18 +132,13 @@ final class Signature implements OutboundAction
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier
     {
         return match ($this->keyRef) {
-            KeyRef::BinarySecurityToken => $this->embedBinarySecurityToken($context),
+            KeyRef::BinarySecurityToken => BinarySecurityToken::embedAsDirectReference(
+                $context,
+                $this->clientCertificate->publicCertificate(),
+            ),
             KeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(),
             KeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(),
             KeyRef::Thumbprint => new ThumbprintKeyIdentifier(),
         };
-    }
-
-    private function embedBinarySecurityToken(WsseContext $context): DirectReferenceKeyIdentifier
-    {
-        $certificate = $this->clientCertificate->publicCertificate();
-        $id = (new BinarySecurityToken($certificate))->embed($context);
-
-        return new DirectReferenceKeyIdentifier($id, WsSecurityValueType::X509v3->value);
     }
 }
