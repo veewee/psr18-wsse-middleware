@@ -85,12 +85,10 @@ final class SignatureValidator
      */
     private function onlyChild(Element $parent, string $localName): Element
     {
-        $matches = ChildElements::named($parent, Namespaces::Ds, $localName);
-        if (count($matches) !== 1) {
-            throw SignatureVerificationFailed::withReason(sprintf('ds:%s must appear exactly once.', $localName));
-        }
-
-        return $matches[0];
+        return ChildElements::single($parent, Namespaces::Ds, $localName)
+            ?? throw SignatureVerificationFailed::withReason(
+                sprintf('ds:%s must appear exactly once.', $localName),
+            );
     }
 
     private function precedes(Node $first, Node $second): bool

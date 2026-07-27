@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use function VeeWee\Xml\Dom\Locator\Element\children;
 
@@ -75,13 +76,8 @@ final class SignedInfoParser
         Element $reference,
         SignatureCanonicalization $signedInfoCanonicalization,
     ): ParsedReference {
-        $uri = (string) $reference->getAttribute('URI');
-        if (!str_starts_with($uri, '#') || $uri === '#') {
-            throw SignatureVerificationFailed::withReason('A reference URI must be a non-empty same-document id.');
-        }
-
-        $id = substr($uri, 1);
-        if ($id === '') {
+        // The id itself is re-read from the element by the resolver; here it only has to be well-formed.
+        if (SameDocumentId::parse((string) $reference->getAttribute('URI')) === null) {
             throw SignatureVerificationFailed::withReason('A reference URI must be a non-empty same-document id.');
         }
 
@@ -125,12 +121,9 @@ final class SignedInfoParser
             return [$signedInfoCanonicalization, []];
         }
 
-        $transformElements = ChildElements::named($transforms, Namespaces::Ds, 'Transform');
-        if (count($transformElements) !== 1) {
-            throw SignatureVerificationFailed::withReason('A reference must declare exactly one transform.');
-        }
+        $transform = ChildElements::single($transforms, Namespaces::Ds, 'Transform')
+            ?? throw SignatureVerificationFailed::withReason('A reference must declare exactly one transform.');
 
-        $transform = $transformElements[0];
         $algorithm = SignatureCanonicalization::tryFrom((string) $transform->getAttribute('Algorithm'));
         if ($algorithm === null) {
             throw SignatureVerificationFailed::withReason('A reference transform is not a known canonicalization.');
@@ -220,11 +213,9 @@ final class SignedInfoParser
     private function requireDsChild(Element $parent, string $localName): Element
     {
         // Exactly one, so a second injected ds:DigestMethod/ds:DigestValue cannot shadow the real one.
-        $matches = ChildElements::named($parent, Namespaces::Ds, $localName);
-        if (count($matches) !== 1) {
-            throw SignatureVerificationFailed::withReason(sprintf('ds:%s must appear exactly once.', $localName));
-        }
-
-        return $matches[0];
+        return ChildElements::single($parent, Namespaces::Ds, $localName)
+            ?? throw SignatureVerificationFailed::withReason(
+                sprintf('ds:%s must appear exactly once.', $localName),
+            );
     }
 }

@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
@@ -85,16 +86,10 @@ final class ReferenceResolver
      */
     private function referenceId(Element $referenceElement): string
     {
-        $uri = (string) $referenceElement->getAttribute('URI');
-        if (!str_starts_with($uri, '#') || $uri === '#') {
-            throw SignatureVerificationFailed::withReason('A reference URI must be a non-empty same-document id.');
-        }
-
-        // The guard above rejected "#" and any non-# URI, so the fragment after '#' is non-empty.
-        $id = substr($uri, 1);
-        assert($id !== '');
-
-        return $id;
+        return SameDocumentId::parse((string) $referenceElement->getAttribute('URI'))
+            ?? throw SignatureVerificationFailed::withReason(
+                'A reference URI must be a non-empty same-document id.',
+            );
     }
 
     /**

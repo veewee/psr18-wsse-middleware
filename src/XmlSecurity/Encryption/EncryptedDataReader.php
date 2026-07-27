@@ -145,11 +145,7 @@ final class EncryptedDataReader
     private function child(Element $parent, string $localName): Element
     {
         // Exactly one, so an injected sibling cannot shadow the element the decrypt depends on.
-        $matches = ChildElements::named($parent, Namespaces::Xenc, $localName);
-        if (count($matches) !== 1) {
-            throw DecryptionFailed::withReason(sprintf('xenc:%s is missing.', $localName));
-        }
-
-        return $matches[0];
+        return ChildElements::single($parent, Namespaces::Xenc, $localName)
+            ?? throw DecryptionFailed::withReason(sprintf('xenc:%s is missing.', $localName));
     }
 }

@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\UniqueMatch;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
@@ -53,11 +54,7 @@ final class EncryptedData
             }
         }
 
-        return match (count($candidates)) {
-            0 => throw IdReferenceException::notFound($id),
-            1 => $candidates[0],
-            default => throw IdReferenceException::ambiguous($id),
-        };
+        return UniqueMatch::require($candidates, $id);
     }
 
     /**

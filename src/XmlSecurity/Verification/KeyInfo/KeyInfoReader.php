@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityEncodingType;
@@ -77,14 +78,8 @@ final class KeyInfoReader
             return null;
         }
 
-        $uri = (string) $reference->getAttribute('URI');
-        if (!str_starts_with($uri, '#') || $uri === '#') {
-            throw SignatureVerificationFailed::withReason('The token reference URI is not a same-document id.');
-        }
-
-        // The guard above rejected "#" and any non-# URI, so the fragment after '#' is non-empty.
-        $tokenId = substr($uri, 1);
-        assert($tokenId !== '');
+        $tokenId = SameDocumentId::parse((string) $reference->getAttribute('URI'))
+            ?? throw SignatureVerificationFailed::withReason('The token reference URI is not a same-document id.');
 
         try {
             $token = $this->idLookup->lookup($document, $tokenId);

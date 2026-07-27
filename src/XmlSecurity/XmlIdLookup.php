@@ -7,6 +7,7 @@ use Dom\Element;
 use Dom\XPath;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\UniqueMatch;
 use VeeWee\Xml\Dom\Collection\NodeList;
 use VeeWee\Xml\Dom\Document;
 
@@ -27,13 +28,10 @@ final class XmlIdLookup implements IdLookup
      */
     public function lookup(Document $document, string $id): Element
     {
-        $elements = $this->matching($document, $id);
-
-        return match ($elements->count()) {
-            0 => throw IdReferenceException::notFound($id),
-            1 => $elements->expectSingle(),
-            default => throw IdReferenceException::ambiguous($id),
-        };
+        return UniqueMatch::require(
+            $this->matching($document, $id)->map(static fn (Element $element): Element => $element),
+            $id,
+        );
     }
 
     /**

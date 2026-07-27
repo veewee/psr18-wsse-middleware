@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\UniqueMatch;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Locator\document_element;
 use function VeeWee\Xml\Dom\Locator\Element\locate_by_namespaced_tag_name;
@@ -55,10 +56,9 @@ final class TargetLocator
 
         $matches = locate_by_namespaced_tag_name($document->locate(document_element()), $namespace, $localName);
 
-        return match ($matches->count()) {
-            0 => throw IdReferenceException::notFound($namespace.':'.$localName),
-            1 => $matches->expectSingle(),
-            default => throw IdReferenceException::ambiguous($namespace.':'.$localName),
-        };
+        return UniqueMatch::require(
+            $matches->map(static fn (Element $element): Element => $element),
+            $namespace.':'.$localName,
+        );
     }
 }

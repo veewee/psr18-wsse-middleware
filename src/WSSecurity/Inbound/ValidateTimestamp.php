@@ -89,12 +89,10 @@ final class ValidateTimestamp implements InboundAction
     private function requireChildText(Element $timestamp, string $localName): string
     {
         // Exactly one, so a second injected wsu:Created/wsu:Expires cannot shadow the real one.
-        $matches = ChildElements::named($timestamp, Namespaces::Wsu, $localName);
-        if (count($matches) !== 1) {
-            throw SecurityFault::inboundFailure();
-        }
+        $child = ChildElements::single($timestamp, Namespaces::Wsu, $localName)
+            ?? throw SecurityFault::inboundFailure();
 
-        $text = ElementText::trimmed($matches[0]);
+        $text = ElementText::trimmed($child);
         if ($text === '') {
             throw SecurityFault::inboundFailure();
         }

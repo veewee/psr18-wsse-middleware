@@ -5,8 +5,8 @@ namespace Soap\Psr18WsseMiddleware\Xml\Locator;
 
 use Dom\Element;
 use Dom\XPath;
-use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\UniqueMatch;
 use VeeWee\Xml\Dom\Collection\NodeList;
 use VeeWee\Xml\Dom\Document;
 
@@ -22,13 +22,10 @@ final class WsuId
 {
     public static function resolve(Document $document, string $id): Element
     {
-        $elements = self::matching($document, $id);
-
-        return match ($elements->count()) {
-            0 => throw IdReferenceException::notFound($id),
-            1 => $elements->expectSingle(),
-            default => throw IdReferenceException::ambiguous($id),
-        };
+        return UniqueMatch::require(
+            self::matching($document, $id)->map(static fn (Element $element): Element => $element),
+            $id,
+        );
     }
 
     /**

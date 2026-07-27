@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Throwable;
@@ -95,15 +96,10 @@ final class EncryptedKeyReader
 
         $ids = [];
         foreach (ChildElements::named($referenceList, Namespaces::Xenc, 'DataReference') as $child) {
-            $uri = (string) $child->getAttribute('URI');
-            if (!str_starts_with($uri, '#') || $uri === '#') {
-                throw DecryptionFailed::withReason('A data reference URI must be a non-empty same-document id.');
-            }
-
-            // The guard above rejected "#" and any non-# URI, so the fragment after '#' is non-empty.
-            $id = substr($uri, 1);
-            assert($id !== '');
-            $ids[] = $id;
+            $ids[] = SameDocumentId::parse((string) $child->getAttribute('URI'))
+                ?? throw DecryptionFailed::withReason(
+                    'A data reference URI must be a non-empty same-document id.',
+                );
         }
 
         if ($ids === []) {
@@ -152,11 +148,7 @@ final class EncryptedKeyReader
     private function child(Element $parent, string $localName, Namespaces $namespace): Element
     {
         // Exactly one, so an injected sibling cannot shadow the element the unwrap depends on.
-        $matches = ChildElements::named($parent, $namespace, $localName);
-        if (count($matches) !== 1) {
-            throw DecryptionFailed::withReason(sprintf('%s is missing.', $localName));
-        }
-
-        return $matches[0];
+        return ChildElements::single($parent, $namespace, $localName)
+            ?? throw DecryptionFailed::withReason(sprintf('%s is missing.', $localName));
     }
 }

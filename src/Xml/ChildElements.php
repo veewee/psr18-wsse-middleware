@@ -17,6 +17,18 @@ use function VeeWee\Xml\Dom\Locator\Element\children;
 final class ChildElements
 {
     /**
+     * The one matching direct child, or null when there is none or more than one. A duplicate is reported the
+     * same as an absence so an injected sibling can never shadow the element a reader depends on; the caller
+     * turns the null into its own uniform failure.
+     */
+    public static function single(Element $parent, Namespaces $namespace, string $localName): ?Element
+    {
+        $matches = self::named($parent, $namespace, $localName);
+
+        return count($matches) === 1 ? $matches[0] : null;
+    }
+
+    /**
      * @return list<Element>
      */
     public static function named(Element $parent, Namespaces $namespace, string $localName): array
