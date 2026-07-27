@@ -24,8 +24,10 @@ use VeeWee\Xml\Dom\Document;
  *
  * A dynamic required part (securityHeaderContents/soapHeaders) is expanded against the received message and
  * every member it resolves to must have been signed; unlike the outbound side it never mints, since a signed
- * element already carries the wsu:Id its ds:Reference used. A dynamic part that expands to no member is
- * vacuously satisfied.
+ * element already carries the wsu:Id its ds:Reference used. Once the Security header is identified, a dynamic
+ * part that expands to no member is vacuously satisfied — an empty header genuinely holds nothing to require.
+ * A dynamic part whose header cannot be identified at all is a different case and is refused, since expanding
+ * it to no member would drop the requirement on a message that may well carry unsigned tokens.
  */
 final class RequiredPartsValidator
 {
