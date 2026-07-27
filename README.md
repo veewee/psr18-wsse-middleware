@@ -702,7 +702,21 @@ and can be used to drive the signing/encryption engine without the SOAP profile:
 - `?array $acceptedKeyEncryptionMethods = null` — the inbound allow-list for key transport. Default: RSA-OAEP and
   RSA-OAEP-MGF1P, rejecting RSA-1_5.
 - `?array $acceptedDataEncryptionMethods = null` — the inbound allow-list for bulk ciphers. Default: AES-GCM and
-  AES-CBC at 128/192/256, rejecting 3DES.
+  AES-CBC at 128/192/256, rejecting 3DES. The CBC ciphers are accepted because peers commonly send them, but
+  only the GCM ciphers authenticate their own ciphertext, and this library does not require an encrypted part
+  to also be covered by a verified signature. If your peer can encrypt with GCM, narrow the list and get
+  authenticated encryption guaranteed rather than assumed:
+  ```php
+  use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
+
+  $profile = new SecurityProfile(crypto: new CryptoPolicy(
+      acceptedDataEncryptionMethods: [
+          DataEncryptionMethod::AES128_GCM,
+          DataEncryptionMethod::AES192_GCM,
+          DataEncryptionMethod::AES256_GCM,
+      ],
+  ));
+  ```
 - `?array $acceptedOaepHashes = null` — the inbound allow-list for the OAEP hash on an inbound `EncryptedKey`.
   Default: SHA-1 and SHA-256.
 - `?array $acceptedCanonicalizations = null` — the inbound allow-list for the canonicalization on an inbound

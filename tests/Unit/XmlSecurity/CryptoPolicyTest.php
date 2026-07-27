@@ -62,6 +62,26 @@ final class CryptoPolicyTest extends TestCase
         static::assertTrue($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_CBC));
     }
 
+    /**
+     * SECURITY: only the GCM ciphers authenticate their own ciphertext, and no block ties an encrypted part
+     * to a verified signature, so the README documents narrowing the list as the way to get authenticated
+     * encryption guaranteed. This pins that the escape hatch actually shuts CBC out.
+     */
+    public function test_narrowing_the_data_ciphers_to_gcm_rejects_every_cbc_variant(): void
+    {
+        $policy = new CryptoPolicy(acceptedDataEncryptionMethods: [
+            DataEncryptionMethod::AES128_GCM,
+            DataEncryptionMethod::AES192_GCM,
+            DataEncryptionMethod::AES256_GCM,
+        ]);
+
+        static::assertTrue($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_GCM));
+        static::assertFalse($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES128_CBC));
+        static::assertFalse($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES192_CBC));
+        static::assertFalse($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_CBC));
+        static::assertFalse($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::TRIPLEDES_CBC));
+    }
+
     /** SECURITY: the default accepts both exclusive C14N variants only; inclusive C14N is opt-in. */
     public function test_the_default_accepts_both_exclusive_canonicalization_variants(): void
     {

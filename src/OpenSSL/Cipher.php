@@ -13,9 +13,14 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Throwable;
 
 /**
- * Symmetric bulk encryption (AES-CBC/GCM, 3DES-CBC) routed through the symmetric cipher library. GCM
- * authenticates; CBC does not, so CBC integrity must come from the enclosing signature (enforced a layer up).
- * Every decrypt failure collapses to one uniform error so this is never a padding oracle.
+ * Symmetric bulk encryption (AES-CBC/GCM, 3DES-CBC) routed through the symmetric cipher library.
+ *
+ * GCM authenticates its own ciphertext; CBC does not, and nothing in this library ties a CBC part to a
+ * verified signature — Decrypt and VerifySignature are independent inbound blocks with no ordering or
+ * coverage coupling between them. CBC stays in the default inbound allow-list because peers commonly send
+ * it; a deployment that wants authenticated encryption guaranteed narrows the accepted data encryption
+ * methods to the GCM ciphers. What removes the padding oracle either way is that every decrypt failure
+ * collapses to one uniform error, revealing nothing about which step failed.
  */
 final class Cipher
 {
