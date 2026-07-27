@@ -18,6 +18,11 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
  */
 final readonly class Part
 {
+    /**
+     * @param non-empty-string|null $namespace
+     * @param non-empty-string|null $localName
+     * @param non-empty-string|null $id
+     */
     private function __construct(
         private PartKind $kind,
         private ?string $namespace = null,
@@ -116,16 +121,25 @@ final readonly class Part
         return $this->encryptionMode;
     }
 
+    /**
+     * @return non-empty-string|null
+     */
     public function namespace(): ?string
     {
         return $this->namespace;
     }
 
+    /**
+     * @return non-empty-string|null
+     */
     public function localName(): ?string
     {
         return $this->localName;
     }
 
+    /**
+     * @return non-empty-string|null
+     */
     public function id(): ?string
     {
         return $this->id;
@@ -162,15 +176,15 @@ final readonly class Part
     }
 
     /**
-     * The Element and Id shortcuts are always built from non-empty values by element()/byId(); this restates
-     * that invariant for the shared nullable storage so the Target factories keep their non-empty contract.
+     * Reads a field the current kind guarantees is set. The storage is nullable because it is shared across
+     * every kind, so the Element and Id arms have to restate which fields their own factories populated.
+     *
+     * @param non-empty-string|null $value
      *
      * @return non-empty-string
      */
     private function require(?string $value): string
     {
-        assert($value !== null && $value !== '');
-
-        return $value;
+        return $value ?? throw new LogicException('A Part field its own kind guarantees was not set.');
     }
 }

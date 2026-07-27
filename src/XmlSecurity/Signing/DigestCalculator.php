@@ -8,6 +8,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
+use function Psl\Type\non_empty_string;
 
 /**
  * Canonicalizes one resolved element, then digests the canonical bytes. Returns a DigestResult the
@@ -32,9 +33,9 @@ final class DigestCalculator
     ): DigestResult {
         $canonical = $this->canonicalizer->canonicalize($reference->element, $method);
 
-        // A digest is always fixed-length non-empty bytes, so its base64 is a non-empty string.
-        $digest = base64_encode($this->digest->hash($canonical, $digestMethod));
-        assert($digest !== '');
+        // The raw digest crosses in from native hash() as a plain string, so its non-emptiness is coerced
+        // rather than asserted: this is the boundary where it enters the typed contract DigestResult declares.
+        $digest = non_empty_string()->coerce(base64_encode($this->digest->hash($canonical, $digestMethod)));
 
         return new DigestResult($reference->id, $digest, $digestMethod);
     }

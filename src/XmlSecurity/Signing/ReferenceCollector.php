@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
 
+use LogicException;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
@@ -51,8 +52,11 @@ final class ReferenceCollector
             $references[] = new ResolvedReference($element, $this->minter->mint($element, $document));
         }
 
-        // At least one Target is guaranteed, and the first is always kept, so the list is non-empty.
-        assert($references !== []);
+        // At least one Target is guaranteed and the first is never a duplicate, so the list cannot be empty;
+        // the guard is what lets the caller keep its non-empty contract without psalm having to prove the loop.
+        if ($references === []) {
+            throw new LogicException('Collecting references from a non-empty target list produced nothing.');
+        }
 
         return $references;
     }

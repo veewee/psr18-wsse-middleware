@@ -11,6 +11,11 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity;
  */
 final readonly class Target
 {
+    /**
+     * @param non-empty-string|null $namespace
+     * @param non-empty-string|null $localName
+     * @param non-empty-string|null $id
+     */
     private function __construct(
         private TargetKind $kind,
         private ?string $namespace = null,
@@ -41,16 +46,25 @@ final readonly class Target
         return $this->kind;
     }
 
+    /**
+     * @return non-empty-string|null
+     */
     public function namespace(): ?string
     {
         return $this->namespace;
     }
 
+    /**
+     * @return non-empty-string|null
+     */
     public function localName(): ?string
     {
         return $this->localName;
     }
 
+    /**
+     * @return non-empty-string|null
+     */
     public function id(): ?string
     {
         return $this->id;

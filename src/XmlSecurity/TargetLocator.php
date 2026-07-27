@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 
 use Dom\Element;
+use LogicException;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\UniqueMatch;
 use VeeWee\Xml\Dom\Document;
@@ -36,14 +37,14 @@ final class TargetLocator
     }
 
     /**
+     * The id of a TargetKind::Id target. The storage is nullable because it is shared across every kind, so
+     * this restates which field the Id factory populated.
+     *
      * @return non-empty-string
      */
     private function requireId(Target $target): string
     {
-        $id = $target->id();
-        assert($id !== null && $id !== '');
-
-        return $id;
+        return $target->id() ?? throw new LogicException('A Target of kind Id carries no id.');
     }
 
     /**
