@@ -34,7 +34,7 @@ final readonly class PartResolver
     {
         $targets = [];
         foreach ($parts as $part) {
-            $dynamic = DynamicPartMembers::forPart($part, $document, $securityHeader);
+            $dynamic = DynamicPartMembers::forPart($part, $securityHeader);
             if ($dynamic !== null) {
                 foreach ($dynamic as $element) {
                     $targets[] = Target::byId($this->idMinter->mint($element, $document));

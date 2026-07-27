@@ -6,7 +6,6 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
-use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Locator\Element\children;
 
 /**
@@ -21,7 +20,7 @@ final class DynamicPartMembers
     /**
      * @return list<Element>|null null when the Part is static (Body/Element/Id)
      */
-    public static function forPart(Part $part, Document $document, ?Element $securityHeader): ?array
+    public static function forPart(Part $part, ?Element $securityHeader): ?array
     {
         return match ($part->kind()) {
             PartKind::SecurityHeaderContents => self::securityHeaderChildren($securityHeader),

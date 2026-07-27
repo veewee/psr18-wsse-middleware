@@ -23,16 +23,16 @@ final class DynamicPartMembersTest extends TestCase
 
     public function test_a_static_part_expands_to_nothing(): void
     {
-        [$document, $security] = $this->envelope();
+        [, $security] = $this->envelope();
 
-        static::assertNull(DynamicPartMembers::forPart(Part::body(), $document, $security));
+        static::assertNull(DynamicPartMembers::forPart(Part::body(), $security));
     }
 
     public function test_security_header_contents_lists_every_child_except_the_signature(): void
     {
-        [$document, $security] = $this->envelope();
+        [, $security] = $this->envelope();
 
-        $members = DynamicPartMembers::forPart(Part::securityHeaderContents(), $document, $security);
+        $members = DynamicPartMembers::forPart(Part::securityHeaderContents(), $security);
 
         static::assertNotNull($members);
         static::assertSame(['Timestamp', 'BinarySecurityToken'], $this->localNames($members));
@@ -40,8 +40,8 @@ final class DynamicPartMembersTest extends TestCase
 
     public function test_security_header_contents_keeps_document_order(): void
     {
-        [$document, $security] = $this->envelope();
-        $members = DynamicPartMembers::forPart(Part::securityHeaderContents(), $document, $security);
+        [, $security] = $this->envelope();
+        $members = DynamicPartMembers::forPart(Part::securityHeaderContents(), $security);
 
         static::assertNotNull($members);
         static::assertSame(array_keys($members), range(0, count($members) - 1));
@@ -49,9 +49,9 @@ final class DynamicPartMembersTest extends TestCase
 
     public function test_soap_headers_lists_the_sibling_header_blocks_but_not_the_security_header(): void
     {
-        [$document, $security] = $this->envelope();
+        [, $security] = $this->envelope();
 
-        $members = DynamicPartMembers::forPart(Part::soapHeaders(), $document, $security);
+        $members = DynamicPartMembers::forPart(Part::soapHeaders(), $security);
 
         static::assertNotNull($members);
         static::assertSame(['Action', 'To'], $this->localNames($members));
@@ -59,10 +59,8 @@ final class DynamicPartMembersTest extends TestCase
 
     public function test_an_absent_security_header_expands_to_an_empty_list(): void
     {
-        [$document] = $this->envelope();
-
-        static::assertSame([], DynamicPartMembers::forPart(Part::securityHeaderContents(), $document, null));
-        static::assertSame([], DynamicPartMembers::forPart(Part::soapHeaders(), $document, null));
+        static::assertSame([], DynamicPartMembers::forPart(Part::securityHeaderContents(), null));
+        static::assertSame([], DynamicPartMembers::forPart(Part::soapHeaders(), null));
     }
 
     public function test_a_security_header_without_an_element_parent_expands_to_no_soap_headers(): void
@@ -71,7 +69,6 @@ final class DynamicPartMembersTest extends TestCase
 
         $members = DynamicPartMembers::forPart(
             Part::soapHeaders(),
-            $document,
             $document->locateDocumentElement(),
         );
 

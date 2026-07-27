@@ -47,7 +47,7 @@ final class RequiredPartsValidator
         $securityHeader = SecurityHeader::locate($document);
 
         foreach ($requiredParts as $part) {
-            $dynamic = DynamicPartMembers::forPart($part, $document, $securityHeader);
+            $dynamic = DynamicPartMembers::forPart($part, $securityHeader);
             if ($dynamic !== null) {
                 foreach ($dynamic as $member) {
                     if (!$signedElements->wasSigned($member)) {

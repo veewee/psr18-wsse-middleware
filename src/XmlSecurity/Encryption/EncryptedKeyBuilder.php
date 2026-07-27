@@ -28,7 +28,7 @@ use function VeeWee\Xml\Dom\Builder\value;
  *       xenc:DataReference URI="#<id>" [one per encrypted part]
  *
  * Returns a detached element; the caller appends it to the Security header. The ds:KeyInfo is produced by the
- * request's KeyIdentifier strategy, exactly as KeyInfoBuilder does for signing.
+ * request's KeyIdentifier strategy, the same seam the signing side uses.
  */
 final class EncryptedKeyBuilder
 {
