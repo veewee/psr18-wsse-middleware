@@ -16,6 +16,11 @@ final class WsseHeaderException extends RuntimeException
         return new self('Unable to locate or create the SOAP header for the wsse:Security element.');
     }
 
+    public static function ambiguousSecurityHeader(): self
+    {
+        return new self('The message carries more than one wsse:Security header for the ultimate receiver.');
+    }
+
     public static function nothingToSign(): self
     {
         return new self('The configured signature parts matched no element to sign.');

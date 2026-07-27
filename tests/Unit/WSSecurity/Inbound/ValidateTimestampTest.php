@@ -81,6 +81,38 @@ final class ValidateTimestampTest extends TestCase
         $this->block()($context);
     }
 
+    public function test_a_timestamp_planted_outside_the_security_header_is_not_read(): void
+    {
+        // A fresh timestamp smuggled into the Body must not stand in for the missing real one.
+        $now = $this->instant(self::NOW);
+        $planted = '<wsse:Security xmlns:wsse="'.self::WSSE.'">'
+            .$this->timestamp($this->fmt($now), $this->fmt($now->plusSeconds(300)))
+            .'</wsse:Security>';
+        $context = $this->context(
+            '<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Header/>'
+            .'<soap:Body>'.$planted.'</soap:Body></soap:Envelope>',
+        );
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
+    public function test_a_timestamp_in_another_roles_security_header_is_not_read(): void
+    {
+        // The intermediary's header is not ours; its timestamp cannot satisfy our freshness check.
+        $now = $this->instant(self::NOW);
+        $context = $this->context(
+            '<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Header>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'" soap:role="urn:intermediary">'
+            .$this->timestamp($this->fmt($now), $this->fmt($now->plusSeconds(300)))
+            .'</wsse:Security>'
+            .'</soap:Header><soap:Body><data>x</data></soap:Body></soap:Envelope>',
+        );
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($context);
+    }
+
     public function test_a_missing_created_element_is_rejected(): void
     {
         $now = $this->instant(self::NOW);

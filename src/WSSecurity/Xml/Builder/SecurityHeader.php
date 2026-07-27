@@ -72,14 +72,32 @@ final class SecurityHeader
     }
 
     /**
-     * Finds the wsse:Security header already present in the document without creating one, returning null
-     * when none is present. The lookup is document-wide and SOAP-version agnostic, as the WSSE namespace is
-     * fixed; the caller maps a null to its own failure. Distinct from locateOrCreate, which mutates the
-     * document and stamps targeting attributes.
+     * Finds the wsse:Security header this receiver must process, returning null when the message carries
+     * none. Distinct from locateOrCreate, which mutates the document and stamps targeting attributes.
+     *
+     * A message may legally carry several Security headers, one per recipient, so only the header targeted
+     * at the ultimate receiver — a soap:Header child with no actor/role attribute — is ours; a header
+     * addressed to an intermediary belongs to that hop and is skipped. The spec permits at most one such
+     * header, and a second one is refused rather than picked: an injected empty header standing in for the
+     * real one would expand every dynamic required part to nothing and satisfy the coverage check
+     * vacuously. Restricting the lookup to soap:Header children keeps a Security element planted elsewhere
+     * in the envelope, notably inside the Body, from being mistaken for the real header.
+     *
+     * @throws WsseHeaderException when the message carries more than one header for the ultimate receiver
      */
-    public static function locate(Document $document): ?Element
+    public static function locate(Document $document, SoapVersion $soapVersion): ?Element
     {
-        return Query::elements($document, '//'.Namespaces::Wsse->qualify('Security'))->first();
+        $ours = Query::elements(
+            $document,
+            '/soap:Envelope/soap:Header/'.Namespaces::Wsse->qualify('Security')
+            .'[not(@soap:'.$soapVersion->actorOrRoleName().')]',
+        );
+
+        return match ($ours->count()) {
+            0 => null,
+            1 => $ours->expectSingle(),
+            default => throw WsseHeaderException::ambiguousSecurityHeader(),
+        };
     }
 
     public function element(): Element

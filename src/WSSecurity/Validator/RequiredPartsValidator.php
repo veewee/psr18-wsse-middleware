@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Validator;
 
 use Soap\Psr18WsseMiddleware\WSSecurity\DynamicPartMembers;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
@@ -44,7 +45,11 @@ final class RequiredPartsValidator
         VerifiedReferences $signedElements,
         array $requiredParts,
     ): void {
-        $securityHeader = SecurityHeader::locate($document);
+        try {
+            $securityHeader = SecurityHeader::locate($document, $soapVersion);
+        } catch (WsseHeaderException $exception) {
+            throw SecurityFault::inboundFailure($exception);
+        }
 
         foreach ($requiredParts as $part) {
             $dynamic = DynamicPartMembers::forPart($part, $securityHeader);

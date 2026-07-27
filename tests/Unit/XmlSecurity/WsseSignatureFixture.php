@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
@@ -163,7 +164,7 @@ final class WsseSignatureFixture
 
     public function security(Document $document): Element
     {
-        return SecurityHeader::locate($document)
+        return SecurityHeader::locate($document, SoapVersion::fromDocument($document))
             ?? throw new RuntimeException('The fixture envelope is missing its wsse:Security header.');
     }
 

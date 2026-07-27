@@ -10,12 +10,13 @@ use Psl\DateTime\Timezone;
 use Soap\Psr18WsseMiddleware\Clock\Clock;
 use Soap\Psr18WsseMiddleware\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\TimestampValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\Xml\Query;
 
 /**
  * Rejects a stale, future-dated, or replayed-window message before the application sees it. It locates the
@@ -73,17 +74,19 @@ final class ValidateTimestamp implements InboundAction
 
     private function locateTimestamp(WsseContext $context): Element
     {
-        $document = $context->document();
-        $timestamps = Query::elements(
-            $document,
-            '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Wsu->qualify('Timestamp'),
-        );
+        try {
+            $security = SecurityHeader::locate($context->document(), $context->soapVersion());
+        } catch (WsseHeaderException $exception) {
+            throw SecurityFault::inboundFailure($exception);
+        }
 
-        if ($timestamps->count() !== 1) {
+        if ($security === null) {
             throw SecurityFault::inboundFailure();
         }
 
-        return $timestamps->expectSingle();
+        // Exactly one, so a second injected wsu:Timestamp cannot shadow the real one.
+        return ChildElements::single($security, Namespaces::Wsu, 'Timestamp')
+            ?? throw SecurityFault::inboundFailure();
     }
 
     private function requireChildText(Element $timestamp, string $localName): string

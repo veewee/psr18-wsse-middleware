@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
@@ -222,7 +223,7 @@ final class SignerTest extends TestCase
 
     private function security(Document $document): Element
     {
-        $security = SecurityHeader::locate($document);
+        $security = SecurityHeader::locate($document, SoapVersion::fromDocument($document));
         static::assertInstanceOf(Element::class, $security);
 
         return $security;

@@ -198,7 +198,7 @@ final class DecryptRoundTripTest extends TestCase
 
     private function security(Document $document): Element
     {
-        $security = SecurityHeader::locate($document);
+        $security = SecurityHeader::locate($document, SoapVersion::fromDocument($document));
         static::assertInstanceOf(Element::class, $security);
 
         return $security;
