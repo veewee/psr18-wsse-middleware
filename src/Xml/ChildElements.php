@@ -22,10 +22,7 @@ final class ChildElements
     public static function named(Element $parent, Namespaces $namespace, string $localName): array
     {
         return children($parent)
-            ->filter(
-                static fn (Element $child): bool => $child->localName === $localName
-                    && $child->namespaceURI === $namespace->value,
-            )
+            ->filter(static fn (Element $child): bool => ElementName::matches($child, $namespace, $localName))
             ->map(static fn (Element $child): Element => $child);
     }
 }

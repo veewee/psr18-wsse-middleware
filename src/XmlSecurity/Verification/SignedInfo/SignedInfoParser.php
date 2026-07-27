@@ -8,6 +8,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
@@ -161,8 +162,11 @@ final class SignedInfoParser
     {
         $matches = children($canonicalizationElement)
             ->filter(
-                static fn (Element $child): bool => $child->localName === 'InclusiveNamespaces'
-                    && $child->namespaceURI === SignatureCanonicalization::EXC_C14N->value,
+                static fn (Element $child): bool => ElementName::matchesUri(
+                    $child,
+                    SignatureCanonicalization::EXC_C14N->value,
+                    'InclusiveNamespaces',
+                ),
             )
             ->map(static fn (Element $child): Element => $child);
 

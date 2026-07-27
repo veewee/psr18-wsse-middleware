@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
 use Dom\Element;
 use Dom\XPath;
+use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
@@ -74,6 +75,6 @@ final class EncryptedData
 
     private function isEncryptedData(Element $element): bool
     {
-        return $element->localName === 'EncryptedData' && $element->namespaceURI === Namespaces::Xenc->value;
+        return ElementName::matches($element, Namespaces::Xenc, 'EncryptedData');
     }
 }

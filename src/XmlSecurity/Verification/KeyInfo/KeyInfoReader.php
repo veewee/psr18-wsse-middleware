@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
@@ -91,7 +92,7 @@ final class KeyInfoReader
             throw SignatureVerificationFailed::withReason('The referenced security token was not found.');
         }
 
-        if ($token->localName !== 'BinarySecurityToken' || $token->namespaceURI !== Namespaces::Wsse->value) {
+        if (!ElementName::matches($token, Namespaces::Wsse, 'BinarySecurityToken')) {
             throw SignatureVerificationFailed::withReason('The token reference does not point at a BinarySecurityToken.');
         }
 

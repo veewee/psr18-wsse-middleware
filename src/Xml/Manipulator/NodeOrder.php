@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\Xml\Manipulator;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use function VeeWee\Xml\Dom\Locator\Element\children;
 use function VeeWee\Xml\Dom\Manipulator\append;
@@ -59,7 +60,7 @@ final class NodeOrder
     private static function rankOf(Element $element): int
     {
         foreach (self::SEQUENCE as $rank => [$namespaceUri, $localName]) {
-            if ($element->namespaceURI === $namespaceUri && $element->localName === $localName) {
+            if (ElementName::matchesUri($element, $namespaceUri, $localName)) {
                 return $rank;
             }
         }

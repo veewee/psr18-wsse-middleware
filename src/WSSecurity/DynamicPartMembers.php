@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use VeeWee\Xml\Dom\Document;
@@ -69,7 +70,7 @@ final class DynamicPartMembers
 
     private static function isSignature(Element $element): bool
     {
-        return $element->namespaceURI === Namespaces::Ds->value && $element->localName === 'Signature';
+        return ElementName::matches($element, Namespaces::Ds, 'Signature');
     }
 
     /**

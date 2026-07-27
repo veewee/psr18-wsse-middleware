@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
+use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
@@ -67,11 +68,11 @@ final class OaepParameterResolver
                 continue;
             }
 
-            if ($child->localName === 'DigestMethod' && $child->namespaceURI === Namespaces::Ds->value) {
+            if (ElementName::matches($child, Namespaces::Ds, 'DigestMethod')) {
                 $digestUri = (string) $child->getAttribute('Algorithm');
             }
 
-            if ($child->localName === 'MGF' && $child->namespaceURI === Namespaces::Xenc11->value) {
+            if (ElementName::matches($child, Namespaces::Xenc11, 'MGF')) {
                 $mgfUri = (string) $child->getAttribute('Algorithm');
             }
         }

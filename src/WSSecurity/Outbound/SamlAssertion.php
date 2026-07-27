@@ -8,6 +8,7 @@ use LogicException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Assert\assert_element;
@@ -79,7 +80,7 @@ final class SamlAssertion implements OutboundAction
             throw WsseHeaderException::samlAssertionNotParseable($exception->getMessage());
         }
 
-        if ($root->namespaceURI !== $this->version->value || $root->localName !== 'Assertion') {
+        if (!ElementName::matchesUri($root, $this->version->value, 'Assertion')) {
             throw WsseHeaderException::samlAssertionNotLocatable();
         }
 
