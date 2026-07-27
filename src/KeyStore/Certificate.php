@@ -11,7 +11,7 @@ use function Psl\File\read;
 /**
  * Contains a PEM representation of a public X.509 Certificate.
  */
-final class Certificate implements KeyInterface
+final class Certificate
 {
     private HiddenString $key;
     private ?CertificateInfo $info = null;

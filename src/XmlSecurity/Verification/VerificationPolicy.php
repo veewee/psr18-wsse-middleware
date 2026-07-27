@@ -14,7 +14,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
  * to express by accident); the default profiles populate them.
  *
  * This DTO reports the accepted algorithms and supplies the trust store; whether the required parts are in the
- * signed set is asserted by the Inbound\VerifySignature block (E2) against the returned VerifiedReferences,
+ * signed set is asserted by the Inbound\VerifySignature block against the returned VerifiedReferences,
  * not here. The verifier reports, the policy block decides.
  */
 final readonly class VerificationPolicy

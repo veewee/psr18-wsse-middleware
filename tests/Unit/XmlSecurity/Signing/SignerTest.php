@@ -28,6 +28,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
+use VeeWee\Xml\Exception\DoctypeNotAllowedException;
 
 /**
  * Asserts the Signer emits the expected ds:Signature structure: the right references, reused wsu:Id values,
@@ -131,6 +132,23 @@ final class SignerTest extends TestCase
         $digestValue = $this->child($this->references($document)[0], 'DigestValue');
         static::assertNotNull($digestValue);
         static::assertSame($expected, $digestValue->textContent);
+    }
+
+    public function test_it_rejects_a_doctype_on_the_reparsed_wire(): void
+    {
+        [$key, $certificate] = $this->keyAndCertificate();
+        $document = Document::fromXmlString(
+            '<!DOCTYPE soap:Envelope>'
+            .'<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsse="'.self::WSSE.'">'
+            .'<soap:Header><wsse:Security/></soap:Header>'
+            .'<soap:Body><data>x</data></soap:Body>'
+            .'</soap:Envelope>'
+        );
+        $request = $this->request($this->security($document), [Target::element(self::SOAP, 'Body')], $key, $certificate);
+
+        $this->expectException(DoctypeNotAllowedException::class);
+
+        $this->signer()->sign($document, $request);
     }
 
     /**

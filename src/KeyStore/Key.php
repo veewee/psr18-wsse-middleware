@@ -10,7 +10,7 @@ use function Psl\File\read;
 /**
  * Contains a PEM representation of an (un)encrypted private key (PKCS_8).
  */
-final class Key implements KeyInterface
+final class Key
 {
     private HiddenString $key;
     private HiddenString $passphrase;

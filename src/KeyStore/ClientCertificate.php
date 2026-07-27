@@ -12,7 +12,7 @@ use function Psl\File\read;
 /**
  * Contains a PEM bundle of both public X.509 Certificate and an (un)encrypted private key PKCS_8.
  */
-final class ClientCertificate implements KeyInterface
+final class ClientCertificate
 {
     private HiddenString $key;
     private HiddenString $passphrase;

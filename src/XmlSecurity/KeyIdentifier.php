@@ -9,8 +9,7 @@ use VeeWee\Xml\Dom\Document;
 
 /**
  * Expresses how the signing or recipient key is referenced inside ds:KeyInfo / xenc:EncryptedKey (BST
- * direct reference, X509 SKI, IssuerSerial, Thumbprint, ...). The concrete strategies are ported onto the new
- * DOM in C2, which also finalises this signature (see DEFERRED.md).
+ * direct reference, X509 SKI, IssuerSerial, Thumbprint, ...).
  */
 interface KeyIdentifier
 {

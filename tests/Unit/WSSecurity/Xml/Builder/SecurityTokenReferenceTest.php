@@ -7,8 +7,6 @@ use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityTokenReference;
 use VeeWee\Xml\Dom\Document;
-use function VeeWee\Xml\Dom\Builder\namespaced_element;
-use function VeeWee\Xml\Dom\Builder\value;
 
 final class SecurityTokenReferenceTest extends TestCase
 {
@@ -57,31 +55,6 @@ final class SecurityTokenReferenceTest extends TestCase
         static::assertSame('urn:value-type', $keyIdentifier->getAttribute('ValueType'));
         static::assertSame('urn:encoding', $keyIdentifier->getAttribute('EncodingType'));
         static::assertSame('ZW5jb2RlZA==', $keyIdentifier->textContent);
-    }
-
-    public function test_embedded_variant_wraps_the_child_element(): void
-    {
-        $childBuilder = namespaced_element(self::WSSE, 'wsse:Assertion', value('inline'));
-
-        $str = SecurityTokenReference::embedded($childBuilder)->build($this->document());
-
-        $embedded = $this->firstChildElement($str);
-        static::assertSame('Embedded', $embedded->localName);
-        static::assertSame(self::WSSE, $embedded->namespaceURI);
-
-        $assertion = $this->firstChildElement($embedded);
-        static::assertSame('Assertion', $assertion->localName);
-        static::assertSame('inline', $assertion->textContent);
-    }
-
-    public function test_key_name_variant_emits_a_ds_key_name(): void
-    {
-        $str = SecurityTokenReference::keyName('CN=Service')->build($this->document());
-
-        $keyName = $this->firstChildElement($str);
-        static::assertSame('KeyName', $keyName->localName);
-        static::assertSame(self::DS, $keyName->namespaceURI);
-        static::assertSame('CN=Service', $keyName->textContent);
     }
 
     public function test_x509_issuer_serial_variant_emits_a_ds_x509_data_issuer_serial(): void

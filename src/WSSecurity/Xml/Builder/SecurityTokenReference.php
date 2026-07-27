@@ -100,34 +100,6 @@ final readonly class SecurityTokenReference
     }
 
     /**
-     * Embedded variant: wraps an inline token element (such as a SAML assertion).
-     *
-     * @param callable(Node): Element $childBuilder builds the embedded token element
-     */
-    public static function embedded(callable $childBuilder): self
-    {
-        return new self(namespaced_element(
-            Namespaces::Wsse->value,
-            Namespaces::Wsse->qualify('Embedded'),
-            children($childBuilder),
-        ));
-    }
-
-    /**
-     * KeyName variant: names the key with a ds:KeyName.
-     *
-     * @param non-empty-string $name
-     */
-    public static function keyName(string $name): self
-    {
-        return new self(namespaced_element(
-            Namespaces::Ds->value,
-            Namespaces::Ds->qualify('KeyName'),
-            value($name),
-        ));
-    }
-
-    /**
      * X509IssuerSerial variant: points at the key by the certificate's issuer DN and serial number,
      * carried as a ds:X509Data child as required by the WS-Security X.509 token profile.
      *

@@ -75,7 +75,7 @@ final class Verifier implements XmlSignatureVerifier
         private ReferenceResolver $referenceResolver,
         private DigestVerifier $digestVerifier,
         private SignatureValidator $signatureValidator,
-        private TrustResolver $keyResolver,
+        private TrustResolver $trustResolver,
     ) {
     }
 
@@ -125,7 +125,7 @@ final class Verifier implements XmlSignatureVerifier
         VerificationPolicy $policy,
     ): TrustedSigner {
         try {
-            return $this->keyResolver->verifyTrust($chain, $policy->trustStore);
+            return $this->trustResolver->verifyTrust($chain, $policy->trustStore);
         } catch (CertificateTrustException) {
             throw SignatureVerificationFailed::withReason('The signer certificate is not trusted.');
         }

@@ -22,6 +22,7 @@ use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
 use function VeeWee\Xml\Dom\Builder\value;
+use function VeeWee\Xml\Dom\Configurator\disallow_doctype;
 use function VeeWee\Xml\Dom\Manipulator\append;
 
 /**
@@ -139,7 +140,7 @@ final class Signer implements XmlSigner
      */
     private function wire(Document $document): Document
     {
-        return Document::fromXmlString($document->toXmlString());
+        return Document::fromXmlString($document->toXmlString(), disallow_doctype());
     }
 
     /**
