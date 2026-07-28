@@ -2,9 +2,9 @@
 
 ## Upgrading to the new major version
 
-This release swaps the old `robrichards/wse-php` wrapper for a WSSE engine that lives in this package. You
-still build security as a list of blocks, so the idea is familiar, but the names and some of the moving
-parts changed. Here is what to check when you upgrade.
+Everything below is written against the last released version. This release swaps the old `robrichards/wse-php`
+wrapper for a WSSE engine that lives in this package. You still build security as a list of blocks, so the idea
+is familiar, but the names, the credential objects and several defaults changed.
 
 ### The engine is now part of this package
 
@@ -16,24 +16,6 @@ drop that patch and the dev dependency from your project.
 
 `ext-intl` is now a required extension. The inbound timestamp validator parses instants with the ICU date
 formatter, so make sure `ext-intl` is installed wherever this package runs.
-
-### `SamlAssertionKeyIdentifier` takes the SAML version
-
-`SamlAssertionKeyIdentifier` now requires a `SamlVersion` as its second constructor argument:
-
-```php
-// before
-new SamlAssertionKeyIdentifier($assertionId);
-
-// after
-new SamlAssertionKeyIdentifier($assertionId, SamlVersion::Saml20);
-```
-
-The SAML Token Profile references the two versions differently, and the old single-argument form always emitted
-the SAML 1.1 shape. A reference to a SAML 2.0 assertion needs the 1.1-profile `#SAMLID` value type plus a
-`wsse11:TokenType` of `#SAMLV2.0`, which the old form could not express — so if you were referencing a 2.0
-assertion, the reference your peer received described a 1.1 one. Pass `SamlVersion::Saml11` to keep exactly the
-previous wire format.
 
 ### PHP 8.4.21 is the minimum
 
@@ -50,53 +32,136 @@ already fast enough for a typical client. With neither extension the math falls 
 is noticeably slower per message; everything still works, just slower. `ext-bcmath` is commonly enabled by
 default, so most installations need no action.
 
-### Blocks are now one-liners; no engine wiring
+### Secure defaults changed on the wire
 
-The signing, encryption, decryption and verification blocks build the engine service they need internally,
-with secure defaults. You construct them directly:
+Read this section even if you change nothing else — several defaults moved, so the bytes your peer receives are
+not what the previous version sent. If a peer pins the old algorithms, set them back explicitly.
+
+| Setting | Before | Now |
+|---|---|---|
+| Signature method | `SignatureMethod::RSA_SHA1` | `SignatureMethod::RSA_SHA256` |
+| Reference digest | `DigestMethod::SHA1` | `DigestMethod::SHA256` |
+| Canonicalization | the `SignatureCanonicalization` enum existed but was never wired to anything | `SignatureCanonicalization::EXC_C14N`, and honoured |
+| Data encryption | `DataEncryptionMethod::AES256_CBC` | `DataEncryptionMethod::AES256_GCM` |
+| Key transport | `KeyEncryptionMethod::RSA_OAEP_MGF1P` | `KeyEncryptionMethod::RSA_OAEP` |
+| Timestamp TTL | 3600 seconds | 300 seconds |
+| Encrypted parts | Body **and the signature** (`encryptSignature` defaulted to `true`) | Body only |
+| Encryption key reference | had to be passed explicitly | `EncKeyRef::SubjectKeyIdentifier` |
+| Signature key reference | had to be passed explicitly | `KeyRef::BinarySecurityToken` |
+
+SHA-1 signing and digests are still selectable, so a peer that has not moved on keeps working:
 
 ```php
-new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken);
-new Outbound\Encryption($recipientCertificate);
-new Inbound\Decrypt($privateKey);
-new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]);
+$profile = new SecurityProfile(crypto: new CryptoPolicy(
+    signatureMethod: SignatureMethod::RSA_SHA1,
+    digestMethod: DigestMethod::SHA1,
+));
 ```
 
-If you previously passed engine services into the blocks yourself, you can delete that wiring. Each of those
-blocks builds the bundled implementation by default; for the rare case where you need a custom one, override it
-with a `with*()` method (`Outbound\Signature::withSigner`, `Outbound\Encryption::withEncryptor`,
-`Inbound\Decrypt::withDecryptor`, `Inbound\VerifySignature::withVerifier`) rather than a constructor argument.
+Inbound, the accepted algorithms are allow-lists rather than "anything the enum can name". The defaults accept
+what a modern peer sends; widen them on the `CryptoPolicy` if you must verify a legacy response.
 
-### The Signature block signs the Security-header contents by default
+### Two block lists instead of one
 
-`Outbound\Signature`'s default signed parts changed from `[Part::body(), Part::timestamp()]` to
-`[Part::body(), Part::securityHeaderContents()]`. The new `securityHeaderContents()` is a dynamic part that
-signs every element present in the `wsse:Security` header when the request is built — the Timestamp and any
-tokens — so the common setup (Timestamp + Signature) still signs the Body and the Timestamp, and additionally
-covers the tokens. Two consequences:
+The constructor arguments were renamed to say what they do, and named arguments are now supported (the old
+constructor was `@no-named-arguments`):
 
-- The default no longer fails when there is no Timestamp block; it signs whatever the header contains.
-- To keep the exact old set, configure it explicitly:
-  `->withParts([Part::body(), Part::timestamp()])`.
+- `outgoing:` is now `outbound:`, the blocks that secure the request you send.
+- `incoming:` is now `inbound:`, the blocks that check the response you get back.
 
-New `Part` factories accompany the change: `securityHeaderContents()`, `soapHeaders()` (every SOAP header block
-except `wsse:Security` — the equivalent of `wse-php`'s `signAllHeaders`), and the `usernameToken()` /
-`binarySecurityToken()` shortcuts. The two dynamic parts also work inbound: pass them to
-`Inbound\VerifySignature`'s `signed:` list to require every Security-header token (or every other SOAP header)
-was signed.
+`WsseMiddleware` also takes a `SecurityProfile` as its first required argument:
 
-### Keys, certificates and trust anchors live under `KeyStore`
+```php
+// before
+new WsseMiddleware($outgoingEntries, $incomingEntries);
 
-The credentials the blocks take are value objects under the `Soap\Psr18WsseMiddleware\KeyStore` namespace (the
-clock seam used by the timestamp blocks sits under `Soap\Psr18WsseMiddleware\Clock`):
+// after
+new WsseMiddleware(
+    new SecurityProfile(),
+    outbound: [ /* ... */ ],
+    inbound: [ /* ... */ ],
+);
+```
 
-- `KeyStore\Certificate` — a public X.509 certificate (`Certificate::fromFile('cert.pub')`).
-- `KeyStore\Key` — a private key (`Key::fromFile('key.priv')->withPassphrase('…')` when encrypted).
+The profile reaches every block through the per-message context, so the signing, encryption and verification
+blocks take no settings object of their own.
+
+### Header targeting moved from the middleware to the profile
+
+`WsseMiddleware::withActor()` and `WsseMiddleware::withMustUnderstand()` are gone. Both are properties of the
+`SecurityProfile` now, because the same value has to drive both directions:
+
+```php
+// before
+(new WsseMiddleware($outgoing))->withActor('urn:my-gateway')->withMustUnderstand(false);
+
+// after
+new WsseMiddleware(
+    new SecurityProfile(actorOrRole: 'urn:my-gateway', mustUnderstand: false),
+    outbound: $outbound,
+);
+```
+
+The defaults (`null` and `true`) are the previous behaviour exactly — an untargeted header carrying
+`mustUnderstand="1"`. One value drives both directions: outbound it targets the header the blocks write,
+inbound it selects the header they read. Set it if your deployment is addressed as a named intermediary rather
+than the ultimate receiver — a response whose Security header is addressed to an explicit actor/role is only
+processed when the profile names that actor.
+
+### Outbound blocks moved and were renamed
+
+The old `WSSecurity\Entry\*` classes are now `WSSecurity\Outbound\*`:
+
+- `Entry\Timestamp` is now `Outbound\Timestamp`
+- `Entry\Username` is now `Outbound\Username`
+- `Entry\BinarySecurityToken` is now `Outbound\BinarySecurityToken`
+- `Entry\Signature` is now `Outbound\Signature`
+- `Entry\Encryption` is now `Outbound\Encryption`
+- `Entry\SamlAssertion` is now `Outbound\SamlAssertion`
+
+The `WsseEntry` interface they implemented is now `WSSecurity\Outbound\OutboundAction`, and a block receives a
+`WsseContext` instead of a `DOMDocument` and a `WSSESoap`. If you wrote your own entry, that is the signature to
+port:
+
+```php
+// before
+public function __invoke(DOMDocument $envelope, WSSESoap $wsse): void;
+
+// after
+public function __invoke(WsseContext $context): void;
+```
+
+### Inbound is now a real, explicit list
+
+Before, the response side only knew how to decrypt. It is now its own list of blocks that mirrors the
+outbound side:
+
+- `Inbound\Decrypt` decrypts the response. It replaces the old `Entry\Decryption`.
+- `Inbound\VerifySignature` verifies the signature and confirms the parts you require were signed by a trusted
+  certificate. Checking a response this way is new — the previous version could not verify a response at all.
+- `Inbound\ValidateTimestamp` checks the response is fresh within a clock-skew window. This is also new.
+
+A response that fails an inbound check throws a single, uniform security error. It does not reveal which step
+failed, so the middleware cannot be used as an oracle.
+
+### Credentials are value objects under `KeyStore`
+
+The credential classes moved out of `WSSecurity\KeyStore\` to `Soap\Psr18WsseMiddleware\KeyStore\`. Update your
+`use` statements; constructing them from PEM contents is unchanged, and `Key::fromFile()` /
+`ClientCertificate::fromFile()` / `Certificate::fromFile()` still read a file for you.
+
+- `KeyStore\Certificate` — a public X.509 certificate. `withPassphrase()` is gone from it; a public certificate
+  never needed one. `Certificate::fromBase64Der()` is new, for a certificate that arrives as base64 DER.
+- `KeyStore\Key` — a private key. Unchanged apart from the namespace.
 - `KeyStore\ClientCertificate` — a combined certificate-and-key bundle to sign with.
-- `KeyStore\TrustStore` — the anchors inbound verification trusts (`TrustStore::fromCertificates(...)`).
+- `KeyStore\TrustStore` — new: the anchors inbound verification trusts (`TrustStore::fromCertificates(...)`).
+- `isCertificate()` is gone from all three. Each class now says what it is by its type, so nothing has to ask.
+- `KeyInterface` is gone with it. The blocks name the concrete credential they need, so a block that signs asks
+  for a `ClientCertificate` and a block that encrypts for a recipient `Certificate`. If you accepted
+  `KeyInterface` in your own code, pick the concrete class the call site actually needs.
 
-Loading from a `.p12` / `.pfx` goes through `KeyStore\Pkcs12Bundle`: decode the blob once, then derive each
-credential from the bundle so it is parsed a single time.
+Loading from a `.p12` / `.pfx` is new and goes through `KeyStore\Pkcs12Bundle`: decode the blob once, then
+derive each credential from the bundle so it is parsed a single time.
 
 ```php
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
@@ -111,199 +176,195 @@ $recipient = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secr
 $trustStore = TrustStore::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
 ```
 
-### Two block lists instead of one
+### Blocks take credentials, not engine wiring
 
-The constructor arguments were renamed to say what they do:
-
-- `outgoing:` is now `outbound:`, the blocks that secure the request you send.
-- `incoming:` is now `inbound:`, the blocks that check the response you get back.
-
-`WsseMiddleware` now takes a `SecurityProfile` as its first required argument:
+`Entry\Signature` and `Entry\Encryption` each took a key plus a `KeyIdentifier` object. The blocks now take the
+credential and an enum case, and build the engine service they need internally with secure defaults:
 
 ```php
-new WsseMiddleware(
-    new SecurityProfile(),
-    outbound: [ /* ... */ ],
-    inbound: [ /* ... */ ],
-);
+// before
+new Entry\Signature($privateKey, new BinarySecurityTokenIdentifier());
+new Entry\Encryption($recipientKey, new X509SubjectKeyIdentifier($certificate));
+new Entry\Decryption($privateKey);
+
+// after
+new Outbound\Signature($clientCertificate);                  // KeyRef::BinarySecurityToken by default
+new Outbound\Encryption($recipientCertificate);              // EncKeyRef::SubjectKeyIdentifier by default
+new Inbound\Decrypt($privateKey);
+new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]);
 ```
 
-The profile reaches every block through the per-message context, so the signing, encryption and verification
-blocks no longer take a profile of their own.
+For the rare case where you need a custom engine service, override it with a `with*()` method
+(`Outbound\Signature::withSigner`, `Outbound\Encryption::withEncryptor`, `Inbound\Decrypt::withDecryptor`,
+`Inbound\VerifySignature::withVerifier`) rather than a constructor argument. See "Custom engine services" in the
+README for the SPI those methods take.
 
-### Outbound blocks moved and were renamed
+### What the Signature block signs is now a list of parts
 
-The old `WSSecurity\Entry\*` classes are now `WSSecurity\Outbound\*`:
+The boolean switches are gone. `withSignAllHeaders()`, `withSignBody()`, `withSignSpecificHeaders()` and
+`withInsertBefore()` no longer exist; you name the regions to sign as a list of `Part` values instead:
 
-- `Entry\Timestamp` is now `Outbound\Timestamp`
-- `Entry\Username` is now `Outbound\Username`
-- `Entry\BinarySecurityToken` is now `Outbound\BinarySecurityToken`
-- `Entry\Signature` is now `Outbound\Signature`
-- `Entry\Encryption` is now `Outbound\Encryption`
-- `Entry\SamlAssertion` is now `Outbound\SamlAssertion`
+```php
+// before
+(new Entry\Signature($key, $keyIdentifier))
+    ->withSignAllHeaders(true)
+    ->withSignBody(true);
 
-### Inbound is now a real, explicit list
+// after
+(new Outbound\Signature($clientCertificate))
+    ->withParts([Part::body(), Part::soapHeaders()]);
+```
 
-Before, the response side only knew how to decrypt. It is now its own list of blocks that mirrors the
-outbound side:
+The default is `[Part::body(), Part::securityHeaderContents()]`, where `securityHeaderContents()` is a dynamic
+part covering every element present in the `wsse:Security` header when the request is built — the Timestamp and
+any tokens. The previous default signed the Body and all SOAP headers, so the closest equivalent is
+`[Part::body(), Part::soapHeaders(), Part::securityHeaderContents()]`.
 
-- `Inbound\Decrypt` decrypts the response. It replaces the old `Entry\Decryption`.
-- `Inbound\VerifySignature` verifies the signature and confirms the parts you require were signed by a trusted certificate. Checking a response this way is new.
-- `Inbound\ValidateTimestamp` checks the response is fresh within a clock-skew window. This is also new.
+The available factories are `body()`, `timestamp()`, `usernameToken()`, `binarySecurityToken()`,
+`securityHeaderContents()`, `soapHeaders()` (every SOAP header block except `wsse:Security` — the equivalent of
+`wse-php`'s `signAllHeaders`), `element(namespace, localName)` and `byId(id)`. The two dynamic parts also work
+inbound: pass them to `Inbound\VerifySignature`'s `signed:` list to require every Security-header token (or
+every other SOAP header) was signed.
+
+`Outbound\Encryption` takes the same `withParts()` list to choose what gets encrypted, and defaults to the Body
+alone. Its `withEncryptSignature(bool)` switch is gone with the other booleans — and it used to default to
+`true`, so the previous version encrypted the signature as well. Name the signature as a part to keep that:
+
+```php
+(new Outbound\Encryption($recipientCertificate))
+    ->withParts([Part::body(), Part::element('http://www.w3.org/2000/09/xmldsig#', 'Signature')]);
+```
 
 ### Key references are now enums
 
-The `WSSecurity\KeyIdentifier\*` classes are gone, and the old factory-style calls
-(`KeyRef::binarySecurityToken()`) are gone with them. You now pick a reference style with a small enum case.
-For signatures, use `KeyRef::BinarySecurityToken`, `KeyRef::SubjectKeyIdentifier`, `KeyRef::IssuerSerial` or
-`KeyRef::Thumbprint`. For encryption, `EncKeyRef` offers the same set. Both live under
-`WSSecurity\Outbound\KeyReference\`.
+The `WSSecurity\KeyIdentifier\*` classes are gone. You pick a reference style with an enum case instead of
+constructing an object, and the certificate it describes is derived from the credential the block already has:
 
-Because `Outbound\Signature` takes the optional engine service before the key reference, pass the reference as
-a named argument: `new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken)`.
+| Before | After |
+|---|---|
+| `new BinarySecurityTokenIdentifier()` | `KeyRef::BinarySecurityToken` |
+| `new X509SubjectKeyIdentifier($certificate)` | `KeyRef::SubjectKeyIdentifier` |
+| — | `KeyRef::IssuerSerial` (new) |
+| — | `KeyRef::Thumbprint` (new) |
 
-### Algorithm enums moved
+`KeyRef` selects the reference for `Outbound\Signature`; `EncKeyRef` offers the same four cases for
+`Outbound\Encryption`. Both live under `WSSecurity\Outbound\KeyReference\`:
 
-The algorithm enums (`SignatureMethod`, `DigestMethod`, `SignatureCanonicalization`, `DataEncryptionMethod`,
-`KeyEncryptionMethod`, `KeyTransportAlgorithm`, `OaepHash`) live at the package root under
-`Soap\Psr18WsseMiddleware\Algorithm\` — they are W3C XML-Security algorithm identifiers, independent of the SOAP
-layer. Update your `use` statements. The defaults are secure on their own, so in most cases you can stop passing
-these explicitly.
+```php
+new Outbound\Signature($clientCertificate, KeyRef::SubjectKeyIdentifier);
+new Outbound\Encryption($recipientCertificate, EncKeyRef::IssuerSerial);
+```
 
-### SecurityProfile split: algorithm settings moved to CryptoPolicy
-
-`SecurityProfile` now carries only the WS-Security timestamp window (`timestampTtl`, `clockSkew`) and composes a
-`Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy` that holds the algorithm choices and inbound accept
-allow-lists. Pass algorithm settings through the `crypto:` argument:
+`SamlKeyIdentifier` is now `SamlAssertionKeyIdentifier` and requires a `SamlVersion` as its second argument:
 
 ```php
 // before
-$profile = new SecurityProfile(signatureMethod: SignatureMethod::RSA_SHA512);
+new SamlKeyIdentifier($assertionId);
+
 // after
-$profile = new SecurityProfile(crypto: new CryptoPolicy(signatureMethod: SignatureMethod::RSA_SHA512));
+new SamlAssertionKeyIdentifier($assertionId, SamlVersion::Saml20);
 ```
 
-Read the settings back through `$profile->crypto()`. `SecurityProfile::default()` is unchanged. The split lets
-the XML-Security engine be driven by a `CryptoPolicy` alone, without the SOAP profile.
+The SAML Token Profile references the two versions differently, and the old class always emitted the SAML 1.1
+shape. A reference to a SAML 2.0 assertion needs the 1.1-profile `#SAMLID` value type plus a `wsse11:TokenType`
+of `#SAMLV2.0`, which the old form could not express — so if you were referencing a 2.0 assertion, the reference
+your peer received described a 1.1 one. Pass `SamlVersion::Saml11` to keep exactly the previous wire format.
 
-### The XML-Security engine no longer reaches into the SOAP header (custom engine services only)
+`CustomKeyIdentifier` still exists for a value type this package does not model, under
+`WSSecurity\Outbound\KeyReference\` with the rest. `ReferencingKeyIdentifier` was removed: every reference the
+package emits is now either one of the four `KeyRef` cases or a `CustomKeyIdentifier`.
 
-This affects you only if you drive the signer/encryptor directly or ship a custom `XmlSigner`/`XmlEncryptor` —
-the `Outbound\Signature` and `Outbound\Encryption` blocks are configured exactly as before.
+### The SAML assertion block takes XML as a string
 
-The engine used to locate the `wsse:Security` header itself. It now takes the container element to attach to as
-an explicit input, so it carries no SOAP knowledge:
+`Entry\SamlAssertion` took a `DOMDocument` you had parsed yourself. `Outbound\SamlAssertion` takes the raw XML
+plus its version, so the package controls the parse — it rejects a DOCTYPE before reading anything, which a
+document you hand in has already been exposed to:
 
-- `SigningRequest` and `EncryptionRequest` gained a required first argument, `Dom\Element $container` — the
-  element the `ds:Signature` / `xenc:EncryptedKey` is appended to. The caller locates it (the blocks pass their
-  `wsse:Security` header).
-- How a signed or encrypted node gets its referenceable id is a `Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter`,
-  and how a reference resolves back to its element is its read-side twin, the new
-  `Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup`. The engine no longer hard-codes `wsu:Id` anywhere; both sides
-  of the id convention are injected. `Signer::create()`, `Encryptor::create()`, `Verifier::create()` and
-  `Decryptor::create()` each accept an optional `IdLookup` (the minters/lookups default to the shipped
-  `XmlIdMinter`/`XmlIdLookup`, which use the W3C `xml:id`), so a standalone caller works with zero config. The
-  blocks inject the `wsu:Id` pair (`WsuIdMinter`/`WsuIdLookup`), as the WS-Security profile mandates — the wire
-  output is unchanged. **A minter and lookup passed together must share one id convention.**
-- `IdMinter::mint()` is now idempotent: minting a node that already carries an id under the convention returns
-  that id rather than stamping a second one. The former `detectExistingId()` method is gone (folded into
-  `mint()`). This only affects a custom `IdMinter` implementation.
+```php
+// before
+new Entry\SamlAssertion($domDocument);
 
-### New opt-in algorithms (existing behaviour is unchanged)
+// after
+new Outbound\SamlAssertion($assertionXml, SamlVersion::Saml20);
+```
 
-A few algorithm choices were added. They are all opt-in, so a profile you carry over keeps signing and
-encrypting exactly as before:
+### Algorithm enums moved, and the settings live on `CryptoPolicy`
 
-- **ECDSA signing.** `SignatureMethod` now has `ECDSA_SHA256`, `ECDSA_SHA384` and `ECDSA_SHA512`. Select one on
-  the block with `Outbound\Signature::withSignatureMethod(SignatureMethod::ECDSA_SHA256)`; it needs an EC
-  certificate and key. The default stays RSA-SHA256. Inbound, the ECDSA methods are in the default accepted
-  signature allow-list, so you can verify an ECDSA-signed response without extra configuration.
-- **RSA-OAEP-SHA256 key transport.** The default key transport stays RSA-OAEP with SHA-1, which is
-  byte-identical on the wire to before. To upgrade a single block, pass
+`SignatureMethod`, `DigestMethod`, `SignatureCanonicalization`, `DataEncryptionMethod` and
+`KeyEncryptionMethod` moved from `Soap\Psr18WsseMiddleware\WSSecurity\` to
+`Soap\Psr18WsseMiddleware\Algorithm\` — they are W3C XML-Security algorithm identifiers, independent of the SOAP
+layer. Update your `use` statements. Two cases went away: `SignatureMethod::HMAC_SHA1` (a symmetric MAC, which
+this package does not implement) and `SignatureMethod::RSA_OAEP` (a key-transport URI that was never a signature
+method). `KeyTransportAlgorithm` and `OaepHash` are new.
+
+Where you set them changed too. `Entry\Signature::withSignatureMethod()` / `withDigestMethod()` and
+`Entry\Encryption::withDataEncryptionMethod()` / `withKeyEncryptionMethod()` still exist on the blocks for a
+one-off override, but the defaults for every block come from a `CryptoPolicy` on the profile:
+
+```php
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
+
+$profile = new SecurityProfile(crypto: new CryptoPolicy(
+    signatureMethod: SignatureMethod::RSA_SHA512,
+    dataEncryptionMethod: DataEncryptionMethod::AES256_CBC,
+));
+```
+
+`SecurityProfile` itself carries only the WS-Security timestamp window (`timestampTtl`, `clockSkew`) and the
+header targeting; read the algorithm settings back through `$profile->crypto()`. The split lets the
+XML-Security engine be driven by a `CryptoPolicy` alone, without the SOAP profile.
+
+`CryptoPolicy` is also where the inbound allow-lists live: `acceptedSignatureMethods`, `acceptedDigestMethods`,
+`acceptedKeyEncryptionMethods`, `acceptedDataEncryptionMethods`, `acceptedOaepHashes` and
+`acceptedCanonicalizations`. Leave them unset to keep the secure defaults.
+
+### New algorithms you can opt into
+
+- **ECDSA signing.** `SignatureMethod` gained `ECDSA_SHA256`, `ECDSA_SHA384` and `ECDSA_SHA512`. Select one with
+  `Outbound\Signature::withSignatureMethod(SignatureMethod::ECDSA_SHA256)`; it needs an EC certificate and key.
+  Inbound, the ECDSA methods are in the default accepted signature allow-list.
+- **RSA-OAEP-SHA256 key transport.** The default is RSA-OAEP with a SHA-1 label hash, which is what interop
+  peers expect. To move a block to SHA-256, pass
   `Outbound\Encryption::withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256())`. The named constructors
   are `oaepSha1()`, `oaepSha256()`, `legacyMgf1p()` and `rsa1_5()`. There is no `withOaepHash()` setter; use
   `withKeyTransportAlgorithm()`. Inbound, both SHA-1 and SHA-256 are accepted by default.
-- **Inclusive canonicalization.** `SignatureCanonicalization` now has the inclusive Canonical XML 1.0 variants
-  `C14N` and `C14N_COMMENTS` alongside the exclusive ones. The exclusive variants remain the default and the
-  only form accepted inbound; opt in to an inclusive variant outbound with
-  `Outbound\Signature::withCanonicalization(...)` and, if you also verify with it, by adding it to the profile's
-  `acceptedCanonicalizations`. Canonical XML 1.1 is not supported.
+- **AES-GCM data encryption.** `AES128_GCM`, `AES192_GCM` and `AES256_GCM` were already available; GCM is now
+  the default. The CBC variants remain selectable for a peer that requires them.
 - **Pinned namespace prefixes.** `Outbound\Signature::withInclusivePrefixes()` makes an exclusive
   canonicalization emit an `ec:InclusiveNamespaces PrefixList`, pinning the ancestor namespace declarations it
-  would otherwise drop. This is a separate switch from the canonicalization method above — it parameterizes the
-  exclusive form rather than replacing it. Off by default, so existing signatures are byte-identical on the
-  wire; turn it on only for a peer that needs an ancestor declaration preserved. Inbound, a PrefixList sent by a
-  peer was already read and honoured, so nothing changes there.
-
-`SecurityProfile` gained two inbound allow-lists for these: `acceptedOaepHashes` (default SHA-1 and SHA-256) and
-`acceptedCanonicalizations` (default the exclusive variants only). Leave them unset to keep the secure defaults.
-
-### The Security header is targeted through the profile
-
-`SecurityProfile` gained `?string $actorOrRole = null` and `bool $mustUnderstand = true`. The defaults are the
-previous behaviour exactly — an untargeted header carrying `mustUnderstand="1"` — so a profile you carry over
-signs and verifies identically.
-
-One value drives both directions: outbound it targets the header the blocks write, inbound it selects the header
-they read. Set it if your deployment is addressed as a named intermediary rather than the ultimate receiver:
-
-```php
-$profile = new SecurityProfile(actorOrRole: 'urn:my-gateway');
-```
-
-This also closes the caveat noted when inbound header selection was first scoped: a peer that legitimately
-targets its Security header at an explicit actor/role used to fail closed with no way to configure it. Naming
-that actor on the profile now makes such a message verify.
-
-**Behaviour change worth checking:** the inbound signature is now read out of the Security header addressed to
-you, not searched for across the envelope. A response whose signature sits in a header addressed to another hop,
-or in a `wsse:Security` planted elsewhere in the envelope, is refused where it previously verified. If you rely
-on such a message, set `actorOrRole` to the hop that signed it.
-
-**If you wired your own verifier** through `Inbound\VerifySignature::withVerifier()`, the
-`XmlSignatureVerifier::verify()` signature gained a required third argument — the element whose signature is
-being verified:
-
-```php
-// before
-public function verify(Document $document, VerificationPolicy $policy): VerifiedSignature;
-
-// after
-public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature;
-```
-
-The scope is explicit and required rather than defaulted, because a default would silently mean "search the whole
-document" — which is exactly the behaviour being removed.
+  would otherwise drop. It takes no argument — the list is computed per signed element from the declarations
+  that element actually needs. Off by default; turn it on for a peer that needs an ancestor declaration
+  preserved. Inbound, a PrefixList sent by a peer is read and honoured either way.
+- **Inclusive canonicalization inbound.** `SignatureCanonicalization`'s inclusive variants `C14N` and
+  `C14N_COMMENTS` are unchanged, but only the exclusive variants are accepted inbound by default. If you verify
+  responses canonicalized inclusively, add the variant to the profile's `acceptedCanonicalizations`. Canonical
+  XML 1.1 is not supported.
 
 ### One WS-Addressing middleware
 
-`WsaMiddleware2005` is gone. There is now a single `WsaMiddleware` that covers both addressing versions, and
-its default is the W3C 2005/08 one. If you relied on the older 2004/08 default, select it explicitly.
+`WsaMiddleware2005` is gone. There is now a single `WsaMiddleware` covering both addressing versions, and its
+default is the W3C 2005/08 one — the namespace `WsaMiddleware2005` used to provide. **If you used the plain
+`WsaMiddleware`, you were on the 2004/08 submission namespace and must now select it explicitly.**
 
-`WsaMiddleware` takes a single `WsaOptions` argument instead of a namespace and a reply address. Both former
-arguments are properties on `WsaOptions`, so one object now owns the addressing version and every
+Its single string argument became a `WsaOptions` object, so one object owns the addressing version and every
 message-addressing property:
 
 ```php
 // before
-new WsaMiddleware();
-new WsaMiddleware(WsaNamespace::Submission200408);
-new WsaMiddleware(replyToAddress: 'https://your-app.example/reply');
+new WsaMiddleware();                                                // 2004/08, anonymous ReplyTo
+new WsaMiddleware('https://your-app.example/reply');                // 2004/08, explicit ReplyTo
+new WsaMiddleware2005();                                            // 2005/08, anonymous ReplyTo
 
 // after
-new WsaMiddleware();                                                        // unchanged
 new WsaMiddleware(new WsaOptions(WsaNamespace::Submission200408));
-new WsaMiddleware(new WsaOptions(replyTo: 'https://your-app.example/reply'));
+new WsaMiddleware(new WsaOptions(WsaNamespace::Submission200408, replyTo: 'https://your-app.example/reply'));
+new WsaMiddleware();                                                // 2005/08 is the default now
 ```
+
+The `WSA_ADDRESS_ANONYMOUS` constant is gone; each version's anonymous URI comes from
+`WsaNamespace::anonymousUri()` and is used automatically when `replyTo` is left unset.
 
 `WsaOptions` also exposes what the middleware previously derived with no way to override — `action` and `to` —
 plus two properties that could not be sent at all before: `from` and `faultTo`. All of them default to `null`,
-which keeps the previous behaviour exactly: `action` from the request's `SOAPAction`, `to` from the request
-URI, and `From`/`FaultTo` omitted.
-
-`WsaHeader` gained `withFaultTo()` to match, alongside the `withFrom()` and `withRelatesTo()` it already had.
-
-### A couple of smaller changes
-
-- The `withActor()` and `withMustUnderstand()` helpers on the middleware were removed. The blocks now create the security header with safe defaults.
-- A response that fails an inbound check throws a single, uniform security error. It does not reveal which step failed, so the middleware cannot be used as an oracle.
+which keeps the previous behaviour: `action` from the request's `SOAPAction`, `to` from the request URI, and
+`From`/`FaultTo` omitted. `wsa:MessageID` is still generated per message and is deliberately not configurable.

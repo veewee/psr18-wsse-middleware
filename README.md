@@ -894,3 +894,37 @@ with a `with*()` method:
 ```
 
 Reach for this only when the defaults genuinely do not fit.
+
+## The engine carries no SOAP knowledge
+
+The engine under `Soap\Psr18WsseMiddleware\XmlSecurity\` never looks for a `wsse:Security` header. It is given
+the element to work against, so it can be driven standalone on any XML document — the WS-Security blocks are the
+only part of this package that knows what a SOAP envelope is.
+
+- **The container is an input, not something searched for.** `SigningRequest` and `EncryptionRequest` take a
+  `Dom\Element $container` as their first argument — the element the `ds:Signature` / `xenc:EncryptedKey` is
+  appended to. The blocks pass their `wsse:Security` header.
+- **The scope is an input too, on the read side.** `XmlSignatureVerifier::verify()` takes the element whose
+  signature is being verified. It is not defaulted, because a default would mean "search the whole document" —
+  which is what lets a signature planted elsewhere be mistaken for the real one.
+
+```php
+public function sign(Document $document, SigningRequest $request): void;
+public function encrypt(Document $document, EncryptionRequest $request): void;
+public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature;
+public function decrypt(Document $document, DecryptionRequest $request): void;
+```
+
+### Id conventions are injected on both sides
+
+How a signed or encrypted node gets its referenceable id is an `XmlSecurity\IdMinter`, and how a reference
+resolves back to its element is its read-side twin, `XmlSecurity\IdLookup`. The engine hard-codes neither.
+
+`Signer::create()`, `Encryptor::create()`, `Verifier::create()` and `Decryptor::create()` each accept them and
+default to the shipped `XmlIdMinter` / `XmlIdLookup`, which use the W3C `xml:id` — so a standalone caller works
+with zero configuration. The WS-Security blocks inject the `wsu:Id` pair (`WsuIdMinter` / `WsuIdLookup`), as the
+profile mandates.
+
+**A minter and a lookup passed together must share one id convention**, or a reference will not resolve to the
+node that was stamped. `IdMinter::mint()` is idempotent: minting a node that already carries an id under the
+convention returns that id rather than stamping a second one.
