@@ -73,8 +73,12 @@ final class RequiredPartsValidatorTest extends TestCase
     {
         $document = $this->envelope();
 
-        $this->expectNotToPerformAssertions();
         $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([]), []);
+
+        // The same document and signed set fail a non-empty requirement, so the pass above came from
+        // consulting the required list, not from skipping the validation.
+        $this->expectException(SecurityFault::class);
+        $this->validator()->validate($document, SoapVersion::Soap12, new VerifiedReferences([]), [Part::body()]);
     }
 
     public function test_security_header_contents_passes_when_every_child_except_the_signature_was_signed(): void
@@ -144,9 +148,22 @@ final class RequiredPartsValidatorTest extends TestCase
         // Only the signature is present, so securityHeaderContents (which excludes it) has no member to require.
         $document = $this->envelopeWithSecurity('<ds:Signature xmlns:ds="'.self::DS.'"/>');
 
-        $this->expectNotToPerformAssertions();
         $this->validator()->validate(
             $document,
+            SoapVersion::Soap12,
+            new VerifiedReferences([]),
+            [Part::securityHeaderContents()],
+        );
+
+        // As soon as the header gains a non-signature child the same requirement bites, so the pass above
+        // came from a real expansion that found no member, not from ignoring the dynamic part.
+        $withToken = $this->envelopeWithSecurity(
+            '<ds:Signature xmlns:ds="'.self::DS.'"/><wsse:UsernameToken/>'
+        );
+
+        $this->expectException(SecurityFault::class);
+        $this->validator()->validate(
+            $withToken,
             SoapVersion::Soap12,
             new VerifiedReferences([]),
             [Part::securityHeaderContents()],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification;
 
 use Dom\Element;
+use LogicException;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
@@ -16,6 +17,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\OpenSslTrustResolver;
@@ -52,21 +54,26 @@ final class VerifierTest extends TestCase
     }
 
     /**
+     * The matrix is derived from the default allow-list, so admitting a new signature method to the default
+     * policy forces a round-trip row for it here (an unmapped case fails loudly in the pairing helpers).
+     *
      * @return iterable<string, array{0: SignatureMethod, 1: DigestMethod}>
      */
     public static function algorithmProvider(): iterable
     {
-        yield 'rsa-sha256' => [SignatureMethod::RSA_SHA256, DigestMethod::SHA256];
-        yield 'rsa-sha384' => [SignatureMethod::RSA_SHA384, DigestMethod::SHA384];
-        yield 'rsa-sha512' => [SignatureMethod::RSA_SHA512, DigestMethod::SHA512];
+        foreach (CryptoPolicy::default()->acceptedSignatureMethods() as $signatureMethod) {
+            yield $signatureMethod->name => [$signatureMethod, self::pairedDigest($signatureMethod)];
+        }
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('algorithmProvider')]
-    public function test_it_verifies_each_accepted_rsa_algorithm(
+    public function test_it_verifies_each_default_accepted_signature_method(
         SignatureMethod $signatureMethod,
         DigestMethod $digestMethod,
     ): void {
-        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $fixture = $signatureMethod->isEcdsa()
+            ? WsseSignatureFixture::ecCaSignedLeaf(self::pairedCurve($signatureMethod))
+            : WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget()], signatureMethod: $signatureMethod, digestMethod: $digestMethod);
 
         $result = $this->verifier()->verify($document, new VerificationPolicy(
@@ -77,6 +84,59 @@ final class VerifierTest extends TestCase
         ));
 
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
+    }
+
+    /**
+     * The matrix is derived from the default allow-list, so admitting a new canonicalization to the default
+     * policy forces a round-trip row for it here.
+     *
+     * @return iterable<string, array{0: SignatureCanonicalization}>
+     */
+    public static function canonicalizationProvider(): iterable
+    {
+        foreach (CryptoPolicy::default()->acceptedCanonicalizations() as $canonicalization) {
+            yield $canonicalization->name => [$canonicalization];
+        }
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('canonicalizationProvider')]
+    public function test_it_verifies_each_default_accepted_canonicalization(
+        SignatureCanonicalization $canonicalization,
+    ): void {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()], canonicalization: $canonicalization);
+
+        $result = $this->verifier()->verify($document, new VerificationPolicy(
+            trustStore: TrustStore::fromCertificates($fixture->caCertificate),
+            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+            acceptedDigestMethods: [DigestMethod::SHA256],
+            acceptedCanonicalizations: [$canonicalization],
+        ));
+
+        static::assertTrue($result->signedElements->wasSigned($this->body($document)));
+    }
+
+    private static function pairedDigest(SignatureMethod $method): DigestMethod
+    {
+        return match ($method) {
+            SignatureMethod::RSA_SHA256, SignatureMethod::ECDSA_SHA256 => DigestMethod::SHA256,
+            SignatureMethod::RSA_SHA384, SignatureMethod::ECDSA_SHA384 => DigestMethod::SHA384,
+            SignatureMethod::RSA_SHA512, SignatureMethod::ECDSA_SHA512 => DigestMethod::SHA512,
+            SignatureMethod::RSA_SHA1, SignatureMethod::DSA_SHA1 => DigestMethod::SHA1,
+        };
+    }
+
+    /**
+     * @return non-empty-string
+     */
+    private static function pairedCurve(SignatureMethod $method): string
+    {
+        return match ($method) {
+            SignatureMethod::ECDSA_SHA256 => 'prime256v1',
+            SignatureMethod::ECDSA_SHA384 => 'secp384r1',
+            SignatureMethod::ECDSA_SHA512 => 'secp521r1',
+            default => throw new LogicException(sprintf('No curve is paired with %s.', $method->name)),
+        };
     }
 
     public function test_it_accepts_a_legacy_rsa_sha1_signature_only_when_the_policy_allows_it(): void

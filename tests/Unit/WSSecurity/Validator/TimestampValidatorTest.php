@@ -24,8 +24,11 @@ final class TimestampValidatorTest extends TestCase
         $now = $created->plusSeconds(10);
         $expires = $created->plusSeconds(300);
 
-        $this->expectNotToPerformAssertions();
         (new TimestampValidator())->validate($now, $created, $expires, self::SKEW, self::MAX_AGE);
+
+        // The same instants past the window are refused, so the pass above came from a real comparison.
+        $this->expectException(SecurityFault::class);
+        (new TimestampValidator())->validate($expires->plusSeconds(self::SKEW + 1), $created, $expires, self::SKEW, self::MAX_AGE);
     }
 
     public function test_an_expired_timestamp_is_rejected(): void
@@ -54,8 +57,11 @@ final class TimestampValidatorTest extends TestCase
         $expires = $created->plusSeconds(300);
         $now = $expires->plusSeconds(59);
 
-        $this->expectNotToPerformAssertions();
         (new TimestampValidator())->validate($now, $created, $expires, self::SKEW, self::MAX_AGE);
+
+        // Two ticks later the same instants cross the skew and are refused: the boundary is live.
+        $this->expectException(SecurityFault::class);
+        (new TimestampValidator())->validate($now->plusSeconds(2), $created, $expires, self::SKEW, self::MAX_AGE);
     }
 
     public function test_expiry_beyond_the_skew_is_rejected(): void
@@ -94,8 +100,11 @@ final class TimestampValidatorTest extends TestCase
         $created = $now->plusSeconds(59);
         $expires = $created->plusSeconds(300);
 
-        $this->expectNotToPerformAssertions();
         (new TimestampValidator())->validate($now, $created, $expires, self::SKEW, self::MAX_AGE);
+
+        // A Created two ticks further into the future crosses the skew and is refused: the boundary is live.
+        $this->expectException(SecurityFault::class);
+        (new TimestampValidator())->validate($now, $created->plusSeconds(2), $expires, self::SKEW, self::MAX_AGE);
     }
 
     private static function at(string $value): Timestamp

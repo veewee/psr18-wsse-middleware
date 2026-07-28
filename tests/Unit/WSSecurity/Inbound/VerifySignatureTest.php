@@ -68,8 +68,13 @@ final class VerifySignatureTest extends TestCase
         $context = $this->context();
         $verifier = new RecordingVerifier($this->signed([]));
 
-        $this->expectNotToPerformAssertions();
         (new VerifySignature($this->trustStore(), signed: []))->withVerifier($verifier)($context);
+
+        // "Only" cuts both ways: no part is demanded, but the signature itself must still verify — an empty
+        // signed list never bypasses verification.
+        $this->expectException(SecurityFault::class);
+        (new VerifySignature($this->trustStore(), signed: []))
+            ->withVerifier(new ThrowingVerifier(SignatureVerificationFailed::withReason('any reason at all')))($this->context());
     }
 
     public function test_it_maps_a_verifier_signature_failure_to_a_security_fault(): void

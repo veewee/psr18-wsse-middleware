@@ -18,6 +18,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
@@ -50,12 +51,18 @@ final class EncryptorDecryptorTest extends TestCase
     private const X509_TOKEN = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
 
     /**
+     * The matrix is derived from the default allow-list, so admitting a new data encryption method to the
+     * default policy forces a round-trip row for it here.
+     *
      * @return iterable<string, array{0: DataEncryptionMethod}>
      */
     public static function dataMethods(): iterable
     {
-        yield 'aes-256-gcm' => [DataEncryptionMethod::AES256_GCM];
-        yield 'aes-128-cbc' => [DataEncryptionMethod::AES128_CBC];
+        foreach (DataEncryptionMethod::cases() as $method) {
+            if (CryptoPolicy::default()->acceptsDataEncryptionMethod($method)) {
+                yield $method->name => [$method];
+            }
+        }
     }
 
     #[DataProvider('dataMethods')]

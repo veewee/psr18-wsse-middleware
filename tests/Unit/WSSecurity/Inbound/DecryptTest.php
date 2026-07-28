@@ -56,8 +56,10 @@ final class DecryptTest extends TestCase
     {
         $decryptor = new RecordingDecryptor();
 
-        $this->expectNotToPerformAssertions();
         (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
+
+        // Silence is only success if the work happened: the decryptor must have been consulted.
+        static::assertNotNull($decryptor->lastRequest());
     }
 
     public function test_it_maps_a_decryption_failure_to_a_security_fault(): void

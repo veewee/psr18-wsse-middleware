@@ -18,6 +18,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
+use VeeWee\Xml\Dom\Document;
 
 /**
  * The strong proof of the inbound VerifySignature block through the real verifier: a genuinely signed Body and
@@ -32,11 +33,13 @@ final class VerifySignatureRoundTripTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget(), WsseSignatureFixture::timestampTarget()], withTimestamp: true);
 
-        $this->expectNotToPerformAssertions();
-        (new VerifySignature(
+        $block = new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::body(), Part::timestamp()],
-        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        );
+        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+
+        $this->assertTheSameConfigurationRefusesATamperedBody($block, $document);
     }
 
     public function test_it_verifies_a_real_ecdsa_signed_body_and_timestamp(): void
@@ -48,11 +51,13 @@ final class VerifySignatureRoundTripTest extends TestCase
             signatureMethod: SignatureMethod::ECDSA_SHA256,
         );
 
-        $this->expectNotToPerformAssertions();
-        (new VerifySignature(
+        $block = new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::body(), Part::timestamp()],
-        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        );
+        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+
+        $this->assertTheSameConfigurationRefusesATamperedBody($block, $document);
     }
 
     public function test_it_rejects_a_real_message_missing_a_required_signed_part(): void
@@ -177,10 +182,28 @@ final class VerifySignatureRoundTripTest extends TestCase
             keyIdentifier: new X509SubjectKeyIdentifier(),
         );
 
-        $this->expectNotToPerformAssertions();
-        (new VerifySignature(
+        $block = new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
             signed: [Part::body()],
-        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        );
+        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+
+        $this->assertTheSameConfigurationRefusesATamperedBody($block, $document);
+    }
+
+    /**
+     * The proof an acceptance was real: tampering the signed Body must flip the very same block and document
+     * to a refusal, which can only happen if the acceptance ran a genuine verification over the content.
+     */
+    private function assertTheSameConfigurationRefusesATamperedBody(
+        VerifySignature $block,
+        Document $document,
+    ): void {
+        $body = $document->toUnsafeDocument()->getElementsByTagNameNS(WsseSignatureFixture::SOAP, 'Body')->item(0);
+        static::assertInstanceOf(Element::class, $body);
+        $body->textContent = 'tampered';
+
+        $this->expectException(SecurityFault::class);
+        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
     }
 }

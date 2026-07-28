@@ -32,12 +32,16 @@ final class ValidateTimestampTest extends TestCase
     public function test_a_fresh_timestamp_is_accepted(): void
     {
         $now = $this->instant(self::NOW);
-        $context = $this->context($this->envelope(
+        $xml = $this->envelope(
             $this->timestamp($this->fmt($now), $this->fmt($now->plusSeconds(300))),
-        ));
+        );
 
-        $this->expectNotToPerformAssertions();
-        $this->block()($context);
+        $this->block()($this->context($xml));
+
+        // The same message past the freshness window is refused, so the acceptance above came from a real
+        // check of the dates, not a silent pass.
+        $this->expectException(SecurityFault::class);
+        ((new ValidateTimestamp())->withClock($this->clock($now->plusSeconds(361))))($this->context($xml));
     }
 
     public function test_an_expired_timestamp_is_rejected(): void
@@ -183,57 +187,53 @@ final class ValidateTimestampTest extends TestCase
     public function test_a_millisecond_precision_timestamp_parses(): void
     {
         $now = $this->instant(self::NOW);
-        $context = $this->context($this->envelope(
-            $this->timestamp(
-                $this->fmt($now),
-                $this->fmt($now->plusSeconds(300)),
-            ),
+        $xml = $this->envelope($this->timestamp(
+            $this->fmt($now),
+            $this->fmt($now->plusSeconds(300)),
         ));
 
-        $this->expectNotToPerformAssertions();
-        $this->block()($context);
+        $this->block()($this->context($xml));
+
+        $this->assertTheDatesWereRead($xml, $now);
     }
 
     public function test_a_second_precision_timestamp_parses(): void
     {
         $now = $this->instant(self::NOW);
-        $context = $this->context($this->envelope(
-            $this->timestamp(
-                $this->fmtSeconds($now),
-                $this->fmtSeconds($now->plusSeconds(300)),
-            ),
+        $xml = $this->envelope($this->timestamp(
+            $this->fmtSeconds($now),
+            $this->fmtSeconds($now->plusSeconds(300)),
         ));
 
-        $this->expectNotToPerformAssertions();
-        $this->block()($context);
+        $this->block()($this->context($xml));
+
+        $this->assertTheDatesWereRead($xml, $now);
     }
 
     public function test_a_numeric_offset_timestamp_parses(): void
     {
         $now = $this->instant(self::NOW);
-        $context = $this->context($this->envelope(
-            $this->timestamp(
-                $this->fmtOffset($now),
-                $this->fmtOffset($now->plusSeconds(300)),
-            ),
+        $xml = $this->envelope($this->timestamp(
+            $this->fmtOffset($now),
+            $this->fmtOffset($now->plusSeconds(300)),
         ));
 
-        $this->expectNotToPerformAssertions();
-        $this->block()($context);
+        $this->block()($this->context($xml));
+
+        $this->assertTheDatesWereRead($xml, $now);
     }
 
     public function test_a_millisecond_offset_timestamp_parses(): void
     {
         $now = $this->instant(self::NOW);
-        $context = $this->context($this->envelope(
-            $this->timestamp(
-                $this->fmtMilliOffset($now),
-                $this->fmtMilliOffset($now->plusSeconds(300)),
-            ),
+        $xml = $this->envelope($this->timestamp(
+            $this->fmtMilliOffset($now),
+            $this->fmtMilliOffset($now->plusSeconds(300)),
         ));
 
-        $this->expectNotToPerformAssertions();
-        $this->block()($context);
+        $this->block()($this->context($xml));
+
+        $this->assertTheDatesWereRead($xml, $now);
     }
 
     public function test_no_security_header_is_rejected(): void
@@ -253,8 +253,12 @@ final class ValidateTimestampTest extends TestCase
             $this->timestamp($this->fmt($now->minusSeconds(300)), $this->fmt($now->minusSeconds(90))),
         );
 
-        $this->expectNotToPerformAssertions();
         ((new ValidateTimestamp())->withClock($this->clock($now)))($this->context($xml, new SecurityProfile(clockSkew: 120)));
+
+        // One tick past the widened window the same message is refused, so the acceptance above sat inside
+        // a live boundary at skew 120 rather than bypassing the check.
+        $this->expectException(SecurityFault::class);
+        ((new ValidateTimestamp())->withClock($this->clock($now->plusSeconds(31))))($this->context($xml, new SecurityProfile(clockSkew: 120)));
     }
 
     public function test_the_same_message_is_rejected_under_the_default_skew(): void
@@ -273,12 +277,25 @@ final class ValidateTimestampTest extends TestCase
         // The frozen instant is far from the real wall clock; an envelope fresh only at that instant must pass,
         // proving the system clock is never consulted.
         $frozen = $this->instant('2000-06-15T08:30:00Z');
-        $context = $this->context($this->envelope(
+        $xml = $this->envelope(
             $this->timestamp($this->fmt($frozen), $this->fmt($frozen->plusSeconds(300))),
-        ));
+        );
 
-        $this->expectNotToPerformAssertions();
-        ((new ValidateTimestamp())->withClock($this->clock($frozen)))($context);
+        ((new ValidateTimestamp())->withClock($this->clock($frozen)))($this->context($xml));
+
+        // Moving only the injected clock refuses the same message: the injected clock alone drives "now".
+        $this->expectException(SecurityFault::class);
+        ((new ValidateTimestamp())->withClock($this->clock($frozen->plusSeconds(361))))($this->context($xml));
+    }
+
+    /**
+     * The proof a format-parse acceptance was real: the same message must be refused once the clock passes
+     * its freshness window, which can only happen if the dates were actually parsed and compared.
+     */
+    private function assertTheDatesWereRead(string $xml, Timestamp $now): void
+    {
+        $this->expectException(SecurityFault::class);
+        ((new ValidateTimestamp())->withClock($this->clock($now->plusSeconds(361))))($this->context($xml));
     }
 
     private function block(): ValidateTimestamp
