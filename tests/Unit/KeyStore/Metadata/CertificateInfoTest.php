@@ -69,8 +69,8 @@ final class CertificateInfoTest extends TestCase
         ?string $sha1Fingerprint = null,
     ): CertificateInfo {
         return new CertificateInfo(
-            DistinguishedName::fromStructured(['CN' => 'Leaf']),
-            new IssuerSerial(DistinguishedName::fromStructured(['CN' => 'Test CA']), SerialNumber::fromDecimal('4242')),
+            DistinguishedName::fromString('CN=Leaf'),
+            new IssuerSerial(DistinguishedName::fromString('CN=Test CA'), SerialNumber::fromDecimal('4242')),
             new ValidityWindow(Timestamp::fromParts(100), Timestamp::fromParts(200)),
             $subjectKeyIdentifierHex !== null ? SubjectKeyIdentifier::fromHex($subjectKeyIdentifierHex) : null,
             $keyUsageText !== null ? KeyUsage::fromExtension($keyUsageText) : null,

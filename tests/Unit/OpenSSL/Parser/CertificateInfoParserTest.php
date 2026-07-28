@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL\Parser;
 
 use OpenSSLAsymmetricKey;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
@@ -28,6 +29,44 @@ final class CertificateInfoParserTest extends TestCase
 
         $expected = base64_encode((string) openssl_x509_fingerprint($certificate->contents(), 'sha1', true));
         static::assertSame($expected, $info->thumbprintSha1()->toBase64());
+    }
+
+    /**
+     * XML-DSig mandates RFC 2253 for ds:X509IssuerName, and RFC 2253 orders relative names most-specific
+     * first with a comma between each. Repeated types are separate relative names: a plus sign would claim
+     * one multi-valued relative name, which is a different distinguished name. The expected strings here are
+     * what openssl itself prints for these certificates under -nameopt RFC2253.
+     */
+    #[DataProvider('rfc2253Names')]
+    public function test_it_renders_a_distinguished_name_per_rfc_2253(string $fixture, string $expected): void
+    {
+        $certificate = Certificate::fromFile(FIXTURE_DIR.'/certificates/'.$fixture);
+
+        $info = (new CertificateInfoParser())->parse($certificate);
+
+        static::assertSame($expected, $info->subject()->toString());
+        // These fixtures are self-signed, so the issuer must render identically — and the issuer is the one
+        // that goes on the wire in a ds:X509IssuerSerial reference.
+        static::assertSame($expected, $info->issuerSerial()->issuer->toString());
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function rfc2253Names(): iterable
+    {
+        yield 'repeated organizational units stay separate relative names' => [
+            'dn-repeated-ou.pem',
+            'CN=Leaf,OU=Security,OU=Engineering,DC=ACMECorp,DC=com',
+        ];
+
+        yield 'a genuine multi-valued relative name keeps its plus sign' => [
+            'dn-multivalued-rdn.pem',
+            'DC=com,CN=Leaf+OU=Eng',
+        ];
+
+        yield 'a slash in a value needs no escaping under rfc 2253' => [
+            'dn-slash-in-value.pem',
+            'OU=C,OU=A/B',
+        ];
     }
 
     public function test_it_leaves_absent_optional_extensions_unset(): void

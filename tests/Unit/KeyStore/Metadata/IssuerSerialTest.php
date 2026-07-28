@@ -12,7 +12,7 @@ final class IssuerSerialTest extends TestCase
 {
     public function test_it_exposes_the_issuer_name_and_serial_number(): void
     {
-        $issuer = DistinguishedName::fromStructured(['CN' => 'Test CA']);
+        $issuer = DistinguishedName::fromString('CN=Test CA');
 
         $issuerSerial = new IssuerSerial($issuer, SerialNumber::fromDecimal('4242'));
 

@@ -7,7 +7,6 @@ use Psl\DateTime\Timestamp;
 use Psl\Type\Exception\CoercionException;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\CertificateInfo;
-use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\IssuerSerial;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\KeyUsage;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\SerialNumber;
@@ -17,13 +16,10 @@ use Soap\Psr18WsseMiddleware\KeyStore\Metadata\ValidityWindow;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
-use function Psl\Type\dict;
 use function Psl\Type\int;
 use function Psl\Type\non_empty_string;
 use function Psl\Type\optional;
 use function Psl\Type\shape;
-use function Psl\Type\union;
-use function Psl\Type\vec;
 
 /**
  * Reads a certificate's fields at the ext-openssl boundary and assembles them into a CertificateInfo: the
@@ -37,14 +33,12 @@ final class CertificateInfoParser
      */
     public function parse(Certificate $certificate): CertificateInfo
     {
+        // The subject and issuer come from the encoded name sequence, not from openssl's flattened map:
+        // only the sequence keeps the relative-name boundaries RFC 2253 rendering depends on.
+        $names = (new DistinguishedNameParser())->parse($certificate);
+
         try {
-            $nameShape = dict(
-                non_empty_string(),
-                union(non_empty_string(), vec(non_empty_string())),
-            );
             $fields = shape([
-                'subject' => $nameShape,
-                'issuer' => $nameShape,
                 'serialNumber' => non_empty_string(),
                 'validFrom_time_t' => int(),
                 'validTo_time_t' => int(),
@@ -74,9 +68,9 @@ final class CertificateInfoParser
         $keyUsage = $fields['extensions']['keyUsage'] ?? null;
 
         return new CertificateInfo(
-            DistinguishedName::fromStructured($fields['subject']),
+            $names['subject'],
             new IssuerSerial(
-                DistinguishedName::fromStructured($fields['issuer']),
+                $names['issuer'],
                 SerialNumber::fromRaw($fields['serialNumber']),
             ),
             new ValidityWindow(

@@ -23,32 +23,36 @@ final readonly class DistinguishedName
     }
 
     /**
-     * Renders the structured name openssl reports, reversing its least-specific-first order. Multi-valued
-     * relative names are joined with a plus sign and the characters RFC 2253 reserves are escaped.
+     * Renders a sequence of relative names as RFC 2253 text: the encoded order runs least-specific first, so
+     * it is reversed, relative names are separated by commas, the values of one multi-valued relative name are
+     * joined by a plus sign, and every value has the characters RFC 2253 reserves escaped.
      *
-     * @param array<non-empty-string, non-empty-string|list<non-empty-string>> $name
+     * The input keeps each relative name distinct on purpose. A flat map of type to value cannot express the
+     * difference between two relative names sharing a type and one relative name holding two values, and the
+     * two are different distinguished names.
      *
-     * @throws CryptoOperationFailed when the structured name renders empty
+     * @param list<non-empty-list<array{type: non-empty-string, value: string}>> $relativeNames
+     *
+     * @throws CryptoOperationFailed when the sequence renders empty
      */
-    public static function fromStructured(array $name): self
+    public static function fromRelativeNames(array $relativeNames): self
     {
-        $relativeNames = [];
-        foreach ($name as $type => $value) {
-            $values = is_array($value) ? $value : [$value];
+        $rendered = [];
+        foreach ($relativeNames as $relativeName) {
             $pairs = [];
-            foreach ($values as $single) {
-                $pairs[] = $type . '=' . self::escapeValue($single);
+            foreach ($relativeName as $pair) {
+                $pairs[] = $pair['type'] . '=' . self::escapeValue($pair['value']);
             }
 
-            $relativeNames[] = implode('+', $pairs);
+            $rendered[] = implode('+', array_reverse($pairs));
         }
 
-        $rendered = implode(',', array_reverse($relativeNames));
-        if ($rendered === '') {
+        $name = implode(',', array_reverse($rendered));
+        if ($name === '') {
             throw CryptoOperationFailed::unreadableCertificate();
         }
 
-        return new self($rendered, self::normalize($rendered));
+        return new self($name, self::normalize($name));
     }
 
     /**
@@ -94,18 +98,28 @@ final readonly class DistinguishedName
 
         $normalized = [];
         foreach ($components as $component) {
-            $parts = preg_split('/(?<!\\\\)=/', $component, 2);
-            if ($parts === false || count($parts) !== 2) {
-                $normalized[] = mb_strtolower(trim($component));
-                continue;
-            }
-
-            $type = strtoupper(trim($parts[0]));
-            $value = mb_strtolower(trim($parts[1]));
-            $normalized[] = $type . '=' . $value;
+            // The values of one multi-valued relative name form a set, so their order carries no meaning and
+            // two renderings that differ only in it name the same entity. Sorting them makes the key agree.
+            $values = preg_split('/(?<!\\\\)\+/', $component);
+            $pairs = array_map(self::normalizePair(...), $values === false ? [$component] : $values);
+            sort($pairs);
+            $normalized[] = implode('+', $pairs);
         }
 
         return implode(',', $normalized);
+    }
+
+    /**
+     * Folds one attribute type and value: the type uppercased, the value whitespace-trimmed and case-folded.
+     */
+    private static function normalizePair(string $pair): string
+    {
+        $parts = preg_split('/(?<!\\\\)=/', $pair, 2);
+        if ($parts === false || count($parts) !== 2) {
+            return mb_strtolower(trim($pair));
+        }
+
+        return strtoupper(trim($parts[0])) . '=' . mb_strtolower(trim($parts[1]));
     }
 
     /**

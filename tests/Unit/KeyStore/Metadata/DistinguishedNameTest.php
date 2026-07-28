@@ -9,56 +9,68 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 
 final class DistinguishedNameTest extends TestCase
 {
-    public function test_it_renders_the_structured_name_most_specific_first(): void
+    public function test_it_renders_the_sequence_most_specific_first(): void
     {
-        // openssl reports least-specific first; RFC 2253 puts the most-specific RDN first.
-        $name = DistinguishedName::fromStructured([
-            'C' => 'BE',
-            'O' => 'PHPro',
-            'CN' => 'Test CA',
-        ]);
+        // The encoded sequence runs least-specific first; RFC 2253 puts the most-specific relative name first.
+        $name = $this->dn(['C' => 'BE'], ['O' => 'PHPro'], ['CN' => 'Test CA']);
 
         static::assertSame('CN=Test CA,O=PHPro,C=BE', $name->toString());
     }
 
-    public function test_it_joins_a_multi_valued_relative_name_with_a_plus(): void
+    public function test_repeated_types_in_separate_relative_names_are_comma_separated(): void
     {
-        $name = DistinguishedName::fromStructured([
-            'CN' => 'Leaf',
-            'OU' => ['Engineering', 'Security'],
+        // Two relative names that share a type stay two relative names. A plus sign here would claim a single
+        // multi-valued relative name, which RFC 2253 reads as a different distinguished name.
+        $name = $this->dn(['CN' => 'Leaf'], ['OU' => 'Engineering'], ['OU' => 'Security']);
+
+        static::assertSame('OU=Security,OU=Engineering,CN=Leaf', $name->toString());
+    }
+
+    public function test_one_multi_valued_relative_name_is_joined_with_a_plus(): void
+    {
+        $name = DistinguishedName::fromRelativeNames([
+            [['type' => 'DC', 'value' => 'com']],
+            [['type' => 'OU', 'value' => 'Eng'], ['type' => 'CN', 'value' => 'Leaf']],
         ]);
 
-        static::assertSame('OU=Engineering+OU=Security,CN=Leaf', $name->toString());
+        static::assertSame('CN=Leaf+OU=Eng,DC=com', $name->toString());
+    }
+
+    public function test_the_order_within_a_multi_valued_relative_name_does_not_affect_equality(): void
+    {
+        // RFC 4514 makes the values of one relative name a set, so a peer may render them in either order.
+        $left = DistinguishedName::fromString('CN=Leaf+OU=Eng,DC=com');
+        $right = DistinguishedName::fromString('OU=Eng+CN=Leaf,DC=com');
+
+        static::assertTrue($left->equals($right));
     }
 
     public function test_it_escapes_reserved_characters(): void
     {
-        $name = DistinguishedName::fromStructured([
-            'CN' => 'Doe, John + Co; "X" <Y>\\Z',
-        ]);
+        $name = $this->dn(['CN' => 'Doe, John + Co; "X" <Y>\\Z']);
 
         static::assertSame('CN=Doe\\, John \\+ Co\\; \\"X\\" \\<Y\\>\\\\Z', $name->toString());
     }
 
     public function test_it_escapes_a_leading_space(): void
     {
-        static::assertSame('CN=\\ Leading', DistinguishedName::fromStructured(['CN' => ' Leading'])->toString());
+        static::assertSame('CN=\\ Leading', $this->dn(['CN' => ' Leading'])->toString());
     }
 
     public function test_it_escapes_a_leading_number_sign(): void
     {
-        static::assertSame('CN=\\#Hash', DistinguishedName::fromStructured(['CN' => '#Hash'])->toString());
+        static::assertSame('CN=\\#Hash', $this->dn(['CN' => '#Hash'])->toString());
     }
 
     public function test_it_escapes_a_trailing_space(): void
     {
-        static::assertSame('CN=Trailing\\ ', DistinguishedName::fromStructured(['CN' => 'Trailing '])->toString());
+        static::assertSame('CN=Trailing\\ ', $this->dn(['CN' => 'Trailing '])->toString());
     }
 
-    public function test_it_throws_when_the_structured_name_is_empty(): void
+    public function test_it_throws_when_the_sequence_is_empty(): void
     {
         $this->expectException(CryptoOperationFailed::class);
-        DistinguishedName::fromStructured([]);
+        DistinguishedName::fromRelativeNames([]);
     }
 
     public function test_it_compares_cosmetic_differences_as_equal(): void
@@ -73,7 +85,7 @@ final class DistinguishedNameTest extends TestCase
     public function test_it_compares_a_rendered_name_equal_to_an_equivalent_parsed_name(): void
     {
         // The cert side renders from the structured name; the wire side parses a string. They must match.
-        $rendered = DistinguishedName::fromStructured(['C' => 'BE', 'O' => 'PHPro', 'CN' => 'Test CA']);
+        $rendered = $this->dn(['C' => 'BE'], ['O' => 'PHPro'], ['CN' => 'Test CA']);
         $parsed = DistinguishedName::fromString('cn=test ca, o=phpro, c=be');
 
         static::assertTrue($rendered->equals($parsed));
@@ -100,5 +112,25 @@ final class DistinguishedNameTest extends TestCase
     {
         $this->expectException(CryptoOperationFailed::class);
         DistinguishedName::fromString('');
+    }
+
+    /**
+     * Builds a name from one single-valued relative name per argument, in encoded (least-specific-first) order.
+     *
+     * @param non-empty-array<non-empty-string, string> ...$relativeNames
+     */
+    private function dn(array ...$relativeNames): DistinguishedName
+    {
+        $sequence = [];
+        foreach ($relativeNames as $relativeName) {
+            $pairs = [];
+            foreach ($relativeName as $type => $value) {
+                $pairs[] = ['type' => $type, 'value' => $value];
+            }
+
+            $sequence[] = $pairs;
+        }
+
+        return DistinguishedName::fromRelativeNames($sequence);
     }
 }
