@@ -24,6 +24,16 @@ final class SerialNumberParser
             return SerialNumber::fromDecimal($serialNumber);
         }
 
+        return $this->parseHex($serialNumber);
+    }
+
+    /**
+     * Converts a hexadecimal serial, with or without the 0x prefix, keeping arbitrary precision.
+     *
+     * @throws CryptoOperationFailed when the value is not hexadecimal
+     */
+    public function parseHex(string $serialNumber): SerialNumber
+    {
         $hex = str_starts_with($serialNumber, '0x') ? substr($serialNumber, 2) : $serialNumber;
         if ($hex === '' || preg_match('/^[0-9A-Fa-f]+$/', $hex) !== 1) {
             throw CryptoOperationFailed::unreadableCertificate();

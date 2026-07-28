@@ -33,7 +33,21 @@ final readonly class SerialNumber
     }
 
     /**
-     * Reads the serial number as openssl reports it (decimal or hexadecimal, of any size).
+     * Reads a serial number stated in hexadecimal, of any size.
+     *
+     * Preferred over fromRaw wherever the base is known: an all-digit value is otherwise ambiguous, and a hex
+     * serial such as 12345678 read as decimal is a different number than 305419896.
+     *
+     * @throws CryptoOperationFailed when the value is not hexadecimal
+     */
+    public static function fromHex(string $hexadecimal): self
+    {
+        return (new SerialNumberParser())->parseHex($hexadecimal);
+    }
+
+    /**
+     * Reads the serial number as openssl reports it, which is decimal on some builds and hexadecimal on
+     * others. Prefer fromHex where the base is known; this guesses, and can only guess.
      *
      * @throws CryptoOperationFailed when the value is neither decimal nor hexadecimal
      */

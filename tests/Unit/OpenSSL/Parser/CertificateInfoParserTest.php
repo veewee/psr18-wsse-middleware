@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL\Parser;
 
 use OpenSSLAsymmetricKey;
+use phpseclib3\Math\BigInteger;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psl\DateTime\Timestamp;
@@ -67,6 +68,22 @@ final class CertificateInfoParserTest extends TestCase
             'dn-slash-in-value.pem',
             'OU=C,OU=A/B',
         ];
+    }
+
+    public function test_it_reads_the_serial_from_the_unambiguous_hex_field(): void
+    {
+        // openssl reports serialNumber in decimal on some builds and hexadecimal on others, so an all-digit
+        // value is ambiguous: read as decimal, a hex serial like 12345678 becomes 12345678 instead of
+        // 305419896. serialNumberHex states the base, so it is read from there.
+        $certificate = Certificate::fromFile(FIXTURE_DIR.'/certificates/dn-repeated-ou.pem');
+        $fields = openssl_x509_parse($certificate->contents());
+        static::assertIsArray($fields);
+        static::assertIsString($fields['serialNumberHex']);
+
+        $info = (new CertificateInfoParser())->parse($certificate);
+
+        $expected = (new BigInteger($fields['serialNumberHex'], 16))->toString();
+        static::assertSame($expected, $info->issuerSerial()->serialNumber->toString());
     }
 
     public function test_it_leaves_absent_optional_extensions_unset(): void

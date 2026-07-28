@@ -40,6 +40,7 @@ final class CertificateInfoParser
         try {
             $fields = shape([
                 'serialNumber' => non_empty_string(),
+                'serialNumberHex' => optional(non_empty_string()),
                 'validFrom_time_t' => int(),
                 'validTo_time_t' => int(),
                 'extensions' => optional(shape([
@@ -71,7 +72,11 @@ final class CertificateInfoParser
             $names['subject'],
             new IssuerSerial(
                 $names['issuer'],
-                SerialNumber::fromRaw($fields['serialNumber']),
+                // serialNumberHex states its base; serialNumber is decimal on some builds and hexadecimal on
+                // others, so an all-digit value there cannot be read without guessing.
+                isset($fields['serialNumberHex'])
+                    ? SerialNumber::fromHex($fields['serialNumberHex'])
+                    : SerialNumber::fromRaw($fields['serialNumber']),
             ),
             new ValidityWindow(
                 Timestamp::fromParts($fields['validFrom_time_t']),

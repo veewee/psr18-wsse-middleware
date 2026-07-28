@@ -18,10 +18,14 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 
 /**
- * Validates the signature value over ds:SignedInfo. It asserts the structural invariants the XML Signature
- * spec requires before any cryptographic work runs: exactly one ds:SignedInfo, one ds:SignatureValue and one
- * ds:KeyInfo as direct children of ds:Signature, with ds:SignedInfo preceding ds:SignatureValue, and exactly
- * one ds:CanonicalizationMethod and one ds:SignatureMethod inside ds:SignedInfo. Only then does it
+ * Validates the signature value over ds:SignedInfo. It asserts a set of structural invariants before any
+ * cryptographic work runs: exactly one ds:SignedInfo, one ds:SignatureValue and one ds:KeyInfo as direct
+ * children of ds:Signature, with ds:SignedInfo preceding ds:SignatureValue, and exactly one
+ * ds:CanonicalizationMethod and one ds:SignatureMethod inside ds:SignedInfo.
+ *
+ * Most of those the XML Signature spec requires; requiring ds:KeyInfo is this design's own rule, since the
+ * spec makes it optional. It is the only channel here that identifies the signer, so a signature without one
+ * could not be tied to a trusted certificate and there would be nothing to verify against. Only then does it
  * canonicalize ds:SignedInfo and ask the OpenSSL boundary whether the signature value verifies.
  *
  * A forged or malformed signature value is a normal cryptographic outcome reported as false, with no detail
