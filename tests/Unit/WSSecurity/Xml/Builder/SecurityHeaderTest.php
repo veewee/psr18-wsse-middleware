@@ -119,6 +119,24 @@ final class SecurityHeaderTest extends TestCase
         static::assertSame('marker', $ours->firstElementChild?->localName);
     }
 
+    public function test_locate_matches_an_actor_containing_quote_characters(): void
+    {
+        // The actor is interpolated into an xpath predicate, so a value carrying both quote characters must
+        // still be matched as a literal rather than changing the expression.
+        $actor = 'urn:it\'s "ours"';
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'" xmlns:wsse="'.self::WSSE.'"><soap:Header>'
+            .'<wsse:Security soap:role="urn:it&apos;s &quot;ours&quot;"><marker/></wsse:Security>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        $ours = SecurityHeader::locate($document, SoapVersion::Soap12, $actor);
+
+        static::assertInstanceOf(Element::class, $ours);
+        static::assertSame('marker', $ours->firstElementChild?->localName);
+        static::assertNull(SecurityHeader::locate($document, SoapVersion::Soap12, 'urn:something-else'));
+    }
+
     public function test_locate_refuses_two_headers_for_the_same_actor(): void
     {
         $document = Document::fromXmlString(

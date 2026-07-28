@@ -260,6 +260,21 @@ you, not searched for across the envelope. A response whose signature sits in a 
 or in a `wsse:Security` planted elsewhere in the envelope, is refused where it previously verified. If you rely
 on such a message, set `actorOrRole` to the hop that signed it.
 
+**If you wired your own verifier** through `Inbound\VerifySignature::withVerifier()`, the
+`XmlSignatureVerifier::verify()` signature gained a required third argument — the element whose signature is
+being verified:
+
+```php
+// before
+public function verify(Document $document, VerificationPolicy $policy): VerifiedSignature;
+
+// after
+public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature;
+```
+
+The scope is explicit and required rather than defaulted, because a default would silently mean "search the whole
+document" — which is exactly the behaviour being removed.
+
 ### One WS-Addressing middleware
 
 `WsaMiddleware2005` is gone. There is now a single `WsaMiddleware` that covers both addressing versions, and
