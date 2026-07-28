@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 
+use phpseclib3\Crypt\RSA;
+use phpseclib3\File\X509;
 use PHPUnit\Framework\TestCase;
 use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
@@ -12,6 +14,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidTrustStore;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
+use Soap\Psr18WsseMiddleware\OpenSSL\Parser\DistinguishedNameParser;
 use SoapTest\Psr18WsseMiddleware\Unit\Clock\FrozenClock;
 
 /**
@@ -118,6 +121,50 @@ final class RevocationCheckTest extends TestCase
             fn (): mixed => (new CertificateTrust())->verify(
                 CertificateChain::fromCertificates($this->certificate('leaf.crt')),
                 $this->trustWith('crl-impostor.pem'),
+            ),
+        );
+    }
+
+    public function test_the_list_issuer_is_matched_by_the_same_rendering_certificates_use(): void
+    {
+        // The regression pin for the ordering bug this feature shipped with. phpseclib's own DN_STRING joins the
+        // encoded sequence least-specific first, while RFC 2253 — and so DistinguishedName — is most-specific
+        // first, which made every multi-attribute issuer compare unequal and rejected every signer. The fixtures
+        // carry a three-component DN precisely so a CN-only name cannot hide it again.
+        $crl = new X509();
+        static::assertNotFalse($crl->loadCRL(
+            file_get_contents(FIXTURE_DIR.'/certificates/revocation/crl-empty.pem'),
+        ));
+
+        $names = new DistinguishedNameParser();
+        $listIssuer = $names->fromEncodedName($crl->getIssuerDN(X509::DN_ARRAY));
+        $certificateIssuer = $this->certificate('leaf.crt')->info()->issuerSerial()->issuer;
+
+        static::assertTrue($listIssuer->equals($certificateIssuer));
+        static::assertStringContainsString('CN=WSSE Revocation CA,', $listIssuer->toString());
+    }
+
+    public function test_a_list_stating_no_next_update_is_refused(): void
+    {
+        // A list with no nextUpdate can never be shown to be current, so it must not be read as valid forever.
+        // openssl refuses to emit one at all, so it is minted here with phpseclib, whose CRL writer omits it —
+        // the same quirk that makes that writer unusable for the real fixtures.
+        $issuer = new X509();
+        $issuer->loadX509(file_get_contents(FIXTURE_DIR.'/certificates/revocation/ca.crt'));
+        $issuer->setPrivateKey(
+            RSA::load(file_get_contents(FIXTURE_DIR.'/certificates/revocation/ca.key')),
+        );
+
+        $writer = new X509();
+        $minted = $writer->saveCRL($writer->signCRL($issuer, $writer));
+        static::assertStringNotContainsString('nextUpdate', var_export($writer->loadCRL($minted), true));
+
+        $this->assertRejectedBecause(
+            'past its nextUpdate',
+            fn (): mixed => (new CertificateTrust())->verify(
+                CertificateChain::fromCertificates($this->certificate('leaf.crt')),
+                TrustStore::fromCertificates($this->certificate('ca.crt'))
+                    ->withRevocationLists(new CertificateRevocationList($minted)),
             ),
         );
     }

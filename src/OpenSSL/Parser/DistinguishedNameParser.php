@@ -63,8 +63,8 @@ final class DistinguishedNameParser
             }
 
             return [
-                'subject' => $this->render($x509->getSubjectDN(X509::DN_ARRAY)),
-                'issuer' => $this->render($x509->getIssuerDN(X509::DN_ARRAY)),
+                'subject' => $this->fromEncodedName($x509->getSubjectDN(X509::DN_ARRAY)),
+                'issuer' => $this->fromEncodedName($x509->getIssuerDN(X509::DN_ARRAY)),
             ];
         } catch (CryptoOperationFailed $exception) {
             throw $exception;
@@ -74,9 +74,17 @@ final class DistinguishedNameParser
     }
 
     /**
+     * Renders an encoded name — phpseclib's DN_ARRAY form, an rdnSequence — as a DistinguishedName.
+     *
+     * Public because a certificate is not the only thing that carries a name to compare: a CRL states the issuer
+     * it speaks for, and that name has to be rendered by this exact code to be comparable. phpseclib's own
+     * DN_STRING joins the sequence in encoded order, least-specific first, while RFC 2253 (and so
+     * DistinguishedName) is most-specific first — so rendering the two sides by different routes makes every
+     * multi-attribute name compare unequal.
+     *
      * @throws CryptoOperationFailed
      */
-    private function render(mixed $name): DistinguishedName
+    public function fromEncodedName(mixed $name): DistinguishedName
     {
         try {
             $sequence = shape([

@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\SerialNumber;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
+use Soap\Psr18WsseMiddleware\OpenSSL\Parser\DistinguishedNameParser;
 use Throwable;
 use function Psl\Type\array_key;
 use function Psl\Type\dict;
@@ -34,6 +35,13 @@ use function Psl\Type\vec;
  */
 final class RevocationCheck
 {
+    private readonly DistinguishedNameParser $names;
+
+    public function __construct()
+    {
+        $this->names = new DistinguishedNameParser();
+    }
+
     /**
      * @throws CertificateTrustException
      */
@@ -61,19 +69,30 @@ final class RevocationCheck
     private function listCovering(DistinguishedName $issuer, TrustStore $trust): X509
     {
         $anchorsPem = $trust->toPem()->toString();
-        $untrusted = null;
+        $refusal = null;
 
         foreach ($trust->revocationLists() as $revocationList) {
-            $parsed = $this->parse($revocationList, $anchorsPem);
+            // One unusable entry must not end the search: a later entry may be the one that covers this issuer.
+            // Nothing is loosened by continuing, because a signer no list covers is still refused below.
+            try {
+                $parsed = $this->parse($revocationList, $anchorsPem);
+                $covers = $this->issuerOf($parsed)->equals($issuer);
+            } catch (CertificateTrustException $exception) {
+                $refusal ??= $exception;
 
-            if (!$this->issuerOf($parsed)->equals($issuer)) {
+                continue;
+            }
+
+            if (!$covers) {
                 continue;
             }
 
             // Trust is asserted only for a list that actually covers this issuer, so an unrelated untrusted list
             // in the store cannot fail a verification it has no bearing on.
             if ($parsed->validateSignature() !== true) {
-                $untrusted = CertificateTrustException::revocationListUntrusted();
+                // A covering list that cannot be believed is the most specific reason available, so it outranks
+                // any earlier unreadable entry when reporting.
+                $refusal = CertificateTrustException::revocationListUntrusted();
 
                 continue;
             }
@@ -81,7 +100,7 @@ final class RevocationCheck
             return $parsed;
         }
 
-        throw $untrusted ?? CertificateTrustException::revocationUnknown();
+        throw $refusal ?? CertificateTrustException::revocationUnknown();
     }
 
     /**
@@ -110,12 +129,14 @@ final class RevocationCheck
      */
     private function issuerOf(X509 $revocationList): DistinguishedName
     {
-        $issuer = $revocationList->getIssuerDN(X509::DN_STRING);
-        if (!is_string($issuer) || $issuer === '') {
+        // Rendered from the encoded sequence by the same code that renders a certificate's issuer. phpseclib's
+        // DN_STRING joins the sequence least-specific first while RFC 2253 is most-specific first, so taking that
+        // shortcut here made every multi-attribute issuer compare unequal and rejected every signer.
+        try {
+            return $this->names->fromEncodedName($revocationList->getIssuerDN(X509::DN_ARRAY));
+        } catch (Throwable) {
             throw CertificateTrustException::revocationListUnreadable();
         }
-
-        return DistinguishedName::fromString($issuer);
     }
 
     /**
@@ -127,7 +148,12 @@ final class RevocationCheck
     private function assertCurrent(X509 $revocationList, Timestamp $now): void
     {
         // phpseclib returns the parsed structure untyped, so the shape is coerced here rather than trusted.
-        $parsed = dict(array_key(), mixed())->coerce($revocationList->getCurrentCert());
+        try {
+            $parsed = dict(array_key(), mixed())->coerce($revocationList->getCurrentCert());
+        } catch (Throwable) {
+            throw CertificateTrustException::revocationListUnreadable();
+        }
+
         $stated = $this->statedNextUpdate($parsed);
 
         if ($stated === null) {

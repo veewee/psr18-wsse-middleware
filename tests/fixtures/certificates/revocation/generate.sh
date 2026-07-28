@@ -39,7 +39,11 @@ subjectKeyIdentifier = hash
 basicConstraints     = critical,CA:TRUE
 keyUsage             = critical,keyCertSign,cRLSign
 
+# Deliberately multi-attribute: a CN-only name renders the same whichever order the components are joined in,
+# which hides any RDN-ordering mismatch between the CRL issuer and the certificate issuer.
 [ dn ]
+C  = BE
+O  = php-soap revocation
 CN = WSSE Revocation CA
 CNF
 
@@ -55,6 +59,8 @@ basicConstraints     = critical,CA:TRUE
 keyUsage             = critical,keyCertSign,cRLSign
 
 [ dn ]
+C  = BE
+O  = php-soap revocation
 CN = WSSE Unrelated CA
 CNF
 
@@ -64,7 +70,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.crt \
 
 # The leaf, with a serial the tests assert on by value.
 openssl req -new -newkey rsa:2048 -nodes -keyout leaf.key -out leaf.csr \
-    -subj "/CN=WSSE Revocation Leaf" 2>/dev/null
+    -subj "/C=BE/O=php-soap revocation/CN=WSSE Revocation Leaf" 2>/dev/null
 openssl x509 -req -in leaf.csr -CA ca.crt -CAkey ca.key -set_serial 0x1234 \
     -days 10950 -sha256 -out leaf.crt 2>/dev/null
 
