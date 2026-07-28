@@ -3,12 +3,15 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
+use InvalidArgumentException;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\PkiPath;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
@@ -27,11 +30,13 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
+use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
 final class SignatureTest extends OutboundTestCase
 {
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
+    private const X509_PKI_PATH = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509PKIPathv1';
 
     public function test_it_uses_profile_algorithms_by_default(): void
     {
@@ -81,7 +86,12 @@ final class SignatureTest extends OutboundTestCase
 
     public function test_with_methods_are_immutable(): void
     {
-        $original = (new Signature($this->clientCertificate()))->withSigner(new RecordingSigner());
+        $certificate = $this->clientCertificate();
+        $original = (new Signature($certificate))->withSigner(new RecordingSigner());
+
+        static::assertNotSame($original, $original->withCertificatePath(
+            CertificateChain::fromCertificates($certificate->publicCertificate()),
+        ));
 
         static::assertNotSame($original, $original->withSignatureMethod(SignatureMethod::RSA_SHA1));
         static::assertNotSame($original, $original->withDigestMethod(DigestMethod::SHA512));
@@ -138,6 +148,55 @@ final class SignatureTest extends OutboundTestCase
         // The strategy points the SecurityTokenReference at exactly the embedded token's id.
         $keyInfo = $keyIdentifier->apply($document, $this->clientCertificate()->publicCertificate());
         static::assertStringContainsString('#'.$tokenId, $document->stringifyNode($keyInfo));
+    }
+
+    public function test_a_certificate_path_is_advertised_as_a_pkipath_token(): void
+    {
+        $signer = new RecordingSigner();
+        $document = $this->signableEnvelope();
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $chain = CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate);
+
+        $block = (new Signature($this->clientCertificateFor($fixture)))
+            ->withSigner($signer)
+            ->withCertificatePath($chain);
+        $block($this->context($document));
+
+        $bst = $this->only($document, self::WSSE, 'BinarySecurityToken');
+        static::assertSame(self::X509_PKI_PATH, $bst->getAttribute('ValueType'));
+        static::assertSame(PkiPath::encode($chain), base64_decode($bst->textContent, true));
+
+        // Both ValueTypes have to name the path: WSS4J refuses a reference whose ValueType does not match the
+        // token it points at, so emitting the token alone produces a message no Java peer accepts.
+        $keyIdentifier = $signer->lastRequest()->keyIdentifier;
+        static::assertInstanceOf(DirectReferenceKeyIdentifier::class, $keyIdentifier);
+        $keyInfo = $document->stringifyNode($keyIdentifier->apply($document, $chain->leaf()));
+        static::assertStringContainsString(self::X509_PKI_PATH, $keyInfo);
+        static::assertStringContainsString('#'.$bst->getAttributeNS(self::WSU, 'Id'), $keyInfo);
+    }
+
+    public function test_it_refuses_a_certificate_path_that_does_not_start_at_the_signing_certificate(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $block = new Signature($this->clientCertificate());
+
+        // The path advertises which key verifies the signature; a leaf that is not the signing certificate
+        // produces a message no peer can verify, so it is refused where it is configured.
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('signing certificate');
+        $block->withCertificatePath(CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate));
+    }
+
+    public function test_it_refuses_a_certificate_path_without_the_binary_security_token_reference(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $block = new Signature($this->clientCertificateFor($fixture), keyRef: KeyRef::SubjectKeyIdentifier);
+
+        // The inline references derive their content from the certificate alone and embed no token, so there is
+        // nowhere for a path to go. Silently dropping it would advertise less than the caller asked for.
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('KeyRef::BinarySecurityToken');
+        $block->withCertificatePath(CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate));
     }
 
     public function test_subject_key_identifier_embeds_no_bst(): void
@@ -211,6 +270,12 @@ final class SignatureTest extends OutboundTestCase
             new OpenSslSigner(),
             new WsuIdLookup(),
         );
+    }
+
+    /** The fixture's CA-signed leaf as a signing identity, so a path can start at the signing certificate. */
+    private function clientCertificateFor(WsseSignatureFixture $fixture): ClientCertificate
+    {
+        return new ClientCertificate($fixture->leafCertificate->contents().$fixture->leafKey->contents());
     }
 
     private function clientCertificate(): ClientCertificate

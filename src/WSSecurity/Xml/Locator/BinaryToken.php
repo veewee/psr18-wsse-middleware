@@ -11,10 +11,10 @@ use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 
 /**
- * Finds the wsse:BinarySecurityToken in a wsse:Security header that carries a given certificate and
- * returns its wsu:Id. The match is by content (the token's base64 body equals the certificate's
- * base64-DER form), so the signature path can reference the token it just embedded without holding on to
- * any minted-id state.
+ * Finds the wsse:BinarySecurityToken in a wsse:Security header that carries given bytes and returns its
+ * wsu:Id. The match is by content (the token's base64 body equals the expected one, whether that is a single
+ * certificate or a whole certification path), so the signature path can reference the token it just embedded
+ * without holding on to any minted-id state.
  *
  * The header to search is handed in rather than looked up here: the caller already holds the header it is
  * writing into, and searching only that header keeps a token sitting anywhere else in the envelope from
@@ -23,13 +23,15 @@ use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 final class BinaryToken
 {
     /**
+     * @param string $base64Body the token body to match, as base64 without whitespace
+     *
      * @return non-empty-string the matching token's wsu:Id, without the '#' prefix
      *
-     * @throws WsseHeaderException when no wsse:BinarySecurityToken in the header carries the certificate
+     * @throws WsseHeaderException when no wsse:BinarySecurityToken in the header carries these bytes
      */
-    public function locate(Element $securityHeader, Certificate $certificate): string
+    public function locate(Element $securityHeader, string $base64Body): string
     {
-        $expected = $certificate->toBase64Der();
+        $expected = Certificate::normalizeBase64Der($base64Body);
 
         foreach (ChildElements::named($securityHeader, Namespaces::Wsse, 'BinarySecurityToken') as $token) {
             if (Certificate::normalizeBase64Der(ElementText::trimmed($token)) !== $expected) {

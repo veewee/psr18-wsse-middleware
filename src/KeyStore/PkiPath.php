@@ -49,6 +49,44 @@ final class PkiPath
     }
 
     /**
+     * The token body carrying a whole certification path: the chain wrapped in one SEQUENCE.
+     *
+     * The chain is ordered leaf first, while ITU-T X.509 defines a PkiPath as ordered from the trust anchor
+     * down to the end-entity, so the certificates go out in the opposite order to the one they are held in.
+     * Reading stays order-agnostic on purpose — a peer may not honour this — but writing has to pick, and the
+     * only defensible pick is what the format says.
+     *
+     * @throws InvalidCertificate when a certificate in the chain is not decodable PEM
+     */
+    public static function encode(CertificateChain $chain): string
+    {
+        $body = '';
+        foreach (array_reverse($chain->all()) as $certificate) {
+            $body .= (string) base64_decode($certificate->toBase64Der(), true);
+        }
+
+        return chr(self::SEQUENCE_TAG).self::encodeLength(strlen($body)).$body;
+    }
+
+    /**
+     * A DER length in its shortest definite form: the short form below 128, otherwise the long form with a
+     * leading count of the big-endian length bytes.
+     */
+    private static function encodeLength(int $length): string
+    {
+        if ($length < 0x80) {
+            return chr($length);
+        }
+
+        $bytes = '';
+        for ($remaining = $length; $remaining > 0; $remaining >>= 8) {
+            $bytes = chr($remaining & 0xFF).$bytes;
+        }
+
+        return chr(0x80 | strlen($bytes)).$bytes;
+    }
+
+    /**
      * The contents of the outer SEQUENCE, with its declared length confirmed to match the bytes present. A
      * length shorter than the input would leave trailing bytes nothing accounts for, so both directions are
      * rejected rather than silently tolerated.

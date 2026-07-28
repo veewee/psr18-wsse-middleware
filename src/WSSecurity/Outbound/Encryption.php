@@ -159,10 +159,8 @@ final class Encryption implements OutboundAction
             EncKeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(),
             EncKeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(),
             EncKeyRef::Thumbprint => new ThumbprintKeyIdentifier(),
-            EncKeyRef::BinarySecurityToken => BinarySecurityToken::embedAsDirectReference(
-                $context,
-                $this->recipientCertificate,
-            ),
+            EncKeyRef::BinarySecurityToken => (new BinarySecurityToken($this->recipientCertificate))
+                ->embedAsDirectReference($context),
         };
     }
 }

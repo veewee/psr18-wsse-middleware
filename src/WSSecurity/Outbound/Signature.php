@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
+use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
@@ -46,6 +48,7 @@ final class Signature implements OutboundAction
     private ?DigestMethod $digestMethod = null;
     private ?SignatureCanonicalization $canonicalization = null;
     private bool $inclusivePrefixes = false;
+    private ?CertificateChain $certificatePath = null;
 
     private XmlSigner $signer;
 
@@ -103,6 +106,39 @@ final class Signature implements OutboundAction
     }
 
     /**
+     * Advertises the signer's whole certification path in the embedded token — a #X509PKIPathv1
+     * wsse:BinarySecurityToken instead of the leaf certificate alone. Turn this on for a peer that will not
+     * complete the chain from its own store and needs the intermediates handed to it; leave it off otherwise,
+     * because a bare certificate is what every stack accepts without configuration.
+     *
+     * The path is supplied here rather than carried on the signing identity: a PKCS#12 bundle already holds one
+     * ($bundle->chain), a PEM signing identity has none to offer, and no peer requires a path, so the capability
+     * belongs where it is asked for.
+     *
+     * @throws InvalidArgumentException when no token is embedded to carry the path, or when the path does not
+     *         start at the signing certificate
+     */
+    public function withCertificatePath(CertificateChain $path): self
+    {
+        if ($this->keyRef !== KeyRef::BinarySecurityToken) {
+            // The inline references derive their content from the certificate alone and embed no token, so there
+            // is nowhere for a path to go. Accepting it here would advertise less than the caller asked for.
+            throw new InvalidArgumentException('A certificate path needs KeyRef::BinarySecurityToken to carry it.');
+        }
+
+        if ($path->leaf()->toBase64Der() !== $this->clientCertificate->publicCertificate()->toBase64Der()) {
+            // The path says which key verifies this signature. One starting anywhere else advertises a key that
+            // did not sign, and no receiver can verify the result.
+            throw new InvalidArgumentException('A certificate path must start at the signing certificate.');
+        }
+
+        $clone = clone $this;
+        $clone->certificatePath = $path;
+
+        return $clone;
+    }
+
+    /**
      * Pins the namespace prefixes an exclusive canonicalization would otherwise drop, as an
      * ec:InclusiveNamespaces PrefixList derived per signed element. Turn this on for a peer that needs an
      * ancestor's namespace declaration to survive into the signed bytes — one that resolves a QName out of
@@ -149,13 +185,17 @@ final class Signature implements OutboundAction
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier
     {
         return match ($this->keyRef) {
-            KeyRef::BinarySecurityToken => BinarySecurityToken::embedAsDirectReference(
-                $context,
-                $this->clientCertificate->publicCertificate(),
-            ),
+            KeyRef::BinarySecurityToken => $this->binarySecurityToken()->embedAsDirectReference($context),
             KeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(),
             KeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(),
             KeyRef::Thumbprint => new ThumbprintKeyIdentifier(),
         };
+    }
+
+    private function binarySecurityToken(): BinarySecurityToken
+    {
+        return $this->certificatePath === null
+            ? new BinarySecurityToken($this->clientCertificate->publicCertificate())
+            : BinarySecurityToken::forCertificatePath($this->certificatePath);
     }
 }

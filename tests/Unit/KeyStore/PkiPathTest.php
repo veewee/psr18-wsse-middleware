@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\KeyStore;
 
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\PkiPath;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
@@ -42,6 +43,28 @@ final class PkiPathTest extends TestCase
 
         static::assertCount(1, $certificates);
         static::assertSame($leaf, $this->der($certificates[0]->toBase64Der()));
+    }
+
+    public function test_it_encodes_a_path_from_the_trust_anchor_down_to_the_end_entity(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $leaf = $this->der($fixture->certificateBase64Der($fixture->leafCertificate));
+        $ca = $this->der($fixture->certificateBase64Der($fixture->caCertificate));
+
+        $der = PkiPath::encode(CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate));
+
+        // The chain is leaf first; a PkiPath is anchor first, so the encoder emits it the other way round.
+        static::assertSame($this->derSequence($ca, $leaf), $der);
+    }
+
+    public function test_it_encodes_a_single_certificate_path(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $leaf = $this->der($fixture->certificateBase64Der($fixture->leafCertificate));
+
+        $der = PkiPath::encode(CertificateChain::fromCertificates($fixture->leafCertificate));
+
+        static::assertSame($this->derSequence($leaf), $der);
     }
 
     public function test_it_refuses_bytes_that_are_not_a_sequence(): void

@@ -25,7 +25,7 @@ final class BinaryTokenTest extends TestCase
     {
         $document = $this->envelope($this->token('the-token', $this->certificate()->toBase64Der()));
 
-        $id = (new BinaryToken())->locate($this->securityHeader($document), $this->certificate());
+        $id = (new BinaryToken())->locate($this->securityHeader($document), $this->certificate()->toBase64Der());
 
         static::assertSame('the-token', $id);
     }
@@ -35,7 +35,7 @@ final class BinaryTokenTest extends TestCase
         $document = $this->envelope($this->token('other', base64_encode('not-the-certificate')));
 
         $this->expectException(WsseHeaderException::class);
-        (new BinaryToken())->locate($this->securityHeader($document), $this->certificate());
+        (new BinaryToken())->locate($this->securityHeader($document), $this->certificate()->toBase64Der());
     }
 
     public function test_it_does_not_look_outside_the_header_it_was_given(): void
@@ -50,7 +50,7 @@ final class BinaryTokenTest extends TestCase
         );
 
         $this->expectException(WsseHeaderException::class);
-        (new BinaryToken())->locate($this->securityHeader($document), $this->certificate());
+        (new BinaryToken())->locate($this->securityHeader($document), $this->certificate()->toBase64Der());
     }
 
     private function token(string $id, string $body): string

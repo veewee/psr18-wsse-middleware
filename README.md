@@ -149,6 +149,12 @@ new Outbound\BinarySecurityToken(Certificate::fromFile('security_token.pub'));
 You rarely add this block by hand: the `Signature` block embeds one automatically when you reference the key by
 `KeyRef::BinarySecurityToken`. Add it explicitly only when a server expects the token present on its own.
 
+- `BinarySecurityToken::forCertificatePath(CertificateChain $path): self` — a named constructor embedding the
+  whole certification path as a `#X509PKIPathv1` token instead of the leaf alone. Signing with a path is
+  configured on the `Signature` block via
+  [`withCertificatePath()`](#outbound-signature); reach for this constructor only when the token has to stand on
+  its own.
+
 ## Outbound: `Signature`
 
 Adds a detached, multi-reference `ds:Signature` to the Security header. You choose the signing key (and the
@@ -178,6 +184,24 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   `wsse:BinarySecurityToken` is embedded and the signature points at it by `wsu:Id`. The other cases
   (`SubjectKeyIdentifier`, `IssuerSerial`, `Thumbprint`) put an inline reference derived from the certificate and
   embed no token. See [Choosing parts and key references](#choosing-parts-and-key-references).
+- `withCertificatePath(CertificateChain $path): self` — advertise your whole certification path in the embedded
+  token: a `#X509PKIPathv1` `wsse:BinarySecurityToken` (the ASN.1 `SEQUENCE OF Certificate` the X.509 Token
+  Profile prefers over PKCS#7) instead of the leaf certificate alone. Off by default, because a bare certificate
+  is what every stack accepts without configuration. Turn it on for a peer that will not complete the chain from
+  its own store and needs the intermediates handed to it:
+  ```php
+  use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
+
+  $bundle = Pkcs12Bundle::fromFile('client.p12', 'xxx');
+
+  (new Outbound\Signature(ClientCertificate::fromPkcs12($bundle)))
+      ->withCertificatePath($bundle->chain);
+  ```
+  The path is supplied here rather than carried on `ClientCertificate`: a PKCS#12 bundle already holds one, a PEM
+  signing identity has none to offer, and no peer requires a path. It must start at the certificate you sign with
+  (the chain's leaf) and `keyRef` must be `KeyRef::BinarySecurityToken` — the inline references embed no token to
+  carry a path — otherwise the call throws. The certificates go on the wire from the trust anchor down to the
+  end-entity, as ITU-T X.509 defines a `PkiPath`, which is the order a Java peer reads back.
 - `withParts(non-empty-list<Part> $parts): self` — which parts to sign. Default is `[Part::body(),
   Part::securityHeaderContents()]`: the Body plus every element currently in the Security header (the Timestamp,
   any tokens), resolved at send time. Because it signs whatever is present, the default never fails when a part

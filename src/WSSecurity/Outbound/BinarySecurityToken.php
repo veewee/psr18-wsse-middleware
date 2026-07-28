@@ -5,6 +5,8 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\KeyStore\PkiPath;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -25,14 +27,33 @@ use function VeeWee\Xml\Dom\Builder\value;
  * wsu:Id is minted on the token so a DirectReference key identifier can point a SecurityTokenReference
  * at exactly this token; the block keeps no state, so it is safe to reuse across messages.
  *
- * Embedding is idempotent: a token already carrying this certificate is reused rather than duplicated, so a
+ * The token carries either the certificate alone (#X509v3, the interop default every peer understands) or a
+ * whole certification path (#X509PKIPathv1, via forCertificatePath) for a peer that will not complete the chain
+ * from its own store and needs the intermediates handed to it.
+ *
+ * Embedding is idempotent: a token already carrying these bytes is reused rather than duplicated, so a
  * signature and an encryption that both reference the same certificate share one token.
  */
 final class BinarySecurityToken implements OutboundAction
 {
+    private ?CertificateChain $path = null;
+
     public function __construct(
         private readonly Certificate $certificate,
     ) {
+    }
+
+    /**
+     * Carries the chain's whole certification path in one token instead of its leaf alone. The leaf stays the
+     * certificate the token stands for: it is the key a signature is verified with, the path is only what a
+     * receiver needs to reach a trust anchor.
+     */
+    public static function forCertificatePath(CertificateChain $path): self
+    {
+        $token = new self($path->leaf());
+        $token->path = $path;
+
+        return $token;
     }
 
     public function __invoke(WsseContext $context): void
@@ -51,27 +72,43 @@ final class BinarySecurityToken implements OutboundAction
         $document = $context->document();
         $locator = new BinaryToken();
         $header = SecurityHeader::forContext($context);
+        $body = $this->body();
 
         try {
-            return $locator->locate($header->element(), $this->certificate);
+            return $locator->locate($header->element(), $body);
         } catch (WsseHeaderException) {
-            $header->appendChildren($this->build($document, $this->certificate->toBase64Der()));
+            $header->appendChildren($this->build($document, $body));
 
-            return $locator->locate($header->element(), $this->certificate);
+            return $locator->locate($header->element(), $body);
         }
     }
 
     /**
-     * Embeds the certificate and hands back the key identifier pointing at the embedded token — the X.509
-     * interop default both the Signature and the Encryption block reach for.
+     * Embeds the token and hands back the key identifier pointing at it — the X.509 interop default both the
+     * Signature and the Encryption block reach for.
+     *
+     * The reference repeats the embedded token's ValueType rather than assuming a bare certificate: the two name
+     * the same token, and a receiver that finds them disagreeing refuses the SecurityTokenReference.
      */
-    public static function embedAsDirectReference(
-        WsseContext $context,
-        Certificate $certificate,
-    ): DirectReferenceKeyIdentifier {
-        $id = (new self($certificate))->embed($context);
+    public function embedAsDirectReference(WsseContext $context): DirectReferenceKeyIdentifier
+    {
+        return new DirectReferenceKeyIdentifier($this->embed($context), $this->valueType()->value);
+    }
 
-        return new DirectReferenceKeyIdentifier($id, WsSecurityValueType::X509v3->value);
+    /**
+     * The base64 body the token carries: the certification path when one was supplied, the certificate alone
+     * otherwise.
+     */
+    private function body(): string
+    {
+        return $this->path === null
+            ? $this->certificate->toBase64Der()
+            : base64_encode(PkiPath::encode($this->path));
+    }
+
+    private function valueType(): WsSecurityValueType
+    {
+        return $this->path === null ? WsSecurityValueType::X509v3 : WsSecurityValueType::X509PKIPathv1;
     }
 
     /**
@@ -83,7 +120,7 @@ final class BinarySecurityToken implements OutboundAction
         $build = namespaced_element(
             Namespaces::Wsse->value,
             Namespaces::Wsse->qualify('BinarySecurityToken'),
-            attribute('ValueType', WsSecurityValueType::X509v3->value),
+            attribute('ValueType', $this->valueType()->value),
             attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
             value($body),
         );
