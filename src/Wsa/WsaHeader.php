@@ -28,6 +28,7 @@ final class WsaHeader
     private ?string $from = null;
     private ?MessageId $messageId = null;
     private ?string $replyTo = null;
+    private ?string $faultTo = null;
     private ?string $relatesTo = null;
 
     private function __construct(
@@ -80,6 +81,17 @@ final class WsaHeader
         return $clone;
     }
 
+    /**
+     * Where the service sends a fault instead of to ReplyTo. Absent means faults follow ReplyTo.
+     */
+    public function withFaultTo(string $address): self
+    {
+        $clone = clone $this;
+        $clone->faultTo = $address;
+
+        return $clone;
+    }
+
     public function withRelatesTo(string $messageId): self
     {
         $clone = clone $this;
@@ -127,6 +139,11 @@ final class WsaHeader
         if ($this->replyTo !== null) {
             $elements[] = namespaced_element($ns, $prefix.':ReplyTo', children(
                 namespaced_element($ns, $prefix.':Address', value($this->replyTo)),
+            ));
+        }
+        if ($this->faultTo !== null) {
+            $elements[] = namespaced_element($ns, $prefix.':FaultTo', children(
+                namespaced_element($ns, $prefix.':Address', value($this->faultTo)),
             ));
         }
         if ($this->relatesTo !== null) {

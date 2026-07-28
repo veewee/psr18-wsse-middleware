@@ -10,19 +10,19 @@ use Soap\Psr18Transport\HttpBinding\SoapActionDetector;
 use Soap\Psr18Transport\Xml\XmlMessageManipulator;
 use Soap\Psr18WsseMiddleware\Wsa\MessageId;
 use Soap\Psr18WsseMiddleware\Wsa\WsaHeader;
-use Soap\Psr18WsseMiddleware\Wsa\WsaNamespace;
+use Soap\Psr18WsseMiddleware\Wsa\WsaOptions;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Configurator\disallow_doctype;
 
 /**
- * Adds WS-Addressing headers (Action / To / MessageID / ReplyTo) to the outgoing SOAP request.
- * Configurable for either addressing version; defaults to W3C 2005/08.
+ * Adds WS-Addressing headers (Action / To / MessageID / ReplyTo, and optionally From / FaultTo) to the
+ * outgoing SOAP request. Everything is configured through WsaOptions, which also carries the addressing
+ * version; the default instance derives every property from the request.
  */
 final class WsaMiddleware implements Plugin
 {
     public function __construct(
-        private readonly WsaNamespace $namespace = WsaNamespace::W3c200508,
-        private readonly ?string $replyToAddress = null,
+        private readonly WsaOptions $options = new WsaOptions(),
     ) {
     }
 
@@ -33,15 +33,35 @@ final class WsaMiddleware implements Plugin
             function (Document $document) use ($request): void {
                 $document->manipulate(disallow_doctype());
 
-                WsaHeader::create($this->namespace)
-                    ->withAction(SoapActionDetector::detectFromRequest($request))
-                    ->withTo((string) $request->getUri())
-                    ->withMessageId(MessageId::generate())
-                    ->withReplyTo($this->replyToAddress ?? $this->namespace->anonymousUri())
-                    ->appendTo($document);
+                $this->header($request)->appendTo($document);
             },
         );
 
         return $next($request);
+    }
+
+    /**
+     * The configured properties, with each unset one filled from the request. A fresh MessageID is minted per
+     * message so the receiver's RelatesTo correlates exactly one reply.
+     */
+    private function header(RequestInterface $request): WsaHeader
+    {
+        $options = $this->options;
+
+        $header = WsaHeader::create($options->namespace)
+            ->withAction($options->action ?? SoapActionDetector::detectFromRequest($request))
+            ->withTo($options->to ?? (string) $request->getUri())
+            ->withMessageId(MessageId::generate())
+            ->withReplyTo($options->replyTo ?? $options->namespace->anonymousUri());
+
+        if ($options->from !== null) {
+            $header = $header->withFrom($options->from);
+        }
+
+        if ($options->faultTo !== null) {
+            $header = $header->withFaultTo($options->faultTo);
+        }
+
+        return $header;
     }
 }

@@ -240,9 +240,31 @@ encrypting exactly as before:
 
 ### One WS-Addressing middleware
 
-`WsaMiddleware2005` is gone. There is now a single `WsaMiddleware` that takes the addressing version as an
-argument, and its default namespace is the W3C 2005/08 one. If you relied on the older 2004/08 default, pass
-`WsaNamespace::Submission200408` explicitly.
+`WsaMiddleware2005` is gone. There is now a single `WsaMiddleware` that covers both addressing versions, and
+its default is the W3C 2005/08 one. If you relied on the older 2004/08 default, select it explicitly.
+
+`WsaMiddleware` takes a single `WsaOptions` argument instead of a namespace and a reply address. Both former
+arguments are properties on `WsaOptions`, so one object now owns the addressing version and every
+message-addressing property:
+
+```php
+// before
+new WsaMiddleware();
+new WsaMiddleware(WsaNamespace::Submission200408);
+new WsaMiddleware(replyToAddress: 'https://your-app.example/reply');
+
+// after
+new WsaMiddleware();                                                        // unchanged
+new WsaMiddleware(new WsaOptions(WsaNamespace::Submission200408));
+new WsaMiddleware(new WsaOptions(replyTo: 'https://your-app.example/reply'));
+```
+
+`WsaOptions` also exposes what the middleware previously derived with no way to override — `action` and `to` —
+plus two properties that could not be sent at all before: `from` and `faultTo`. All of them default to `null`,
+which keeps the previous behaviour exactly: `action` from the request's `SOAPAction`, `to` from the request
+URI, and `From`/`FaultTo` omitted.
+
+`WsaHeader` gained `withFaultTo()` to match, alongside the `withFrom()` and `withRelatesTo()` it already had.
 
 ### A couple of smaller changes
 

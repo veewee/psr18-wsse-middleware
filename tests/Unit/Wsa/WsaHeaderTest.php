@@ -35,6 +35,34 @@ final class WsaHeaderTest extends TestCase
         return $found;
     }
 
+    public function test_it_emits_fault_to_as_an_endpoint_reference(): void
+    {
+        $document = $this->emptyEnvelope();
+
+        WsaHeader::create(WsaNamespace::W3c200508)
+            ->withFaultTo('https://example.test/faults')
+            ->appendTo($document);
+
+        $faultTo = $this->elements($document, self::NS_2005, 'FaultTo');
+        static::assertCount(1, $faultTo);
+        static::assertSame(self::NS_2005, $faultTo[0]->namespaceURI);
+
+        // FaultTo is an endpoint reference, so the address is a nested wsa:Address, not the text of FaultTo.
+        $address = $this->elements($document, self::NS_2005, 'Address');
+        static::assertCount(1, $address);
+        static::assertSame('https://example.test/faults', $address[0]->textContent);
+        static::assertSame($faultTo[0], $address[0]->parentNode);
+    }
+
+    public function test_a_header_that_was_not_given_a_fault_to_emits_none(): void
+    {
+        $document = $this->emptyEnvelope();
+
+        WsaHeader::create(WsaNamespace::W3c200508)->withAction('urn:doSomething')->appendTo($document);
+
+        static::assertCount(0, $this->elements($document, self::NS_2005, 'FaultTo'));
+    }
+
     public function test_it_creates_the_header_and_emits_the_2005_addressing_elements(): void
     {
         $document = $this->emptyEnvelope();

@@ -12,6 +12,7 @@ use Nyholm\Psr7\Request;
 use Nyholm\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Wsa\WsaNamespace;
+use Soap\Psr18WsseMiddleware\Wsa\WsaOptions;
 use Soap\Psr18WsseMiddleware\WsaMiddleware;
 use VeeWee\Xml\Dom\Document;
 use VeeWee\Xml\Exception\DoctypeNotAllowedException;
@@ -42,7 +43,7 @@ final class WsaMiddlewareTest extends TestCase
 
     public function test_it_can_emit_2004_addressing_headers(): void
     {
-        $body = $this->sendThrough(new WsaMiddleware(WsaNamespace::Submission200408));
+        $body = $this->sendThrough(new WsaMiddleware(new WsaOptions(WsaNamespace::Submission200408)));
 
         $ns = WsaNamespace::Submission200408->value;
         static::assertCount(1, $this->all($body, $ns, 'Action'));
@@ -55,12 +56,43 @@ final class WsaMiddlewareTest extends TestCase
 
     public function test_a_custom_reply_to_address_is_honoured(): void
     {
-        $body = $this->sendThrough(new WsaMiddleware(replyToAddress: 'https://example.test/reply'));
+        $body = $this->sendThrough(new WsaMiddleware(new WsaOptions(replyTo: 'https://example.test/reply')));
 
         static::assertSame(
             'https://example.test/reply',
             $this->single($body, WsaNamespace::W3c200508->value, 'Address')->textContent
         );
+    }
+
+    public function test_an_explicit_action_overrides_the_detected_soap_action(): void
+    {
+        $body = $this->sendThrough(new WsaMiddleware(new WsaOptions(action: 'urn:explicit:Action')));
+
+        static::assertSame('urn:explicit:Action', $this->single($body, WsaNamespace::W3c200508->value, 'Action')->textContent);
+    }
+
+    public function test_an_explicit_to_overrides_the_request_uri(): void
+    {
+        $body = $this->sendThrough(new WsaMiddleware(new WsaOptions(to: 'https://example.test/override')));
+
+        static::assertSame('https://example.test/override', $this->single($body, WsaNamespace::W3c200508->value, 'To')->textContent);
+    }
+
+    public function test_from_and_fault_to_are_emitted_only_when_configured(): void
+    {
+        $ns = WsaNamespace::W3c200508->value;
+
+        $plain = $this->sendThrough(new WsaMiddleware());
+        static::assertCount(0, $this->all($plain, $ns, 'From'));
+        static::assertCount(0, $this->all($plain, $ns, 'FaultTo'));
+
+        $configured = $this->sendThrough(new WsaMiddleware(new WsaOptions(
+            from: 'https://example.test/me',
+            faultTo: 'https://example.test/faults',
+        )));
+
+        static::assertSame('https://example.test/me', $this->single($configured, $ns, 'From')->firstElementChild?->textContent);
+        static::assertSame('https://example.test/faults', $this->single($configured, $ns, 'FaultTo')->firstElementChild?->textContent);
     }
 
     public function test_it_rejects_a_request_body_carrying_a_doctype(): void
