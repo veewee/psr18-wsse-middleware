@@ -19,8 +19,15 @@ final readonly class KeyUsage
         return new self($value);
     }
 
+    /**
+     * Either signing bit permits signing. digitalSignature is the common one, but nonRepudiation (renamed
+     * contentCommitment) is defined for verifying signatures too, and qualified-signature PKIs issue signing
+     * certificates carrying only that bit — refusing those would be stricter than the peers this library
+     * interoperates with.
+     */
     public function permitsSigning(): bool
     {
-        return str_contains($this->value, 'Digital Signature');
+        return str_contains($this->value, 'Digital Signature')
+            || str_contains($this->value, 'Non Repudiation');
     }
 }

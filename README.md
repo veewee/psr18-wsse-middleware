@@ -195,8 +195,16 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   The ECDSA cases are `ECDSA_SHA256`, `ECDSA_SHA384` and `ECDSA_SHA512` (the xmldsig-more URIs). They require an
   EC certificate and key; an RSA key paired with an ECDSA method will not sign. The RSA cases stay `RSA_SHA256`
   (the default), `RSA_SHA384` and `RSA_SHA512`.
+
+  Two legacy cases exist and are **not** accepted inbound by default: `RSA_SHA1` and `DSA_SHA1`. `DSA_SHA1` is
+  present because XML Signature 1.1 lists DSAwithSHA1 as a required algorithm for signature *verification*, so
+  a peer may still send one; `DSA_SHA1` needs a DSA key to sign with. Use either only for a peer that requires
+  it, and add it to `acceptedSignatureMethods` to verify it (see
+  [Security profile and defaults](#security-profile-and-defaults)).
 - `withDigestMethod(DigestMethod $method): self` — the per-reference digest algorithm. Default: the profile's
-  `digestMethod()` (SHA-256).
+  `digestMethod()` (SHA-256). `SHA384` and `SHA512` are also accepted inbound by default. `SHA1` and
+  `RIPEMD160` are available but not accepted inbound by default; add them to `acceptedDigestMethods` only for a
+  peer that requires them.
 - `withCanonicalization(SignatureCanonicalization $canonicalization): self` — the canonicalization method.
   Default: the profile's `canonicalization()` (exclusive C14N). The exclusive variants (`EXC_C14N`,
   `EXC_C14N_COMMENTS`) are the WSSE norm. The inclusive Canonical XML 1.0 variants (`C14N`, `C14N_COMMENTS`)
@@ -344,6 +352,11 @@ the signature allow-list covers RSA and ECDSA at SHA-256/384/512, and only the e
 accepted; to accept an inclusive variant, add it to the profile's `acceptedCanonicalizations` (see
 [Security profile and defaults](#security-profile-and-defaults)). Every failure cause collapses to one uniform
 `SecurityFault` carrying no step-identifying detail, so the block is never a forgery oracle.
+
+The signer's certificate must chain to a trust anchor, be within its validity window, and — if it carries a
+`keyUsage` extension — assert either `digitalSignature` or `nonRepudiation` (`contentCommitment`). A
+certificate with no `keyUsage` extension is not refused on that ground. No Extended Key Usage is required: the
+X.509 Token Profile mandates none, and no registered EKU describes WS-Security message signing.
 
 ## Inbound: `ValidateTimestamp`
 
