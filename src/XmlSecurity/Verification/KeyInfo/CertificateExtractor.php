@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\PkiPath;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
@@ -35,13 +36,6 @@ use VeeWee\Xml\Dom\Document;
  */
 final class CertificateExtractor
 {
-    /**
-     * A certification path longer than this is refused before any certificate is decoded. Real paths are a
-     * leaf plus a handful of intermediates; a longer one is a peer sending junk, and decoding it is work an
-     * unauthenticated message should not be able to ask for.
-     */
-    private const MAX_CARRIED_CERTIFICATES = 10;
-
     private readonly KeyInfoReader $reader;
     private readonly TrustStoreCertificateResolver $resolver;
 
@@ -63,13 +57,19 @@ final class CertificateExtractor
             return $this->carriedChain($reference->base64DerCertificates);
         }
 
+        if ($reference->form === CertificateReference::FORM_CARRIED_PATH) {
+            return $this->carriedPathChain($reference->base64DerCertificates[0] ?? '');
+        }
+
         return CertificateChain::fromCertificates($this->resolver->resolve($reference, $trustStore));
     }
 
     /**
      * Decodes the certificates the message carries and hands the ordering to CertificateChain, which derives
-     * the end-entity. The path length is capped before any decoding so an oversized KeyInfo costs nothing, and
-     * every malformed or unorderable set collapses into the one uniform failure.
+     * the end-entity. Every malformed or unorderable set collapses into the one uniform failure. The path
+     * length is deliberately not bounded: no specification states a maximum, a certificate costs one parse
+     * rather than any per-item crypto, and a junk path is refused anyway for having no single end-entity or
+     * for not reaching a trust anchor.
      *
      * @param list<string> $base64DerCertificates
      *
@@ -77,10 +77,6 @@ final class CertificateExtractor
      */
     private function carriedChain(array $base64DerCertificates): CertificateChain
     {
-        if (count($base64DerCertificates) > self::MAX_CARRIED_CERTIFICATES) {
-            throw SignatureVerificationFailed::withReason('The carried certificate path is too long.');
-        }
-
         $certificates = [];
         foreach ($base64DerCertificates as $base64Der) {
             try {
@@ -94,6 +90,28 @@ final class CertificateExtractor
             return CertificateChain::fromUnorderedCertificates(...$certificates);
         } catch (InvalidArgumentException) {
             throw SignatureVerificationFailed::withReason('The carried certificate path could not be ordered.');
+        }
+    }
+
+    /**
+     * Unwraps a PKIPath token body into its certificates and orders them the same way, so a path token and an
+     * inline path reach the trust check as the same shape. The profile calls a PKIPath ordered without this
+     * code relying on that: the end-entity is derived, which is also what makes the sibling PKCS#7 form — whose
+     * order the profile says carries no meaning — tractable should it ever be accepted.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function carriedPathChain(string $base64DerPath): CertificateChain
+    {
+        $der = base64_decode(Certificate::normalizeBase64Der($base64DerPath), true);
+        if ($der === false || $der === '') {
+            throw SignatureVerificationFailed::withReason('The certificate path is not valid base64.');
+        }
+
+        try {
+            return CertificateChain::fromUnorderedCertificates(...PkiPath::certificates($der));
+        } catch (InvalidCertificate | InvalidArgumentException) {
+            throw SignatureVerificationFailed::withReason('The carried certificate path could not be read.');
         }
     }
 }

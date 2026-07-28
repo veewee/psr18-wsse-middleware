@@ -45,7 +45,7 @@ final class KeyInfoReader
 
         $fromToken = $this->fromSecurityTokenReference($document, $keyInfo);
         if ($fromToken !== null) {
-            return CertificateReference::carried($fromToken);
+            return $fromToken;
         }
 
         $inline = $this->fromInlineX509($keyInfo);
@@ -64,11 +64,12 @@ final class KeyInfoReader
     }
 
     /**
-     * Resolves a wsse:SecurityTokenReference > wsse:Reference to its wsse:BinarySecurityToken and returns the
-     * token's base64 body. Returns null when KeyInfo carries no wsse:Reference at all (so an identifier form or
-     * the inline form can be tried), but refuses an unsupported reference shape outright.
+     * Resolves a wsse:SecurityTokenReference > wsse:Reference to its wsse:BinarySecurityToken and reports what
+     * the token carries: one certificate, or a whole certification path when the token declares PKIPath.
+     * Returns null when KeyInfo carries no wsse:Reference at all (so an identifier form or the inline form can
+     * be tried), but refuses an unsupported reference shape outright.
      */
-    private function fromSecurityTokenReference(Document $document, Element $keyInfo): ?string
+    private function fromSecurityTokenReference(Document $document, Element $keyInfo): ?CertificateReference
     {
         $str = $this->onlyChild($keyInfo, Namespaces::Wsse, 'SecurityTokenReference');
         if ($str === null) {
@@ -95,7 +96,8 @@ final class KeyInfoReader
             throw SignatureVerificationFailed::withReason('The token reference does not point at a BinarySecurityToken.');
         }
 
-        if ($token->getAttribute('ValueType') !== WsSecurityValueType::X509v3->value) {
+        $valueType = WsSecurityValueType::tryFrom((string) $token->getAttribute('ValueType'));
+        if ($valueType !== WsSecurityValueType::X509v3 && $valueType !== WsSecurityValueType::X509PKIPathv1) {
             throw SignatureVerificationFailed::withReason('The BinarySecurityToken value type is unsupported.');
         }
 
@@ -107,7 +109,11 @@ final class KeyInfoReader
             throw SignatureVerificationFailed::withReason('The BinarySecurityToken encoding type is unsupported.');
         }
 
-        return ElementText::trimmed($token);
+        $body = ElementText::trimmed($token);
+
+        return $valueType === WsSecurityValueType::X509PKIPathv1
+            ? CertificateReference::carriedPath($body)
+            : CertificateReference::carried($body);
     }
 
     /**

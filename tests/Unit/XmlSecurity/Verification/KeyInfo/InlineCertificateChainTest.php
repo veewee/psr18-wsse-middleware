@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification\KeyInfo;
 
 use Dom\Element;
-use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
@@ -21,7 +20,6 @@ use VeeWee\Xml\Dom\Document;
  * in the set. Reading only a single certificate silently discarded the intermediates a chain-to-anchor check
  * needs; picking by position would break on a conformant peer that lists its CA first.
  */
-#[RequiresPhp('>= 8.4.21')]
 final class InlineCertificateChainTest extends TestCase
 {
     public function test_it_reads_a_leaf_and_its_issuer_as_one_chain(): void
@@ -64,16 +62,6 @@ final class InlineCertificateChainTest extends TestCase
             $one->certificateBase64Der($one->leafCertificate),
             $two->certificateBase64Der($two->leafCertificate),
         );
-
-        $this->expectException(SignatureVerificationFailed::class);
-        $this->extract($document);
-    }
-
-    public function test_an_inline_set_beyond_the_cap_is_refused(): void
-    {
-        $fixture = WsseSignatureFixture::caSignedLeaf();
-        $leaf = $fixture->certificateBase64Der($fixture->leafCertificate);
-        $document = $this->withInlineCertificates(...array_fill(0, 12, $leaf));
 
         $this->expectException(SignatureVerificationFailed::class);
         $this->extract($document);

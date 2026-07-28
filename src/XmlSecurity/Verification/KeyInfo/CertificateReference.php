@@ -15,6 +15,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo;
 final readonly class CertificateReference
 {
     public const FORM_CARRIED = 'carried';
+    public const FORM_CARRIED_PATH = 'carriedPath';
     public const FORM_KEY_IDENTIFIER = 'keyIdentifier';
     public const FORM_ISSUER_SERIAL = 'issuerSerial';
 
@@ -39,6 +40,16 @@ final readonly class CertificateReference
     public static function carried(string ...$base64DerCertificates): self
     {
         return new self(self::FORM_CARRIED, base64DerCertificates: array_values($base64DerCertificates));
+    }
+
+    /**
+     * A whole certification path carried as one PKIPath token body, which is a single base64 ASN.1 structure
+     * rather than one entry per certificate. It stays undecoded here: this type reports what ds:KeyInfo says,
+     * and unwrapping the path is the orchestrator's job so a malformed one fails at the uniform boundary.
+     */
+    public static function carriedPath(string $base64DerPath): self
+    {
+        return new self(self::FORM_CARRIED_PATH, base64DerCertificates: [$base64DerPath]);
     }
 
     public static function keyIdentifier(string $valueType, string $reference): self
