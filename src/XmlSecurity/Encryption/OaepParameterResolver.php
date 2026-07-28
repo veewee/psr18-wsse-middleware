@@ -10,11 +10,9 @@ use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
-use function VeeWee\Xml\Dom\Locator\Element\children;
 
 /**
  * Resolves the OAEP parameterization a xenc:EncryptionMethod declares into one KeyTransportAlgorithm.
@@ -65,18 +63,8 @@ final class OaepParameterResolver
     {
         $this->rejectNonEmptyOaepParams($encryptionMethod);
 
-        $digestUri = null;
-        $mgfUri = null;
-
-        foreach (children($encryptionMethod) as $child) {
-            if (ElementName::matches($child, Namespaces::Ds, 'DigestMethod')) {
-                $digestUri = (string) $child->getAttribute('Algorithm');
-            }
-
-            if (ElementName::matches($child, Namespaces::Xenc11, 'MGF')) {
-                $mgfUri = (string) $child->getAttribute('Algorithm');
-            }
-        }
+        $digestUri = $this->declaredAlgorithm($encryptionMethod, Namespaces::Ds, 'DigestMethod');
+        $mgfUri = $this->declaredAlgorithm($encryptionMethod, Namespaces::Xenc11, 'MGF');
 
         $digestHash = $digestUri === null || $digestUri === ''
             ? OaepHash::Sha1
@@ -100,6 +88,25 @@ final class OaepParameterResolver
         }
 
         return $digestHash;
+    }
+
+    /**
+     * Reads the Algorithm of an at-most-once child, or null when it is absent. A second child is refused
+     * rather than resolved to one of them: it would otherwise decide the parameterization the unwrap runs
+     * under, which is the shape every other duplicate child in this codebase is refused for.
+     *
+     * @throws UnsupportedAlgorithmException
+     */
+    private function declaredAlgorithm(Element $encryptionMethod, Namespaces $namespace, string $localName): ?string
+    {
+        $matches = ChildElements::named($encryptionMethod, $namespace, $localName);
+        if (count($matches) > 1) {
+            throw UnsupportedAlgorithmException::forAlgorithm($namespace->qualify($localName));
+        }
+
+        $declared = $matches[0] ?? null;
+
+        return $declared === null ? null : (string) $declared->getAttribute('Algorithm');
     }
 
     /**

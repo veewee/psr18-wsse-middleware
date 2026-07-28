@@ -121,6 +121,32 @@ final class OaepParameterResolverTest extends TestCase
         $this->expectRejection($element, KeyEncryptionMethod::RSA_OAEP_MGF1P);
     }
 
+    public function test_a_duplicate_digest_method_is_rejected(): void
+    {
+        // Last-wins would let an injected second child decide the label hash the unwrap runs under. Every
+        // other duplicate child in this codebase is refused rather than resolved to a pick.
+        // Every child here is individually acceptable and the pair agrees, so only the duplication can be
+        // what refuses this -- otherwise the test would pass on the digest/MGF mismatch instead.
+        $element = $this->encryptionMethod(self::RSA_OAEP, [
+            ['DigestMethod', self::DS, self::SHA256],
+            ['DigestMethod', self::DS, self::SHA256],
+            ['MGF', self::XENC11, self::MGF1_SHA256],
+        ]);
+
+        $this->expectRejection($element, KeyEncryptionMethod::RSA_OAEP);
+    }
+
+    public function test_a_duplicate_mgf_is_rejected(): void
+    {
+        $element = $this->encryptionMethod(self::RSA_OAEP, [
+            ['DigestMethod', self::DS, self::SHA256],
+            ['MGF', self::XENC11, self::MGF1_SHA256],
+            ['MGF', self::XENC11, self::MGF1_SHA256],
+        ]);
+
+        $this->expectRejection($element, KeyEncryptionMethod::RSA_OAEP);
+    }
+
     public function test_the_legacy_mgf1p_uri_takes_a_non_sha1_label_digest_with_the_mask_fixed_to_sha1(): void
     {
         // The legacy URI fixes only the mask. A SHA-256 DigestMethod under it asks for a SHA-256 label with an
