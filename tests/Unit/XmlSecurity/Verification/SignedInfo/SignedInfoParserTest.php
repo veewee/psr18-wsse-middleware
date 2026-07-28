@@ -126,6 +126,21 @@ final class SignedInfoParserTest extends TestCase
         (new SignedInfoParser())->parse($signedInfo);
     }
 
+    public function test_an_hmac_signature_method_is_refused(): void
+    {
+        // HMAC is symmetric: accepting it would let a peer that knows or can guess the shared secret forge a
+        // signature this library would then report as valid. No HMAC URI is representable, so substituting one
+        // resolves to nothing -- this pins that, so adding HMAC to the enum for parity cannot quietly admit it.
+        $signedInfo = $this->signedInfo(
+            canonicalization: '<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>',
+            references: $this->reference('#Body', self::EXC_C14N, null),
+            signatureMethod: '<ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#hmac-sha1"/>',
+        );
+
+        $this->expectException(SignatureVerificationFailed::class);
+        (new SignedInfoParser())->parse($signedInfo);
+    }
+
     public function test_a_reference_without_transforms_digests_under_inclusive_c14n(): void
     {
         // XML-DSig converts a node-set to octets with Canonical XML when no transform says otherwise, so a
@@ -158,12 +173,12 @@ final class SignedInfoParserTest extends TestCase
             .'</ds:Reference>';
     }
 
-    private function signedInfo(string $canonicalization, string $references): Element
+    private function signedInfo(string $canonicalization, string $references, ?string $signatureMethod = null): Element
     {
         $document = Document::fromXmlString(
             '<ds:Signature xmlns:ds="'.self::DS.'"><ds:SignedInfo>'
             .$canonicalization
-            .'<ds:SignatureMethod Algorithm="'.self::RSA_SHA256.'"/>'
+            .($signatureMethod ?? '<ds:SignatureMethod Algorithm="'.self::RSA_SHA256.'"/>')
             .$references
             .'</ds:SignedInfo></ds:Signature>',
         );

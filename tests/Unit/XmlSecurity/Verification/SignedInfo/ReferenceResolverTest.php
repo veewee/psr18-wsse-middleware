@@ -19,6 +19,7 @@ final class ReferenceResolverTest extends TestCase
 {
     private const EXC_C14N = 'http://www.w3.org/2001/10/xml-exc-c14n#';
     private const XSLT = 'http://www.w3.org/TR/1999/REC-xslt-19991116';
+    private const ENVELOPED_SIGNATURE = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature';
 
     public function test_it_resolves_a_known_wsu_id_to_the_exact_element(): void
     {
@@ -73,6 +74,17 @@ final class ReferenceResolverTest extends TestCase
     public function test_it_rejects_an_xslt_transform(): void
     {
         $document = $this->document(['Body' => self::reference('#Body', self::XSLT)]);
+        [$elements, $parsed] = $this->references($document);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+    }
+
+    public function test_it_rejects_an_enveloped_signature_transform(): void
+    {
+        // This library signs detached, and its references name a c14n transform only. An enveloped-signature
+        // transform changes what the digest covers, so it is refused rather than quietly honoured.
+        $document = $this->document(['Body' => self::reference('#Body', self::ENVELOPED_SIGNATURE)]);
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);

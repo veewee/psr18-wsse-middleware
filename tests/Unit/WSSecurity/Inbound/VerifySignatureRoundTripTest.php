@@ -67,6 +67,44 @@ final class VerifySignatureRoundTripTest extends TestCase
         ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
     }
 
+    public function test_it_rejects_a_signed_body_relocated_into_the_security_header(): void
+    {
+        // The XML Signature Wrapping shape the object-identity defence exists for. The genuinely signed Body is
+        // moved into ds:Object inside the Security header, keeping its wsu:Id, and a forged Body takes its place
+        // in the envelope. The signature still validates -- the element it covers is present and unaltered, and
+        // its id still resolves -- so nothing cryptographic catches this. What catches it is that Part::body()
+        // resolves to the element in the Body slot, which is not the instance the signature covered.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
+
+        $dom = $document->toUnsafeDocument();
+        $envelope = $dom->documentElement;
+        static::assertInstanceOf(Element::class, $envelope);
+
+        $signedBody = $dom->getElementsByTagNameNS(WsseSignatureFixture::SOAP, 'Body')->item(0);
+        static::assertInstanceOf(Element::class, $signedBody);
+
+        $security = $dom->getElementsByTagNameNS(WsseSignatureFixture::WSSE, 'Security')->item(0);
+        static::assertInstanceOf(Element::class, $security);
+
+        // A forged Body replaces the real one in the envelope, and the real one is parked under ds:Object.
+        $forged = $dom->createElementNS(WsseSignatureFixture::SOAP, 'soap:Body');
+        $attackerPayload = $dom->createElement('attacker');
+        $attackerPayload->textContent = 'forged';
+        $forged->appendChild($attackerPayload);
+        $envelope->replaceChild($forged, $signedBody);
+
+        $object = $dom->createElementNS(WsseSignatureFixture::DS, 'ds:Object');
+        $object->appendChild($signedBody);
+        $security->appendChild($object);
+
+        $this->expectException(SecurityFault::class);
+        (new VerifySignature(
+            TrustStore::fromCertificates($fixture->caCertificate),
+            signed: [Part::body()],
+        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+    }
+
     public function test_it_rejects_an_untrusted_signer(): void
     {
         $fixture = WsseSignatureFixture::selfSignedLeaf();
