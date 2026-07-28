@@ -18,9 +18,9 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ParsedReference
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedVerificationReference;
 use VeeWee\Xml\Dom\Document;
 
-#[RequiresPhp('>= 8.4.21')]
 final class DigestVerifierTest extends TestCase
 {
+    #[RequiresPhp('>= 8.4.21')]
     public function test_it_accepts_a_matching_digest(): void
     {
         $element = $this->element();
@@ -33,6 +33,7 @@ final class DigestVerifierTest extends TestCase
         ));
     }
 
+    #[RequiresPhp('>= 8.4.21')]
     public function test_it_rejects_a_tampered_element(): void
     {
         $element = $this->element();

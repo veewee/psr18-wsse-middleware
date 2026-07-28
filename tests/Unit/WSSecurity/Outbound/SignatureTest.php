@@ -29,7 +29,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
-#[RequiresPhp('>= 8.4.21')]
 final class SignatureTest extends OutboundTestCase
 {
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
@@ -151,6 +150,7 @@ final class SignatureTest extends OutboundTestCase
         static::assertInstanceOf(X509SubjectKeyIdentifier::class, $signer->lastRequest()->keyIdentifier);
     }
 
+    #[RequiresPhp('>= 8.4.21')]
     public function test_direct_reference_wires_the_signature_key_info_to_the_embedded_bst(): void
     {
         $certificate = $this->clientCertificate();
@@ -164,6 +164,7 @@ final class SignatureTest extends OutboundTestCase
         static::assertSame('#'.$bstId, $reference->getAttribute('URI'));
     }
 
+    #[RequiresPhp('>= 8.4.21')]
     public function test_an_overridden_algorithm_reaches_the_signed_document(): void
     {
         $certificate = $this->clientCertificate();
