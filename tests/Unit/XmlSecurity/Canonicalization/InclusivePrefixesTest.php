@@ -68,6 +68,37 @@ final class InclusivePrefixesTest extends TestCase
         static::assertSame(['soap'], InclusivePrefixes::forContainer($security));
     }
 
+    public function test_an_element_with_no_ancestors_pins_nothing(): void
+    {
+        $document = Document::fromXmlString('<a:root xmlns:a="urn:a"><a:child/></a:root>');
+        $root = $this->locate($document, 'urn:a', 'root');
+
+        static::assertSame([], InclusivePrefixes::forSignedElement($root));
+        static::assertSame([], InclusivePrefixes::forContainer($root));
+    }
+
+    public function test_a_prefix_only_a_serialization_would_declare_is_pinned(): void
+    {
+        // An ancestor built in memory carries no xmlns attribute until the document is serialized, so deriving
+        // from the live tree must still count the binding the wire will declare.
+        $document = Document::fromXmlString('<root xmlns:a="urn:a"><a:mid/></root>');
+        $native = $document->toUnsafeDocument();
+        $mid = $this->locate($document, 'urn:a', 'mid');
+        $wrapper = $native->createElementNS('urn:brandnew', 'nv:wrapper');
+        $mid->appendChild($wrapper);
+        $container = $native->createElementNS('urn:c', 'c:container');
+        $wrapper->appendChild($container);
+
+        static::assertSame(['nv', 'a'], InclusivePrefixes::forContainer($container));
+
+        // The same list the wire yields, which is the whole point of counting the binding.
+        $wire = Document::fromXmlString($document->toXmlString());
+        static::assertSame(
+            InclusivePrefixes::forContainer($container),
+            InclusivePrefixes::forContainer($this->locate($wire, 'urn:c', 'container')),
+        );
+    }
+
     private function envelope(): Document
     {
         return Document::fromXmlString(sprintf(

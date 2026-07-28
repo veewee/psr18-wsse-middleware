@@ -67,6 +67,14 @@ final class InclusivePrefixes
                 // PrefixList spells the former '#default'.
                 $prefixes[] = 'xmlns' === $declaration->nodeName ? '#default' : (string) $declaration->localName;
             }
+
+            // An ancestor built in memory carries no xmlns attribute yet, but serializing the document emits
+            // one for its own prefix binding. Counting that binding here keeps the list the same whether it is
+            // derived before or after the round trip through the wire; for an ancestor parsed from the wire the
+            // prefix is already declared above and dedupes away.
+            if ($ancestor->prefix !== null) {
+                $prefixes[] = (string) $ancestor->prefix;
+            }
         }
 
         return array_values(array_unique($prefixes));

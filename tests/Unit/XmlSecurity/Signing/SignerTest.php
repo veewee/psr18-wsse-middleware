@@ -151,8 +151,52 @@ final class SignerTest extends TestCase
     }
 
     /**
-     * @param non-empty-list<Target> $targets
-     *
+     * A container built with createElementNS carries namespace declarations the live DOM omits and only the
+     * serialized wire materialises. The prefix list has to be derived from the wire for the same reason the
+     * signed parts are digested from it, or the feature silently drops exactly the declaration a caller turned
+     * it on to preserve. Reachable through the engine SPI, where the caller supplies its own container.
+     */
+    public function test_it_pins_a_prefix_only_the_wire_declares(): void
+    {
+        [$key, $certificate] = $this->keyAndCertificate();
+        $document = Document::fromXmlString('<root xmlns:a="urn:a"><a:payload>x</a:payload><a:mid/></root>');
+        $native = $document->toUnsafeDocument();
+
+        $mid = $native->getElementsByTagNameNS('urn:a', 'mid')->item(0);
+        static::assertInstanceOf(Element::class, $mid);
+        $wrapper = $native->createElementNS('urn:brandnew', 'nv:wrapper');
+        $mid->appendChild($wrapper);
+        $container = $native->createElementNS('urn:c', 'c:container');
+        $wrapper->appendChild($container);
+
+        $request = new SigningRequest(
+            container: $container,
+            targets: [Target::element('urn:a', 'payload')],
+            signingKey: $key,
+            signingCertificate: $certificate,
+            keyIdentifier: new DirectReferenceKeyIdentifier('SignedToken', self::X509_TOKEN),
+            signatureMethod: SignatureMethod::RSA_SHA256,
+            digestMethod: DigestMethod::SHA256,
+            canonicalization: SignatureCanonicalization::EXC_C14N,
+            inclusivePrefixes: true,
+        );
+        $this->signer()->sign($document, $request);
+
+        $inclusive = $native->getElementsByTagNameNS(SignatureCanonicalization::EXC_C14N->value, 'InclusiveNamespaces');
+        $onMethod = null;
+        foreach ($inclusive as $element) {
+            if ($element->parentNode instanceof Element && $element->parentNode->localName === 'CanonicalizationMethod') {
+                $onMethod = $element;
+            }
+        }
+
+        static::assertInstanceOf(Element::class, $onMethod);
+        $prefixes = explode(' ', $onMethod->getAttribute('PrefixList'));
+        static::assertContains('nv', $prefixes);
+        static::assertContains('a', $prefixes);
+    }
+
+    /**
      * @return array{0: Key, 1: Certificate, 2: Document}
      */
     private function sign(
