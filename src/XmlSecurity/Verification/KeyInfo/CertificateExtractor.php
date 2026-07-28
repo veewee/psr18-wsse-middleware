@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\PkiPath;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
@@ -88,7 +89,7 @@ final class CertificateExtractor
 
         try {
             return CertificateChain::fromUnorderedCertificates(...$certificates);
-        } catch (InvalidArgumentException) {
+        } catch (InvalidArgumentException | CryptoOperationFailed) {
             throw SignatureVerificationFailed::withReason('The carried certificate path could not be ordered.');
         }
     }
@@ -110,7 +111,7 @@ final class CertificateExtractor
 
         try {
             return CertificateChain::fromUnorderedCertificates(...PkiPath::certificates($der));
-        } catch (InvalidCertificate | InvalidArgumentException) {
+        } catch (InvalidCertificate | InvalidArgumentException | CryptoOperationFailed) {
             throw SignatureVerificationFailed::withReason('The carried certificate path could not be read.');
         }
     }

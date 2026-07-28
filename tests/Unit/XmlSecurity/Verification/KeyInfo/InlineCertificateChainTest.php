@@ -67,6 +67,21 @@ final class InlineCertificateChainTest extends TestCase
         $this->extract($document);
     }
 
+    public function test_an_inline_entry_that_is_not_a_certificate_is_refused_uniformly(): void
+    {
+        // Base64 that decodes cleanly but is not a certificate. Nothing notices until the end-entity derivation
+        // reads it, and that read raises its own crypto exception — which must not escape as a type no other
+        // inbound failure produces, or the failure cause becomes observable.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $this->withInlineCertificates(
+            $fixture->certificateBase64Der($fixture->leafCertificate),
+            base64_encode("\x30\x03\x02\x01\x00"),
+        );
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->extract($document);
+    }
+
     private function extract(Document $document): \Soap\Psr18WsseMiddleware\KeyStore\CertificateChain
     {
         return (new CertificateExtractor(new WsuIdLookup()))

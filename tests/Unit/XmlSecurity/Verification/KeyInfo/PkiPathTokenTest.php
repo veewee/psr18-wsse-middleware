@@ -59,6 +59,22 @@ final class PkiPathTokenTest extends TestCase
         $this->extract($this->document(WsSecurityValueType::X509PKIPathv1->value, base64_encode('not-der')));
     }
 
+    public function test_a_path_whose_element_is_well_formed_der_but_not_a_certificate_is_refused_uniformly(): void
+    {
+        // The dangerous shape: the path parses structurally — both elements are non-empty SEQUENCEs — so the
+        // failure only appears when the certificate is read, which happens inside the end-entity derivation.
+        // That read throws its own crypto exception, and if it escapes, this inbound failure reaches the caller
+        // as a different type from every other one and becomes a failure-cause oracle.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $path = $this->pkiPathFromDer(
+            (string) base64_decode($fixture->certificateBase64Der($fixture->leafCertificate), true),
+            "\x30\x03\x02\x01\x00",
+        );
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->extract($this->document(WsSecurityValueType::X509PKIPathv1->value, $path));
+    }
+
     public function test_a_single_certificate_token_is_still_read_as_one_certificate(): void
     {
         // The X509v3 body is a bare certificate, not a path, so it must not be run through the path parser.
@@ -103,6 +119,15 @@ final class PkiPathTokenTest extends TestCase
         }
 
         return base64_encode("\x30".$header.$body);
+    }
+
+    /**
+     * The same wrapping as pkiPath(), but taking raw DER elements so an element that is well-formed ASN.1 yet
+     * not a certificate can be planted.
+     */
+    private function pkiPathFromDer(string ...$der): string
+    {
+        return $this->pkiPath(...array_map(static fn (string $one): string => base64_encode($one), $der));
     }
 
     private function document(string $valueType, string $tokenBody): Document
