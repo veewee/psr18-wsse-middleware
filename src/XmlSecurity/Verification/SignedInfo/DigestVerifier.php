@@ -36,10 +36,14 @@ final class DigestVerifier
             throw SignatureVerificationFailed::withReason('The digest value is not valid base64.');
         }
 
+        // An enveloped-signature reference digests its element without the signature it contains. The resolver
+        // has already established that this is the one signature the element holds and that it is the signature
+        // being verified, so nothing here has to decide which node may be dropped.
         $canonical = $this->canonicalizer->canonicalize(
             $reference->element,
             $parsed->canonicalization,
             $parsed->inclusivePrefixes === [] ? null : $parsed->inclusivePrefixes,
+            $reference->envelopedSignature,
         );
         $actual = $this->digest->hash($canonical, $parsed->digestMethod);
 

@@ -7,8 +7,9 @@ use Dom\Element;
 
 /**
  * A ds:Reference with its DOM element located: the parsed reference data (DigestMethod, expected digest,
- * canonicalization and inclusive-namespaces prefix list), the bare id from the reference URI, and the exact
- * element to re-canonicalize and re-digest. The element is never re-looked-up after this point; the object
+ * canonicalization and inclusive-namespaces prefix list), the bare id from the reference URI, the exact
+ * element to re-canonicalize and re-digest, and — when the reference declares the enveloped-signature
+ * transform — the one ds:Signature to leave out of that element's digest. The element is never re-looked-up after this point; the object
  * identity of this instance is what later proves which element instances the signature actually covered.
  */
 final readonly class ResolvedVerificationReference
@@ -20,6 +21,7 @@ final readonly class ResolvedVerificationReference
         public ParsedReference $parsed,
         public Element $element,
         public string $id,
+        public ?Element $envelopedSignature = null,
     ) {
     }
 }

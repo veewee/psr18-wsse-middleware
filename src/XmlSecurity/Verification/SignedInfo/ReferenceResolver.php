@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
@@ -32,6 +33,12 @@ use VeeWee\Xml\Dom\Document;
  */
 final class ReferenceResolver
 {
+    /**
+     * The transform that removes the signature from the node-set of the element it is enveloped in. Mandatory in
+     * XML-DSig and the shape a signed SAML assertion arrives in.
+     */
+    private const ENVELOPED_SIGNATURE = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature';
+
     /**
      * Upper bound on the number of ds:Reference entries a single ds:SignedInfo may declare. A conservative
      * ceiling far above any legitimate WSSE message; it could later move to the verification policy if a
@@ -74,7 +81,14 @@ final class ReferenceResolver
             $element = $this->locate($document, $id);
             $this->assertNotSignatureInfrastructure($element, $signatureElement);
 
-            $resolved[] = new ResolvedVerificationReference($parsed, $element, $id);
+            $resolved[] = new ResolvedVerificationReference(
+                $parsed,
+                $element,
+                $id,
+                $this->declaresEnvelopedSignature($referenceElement)
+                    ? $this->signatureToStrip($document, $element, $signatureElement)
+                    : null,
+            );
         }
 
         return $resolved;
@@ -113,22 +127,85 @@ final class ReferenceResolver
      */
     private function assertSingleKnownC14nTransform(Element $referenceElement): void
     {
-        $transforms = $this->onlyDsChild($referenceElement, 'Transforms');
-        if ($transforms === null) {
+        $algorithms = $this->declaredTransforms($referenceElement);
+        if ($algorithms === null) {
             return;
         }
 
-        $candidates = ChildElements::named($transforms, Namespaces::Ds, 'Transform');
-        if (count($candidates) > 1) {
+        // Transforms are an ordered pipeline, so the enveloped-signature transform is only recognised in the
+        // position where it means what it says: strip the signature, then canonicalize what is left. The
+        // reversed order is a different computation and is not treated as equivalent.
+        if ($algorithms !== [] && $algorithms[0] === self::ENVELOPED_SIGNATURE) {
+            array_shift($algorithms);
+        }
+
+        if ($algorithms === []) {
+            // Enveloped-signature alone is spec-legal: with no canonicalization named the default applies,
+            // exactly as for a reference declaring no transforms at all.
+            return;
+        }
+
+        if (count($algorithms) > 1) {
             throw SignatureVerificationFailed::withReason('A reference declares more than one transform.');
         }
 
-        $transform = $candidates[0] ?? null;
-        if ($transform === null
-            || SignatureCanonicalization::tryFrom((string) $transform->getAttribute('Algorithm')) === null
-        ) {
+        if (SignatureCanonicalization::tryFrom($algorithms[0]) === null) {
             throw SignatureVerificationFailed::withReason('A reference declares an unsupported transform.');
         }
+    }
+
+    /**
+     * The transform algorithms a reference declares, in document order, or null when it declares no
+     * ds:Transforms at all.
+     *
+     * @return list<string>|null
+     */
+    private function declaredTransforms(Element $referenceElement): ?array
+    {
+        $transforms = $this->onlyDsChild($referenceElement, 'Transforms');
+        if ($transforms === null) {
+            return null;
+        }
+
+        $algorithms = [];
+        foreach (ChildElements::named($transforms, Namespaces::Ds, 'Transform') as $transform) {
+            $algorithms[] = (string) $transform->getAttribute('Algorithm');
+        }
+
+        return $algorithms;
+    }
+
+    private function declaresEnvelopedSignature(Element $referenceElement): bool
+    {
+        $algorithms = $this->declaredTransforms($referenceElement) ?? [];
+
+        return ($algorithms[0] ?? null) === self::ENVELOPED_SIGNATURE;
+    }
+
+    /**
+     * The one ds:Signature to leave out of this element's digest.
+     *
+     * The transform removes the signature that contains it, not any signature in the document. Stripping every
+     * ds:Signature under the element would let an injected second one be dropped from the digest silently, so
+     * more than one is refused outright rather than resolved by picking — and the single one must be, by object
+     * identity, the signature being verified. An element holding none is refused too: the transform claims
+     * self-exclusion while the signature sits elsewhere, which is a relocated signature claiming coverage of an
+     * element it is not inside.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function signatureToStrip(Document $document, Element $element, Element $signatureElement): Element
+    {
+        $contained = Query::elements($document, './/'.Namespaces::Ds->qualify('Signature'), $element)
+            ->map(static fn (Element $candidate): Element => $candidate);
+
+        if (count($contained) !== 1 || $contained[0] !== $signatureElement) {
+            throw SignatureVerificationFailed::withReason(
+                'An enveloped-signature reference must cover exactly the element holding this signature.',
+            );
+        }
+
+        return $signatureElement;
     }
 
     private function assertNotSignatureInfrastructure(Element $element, Element $signatureElement): void

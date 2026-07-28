@@ -27,6 +27,11 @@ use function VeeWee\Xml\Dom\Locator\Element\children;
 final class SignedInfoParser
 {
     /**
+     * The transform that removes the enveloping signature from the node-set; it names no canonicalization.
+     */
+    private const ENVELOPED_SIGNATURE = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature';
+
+    /**
      * @throws SignatureVerificationFailed
      */
     public function parse(Element $signature): ParsedSignedInfo
@@ -117,8 +122,24 @@ final class SignedInfoParser
             return [SignatureCanonicalization::C14N, []];
         }
 
-        $transform = ChildElements::single($transforms, Namespaces::Ds, 'Transform')
-            ?? throw SignatureVerificationFailed::withReason('A reference must declare exactly one transform.');
+        // The pipeline may open with the enveloped-signature transform, which names no canonicalization of its
+        // own; the canonicalization is whichever transform follows it. Which sequences are legal is decided by
+        // ReferenceResolver, so this reads the method and refuses only what it cannot read.
+        $declared = ChildElements::named($transforms, Namespaces::Ds, 'Transform');
+        $candidates = array_values(array_filter(
+            $declared,
+            static fn (Element $transform): bool => (string) $transform->getAttribute('Algorithm')
+                !== self::ENVELOPED_SIGNATURE,
+        ));
+
+        if ($candidates === []) {
+            // Enveloped-signature alone: the default canonicalization applies, as for an absent ds:Transforms.
+            return [SignatureCanonicalization::C14N, []];
+        }
+
+        $transform = count($candidates) === 1
+            ? $candidates[0]
+            : throw SignatureVerificationFailed::withReason('A reference must declare exactly one transform.');
 
         $algorithm = SignatureCanonicalization::tryFrom((string) $transform->getAttribute('Algorithm'));
         if ($algorithm === null) {

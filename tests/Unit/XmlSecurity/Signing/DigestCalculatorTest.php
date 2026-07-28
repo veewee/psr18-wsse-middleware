@@ -37,7 +37,7 @@ final class DigestCalculatorTest extends TestCase
     public function test_it_propagates_a_canonicalization_failure(): void
     {
         $canonicalizer = new class implements Canonicalizer {
-            public function canonicalize(Node $node, SignatureCanonicalization $method, ?array $inclusivePrefixes = null): string
+            public function canonicalize(Node $node, SignatureCanonicalization $method, ?array $inclusivePrefixes = null, ?Element $withoutSubtree = null): string
             {
                 throw CanonicalizationFailed::nativeError($node, $method);
             }
@@ -51,7 +51,7 @@ final class DigestCalculatorTest extends TestCase
     public function test_it_carries_the_requested_digest_method(): void
     {
         $canonicalizer = new class implements Canonicalizer {
-            public function canonicalize(Node $node, SignatureCanonicalization $method, ?array $inclusivePrefixes = null): string
+            public function canonicalize(Node $node, SignatureCanonicalization $method, ?array $inclusivePrefixes = null, ?Element $withoutSubtree = null): string
             {
                 return 'canonical-bytes';
             }

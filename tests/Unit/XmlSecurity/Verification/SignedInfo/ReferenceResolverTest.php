@@ -80,15 +80,77 @@ final class ReferenceResolverTest extends TestCase
         (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
-    public function test_it_rejects_an_enveloped_signature_transform(): void
+    public function test_it_accepts_an_enveloped_signature_transform_over_the_element_holding_the_signature(): void
     {
-        // This library signs detached, and its references name a c14n transform only. An enveloped-signature
-        // transform changes what the digest covers, so it is refused rather than quietly honoured.
-        $document = $this->document(['Body' => self::reference('#Body', self::ENVELOPED_SIGNATURE)]);
+        // A signature that signs the element it sits inside must exclude itself from the digest, which is what
+        // this transform means and is the shape a signed SAML assertion arrives in.
+        $document = $this->enveloped(self::transforms([self::ENVELOPED_SIGNATURE, self::EXC_C14N]));
+        [$elements, $parsed] = $this->references($document);
+
+        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+
+        static::assertCount(1, $resolved);
+        static::assertSame($this->byId($document, 'Assertion'), $resolved[0]->element);
+        // The signature to strip is carried forward by identity, so the digest excludes that exact subtree.
+        static::assertSame($this->signature($document), $resolved[0]->envelopedSignature);
+    }
+
+    public function test_it_accepts_an_enveloped_signature_transform_on_its_own(): void
+    {
+        // Legal per XML-DSig: with no canonicalization named, the default applies, exactly as for a reference
+        // that declares no transforms at all. Some signers emit this form.
+        $document = $this->enveloped(self::transforms([self::ENVELOPED_SIGNATURE]));
+        [$elements, $parsed] = $this->references($document);
+
+        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+
+        static::assertSame($this->signature($document), $resolved[0]->envelopedSignature);
+    }
+
+    public function test_it_refuses_a_second_signature_inside_the_digested_element(): void
+    {
+        // The wrapping lever. Stripping every ds:Signature under the element would silently drop an injected
+        // one from the digest, so more than one is refused outright rather than resolved by picking.
+        $document = $this->enveloped(
+            self::transforms([self::ENVELOPED_SIGNATURE, self::EXC_C14N]),
+            extra: '<ds:Signature wsu:Id="Injected"><ds:SignedInfo/></ds:Signature>',
+        );
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
         (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+    }
+
+    public function test_it_refuses_an_enveloped_signature_transform_when_the_element_holds_no_signature(): void
+    {
+        // The transform claims self-exclusion while the signature sits elsewhere, which is a relocated
+        // signature claiming to cover an element it is not inside.
+        $document = $this->document(['Body' => self::referenceWith('#Body', self::transforms([self::ENVELOPED_SIGNATURE, self::EXC_C14N]))]);
+        [$elements, $parsed] = $this->references($document);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+    }
+
+    public function test_it_refuses_a_canonicalization_declared_before_the_enveloped_signature_transform(): void
+    {
+        // Transforms are an ordered pipeline: canonicalizing first and stripping afterwards is a different
+        // computation, so the reversed order is a different claim and is not accepted as equivalent.
+        $document = $this->enveloped(self::transforms([self::EXC_C14N, self::ENVELOPED_SIGNATURE]));
+        [$elements, $parsed] = $this->references($document);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+    }
+
+    public function test_a_detached_reference_carries_no_signature_to_strip(): void
+    {
+        $document = $this->document(['Body' => self::reference('#Body', self::EXC_C14N)]);
+        [$elements, $parsed] = $this->references($document);
+
+        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+
+        static::assertNull($resolved[0]->envelopedSignature);
     }
 
     public function test_it_rejects_an_unknown_transform(): void
@@ -134,6 +196,49 @@ final class ReferenceResolverTest extends TestCase
 
         $this->expectException(SignatureVerificationFailed::class);
         (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $referenceElements, $parsed, $this->signature($document));
+    }
+
+    /**
+     * @param list<string> $algorithms
+     */
+    private static function transforms(array $algorithms): string
+    {
+        $transforms = '';
+        foreach ($algorithms as $algorithm) {
+            $transforms .= '<ds:Transform Algorithm="'.$algorithm.'"/>';
+        }
+
+        return '<ds:Transforms>'.$transforms.'</ds:Transforms>';
+    }
+
+    private static function referenceWith(string $uri, string $transforms): string
+    {
+        return '<ds:Reference URI="'.$uri.'">'.$transforms.self::digest().'</ds:Reference>';
+    }
+
+    /**
+     * An envelope whose signature sits inside the element it signs, the enveloped shape.
+     */
+    private function enveloped(string $transforms, string $extra = ''): Document
+    {
+        return Document::fromXmlString(
+            '<soap:Envelope'
+            .' xmlns:soap="'.WsseSignatureFixture::SOAP.'"'
+            .' xmlns:wsse="'.WsseSignatureFixture::WSSE.'"'
+            .' xmlns:wsu="'.WsseSignatureFixture::WSU.'"'
+            .' xmlns:ds="'.WsseSignatureFixture::DS.'">'
+            .'<soap:Header><wsse:Security>'
+            .'<a:Assertion xmlns:a="urn:assertion" wsu:Id="Assertion"><a:Payload>signed</a:Payload>'
+            .'<ds:Signature wsu:Id="TheSignature"><ds:SignedInfo>'
+            .'<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>'
+            .'<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>'
+            .self::referenceWith('#Assertion', $transforms)
+            .'</ds:SignedInfo></ds:Signature>'
+            .$extra
+            .'</a:Assertion>'
+            .'</wsse:Security></soap:Header>'
+            .'<soap:Body wsu:Id="Body"><data>x</data></soap:Body></soap:Envelope>'
+        );
     }
 
     private static function reference(string $uri, string $transform): string
