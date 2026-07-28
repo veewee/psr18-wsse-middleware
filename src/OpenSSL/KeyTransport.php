@@ -76,8 +76,9 @@ final class KeyTransport
 
     private function configure(RSA $key, KeyTransportAlgorithm $algorithm): RSA
     {
-        $oaepHash = $algorithm->oaepHash;
-        if (!$algorithm->isOaep() || $oaepHash === null) {
+        $labelHash = $algorithm->labelHash;
+        $mgfHash = $algorithm->mgfHash;
+        if (!$algorithm->isOaep() || $labelHash === null || $mgfHash === null) {
             /** @var RSA $configured */
             $configured = $key->withPadding(RSA::ENCRYPTION_PKCS1);
 
@@ -87,9 +88,9 @@ final class KeyTransport
         /** @var RSA $configured */
         $configured = $key->withPadding(RSA::ENCRYPTION_OAEP);
         /** @var RSA $configured */
-        $configured = $configured->withHash($oaepHash->value);
+        $configured = $configured->withHash($labelHash->value);
         /** @var RSA $configured */
-        $configured = $configured->withMGFHash($oaepHash->value);
+        $configured = $configured->withMGFHash($mgfHash->value);
 
         return $configured;
     }

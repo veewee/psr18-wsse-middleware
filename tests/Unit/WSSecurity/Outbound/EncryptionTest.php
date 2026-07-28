@@ -67,7 +67,7 @@ final class EncryptionTest extends OutboundTestCase
         $request = $encryptor->lastRequest();
         static::assertSame(DataEncryptionMethod::AES256_GCM, $request->dataEncryptionMethod);
         static::assertSame(KeyEncryptionMethod::RSA_OAEP, $request->keyTransportAlgorithm->method);
-        static::assertSame(OaepHash::Sha1, $request->keyTransportAlgorithm->oaepHash);
+        static::assertSame(OaepHash::Sha1, $request->keyTransportAlgorithm->labelHash);
     }
 
     public function test_a_per_block_data_encryption_override_wins(): void
@@ -99,7 +99,7 @@ final class EncryptionTest extends OutboundTestCase
 
         $algorithm = $encryptor->lastRequest()->keyTransportAlgorithm;
         static::assertSame(KeyEncryptionMethod::RSA_OAEP, $algorithm->method);
-        static::assertSame(OaepHash::Sha256, $algorithm->oaepHash);
+        static::assertSame(OaepHash::Sha256, $algorithm->labelHash);
     }
 
     public function test_an_rsa_1_5_transport_carries_a_null_oaep_hash(): void
@@ -111,7 +111,7 @@ final class EncryptionTest extends OutboundTestCase
 
         $algorithm = $encryptor->lastRequest()->keyTransportAlgorithm;
         static::assertSame(KeyEncryptionMethod::RSA_1_5, $algorithm->method);
-        static::assertNull($algorithm->oaepHash);
+        static::assertNull($algorithm->labelHash);
     }
 
     public function test_a_context_profile_drives_the_outbound_oaep_hash(): void
@@ -120,7 +120,7 @@ final class EncryptionTest extends OutboundTestCase
         $profile = new SecurityProfile(crypto: new CryptoPolicy(oaepHash: OaepHash::Sha256));
         (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope(), $profile));
 
-        static::assertSame(OaepHash::Sha256, $encryptor->lastRequest()->keyTransportAlgorithm->oaepHash);
+        static::assertSame(OaepHash::Sha256, $encryptor->lastRequest()->keyTransportAlgorithm->labelHash);
     }
 
     public function test_it_encrypts_with_oaep_sha256_and_round_trips_through_the_engine_decryptor(): void

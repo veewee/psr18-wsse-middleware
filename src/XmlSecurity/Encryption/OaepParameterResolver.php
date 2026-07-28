@@ -19,9 +19,10 @@ use function VeeWee\Xml\Dom\Locator\Element\children;
 /**
  * Resolves the OAEP parameterization a xenc:EncryptionMethod declares into one KeyTransportAlgorithm.
  *
- * The OAEP digest and MGF children are read from the xenc:EncryptionMethod and mapped to a single OAEP hash:
- * the digest and MGF hashes must agree, the legacy rsa-oaep-mgf1p URI fixes SHA-1, and the resolved hash must
- * be on the profile allow-list. A non-empty xenc:OAEPparams (a non-empty label) is rejected. Every rejection
+ * The OAEP digest and MGF children are read from the xenc:EncryptionMethod and mapped to a label hash: under
+ * rsa-oaep the declared digest and MGF hashes must agree, while the legacy rsa-oaep-mgf1p URI fixes the mask to
+ * MGF1-SHA1 and so declares no MGF child while leaving the label digest free. The resolved hash must be on the
+ * profile allow-list. A non-empty xenc:OAEPparams (a non-empty label) is rejected. Every rejection
  * surfaces as the same UnsupportedAlgorithmException the caller folds into its uniform failure, so the
  * resolution carries no distinguishing detail and cannot become a Bleichenbacher oracle.
  */
@@ -55,9 +56,8 @@ final class OaepParameterResolver
     }
 
     /**
-     * Maps the declared DigestMethod / MGF children onto one OAEP hash, defaulting absent children to SHA-1 /
-     * MGF1-SHA1 per the spec, and requiring the digest and MGF hashes to agree. The legacy rsa-oaep-mgf1p URI
-     * fixes MGF1-SHA1, so it admits no MGF child and no non-SHA-1 digest. A non-empty OAEPparams is rejected.
+     * Maps the declared DigestMethod / MGF children onto the OAEP label hash, defaulting an absent digest to
+     * SHA-1 per the spec. A non-empty OAEPparams is rejected.
      *
      * @throws UnsupportedAlgorithmException
      */
@@ -82,18 +82,21 @@ final class OaepParameterResolver
             ? OaepHash::Sha1
             : OaepHash::fromDigest($this->digest($digestUri));
 
-        $mgfHash = OaepHash::fromMgfUri($mgfUri);
+        // The legacy URI fixes the mask to MGF1-SHA1, so it declares no MGF child at all. The label digest
+        // stays free of that: a SHA-256 digest under this URI means a SHA-256 label with a SHA-1 mask, which
+        // is what a conforming peer emits and what the resolved algorithm carries.
+        if ($method === KeyEncryptionMethod::RSA_OAEP_MGF1P) {
+            if ($mgfUri !== null) {
+                throw UnsupportedAlgorithmException::forAlgorithm($mgfUri);
+            }
 
-        // The MGF hash must match the OAEP digest hash; a mismatched pair is rejected.
-        if ($mgfHash !== $digestHash) {
-            throw UnsupportedAlgorithmException::forAlgorithm($mgfUri ?? '');
+            return $digestHash;
         }
 
-        // The legacy URI fixes MGF1-SHA1, so it carries no MGF child and no non-SHA-1 digest.
-        if ($method === KeyEncryptionMethod::RSA_OAEP_MGF1P) {
-            if ($mgfUri !== null || $digestHash !== OaepHash::Sha1) {
-                throw UnsupportedAlgorithmException::forAlgorithm($digestUri ?? $mgfUri ?? '');
-            }
+        // Under rsa-oaep both are declarable, and the pair is required to agree: a mismatch is not something a
+        // peer needs and admitting it would only widen the parameterizations that reach the unwrap.
+        if (OaepHash::fromMgfUri($mgfUri) !== $digestHash) {
+            throw UnsupportedAlgorithmException::forAlgorithm($mgfUri ?? '');
         }
 
         return $digestHash;

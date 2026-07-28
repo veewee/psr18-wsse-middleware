@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
@@ -71,31 +72,50 @@ final class EncryptedKeyBuilder
     {
         // SHA-1 OAEP carries no DigestMethod / MGF children: the spec defaults are SHA-1 / MGF1-SHA1, so a bare
         // EncryptionMethod stays byte-identical to peers and to prior output. SHA-256 is declared explicitly.
-        $oaepHash = $algorithm->oaepHash;
-        if (!$algorithm->isOaep() || $oaepHash === null || $oaepHash === OaepHash::Sha1) {
-            return $document->map(namespaced_element(
-                Namespaces::Xenc->value,
-                Namespaces::Xenc->qualify('EncryptionMethod'),
-                attribute('Algorithm', $algorithm->method->value),
+        $labelHash = $algorithm->labelHash;
+        $mgfHash = $algorithm->mgfHash;
+        if (!$algorithm->isOaep() || $labelHash === null || $mgfHash === null) {
+            return $this->bareEncryptionMethod($document, $algorithm);
+        }
+
+        $declared = [];
+        if ($labelHash !== OaepHash::Sha1) {
+            $declared[] = static fn (): Element => $document->map(namespaced_element(
+                Namespaces::Ds->value,
+                Namespaces::Ds->qualify('DigestMethod'),
+                attribute('Algorithm', $labelHash->digestMethod()->value),
             ));
+        }
+
+        // xenc11:MGF parameterizes the xenc11 rsa-oaep URI only. Under the legacy mgf1p URI the mask is already
+        // fixed to MGF1-SHA1, so declaring it there would be an element the URI does not take -- and one this
+        // library's own resolver refuses, leaving the output undecryptable even by itself.
+        if ($algorithm->method !== KeyEncryptionMethod::RSA_OAEP_MGF1P && $mgfHash !== OaepHash::Sha1) {
+            $declared[] = static fn (): Element => $document->map(namespaced_element(
+                Namespaces::Xenc11->value,
+                Namespaces::Xenc11->qualify('MGF'),
+                attribute('Algorithm', $mgfHash->mgfUri()),
+            ));
+        }
+
+        if ($declared === []) {
+            return $this->bareEncryptionMethod($document, $algorithm);
         }
 
         return $document->map(namespaced_element(
             Namespaces::Xenc->value,
             Namespaces::Xenc->qualify('EncryptionMethod'),
             attribute('Algorithm', $algorithm->method->value),
-            children(
-                static fn (): Element => $document->map(namespaced_element(
-                    Namespaces::Ds->value,
-                    Namespaces::Ds->qualify('DigestMethod'),
-                    attribute('Algorithm', $oaepHash->digestMethod()->value),
-                )),
-                static fn (): Element => $document->map(namespaced_element(
-                    Namespaces::Xenc11->value,
-                    Namespaces::Xenc11->qualify('MGF'),
-                    attribute('Algorithm', $oaepHash->mgfUri()),
-                )),
-            ),
+            children(...$declared),
+        ));
+    }
+
+    private function bareEncryptionMethod(Document $document, KeyTransportAlgorithm $algorithm): Element
+    {
+        return $document->map(namespaced_element(
+            Namespaces::Xenc->value,
+            Namespaces::Xenc->qualify('EncryptionMethod'),
+            attribute('Algorithm', $algorithm->method->value),
         ));
     }
 

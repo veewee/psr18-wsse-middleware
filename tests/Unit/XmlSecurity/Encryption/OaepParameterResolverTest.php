@@ -37,7 +37,7 @@ final class OaepParameterResolverTest extends TestCase
         );
 
         static::assertSame(KeyTransportAlgorithm::oaepSha1()->method, $algorithm->method);
-        static::assertSame(OaepHash::Sha1, $algorithm->oaepHash);
+        static::assertSame(OaepHash::Sha1, $algorithm->labelHash);
     }
 
     public function test_rsa_1_5_is_rejected_by_the_default_policy(): void
@@ -61,7 +61,7 @@ final class OaepParameterResolverTest extends TestCase
         );
 
         static::assertSame(KeyEncryptionMethod::RSA_1_5, $algorithm->method);
-        static::assertNull($algorithm->oaepHash);
+        static::assertNull($algorithm->labelHash);
     }
 
     public function test_a_policy_excluding_oaep_rejects_an_oaep_method(): void
@@ -89,7 +89,7 @@ final class OaepParameterResolverTest extends TestCase
             CryptoPolicy::default(),
         );
 
-        static::assertSame(OaepHash::Sha256, $algorithm->oaepHash);
+        static::assertSame(OaepHash::Sha256, $algorithm->labelHash);
     }
 
     public function test_a_digest_mgf_mismatch_is_rejected(): void
@@ -121,10 +121,29 @@ final class OaepParameterResolverTest extends TestCase
         $this->expectRejection($element, KeyEncryptionMethod::RSA_OAEP_MGF1P);
     }
 
-    public function test_the_legacy_mgf1p_uri_rejects_a_non_sha1_digest(): void
+    public function test_the_legacy_mgf1p_uri_takes_a_non_sha1_label_digest_with_the_mask_fixed_to_sha1(): void
     {
+        // The legacy URI fixes only the mask. A SHA-256 DigestMethod under it asks for a SHA-256 label with an
+        // MGF1-SHA1 mask, which is what WSS4J emits for RSA_OAEP_MGF1P with a SHA-256 OAEP hash.
         $element = $this->encryptionMethod(self::RSA_OAEP_MGF1P, [
             ['DigestMethod', self::DS, self::SHA256],
+        ]);
+
+        $algorithm = (new OaepParameterResolver())->resolve(
+            KeyEncryptionMethod::RSA_OAEP_MGF1P,
+            $element,
+            CryptoPolicy::default(),
+        );
+
+        static::assertSame(OaepHash::Sha256, $algorithm->labelHash);
+        static::assertSame(OaepHash::Sha1, $algorithm->mgfHash);
+    }
+
+    public function test_the_legacy_mgf1p_uri_rejects_a_declared_mgf_child(): void
+    {
+        // The mask is not declarable under this URI, so an MGF child is a parameter it does not take.
+        $element = $this->encryptionMethod(self::RSA_OAEP_MGF1P, [
+            ['MGF', self::XENC11, self::MGF1_SHA1],
         ]);
 
         $this->expectRejection($element, KeyEncryptionMethod::RSA_OAEP_MGF1P);
@@ -140,7 +159,7 @@ final class OaepParameterResolverTest extends TestCase
             CryptoPolicy::default(),
         );
 
-        static::assertSame(OaepHash::Sha1, $algorithm->oaepHash);
+        static::assertSame(OaepHash::Sha1, $algorithm->labelHash);
     }
 
     public function test_a_non_empty_oaep_params_is_rejected(): void
