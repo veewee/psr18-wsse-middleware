@@ -159,8 +159,9 @@ final class KeyInfoReader
     }
 
     /**
-     * Reads the at-most-one wsse:KeyIdentifier child. The element lives in either the WSSE 1.0 or the WSSE 1.1
-     * namespace depending on the ValueType, so both are accepted but only one may be present.
+     * Reads the at-most-one wsse:KeyIdentifier child. The element belongs in WSSE 1.0 whatever its ValueType,
+     * but the 1.1 namespace is also accepted: earlier releases of this library emitted a Thumbprint reference
+     * that way, and a response correlated to one of those must still verify. Only one may be present.
      */
     private function onlyKeyIdentifier(Element $str): ?Element
     {

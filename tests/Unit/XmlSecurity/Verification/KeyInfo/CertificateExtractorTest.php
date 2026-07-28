@@ -27,6 +27,7 @@ final class CertificateExtractorTest extends TestCase
 {
     private const X509_TOKEN = WsseSignatureFixture::X509_TOKEN;
     private const WSSE11 = 'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd';
+    private const THUMBPRINT_VALUE_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1';
 
     public function test_it_reads_the_certificate_from_a_referenced_binary_security_token(): void
     {
@@ -176,6 +177,45 @@ final class CertificateExtractorTest extends TestCase
         );
 
         static::assertSame($this->base64Der($fixture->leafCertificate), $this->base64Der($chain->leaf()));
+    }
+
+    public function test_it_still_resolves_a_thumbprint_reference_in_the_1_1_namespace(): void
+    {
+        // KeyIdentifier is declared only in WSSE 1.0, so 1.0 is what this library emits. The 1.1 form is
+        // tolerated on the way in: earlier releases emitted it, and any peer that made the same conflation
+        // would otherwise be refused over a namespace that carries no meaning here.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $thumbprint = $fixture->leafCertificate->info()->thumbprintSha1()->toBase64();
+        $document = $this->document('', '<ds:KeyInfo><wsse:SecurityTokenReference>'
+            .'<wsse11:KeyIdentifier ValueType="'.self::THUMBPRINT_VALUE_TYPE.'">'.$thumbprint.'</wsse11:KeyIdentifier>'
+            .'</wsse:SecurityTokenReference></ds:KeyInfo>');
+
+        $chain = $this->extractor()->extract(
+            $document,
+            $this->signature($document),
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+        );
+
+        static::assertSame($this->base64Der($fixture->leafCertificate), $this->base64Der($chain->leaf()));
+    }
+
+    public function test_a_reference_carrying_both_key_identifier_namespaces_is_refused(): void
+    {
+        // Tolerating the 1.1 form must not let a second KeyIdentifier shadow the real one.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $thumbprint = $fixture->leafCertificate->info()->thumbprintSha1()->toBase64();
+        $identifier = '<%s:KeyIdentifier ValueType="'.self::THUMBPRINT_VALUE_TYPE.'">'.$thumbprint.'</%s:KeyIdentifier>';
+        $document = $this->document('', '<ds:KeyInfo><wsse:SecurityTokenReference>'
+            .sprintf($identifier, 'wsse', 'wsse')
+            .sprintf($identifier, 'wsse11', 'wsse11')
+            .'</wsse:SecurityTokenReference></ds:KeyInfo>');
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->extractor()->extract(
+            $document,
+            $this->signature($document),
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+        );
     }
 
     public function test_it_resolves_a_signer_referenced_by_issuer_and_serial(): void

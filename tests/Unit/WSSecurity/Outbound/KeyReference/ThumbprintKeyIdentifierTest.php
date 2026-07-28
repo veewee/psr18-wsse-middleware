@@ -10,7 +10,7 @@ final class ThumbprintKeyIdentifierTest extends KeyIdentifierTestCase
     private const VALUE_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1';
     private const ENCODING_TYPE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
 
-    public function test_it_emits_a_wsse11_key_identifier_with_the_sha1_thumbprint(): void
+    public function test_it_emits_a_wsse_key_identifier_with_the_sha1_thumbprint(): void
     {
         $document = $this->document();
         $certificate = $this->certificate();
@@ -28,7 +28,9 @@ final class ThumbprintKeyIdentifierTest extends KeyIdentifierTestCase
 
         $keyIdentifier = $this->firstChildElement($str);
         static::assertSame('KeyIdentifier', $keyIdentifier->localName);
-        static::assertSame(self::WSSE11, $keyIdentifier->namespaceURI);
+        // The X.509 Token Profile prints this element as wsse:KeyIdentifier: only the ValueType URI is 1.1,
+        // and the WSS 1.1 secext schema declares no KeyIdentifier element for it to live in.
+        static::assertSame(self::WSSE, $keyIdentifier->namespaceURI);
         static::assertSame(self::VALUE_TYPE, $keyIdentifier->getAttribute('ValueType'));
         static::assertSame(self::ENCODING_TYPE, $keyIdentifier->getAttribute('EncodingType'));
         static::assertSame($expected, $keyIdentifier->textContent);

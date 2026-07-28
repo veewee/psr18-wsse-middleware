@@ -67,16 +67,18 @@ final readonly class SecurityTokenReference
     }
 
     /**
-     * Thumbprint variant: a wsse11:KeyIdentifier carrying the SHA-1 fingerprint of the certificate. The
-     * KeyIdentifier lives in the WSSE 1.1 namespace while the enclosing reference stays in WSSE 1.0.
+     * Thumbprint variant: a wsse:KeyIdentifier carrying the SHA-1 fingerprint of the certificate. Only the
+     * ValueType URI belongs to WSS 1.1; the element itself stays in WSSE 1.0, which is where KeyIdentifier is
+     * declared and how the X.509 Token Profile prints this reference. A peer resolves it by that 1.0 qualified
+     * name, so emitting it in the 1.1 namespace would leave the reference unresolvable.
      *
      * @param non-empty-string $encodedValue the base64-encoded fingerprint
      */
     public static function thumbprint(string $encodedValue): self
     {
         return new self(namespaced_element(
-            Namespaces::Wsse11->value,
-            Namespaces::Wsse11->qualify('KeyIdentifier'),
+            Namespaces::Wsse->value,
+            Namespaces::Wsse->qualify('KeyIdentifier'),
             attribute('ValueType', WsSecurityValueType::ThumbprintSha1->value),
             attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
             value($encodedValue),
