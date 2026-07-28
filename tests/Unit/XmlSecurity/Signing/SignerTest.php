@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Signing;
 
 use Dom\Element;
-use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
@@ -279,25 +278,16 @@ final class SignerTest extends TestCase
     }
 
     /**
+     * The fixed fixture pair: nothing here depends on the key's identity, and a fixed key keeps every
+     * signing test deterministic and free of per-test key generation.
+     *
      * @return array{0: Key, 1: Certificate}
      */
     private function keyAndCertificate(): array
     {
-        $private = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
-        static::assertInstanceOf(OpenSSLAsymmetricKey::class, $private);
-
-        static::assertTrue(openssl_pkey_export($private, $privatePem));
-        static::assertIsString($privatePem);
-
-        $csr = openssl_csr_new(['commonName' => 'wsse-signer-test'], $private);
-        static::assertNotFalse($csr);
-
-        $certificate = openssl_csr_sign($csr, null, $private, 365);
-        static::assertNotFalse($certificate);
-
-        static::assertTrue(openssl_x509_export($certificate, $certificatePem));
-        static::assertIsString($certificatePem);
-
-        return [new Key($privatePem), new Certificate($certificatePem)];
+        return [
+            Key::fromFile(FIXTURE_DIR.'/interop/wss4j-recipient-php-client.key'),
+            Certificate::fromFile(FIXTURE_DIR.'/interop/wss4j-recipient-php-client.crt'),
+        ];
     }
 }
