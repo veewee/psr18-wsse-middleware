@@ -82,8 +82,8 @@ final class EncryptedKeyReader
     }
 
     /**
-     * Counts the xenc:DataReference entries declared inside the xenc:EncryptedKey's xenc:ReferenceList. The
-     * caller enforces the part-count cap with this number before any unwrap or decrypt work.
+     * Counts the xenc:DataReference entries the message declares. The caller enforces the part-count cap with
+     * this number before any unwrap or decrypt work.
      *
      * @return list<non-empty-string> the bare ids (without the '#' prefix) each DataReference URI points at
      *
@@ -91,8 +91,7 @@ final class EncryptedKeyReader
      */
     public function dataReferences(Document $document): array
     {
-        $encryptedKey = $this->locate($document);
-        $referenceList = $this->child($encryptedKey, 'ReferenceList', Namespaces::Xenc);
+        $referenceList = $this->referenceList($document);
 
         $ids = [];
         foreach (ChildElements::named($referenceList, Namespaces::Xenc, 'DataReference') as $child) {
@@ -107,6 +106,33 @@ final class EncryptedKeyReader
         }
 
         return $ids;
+    }
+
+    /**
+     * The one xenc:ReferenceList naming the encrypted parts. XML-Enc lets it sit inside the xenc:EncryptedKey
+     * or stand detached beside it in the Security header, and peers emit both shapes, so either is accepted —
+     * but never both at once and never two of one form. This list decides which parts the decryptor touches,
+     * so a second candidate is refused outright instead of one being chosen: picking either would let the
+     * other be injected. A duplicate of one form is refused rather than read as an absence, which would
+     * otherwise let it fall through to an injected instance of the other form.
+     *
+     * @throws DecryptionFailed
+     */
+    private function referenceList(Document $document): Element
+    {
+        $carried = ChildElements::named($this->locate($document), Namespaces::Xenc, 'ReferenceList');
+        $detached = Query::elements(
+            $document,
+            '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Xenc->qualify('ReferenceList'),
+        )->map(static fn (Element $element): Element => $element);
+
+        if (count($carried) > 1 || count($detached) > 1 || (count($carried) === 1 && count($detached) === 1)) {
+            throw DecryptionFailed::withReason('Exactly one xenc:ReferenceList is required.');
+        }
+
+        return $carried[0]
+            ?? $detached[0]
+            ?? throw DecryptionFailed::withReason('Exactly one xenc:ReferenceList is required.');
     }
 
     /**
