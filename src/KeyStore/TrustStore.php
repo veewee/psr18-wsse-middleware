@@ -3,16 +3,24 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\KeyStore;
 
+use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidTrustStore;
 use Soap\Psr18WsseMiddleware\KeyStore\Exception\Pkcs12Exception;
 
 /**
- * The set of trust anchors / pinned certificates the inbound verifier is willing to accept. A credential
- * value object with no openssl here; the chain validation against these anchors lives in OpenSSL\CertificateTrust.
+ * The set of trust anchors / pinned certificates the inbound verifier is willing to accept, and optionally the
+ * revocation lists it checks signers against. A credential value object with no openssl here; the chain
+ * validation against these anchors lives in OpenSSL\CertificateTrust.
+ *
+ * Anchors and revocation lists belong together because a CRL is only believed once its own signature verifies
+ * against one of these anchors.
  */
 final class TrustStore
 {
     /** @var list<Certificate> */
     private readonly array $anchors;
+
+    /** @var list<CertificateRevocationList> */
+    private array $revocationLists = [];
 
     private function __construct(Certificate ...$anchors)
     {
@@ -39,11 +47,46 @@ final class TrustStore
     }
 
     /**
+     * Turns on revocation checking with the lists to check against. Off by default, matching the peer default
+     * (WSS4J ships ENABLE_REVOCATION=false), because it needs material only the integrator can supply.
+     *
+     * Once on, the check is fail-closed: a signer whose issuer no supplied list covers is rejected, as is one
+     * covered by a list that is stale or not signed by an anchor. Nothing here fetches over the network, so
+     * enabling this adds no I/O and no new timeout to the verification path.
+     *
+     * @throws InvalidTrustStore when revocation is required with no list to check against
+     */
+    public function withRevocationLists(CertificateRevocationList ...$revocationLists): self
+    {
+        if ($revocationLists === []) {
+            throw InvalidTrustStore::withoutRevocationLists();
+        }
+
+        $clone = clone $this;
+        $clone->revocationLists = array_values($revocationLists);
+
+        return $clone;
+    }
+
+    /**
      * @return list<Certificate>
      */
     public function anchors(): array
     {
         return $this->anchors;
+    }
+
+    /**
+     * @return list<CertificateRevocationList>
+     */
+    public function revocationLists(): array
+    {
+        return $this->revocationLists;
+    }
+
+    public function checksRevocation(): bool
+    {
+        return $this->revocationLists !== [];
     }
 
     public function isEmpty(): bool

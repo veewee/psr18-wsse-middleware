@@ -1,0 +1,190 @@
+<?php
+declare(strict_types=1);
+
+namespace Soap\Psr18WsseMiddleware\OpenSSL;
+
+use phpseclib3\File\X509;
+use Psl\DateTime\Timestamp;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\CertificateRevocationList;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\SerialNumber;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
+use Throwable;
+use function Psl\Type\array_key;
+use function Psl\Type\dict;
+use function Psl\Type\mixed;
+use function Psl\Type\string;
+use function Psl\Type\vec;
+
+/**
+ * Decides whether a certificate that already chains to an anchor has been revoked, against the revocation lists
+ * the trust store carries. Nothing here reaches the network: the lists are integrator-supplied, so the check
+ * adds no fetch, no timeout, and no denial-of-service lever to the inbound path.
+ *
+ * The rule is fail-closed in every direction. A signer is accepted only when a list that is trusted, current,
+ * and issued by that signer's own issuer stays silent about its serial. Revoked rejects; no list covering the
+ * issuer rejects, because revocation that skips the issuers you forgot to supply reads as enabled while
+ * checking nothing; a list past its nextUpdate rejects, since a stalled refresh must not become a way to
+ * disable the check; and a list whose signature does not verify against an anchor rejects, because an
+ * unverified list is attacker-controlled input and a forged empty one would un-revoke everything.
+ *
+ * The parsing runs on phpseclib because PHP's openssl extension exposes no CRL API at all.
+ */
+final class RevocationCheck
+{
+    /**
+     * @throws CertificateTrustException
+     */
+    public function assertNotRevoked(Certificate $leaf, TrustStore $trust, Timestamp $now): void
+    {
+        try {
+            $issuerSerial = $leaf->info()->issuerSerial();
+        } catch (Throwable) {
+            throw CertificateTrustException::unreadable();
+        }
+
+        $covering = $this->listCovering($issuerSerial->issuer, $trust);
+
+        $this->assertCurrent($covering, $now);
+        $this->assertRevokesNot($covering, $issuerSerial->serialNumber);
+    }
+
+    /**
+     * The one list issued by the signer's own issuer, verified against an anchor before it is read for anything
+     * else. A list issued by anyone else is not a weaker answer, it is no answer: it says nothing about this
+     * issuer's certificates.
+     *
+     * @throws CertificateTrustException
+     */
+    private function listCovering(DistinguishedName $issuer, TrustStore $trust): X509
+    {
+        $anchorsPem = $trust->toPem()->toString();
+        $untrusted = null;
+
+        foreach ($trust->revocationLists() as $revocationList) {
+            $parsed = $this->parse($revocationList, $anchorsPem);
+
+            if (!$this->issuerOf($parsed)->equals($issuer)) {
+                continue;
+            }
+
+            // Trust is asserted only for a list that actually covers this issuer, so an unrelated untrusted list
+            // in the store cannot fail a verification it has no bearing on.
+            if ($parsed->validateSignature() !== true) {
+                $untrusted = CertificateTrustException::revocationListUntrusted();
+
+                continue;
+            }
+
+            return $parsed;
+        }
+
+        throw $untrusted ?? CertificateTrustException::revocationUnknown();
+    }
+
+    /**
+     * @throws CertificateTrustException
+     */
+    private function parse(CertificateRevocationList $revocationList, string $anchorsPem): X509
+    {
+        $reader = new X509();
+        $reader->loadCA($anchorsPem);
+
+        try {
+            if ($reader->loadCRL($revocationList->contents()) === false) {
+                throw CertificateTrustException::revocationListUnreadable();
+            }
+        } catch (CertificateTrustException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            throw CertificateTrustException::revocationListUnreadable();
+        }
+
+        return $reader;
+    }
+
+    /**
+     * @throws CertificateTrustException
+     */
+    private function issuerOf(X509 $revocationList): DistinguishedName
+    {
+        $issuer = $revocationList->getIssuerDN(X509::DN_STRING);
+        if (!is_string($issuer) || $issuer === '') {
+            throw CertificateTrustException::revocationListUnreadable();
+        }
+
+        return DistinguishedName::fromString($issuer);
+    }
+
+    /**
+     * A list with no nextUpdate states no expiry and so can never be shown to be current; it is refused rather
+     * than treated as valid forever.
+     *
+     * @throws CertificateTrustException
+     */
+    private function assertCurrent(X509 $revocationList, Timestamp $now): void
+    {
+        // phpseclib returns the parsed structure untyped, so the shape is coerced here rather than trusted.
+        $parsed = dict(array_key(), mixed())->coerce($revocationList->getCurrentCert());
+        $stated = $this->statedNextUpdate($parsed);
+
+        if ($stated === null) {
+            throw CertificateTrustException::revocationListStale();
+        }
+
+        $expiresAt = strtotime($stated);
+        if ($expiresAt === false) {
+            throw CertificateTrustException::revocationListUnreadable();
+        }
+
+        if ($now->getSeconds() >= $expiresAt) {
+            throw CertificateTrustException::revocationListStale();
+        }
+    }
+
+    /**
+     * @throws CertificateTrustException
+     */
+    private function assertRevokesNot(X509 $revocationList, SerialNumber $serialNumber): void
+    {
+        // listRevoked() reports serials in decimal, which is the form SerialNumber normalises to, so the
+        // comparison needs no base guessing and holds for serials beyond the platform integer range.
+        try {
+            $revoked = vec(string())->coerce($revocationList->listRevoked());
+        } catch (Throwable) {
+            throw CertificateTrustException::revocationListUnreadable();
+        }
+
+        if (in_array($serialNumber->toString(), $revoked, true)) {
+            throw CertificateTrustException::revoked();
+        }
+    }
+
+    /**
+     * The nextUpdate a CRL states, in whichever ASN.1 time form it used, or null when it states none.
+     *
+     * @param array<array-key, mixed> $parsed
+     */
+    private function statedNextUpdate(array $parsed): ?string
+    {
+        $tbs = $parsed['tbsCertList'] ?? null;
+        if (!is_array($tbs)) {
+            return null;
+        }
+
+        $nextUpdate = $tbs['nextUpdate'] ?? null;
+        if (!is_array($nextUpdate)) {
+            return null;
+        }
+
+        foreach (['utcTime', 'generalTime'] as $form) {
+            if (isset($nextUpdate[$form]) && is_string($nextUpdate[$form]) && $nextUpdate[$form] !== '') {
+                return $nextUpdate[$form];
+            }
+        }
+
+        return null;
+    }
+}

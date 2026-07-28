@@ -379,6 +379,43 @@ The signer's certificate must chain to a trust anchor, be within its validity wi
 certificate with no `keyUsage` extension is not refused on that ground. No Extended Key Usage is required: the
 X.509 Token Profile mandates none, and no registered EKU describes WS-Security message signing.
 
+### Revocation checking (opt-in)
+
+By default a signer that has been revoked but is still inside its validity window verifies, which is also what
+stock WSS4J does (`ENABLE_REVOCATION` defaults to false). To check revocation, add the CRLs to the trust store:
+
+```php
+use Soap\Psr18WsseMiddleware\KeyStore\CertificateRevocationList;
+
+$trustStore = TrustStore::fromCertificates(Certificate::fromFile('service-ca.pub'))
+    ->withRevocationLists(CertificateRevocationList::fromFile('service-ca.crl'));
+```
+
+The lists are yours to supply and refresh. **Nothing is fetched over the network**, so enabling this adds no I/O,
+no timeout, and no new denial-of-service lever to the inbound path. Distribution-point and OCSP lookups are
+deliberately not implemented.
+
+Once enabled the check is **fail-closed in every direction** — a signer is accepted only when a list that is
+trusted, current, and issued by that signer's own issuer says nothing about it:
+
+| Situation | Outcome |
+|---|---|
+| The list is current and does not name the certificate | Accepted |
+| The list names the certificate | Rejected |
+| No supplied list was issued by the signer's issuer | Rejected — an unrelated CA's list says nothing about this signer |
+| The covering list is past its `nextUpdate` | Rejected — a stalled refresh must not silently disable the check |
+| The covering list's signature does not verify against an anchor | Rejected — a forged empty list would otherwise un-revoke everything |
+
+That last rule is why the lists live on the trust store rather than beside it: a CRL is believed only once its
+own signature verifies against one of the same anchors. Note the third row in particular — enabling revocation
+and then forgetting a CRL for one of your issuers **rejects that issuer's signers** rather than skipping them,
+because a configuration that reads as enabled while checking nothing is worse than one that is plainly off. For
+the same reason, `withRevocationLists()` with no arguments is refused outright.
+
+Every one of these rejections collapses into the same uniform `SecurityFault` as any other untrusted
+certificate, so a peer cannot learn that it was revoked, or that your lists are stale or missing. The specific
+reason is chained for your logs.
+
 ## Inbound: `ValidateTimestamp`
 
 Rejects a stale or future-dated response before your application sees it. It locates the single `wsu:Timestamp`
@@ -692,7 +729,9 @@ element they expand to; inbound `VerifySignature` requires every such element to
   `BinarySecurityToken`.
 
 `KeyStore\TrustStore::fromCertificates(Certificate ...$anchors)` lists the certificates you trust when verifying a
-response.
+response. `->withRevocationLists(CertificateRevocationList ...$lists)` additionally turns on fail-closed
+revocation checking against lists you supply — see
+[Revocation checking](#revocation-checking-opt-in).
 
 # Security profile and defaults
 

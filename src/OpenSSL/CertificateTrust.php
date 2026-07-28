@@ -23,10 +23,12 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
 final class CertificateTrust
 {
     private Clock $clock;
+    private readonly RevocationCheck $revocationCheck;
 
     public function __construct(Clock $clock = new SystemClock())
     {
         $this->clock = $clock;
+        $this->revocationCheck = new RevocationCheck();
     }
 
     public function withClock(Clock $clock): self
@@ -54,6 +56,12 @@ final class CertificateTrust
         $this->assertWithinValidity($info->validity());
         $this->assertMaySign($info->keyUsage());
         $this->assertChainsToAnchor($chain, $trust);
+
+        // Revocation runs last, once the certificate is known to chain to an anchor: asking whether an untrusted
+        // certificate is revoked is meaningless, and the revocation lists are verified against those same anchors.
+        if ($trust->checksRevocation()) {
+            $this->revocationCheck->assertNotRevoked($leaf, $trust, $this->clock->now());
+        }
 
         return new TrustedSigner($info->subject(), $leaf);
     }

@@ -35,4 +35,32 @@ final class CertificateTrustException extends RuntimeException
     {
         return new self('The certificate could not be read.');
     }
+
+    public static function revoked(): self
+    {
+        return new self('The certificate is listed as revoked.');
+    }
+
+    public static function revocationUnknown(): self
+    {
+        return new self(
+            'No supplied revocation list covers the issuer of this certificate, so its revocation state is '
+            .'unknown.',
+        );
+    }
+
+    public static function revocationListStale(): self
+    {
+        return new self('The revocation list covering this issuer is past its nextUpdate.');
+    }
+
+    public static function revocationListUntrusted(): self
+    {
+        return new self('The revocation list is not signed by a configured trust anchor.');
+    }
+
+    public static function revocationListUnreadable(): self
+    {
+        return new self('The revocation list could not be read.');
+    }
 }
