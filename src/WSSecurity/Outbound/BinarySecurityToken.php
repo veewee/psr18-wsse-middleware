@@ -36,7 +36,7 @@ use function VeeWee\Xml\Dom\Builder\value;
  */
 final class BinarySecurityToken implements OutboundAction
 {
-    private ?CertificateChain $path = null;
+    private ?CertificateChain $chain = null;
 
     public function __construct(
         private readonly Certificate $certificate,
@@ -48,10 +48,10 @@ final class BinarySecurityToken implements OutboundAction
      * certificate the token stands for: it is the key a signature is verified with, the path is only what a
      * receiver needs to reach a trust anchor.
      */
-    public static function forCertificatePath(CertificateChain $path): self
+    public static function forCertificatePath(CertificateChain $chain): self
     {
-        $token = new self($path->leaf());
-        $token->path = $path;
+        $token = new self($chain->leaf());
+        $token->chain = $chain;
 
         return $token;
     }
@@ -99,7 +99,7 @@ final class BinarySecurityToken implements OutboundAction
         return new DirectReferenceKeyIdentifier(
             $this->embed($context),
             $valueType->value,
-            $this->path === null ? null : $valueType->value,
+            $this->chain === null ? null : $valueType->value,
         );
     }
 
@@ -109,14 +109,14 @@ final class BinarySecurityToken implements OutboundAction
      */
     private function body(): string
     {
-        return $this->path === null
+        return $this->chain === null
             ? $this->certificate->toBase64Der()
-            : base64_encode(PkiPath::encode($this->path));
+            : base64_encode(PkiPath::encode($this->chain));
     }
 
     private function valueType(): WsSecurityValueType
     {
-        return $this->path === null ? WsSecurityValueType::X509v3 : WsSecurityValueType::X509PKIPathv1;
+        return $this->chain === null ? WsSecurityValueType::X509v3 : WsSecurityValueType::X509PKIPathv1;
     }
 
     /**

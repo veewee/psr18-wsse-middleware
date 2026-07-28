@@ -48,7 +48,7 @@ final class Signature implements OutboundAction
     private ?DigestMethod $digestMethod = null;
     private ?SignatureCanonicalization $canonicalization = null;
     private bool $inclusivePrefixes = false;
-    private ?CertificateChain $certificatePath = null;
+    private ?CertificateChain $certificateChain = null;
 
     private XmlSigner $signer;
 
@@ -118,7 +118,7 @@ final class Signature implements OutboundAction
      * @throws InvalidArgumentException when no token is embedded to carry the path, or when the path does not
      *         start at the signing certificate
      */
-    public function withCertificatePath(CertificateChain $path): self
+    public function withCertificatePath(CertificateChain $chain): self
     {
         if ($this->keyRef !== KeyRef::BinarySecurityToken) {
             // The inline references derive their content from the certificate alone and embed no token, so there
@@ -126,14 +126,14 @@ final class Signature implements OutboundAction
             throw new InvalidArgumentException('A certificate path needs KeyRef::BinarySecurityToken to carry it.');
         }
 
-        if ($path->leaf()->toBase64Der() !== $this->clientCertificate->publicCertificate()->toBase64Der()) {
+        if ($chain->leaf()->toBase64Der() !== $this->clientCertificate->publicCertificate()->toBase64Der()) {
             // The path says which key verifies this signature. One starting anywhere else advertises a key that
             // did not sign, and no receiver can verify the result.
             throw new InvalidArgumentException('A certificate path must start at the signing certificate.');
         }
 
         $clone = clone $this;
-        $clone->certificatePath = $path;
+        $clone->certificateChain = $chain;
 
         return $clone;
     }
@@ -194,8 +194,8 @@ final class Signature implements OutboundAction
 
     private function binarySecurityToken(): BinarySecurityToken
     {
-        return $this->certificatePath === null
+        return $this->certificateChain === null
             ? new BinarySecurityToken($this->clientCertificate->publicCertificate())
-            : BinarySecurityToken::forCertificatePath($this->certificatePath);
+            : BinarySecurityToken::forCertificatePath($this->certificateChain);
     }
 }
