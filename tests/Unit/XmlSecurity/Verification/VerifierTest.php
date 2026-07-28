@@ -15,6 +15,8 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
@@ -46,7 +48,7 @@ final class VerifierTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
-        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -85,7 +87,7 @@ final class VerifierTest extends TestCase
                 acceptedDigestMethods: [$digestMethod],
                 acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
             ),
-        ));
+        ), $this->security($document));
 
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
     }
@@ -119,7 +121,7 @@ final class VerifierTest extends TestCase
                 acceptedDigestMethods: [DigestMethod::SHA256],
                 acceptedCanonicalizations: [$canonicalization],
             ),
-        ));
+        ), $this->security($document));
 
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
     }
@@ -163,7 +165,7 @@ final class VerifierTest extends TestCase
                 acceptedDigestMethods: [DigestMethod::SHA1],
                 acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
             ),
-        ));
+        ), $this->security($document));
 
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
     }
@@ -173,7 +175,7 @@ final class VerifierTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([WsseSignatureFixture::timestampTarget()], withTimestamp: true);
 
-        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
 
         static::assertTrue($result->signedElements->wasSigned($this->timestamp($document)));
     }
@@ -183,7 +185,7 @@ final class VerifierTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget(), WsseSignatureFixture::timestampTarget()], withTimestamp: true);
 
-        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
 
         static::assertCount(2, $result->signedElements->signedIds());
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -195,7 +197,7 @@ final class VerifierTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
-        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
 
         // A structurally identical clone is a different object, so it is not the signed instance.
         $clone = $this->body($document)->cloneNode(true);
@@ -216,7 +218,7 @@ final class VerifierTest extends TestCase
         $body->appendChild($injected);
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
     }
 
     public function test_it_rejects_a_tampered_signature_value(): void
@@ -230,7 +232,7 @@ final class VerifierTest extends TestCase
         $signatureValue->textContent = base64_encode('forged-signature-bytes-that-will-not-verify');
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
     }
 
     public function test_it_rejects_a_reference_with_a_duplicate_digest_method(): void
@@ -246,7 +248,7 @@ final class VerifierTest extends TestCase
         $reference->appendChild($duplicate);
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
     }
 
     public function test_it_rejects_a_self_signed_signer_not_in_the_trust_store(): void
@@ -258,7 +260,7 @@ final class VerifierTest extends TestCase
         $other = WsseSignatureFixture::caSignedLeaf();
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($other->caCertificate));
+        $this->verifier()->verify($document, $this->policy($other->caCertificate), $this->security($document));
     }
 
     public function test_it_rejects_a_signer_chaining_to_an_unknown_ca(): void
@@ -269,7 +271,7 @@ final class VerifierTest extends TestCase
         $unknown = WsseSignatureFixture::caSignedLeaf();
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($unknown->caCertificate));
+        $this->verifier()->verify($document, $this->policy($unknown->caCertificate), $this->security($document));
     }
 
     public function test_it_rejects_an_empty_trust_store(): void
@@ -285,7 +287,7 @@ final class VerifierTest extends TestCase
                 acceptedDigestMethods: [DigestMethod::SHA256],
                 acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
             ),
-        ));
+        ), $this->security($document));
     }
 
     public function test_it_rejects_a_signature_method_not_in_the_allow_list(): void
@@ -302,7 +304,7 @@ final class VerifierTest extends TestCase
                 acceptedDigestMethods: [DigestMethod::SHA256],
                 acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
             ),
-        ));
+        ), $this->security($document));
     }
 
     public function test_it_rejects_a_digest_method_not_in_the_allow_list(): void
@@ -318,7 +320,7 @@ final class VerifierTest extends TestCase
                 acceptedDigestMethods: [DigestMethod::SHA512],
                 acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
             ),
-        ));
+        ), $this->security($document));
     }
 
     public function test_it_rejects_an_unknown_signature_method_uri(): void
@@ -328,7 +330,7 @@ final class VerifierTest extends TestCase
         $this->rewriteAttribute($document, WsseSignatureFixture::DS, 'SignatureMethod', 'Algorithm', 'urn:made-up');
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
     }
 
     public function test_it_rejects_a_missing_signature(): void
@@ -341,7 +343,7 @@ final class VerifierTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy(WsseSignatureFixture::caSignedLeaf()->caCertificate));
+        $this->verifier()->verify($document, $this->policy(WsseSignatureFixture::caSignedLeaf()->caCertificate), $this->security($document));
     }
 
     public function test_it_rejects_more_than_one_signature(): void
@@ -358,7 +360,7 @@ final class VerifierTest extends TestCase
         $security->appendChild($signature->cloneNode(true));
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
     }
 
     public function test_a_relocated_signed_element_is_resolved_by_id_so_a_wrapper_copy_is_not_signed(): void
@@ -381,7 +383,7 @@ final class VerifierTest extends TestCase
         $wrapper->appendChild($copy);
         $header->appendChild($wrapper);
 
-        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
 
         // The original id still resolves to the original element, and the wrapper copy was never signed.
         static::assertContains($signedId, $result->signedElements->signedIds());
@@ -403,7 +405,7 @@ final class VerifierTest extends TestCase
         $body->appendChild($twin);
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
     }
 
     /**
@@ -420,18 +422,18 @@ final class VerifierTest extends TestCase
                     .' xmlns:wsse="'.WsseSignatureFixture::WSSE.'">'
                     .'<soap:Header><wsse:Security/></soap:Header><soap:Body/></soap:Envelope>'
                 );
-                $this->verifier()->verify($document, $this->policy(WsseSignatureFixture::caSignedLeaf()->caCertificate));
+                $this->verifier()->verify($document, $this->policy(WsseSignatureFixture::caSignedLeaf()->caCertificate), $this->security($document));
             },
             'untrusted signer' => function (): void {
                 $fixture = WsseSignatureFixture::caSignedLeaf();
                 $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
-                $this->verifier()->verify($document, $this->policy(WsseSignatureFixture::caSignedLeaf()->caCertificate));
+                $this->verifier()->verify($document, $this->policy(WsseSignatureFixture::caSignedLeaf()->caCertificate), $this->security($document));
             },
             'tampered body' => function (): void {
                 $fixture = WsseSignatureFixture::caSignedLeaf();
                 $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
                 $this->body($document)->setAttribute('tampered', 'yes');
-                $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+                $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
             },
             'disallowed algorithm' => function (): void {
                 $fixture = WsseSignatureFixture::caSignedLeaf();
@@ -443,7 +445,7 @@ final class VerifierTest extends TestCase
                         acceptedDigestMethods: [DigestMethod::SHA256],
                         acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
                     ),
-                ));
+                ), $this->security($document));
             },
         ];
 
@@ -477,7 +479,7 @@ final class VerifierTest extends TestCase
         static::assertNotSame([], $prefixLists);
         static::assertNotContains('', $prefixLists);
 
-        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -497,7 +499,7 @@ final class VerifierTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+        $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
     }
 
     /**
@@ -541,6 +543,18 @@ final class VerifierTest extends TestCase
             new SignatureValidator($canonicalizer, new OpenSslSigner()),
             new OpenSslTrustResolver(new CertificateTrust()),
         );
+    }
+
+    /**
+     * The Security header addressed to the ultimate receiver — the scope the WSSE block resolves and hands the
+     * verifier, so these tests verify the same region production does.
+     */
+    private function security(Document $document): Element
+    {
+        $security = SecurityHeader::locate($document, SoapVersion::fromDocument($document));
+        static::assertInstanceOf(Element::class, $security);
+
+        return $security;
     }
 
     private function body(Document $document): Element

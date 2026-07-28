@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
+use Dom\Element;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\XmlSignatureVerifier;
@@ -18,7 +19,7 @@ final class ThrowingVerifier implements XmlSignatureVerifier
     {
     }
 
-    public function verify(Document $document, VerificationPolicy $policy): VerifiedSignature
+    public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature
     {
         throw $this->failure;
     }

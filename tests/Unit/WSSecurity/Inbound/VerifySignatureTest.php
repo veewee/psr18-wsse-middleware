@@ -34,6 +34,7 @@ use VeeWee\Xml\Dom\Document;
 final class VerifySignatureTest extends TestCase
 {
     private const SOAP = 'http://www.w3.org/2003/05/soap-envelope';
+    private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
 
     public function test_it_passes_a_signed_required_body(): void
     {
@@ -52,6 +53,53 @@ final class VerifySignatureTest extends TestCase
         (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($context);
 
         static::assertSame($context->document(), $verifier->lastDocument());
+    }
+
+    public function test_it_verifies_within_the_security_header_addressed_to_us(): void
+    {
+        $context = $this->context();
+        $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
+
+        (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($context);
+
+        $scope = $verifier->lastScope();
+        static::assertInstanceOf(Element::class, $scope);
+        static::assertSame('Security', $scope->localName);
+        static::assertSame(self::WSSE, $scope->namespaceURI);
+    }
+
+    public function test_a_message_with_no_security_header_for_us_is_refused(): void
+    {
+        // Nothing else in the envelope stands in for our header: with no scope there is no signature of ours to
+        // verify, so the block refuses rather than falling back to whatever the message does carry.
+        $context = new WsseContext(
+            Document::fromXmlString('<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Body><data>x</data></soap:Body></soap:Envelope>'),
+            SoapVersion::Soap12,
+            new SecurityProfile(),
+        );
+        $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
+
+        $this->expectException(SecurityFault::class);
+        (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($context);
+    }
+
+    public function test_a_security_header_addressed_to_another_hop_is_not_ours(): void
+    {
+        // The header exists but names an intermediary, so it is that hop's. Accepting it would verify a
+        // signature made for someone else's requirements against ours.
+        $context = new WsseContext(
+            Document::fromXmlString(
+                '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsse="'.self::WSSE.'">'
+                .'<soap:Header><wsse:Security soap:role="urn:some-intermediary"/></soap:Header>'
+                .'<soap:Body><data>x</data></soap:Body></soap:Envelope>'
+            ),
+            SoapVersion::Soap12,
+            new SecurityProfile(),
+        );
+        $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
+
+        $this->expectException(SecurityFault::class);
+        (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($context);
     }
 
     public function test_it_throws_a_security_fault_when_a_required_part_was_not_signed(): void
@@ -180,10 +228,19 @@ final class VerifySignatureTest extends TestCase
         static::assertCount(1, array_unique($types), 'Every failure cause must surface the same exception type.');
     }
 
+    /**
+     * The envelope carries a Security header addressed to the ultimate receiver, because that header is the
+     * scope the block resolves and verifies within. A response carrying none is refused outright, which
+     * test_a_message_with_no_security_header_for_us_is_refused covers.
+     */
     private function context(?SecurityProfile $profile = null): WsseContext
     {
         return new WsseContext(
-            Document::fromXmlString('<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Body><data>x</data></soap:Body></soap:Envelope>'),
+            Document::fromXmlString(
+                '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsse="'.self::WSSE.'">'
+                .'<soap:Header><wsse:Security/></soap:Header>'
+                .'<soap:Body><data>x</data></soap:Body></soap:Envelope>'
+            ),
             SoapVersion::Soap12,
             $profile ?? new SecurityProfile(),
         );

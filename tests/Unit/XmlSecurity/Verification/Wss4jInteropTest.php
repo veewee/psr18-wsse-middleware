@@ -6,11 +6,14 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification;
 use Dom\Element;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
@@ -35,7 +38,7 @@ final class Wss4jInteropTest extends TestCase
             FIXTURE_DIR.'/interop/wss4j-signed.xml',
         ));
 
-        $result = Verifier::create(new WsuIdLookup())->verify($document, $this->policy());
+        $result = Verifier::create(new WsuIdLookup())->verify($document, $this->policy(), $this->security($document));
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -49,7 +52,7 @@ final class Wss4jInteropTest extends TestCase
             FIXTURE_DIR.'/interop/wss4j-signed-ecdsa.xml',
         ));
 
-        $result = Verifier::create(new WsuIdLookup())->verify($document, $this->ecdsaPolicy());
+        $result = Verifier::create(new WsuIdLookup())->verify($document, $this->ecdsaPolicy(), $this->security($document));
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -78,7 +81,7 @@ final class Wss4jInteropTest extends TestCase
             FIXTURE_DIR.'/interop/wss4j-signed-inclusive-c14n.xml',
         ));
 
-        $result = Verifier::create(new WsuIdLookup())->verify($document, $this->inclusiveC14nPolicy());
+        $result = Verifier::create(new WsuIdLookup())->verify($document, $this->inclusiveC14nPolicy(), $this->security($document));
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -111,6 +114,16 @@ final class Wss4jInteropTest extends TestCase
                 acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
             ),
         );
+    }
+
+    /**
+     * The Security header addressed to the ultimate receiver, which is the scope the WSSE block resolves and
+     * hands the verifier.
+     */
+    private function security(Document $document): Element
+    {
+        return SecurityHeader::locate($document, SoapVersion::fromDocument($document))
+            ?? throw new RuntimeException('The fixture carries no Security header for the ultimate receiver.');
     }
 
     private function body(Document $document): Element

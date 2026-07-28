@@ -79,9 +79,9 @@ final class Verifier implements XmlSignatureVerifier
     ) {
     }
 
-    public function verify(Document $document, VerificationPolicy $policy): VerifiedSignature
+    public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature
     {
-        $signature = $this->signatureLocator->locate($document);
+        $signature = $this->signatureLocator->locate($scope);
         $signedInfo = $this->signedInfoParser->parse($signature);
 
         $this->policyEnforcer->enforce($policy, $signedInfo);

@@ -5,9 +5,11 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\RequiredPartsValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
@@ -63,8 +65,15 @@ final class VerifySignature implements InboundAction
         $policy = new VerificationPolicy($this->trustStore, $context->profile()->crypto());
 
         try {
-            $verified = $this->verifier->verify($document, $policy);
-        } catch (SignatureVerificationFailed | CanonicalizationFailed $exception) {
+            // The signature is read out of the Security header addressed to this receiver, not searched for
+            // across the envelope: a signature in another hop's header covers that hop's requirements, not
+            // ours, and one planted elsewhere is not a candidate at all. A message carrying no header for us
+            // is refused rather than verified against whatever else the envelope holds.
+            $scope = SecurityHeader::locate($document, $context->soapVersion())
+                ?? throw SignatureVerificationFailed::withReason('The message carries no Security header for this receiver.');
+
+            $verified = $this->verifier->verify($document, $policy, $scope);
+        } catch (SignatureVerificationFailed | CanonicalizationFailed | WsseHeaderException $exception) {
             throw SecurityFault::inboundFailure($exception);
         }
 
