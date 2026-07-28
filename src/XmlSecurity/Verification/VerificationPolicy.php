@@ -3,32 +3,23 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 
-use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
-use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
-use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 /**
- * The policy a signature is verified against: the trust anchors plus the accepted-algorithm allow-lists. The
- * allow-lists are non-empty by type (an empty allow-list would accept nothing, which a caller must not be able
- * to express by accident); the default profiles populate them.
+ * The policy a signature is verified against: the trust anchors plus the algorithm policy whose allow-lists
+ * gate every algorithm the signature names. The pair is carried as-is — the CryptoPolicy answers acceptance
+ * itself, so no allow-list is ever copied out of it.
  *
- * This DTO reports the accepted algorithms and supplies the trust store; whether the required parts are in the
+ * This DTO supplies the trust store and the algorithm policy; whether the required parts are in the
  * signed set is asserted by the Inbound\VerifySignature block against the returned VerifiedReferences,
  * not here. The verifier reports, the policy block decides.
  */
 final readonly class VerificationPolicy
 {
-    /**
-     * @param non-empty-list<SignatureMethod> $acceptedSignatureMethods
-     * @param non-empty-list<DigestMethod> $acceptedDigestMethods
-     * @param non-empty-list<SignatureCanonicalization> $acceptedCanonicalizations
-     */
     public function __construct(
         public TrustStore $trustStore,
-        public array $acceptedSignatureMethods,
-        public array $acceptedDigestMethods,
-        public array $acceptedCanonicalizations,
+        public CryptoPolicy $crypto,
     ) {
     }
 }

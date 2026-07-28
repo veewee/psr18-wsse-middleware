@@ -12,6 +12,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\Verifier;
@@ -61,9 +62,11 @@ final class Wss4jInteropTest extends TestCase
             trustStore: TrustStore::fromCertificates(
                 Certificate::fromFile(FIXTURE_DIR.'/interop/wss4j-ca.crt'),
             ),
-            acceptedSignatureMethods: [SignatureMethod::ECDSA_SHA256],
-            acceptedDigestMethods: [DigestMethod::SHA256],
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::ECDSA_SHA256],
+                acceptedDigestMethods: [DigestMethod::SHA256],
+                acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            ),
         );
     }
 
@@ -88,9 +91,11 @@ final class Wss4jInteropTest extends TestCase
             trustStore: TrustStore::fromCertificates(
                 Certificate::fromFile(FIXTURE_DIR.'/interop/wss4j-ca.crt'),
             ),
-            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
-            acceptedDigestMethods: [DigestMethod::SHA256],
-            acceptedCanonicalizations: [SignatureCanonicalization::C14N, SignatureCanonicalization::EXC_C14N],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+                acceptedDigestMethods: [DigestMethod::SHA256],
+                acceptedCanonicalizations: [SignatureCanonicalization::C14N, SignatureCanonicalization::EXC_C14N],
+            ),
         );
     }
 
@@ -100,9 +105,11 @@ final class Wss4jInteropTest extends TestCase
             trustStore: TrustStore::fromCertificates(
                 Certificate::fromFile(FIXTURE_DIR.'/interop/wss4j-ca.crt'),
             ),
-            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
-            acceptedDigestMethods: [DigestMethod::SHA256],
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+                acceptedDigestMethods: [DigestMethod::SHA256],
+                acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            ),
         );
     }
 

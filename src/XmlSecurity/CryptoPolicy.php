@@ -144,30 +144,6 @@ final class CryptoPolicy
         return $this->oaepHash;
     }
 
-    /**
-     * @return non-empty-list<SignatureMethod>
-     */
-    public function acceptedSignatureMethods(): array
-    {
-        return $this->acceptedSignatureMethods;
-    }
-
-    /**
-     * @return non-empty-list<DigestMethod>
-     */
-    public function acceptedDigestMethods(): array
-    {
-        return $this->acceptedDigestMethods;
-    }
-
-    /**
-     * @return non-empty-list<SignatureCanonicalization>
-     */
-    public function acceptedCanonicalizations(): array
-    {
-        return $this->acceptedCanonicalizations;
-    }
-
     public function acceptsSignatureMethod(SignatureMethod $method): bool
     {
         return in_array($method, $this->acceptedSignatureMethods, true);

@@ -24,20 +24,22 @@ final class AlgorithmPolicyEnforcer
      */
     public function enforce(VerificationPolicy $policy, ParsedSignedInfo $signedInfo): void
     {
-        if (!in_array($signedInfo->signatureMethod, $policy->acceptedSignatureMethods, true)) {
+        $crypto = $policy->crypto;
+
+        if (!$crypto->acceptsSignatureMethod($signedInfo->signatureMethod)) {
             throw SignatureVerificationFailed::withReason('The signature method is not accepted by the policy.');
         }
 
-        if (!in_array($signedInfo->canonicalization, $policy->acceptedCanonicalizations, true)) {
+        if (!$crypto->acceptsCanonicalization($signedInfo->canonicalization)) {
             throw SignatureVerificationFailed::withReason('The canonicalization method is not accepted by the policy.');
         }
 
         foreach ($signedInfo->references as $reference) {
-            if (!in_array($reference->digestMethod, $policy->acceptedDigestMethods, true)) {
+            if (!$crypto->acceptsDigestMethod($reference->digestMethod)) {
                 throw SignatureVerificationFailed::withReason('A digest method is not accepted by the policy.');
             }
 
-            if (!in_array($reference->canonicalization, $policy->acceptedCanonicalizations, true)) {
+            if (!$crypto->acceptsCanonicalization($reference->canonicalization)) {
                 throw SignatureVerificationFailed::withReason('The canonicalization method is not accepted by the policy.');
             }
         }

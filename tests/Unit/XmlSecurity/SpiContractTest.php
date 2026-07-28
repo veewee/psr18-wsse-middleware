@@ -16,6 +16,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
@@ -81,21 +82,15 @@ final class SpiContractTest extends TestCase
         static::assertSame($key, (new DecryptionRequest($key))->privateKey);
     }
 
-    public function test_verification_policy_holds_its_allow_lists(): void
+    public function test_verification_policy_pairs_the_trust_store_with_the_algorithm_policy(): void
     {
         $trustStore = TrustStore::fromCertificates(new Certificate('anchor'));
+        $crypto = CryptoPolicy::default();
 
-        $policy = new VerificationPolicy(
-            trustStore: $trustStore,
-            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
-            acceptedDigestMethods: [DigestMethod::SHA256],
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
-        );
+        $policy = new VerificationPolicy($trustStore, $crypto);
 
         static::assertSame($trustStore, $policy->trustStore);
-        static::assertSame([SignatureMethod::RSA_SHA256], $policy->acceptedSignatureMethods);
-        static::assertSame([DigestMethod::SHA256], $policy->acceptedDigestMethods);
-        static::assertSame([SignatureCanonicalization::EXC_C14N], $policy->acceptedCanonicalizations);
+        static::assertSame($crypto, $policy->crypto);
     }
 
     public function test_verified_signature_pairs_the_signed_set_with_the_signer(): void

@@ -116,47 +116,61 @@ final class CryptoPolicyTest extends TestCase
         static::assertFalse($policy->acceptsSignatureMethod(SignatureMethod::RSA_SHA512));
     }
 
-    public function test_it_exposes_the_accepted_signature_methods_as_a_list(): void
+    public function test_the_default_accepts_exactly_the_modern_signature_methods(): void
     {
-        static::assertSame(
-            [
-                SignatureMethod::RSA_SHA256,
-                SignatureMethod::RSA_SHA384,
-                SignatureMethod::RSA_SHA512,
-                SignatureMethod::ECDSA_SHA256,
-                SignatureMethod::ECDSA_SHA384,
-                SignatureMethod::ECDSA_SHA512,
-            ],
-            CryptoPolicy::default()->acceptedSignatureMethods(),
-        );
+        $accepted = [
+            SignatureMethod::RSA_SHA256,
+            SignatureMethod::RSA_SHA384,
+            SignatureMethod::RSA_SHA512,
+            SignatureMethod::ECDSA_SHA256,
+            SignatureMethod::ECDSA_SHA384,
+            SignatureMethod::ECDSA_SHA512,
+        ];
+
+        foreach (SignatureMethod::cases() as $method) {
+            static::assertSame(
+                in_array($method, $accepted, true),
+                CryptoPolicy::default()->acceptsSignatureMethod($method),
+                $method->name,
+            );
+        }
     }
 
-    public function test_it_exposes_the_accepted_digest_methods_as_a_list(): void
+    public function test_the_default_accepts_exactly_the_sha2_digest_methods(): void
     {
-        static::assertSame(
-            [DigestMethod::SHA256, DigestMethod::SHA384, DigestMethod::SHA512],
-            CryptoPolicy::default()->acceptedDigestMethods(),
-        );
+        $accepted = [DigestMethod::SHA256, DigestMethod::SHA384, DigestMethod::SHA512];
+
+        foreach (DigestMethod::cases() as $method) {
+            static::assertSame(
+                in_array($method, $accepted, true),
+                CryptoPolicy::default()->acceptsDigestMethod($method),
+                $method->name,
+            );
+        }
     }
 
-    public function test_it_exposes_the_accepted_canonicalizations_as_a_list(): void
+    public function test_the_default_accepts_exactly_the_exclusive_canonicalizations(): void
     {
-        static::assertSame(
-            [SignatureCanonicalization::EXC_C14N, SignatureCanonicalization::EXC_C14N_COMMENTS],
-            CryptoPolicy::default()->acceptedCanonicalizations(),
-        );
+        $accepted = [SignatureCanonicalization::EXC_C14N, SignatureCanonicalization::EXC_C14N_COMMENTS];
+
+        foreach (SignatureCanonicalization::cases() as $canonicalization) {
+            static::assertSame(
+                in_array($canonicalization, $accepted, true),
+                CryptoPolicy::default()->acceptsCanonicalization($canonicalization),
+                $canonicalization->name,
+            );
+        }
     }
 
-    public function test_an_accepted_list_getter_reflects_an_explicit_override(): void
+    public function test_an_explicit_override_replaces_the_default_acceptance(): void
     {
         $policy = new CryptoPolicy(
             acceptedSignatureMethods: [SignatureMethod::RSA_SHA1, SignatureMethod::RSA_SHA256],
         );
 
-        static::assertSame(
-            [SignatureMethod::RSA_SHA1, SignatureMethod::RSA_SHA256],
-            $policy->acceptedSignatureMethods(),
-        );
+        static::assertTrue($policy->acceptsSignatureMethod(SignatureMethod::RSA_SHA1));
+        static::assertTrue($policy->acceptsSignatureMethod(SignatureMethod::RSA_SHA256));
+        static::assertFalse($policy->acceptsSignatureMethod(SignatureMethod::RSA_SHA384));
     }
 
     /** SECURITY: an empty allow-list would silently reject everything; a caller must not express it by accident. */

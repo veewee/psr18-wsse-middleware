@@ -6,7 +6,6 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\RequiredPartsValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
@@ -61,7 +60,7 @@ final class VerifySignature implements InboundAction
     public function __invoke(WsseContext $context): void
     {
         $document = $context->document();
-        $policy = $this->buildPolicy($context->profile());
+        $policy = new VerificationPolicy($this->trustStore, $context->profile()->crypto());
 
         try {
             $verified = $this->verifier->verify($document, $policy);
@@ -70,17 +69,5 @@ final class VerifySignature implements InboundAction
         }
 
         $this->requiredParts->validate($document, $context->soapVersion(), $verified->signedElements, $this->signed);
-    }
-
-    private function buildPolicy(SecurityProfile $profile): VerificationPolicy
-    {
-        $crypto = $profile->crypto();
-
-        return new VerificationPolicy(
-            trustStore: $this->trustStore,
-            acceptedSignatureMethods: $crypto->acceptedSignatureMethods(),
-            acceptedDigestMethods: $crypto->acceptedDigestMethods(),
-            acceptedCanonicalizations: $crypto->acceptedCanonicalizations(),
-        );
     }
 }

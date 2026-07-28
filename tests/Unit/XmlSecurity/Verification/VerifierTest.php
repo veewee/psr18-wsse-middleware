@@ -61,8 +61,10 @@ final class VerifierTest extends TestCase
      */
     public static function algorithmProvider(): iterable
     {
-        foreach (CryptoPolicy::default()->acceptedSignatureMethods() as $signatureMethod) {
-            yield $signatureMethod->name => [$signatureMethod, self::pairedDigest($signatureMethod)];
+        foreach (SignatureMethod::cases() as $signatureMethod) {
+            if (CryptoPolicy::default()->acceptsSignatureMethod($signatureMethod)) {
+                yield $signatureMethod->name => [$signatureMethod, self::pairedDigest($signatureMethod)];
+            }
         }
     }
 
@@ -78,9 +80,11 @@ final class VerifierTest extends TestCase
 
         $result = $this->verifier()->verify($document, new VerificationPolicy(
             trustStore: TrustStore::fromCertificates($fixture->caCertificate),
-            acceptedSignatureMethods: [$signatureMethod],
-            acceptedDigestMethods: [$digestMethod],
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [$signatureMethod],
+                acceptedDigestMethods: [$digestMethod],
+                acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            ),
         ));
 
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -94,8 +98,10 @@ final class VerifierTest extends TestCase
      */
     public static function canonicalizationProvider(): iterable
     {
-        foreach (CryptoPolicy::default()->acceptedCanonicalizations() as $canonicalization) {
-            yield $canonicalization->name => [$canonicalization];
+        foreach (SignatureCanonicalization::cases() as $canonicalization) {
+            if (CryptoPolicy::default()->acceptsCanonicalization($canonicalization)) {
+                yield $canonicalization->name => [$canonicalization];
+            }
         }
     }
 
@@ -108,9 +114,11 @@ final class VerifierTest extends TestCase
 
         $result = $this->verifier()->verify($document, new VerificationPolicy(
             trustStore: TrustStore::fromCertificates($fixture->caCertificate),
-            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
-            acceptedDigestMethods: [DigestMethod::SHA256],
-            acceptedCanonicalizations: [$canonicalization],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+                acceptedDigestMethods: [DigestMethod::SHA256],
+                acceptedCanonicalizations: [$canonicalization],
+            ),
         ));
 
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -150,9 +158,11 @@ final class VerifierTest extends TestCase
 
         $result = $this->verifier()->verify($document, new VerificationPolicy(
             trustStore: TrustStore::fromCertificates($fixture->caCertificate),
-            acceptedSignatureMethods: [SignatureMethod::RSA_SHA1],
-            acceptedDigestMethods: [DigestMethod::SHA1],
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::RSA_SHA1],
+                acceptedDigestMethods: [DigestMethod::SHA1],
+                acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            ),
         ));
 
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -270,9 +280,11 @@ final class VerifierTest extends TestCase
         $this->expectException(SignatureVerificationFailed::class);
         $this->verifier()->verify($document, new VerificationPolicy(
             trustStore: TrustStore::fromCertificates(),
-            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
-            acceptedDigestMethods: [DigestMethod::SHA256],
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+                acceptedDigestMethods: [DigestMethod::SHA256],
+                acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            ),
         ));
     }
 
@@ -285,9 +297,11 @@ final class VerifierTest extends TestCase
         $this->verifier()->verify($document, new VerificationPolicy(
             trustStore: TrustStore::fromCertificates($fixture->caCertificate),
             // The message is RSA-SHA256; the policy only accepts RSA-SHA512.
-            acceptedSignatureMethods: [SignatureMethod::RSA_SHA512],
-            acceptedDigestMethods: [DigestMethod::SHA256],
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::RSA_SHA512],
+                acceptedDigestMethods: [DigestMethod::SHA256],
+                acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            ),
         ));
     }
 
@@ -299,9 +313,11 @@ final class VerifierTest extends TestCase
         $this->expectException(SignatureVerificationFailed::class);
         $this->verifier()->verify($document, new VerificationPolicy(
             trustStore: TrustStore::fromCertificates($fixture->caCertificate),
-            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
-            acceptedDigestMethods: [DigestMethod::SHA512],
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+                acceptedDigestMethods: [DigestMethod::SHA512],
+                acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            ),
         ));
     }
 
@@ -422,9 +438,11 @@ final class VerifierTest extends TestCase
                 $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
                 $this->verifier()->verify($document, new VerificationPolicy(
                     trustStore: TrustStore::fromCertificates($fixture->caCertificate),
-                    acceptedSignatureMethods: [SignatureMethod::RSA_SHA512],
-                    acceptedDigestMethods: [DigestMethod::SHA256],
-                    acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+                    crypto: new CryptoPolicy(
+                        acceptedSignatureMethods: [SignatureMethod::RSA_SHA512],
+                        acceptedDigestMethods: [DigestMethod::SHA256],
+                        acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+                    ),
                 ));
             },
         ];
@@ -448,9 +466,11 @@ final class VerifierTest extends TestCase
     {
         return new VerificationPolicy(
             trustStore: TrustStore::fromCertificates($anchor),
-            acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
-            acceptedDigestMethods: [DigestMethod::SHA256],
-            acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            crypto: new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+                acceptedDigestMethods: [DigestMethod::SHA256],
+                acceptedCanonicalizations: [SignatureCanonicalization::EXC_C14N],
+            ),
         );
     }
 

@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\AlgorithmPolicyEnforcer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParser;
@@ -55,9 +56,11 @@ final class AlgorithmPolicyEnforcerTest extends TestCase
     {
         return new VerificationPolicy(
             TrustStore::fromCertificates(),
-            [SignatureMethod::RSA_SHA256],
-            [DigestMethod::SHA256],
-            $accepted,
+            new CryptoPolicy(
+                acceptedSignatureMethods: [SignatureMethod::RSA_SHA256],
+                acceptedDigestMethods: [DigestMethod::SHA256],
+                acceptedCanonicalizations: $accepted,
+            ),
         );
     }
 

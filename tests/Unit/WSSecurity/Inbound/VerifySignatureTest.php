@@ -112,49 +112,36 @@ final class VerifySignatureTest extends TestCase
 
     public function test_it_builds_the_policy_from_the_default_profile(): void
     {
-        $context = $this->context();
+        $profile = new SecurityProfile();
+        $context = $this->context($profile);
         $trustStore = $this->trustStore();
         $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
 
         (new VerifySignature($trustStore, signed: [Part::body()]))->withVerifier($verifier)($context);
 
+        // The profile's own CryptoPolicy reaches the verifier as-is: nothing is copied, so nothing can drift.
         $policy = $verifier->lastPolicy();
         static::assertNotNull($policy);
-        static::assertSame([
-            SignatureMethod::RSA_SHA256,
-            SignatureMethod::RSA_SHA384,
-            SignatureMethod::RSA_SHA512,
-            SignatureMethod::ECDSA_SHA256,
-            SignatureMethod::ECDSA_SHA384,
-            SignatureMethod::ECDSA_SHA512,
-        ], $policy->acceptedSignatureMethods);
-        static::assertSame([
-            DigestMethod::SHA256,
-            DigestMethod::SHA384,
-            DigestMethod::SHA512,
-        ], $policy->acceptedDigestMethods);
-        static::assertSame(
-            [SignatureCanonicalization::EXC_C14N, SignatureCanonicalization::EXC_C14N_COMMENTS],
-            $policy->acceptedCanonicalizations,
-        );
         static::assertSame($trustStore, $policy->trustStore);
+        static::assertSame($profile->crypto(), $policy->crypto);
     }
 
     public function test_a_custom_profile_narrows_the_accepted_algorithms(): void
     {
-        $profile = new SecurityProfile(crypto: new CryptoPolicy(
+        $crypto = new CryptoPolicy(
             acceptedSignatureMethods: [SignatureMethod::RSA_SHA512],
             acceptedDigestMethods: [DigestMethod::SHA512],
-        ));
-        $context = $this->context($profile);
+        );
+        $context = $this->context(new SecurityProfile(crypto: $crypto));
         $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
 
         (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($context);
 
         $policy = $verifier->lastPolicy();
         static::assertNotNull($policy);
-        static::assertSame([SignatureMethod::RSA_SHA512], $policy->acceptedSignatureMethods);
-        static::assertSame([DigestMethod::SHA512], $policy->acceptedDigestMethods);
+        static::assertSame($crypto, $policy->crypto);
+        static::assertTrue($policy->crypto->acceptsSignatureMethod(SignatureMethod::RSA_SHA512));
+        static::assertFalse($policy->crypto->acceptsSignatureMethod(SignatureMethod::RSA_SHA256));
     }
 
     public function test_all_failure_causes_surface_one_identical_security_fault(): void
