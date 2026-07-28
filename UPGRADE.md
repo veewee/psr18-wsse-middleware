@@ -17,6 +17,24 @@ drop that patch and the dev dependency from your project.
 `ext-intl` is now a required extension. The inbound timestamp validator parses instants with the ICU date
 formatter, so make sure `ext-intl` is installed wherever this package runs.
 
+### `SamlAssertionKeyIdentifier` takes the SAML version
+
+`SamlAssertionKeyIdentifier` now requires a `SamlVersion` as its second constructor argument:
+
+```php
+// before
+new SamlAssertionKeyIdentifier($assertionId);
+
+// after
+new SamlAssertionKeyIdentifier($assertionId, SamlVersion::Saml20);
+```
+
+The SAML Token Profile references the two versions differently, and the old single-argument form always emitted
+the SAML 1.1 shape. A reference to a SAML 2.0 assertion needs the 1.1-profile `#SAMLID` value type plus a
+`wsse11:TokenType` of `#SAMLV2.0`, which the old form could not express — so if you were referencing a 2.0
+assertion, the reference your peer received described a 1.1 one. Pass `SamlVersion::Saml11` to keep exactly the
+previous wire format.
+
 ### PHP 8.4.21 is the minimum
 
 The signing and verification paths canonicalize XML (C14N) through libxml. A libxml defect below the fix that

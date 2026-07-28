@@ -276,7 +276,18 @@ new Outbound\SamlAssertion(
   reliable version discriminant, so you state it.
 
 After it runs, `assertionId()` returns the assertion's id, which advanced Holder-of-Key flows can wire into a
-signature.
+signature through `SamlAssertionKeyIdentifier`:
+
+```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\SamlAssertionKeyIdentifier;
+
+new SamlAssertionKeyIdentifier($assertionId, SamlVersion::Saml20);
+```
+
+The version is required here too, and for the same reason it is on the block: the SAML Token Profile references
+the two versions differently. A SAML 2.0 assertion is named by the 1.1-profile `#SAMLID` value type and the
+reference must carry a `wsse11:TokenType` of `#SAMLV2.0`, while a 1.1 assertion keeps the 1.0-profile
+`#SAMLAssertionID`. A version-blind reference can only describe a 1.1 assertion.
 
 ## Inbound: `Decrypt`
 

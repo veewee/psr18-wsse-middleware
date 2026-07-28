@@ -14,4 +14,5 @@ enum WsSecurityValueType: string
     case X509SubjectKeyIdentifier = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509SubjectKeyIdentifier';
     case ThumbprintSha1 = 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1';
     case SamlAssertionId = 'http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.0#SAMLAssertionID';
+    case SamlId = 'http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLID';
 }

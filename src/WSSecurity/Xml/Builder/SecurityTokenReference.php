@@ -6,12 +6,14 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder;
 use Closure;
 use Dom\Element;
 use Dom\Node;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SamlVersion;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityEncodingType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\children;
+use function VeeWee\Xml\Dom\Builder\namespaced_attribute;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
 use function VeeWee\Xml\Dom\Builder\value;
 
@@ -26,9 +28,12 @@ final readonly class SecurityTokenReference
 {
     /**
      * @param Closure(Node): Element $childBuilder builds the single child of the wsse:SecurityTokenReference
+     * @param non-empty-string|null $tokenType the wsse11:TokenType naming the referenced token's type, for the
+     *        reference kinds whose profile calls for it
      */
     private function __construct(
         private Closure $childBuilder,
+        private ?string $tokenType = null,
     ) {
     }
 
@@ -89,16 +94,22 @@ final readonly class SecurityTokenReference
      * SAML assertion variant: a wsse:KeyIdentifier naming a SAML assertion by its id. The id is an XML id,
      * not binary, so the KeyIdentifier carries no encoding type.
      *
+     * The ValueType is version-specific and the reference also carries a wsse11:TokenType naming the version:
+     * the profile requires that for a SAML 2.0 assertion, whose ValueType the 1.0 profile could not express.
+     *
      * @param non-empty-string $assertionId
      */
-    public static function samlAssertion(string $assertionId): self
+    public static function samlAssertion(string $assertionId, SamlVersion $version): self
     {
-        return new self(namespaced_element(
-            Namespaces::Wsse->value,
-            Namespaces::Wsse->qualify('KeyIdentifier'),
-            attribute('ValueType', WsSecurityValueType::SamlAssertionId->value),
-            value($assertionId),
-        ));
+        return new self(
+            namespaced_element(
+                Namespaces::Wsse->value,
+                Namespaces::Wsse->qualify('KeyIdentifier'),
+                attribute('ValueType', $version->keyIdentifierValueType()->value),
+                value($assertionId),
+            ),
+            $version->tokenType(),
+        );
     }
 
     /**
@@ -134,10 +145,20 @@ final readonly class SecurityTokenReference
 
     public function build(Document $document): Element
     {
+        $tokenType = $this->tokenType;
+        $stampTokenType = $tokenType === null
+            ? static fn (Element $reference): Element => $reference
+            : namespaced_attribute(
+                Namespaces::Wsse11->value,
+                Namespaces::Wsse11->qualify('TokenType'),
+                $tokenType,
+            );
+
         return $document->map(namespaced_element(
             Namespaces::Wsse->value,
             Namespaces::Wsse->qualify('SecurityTokenReference'),
             children($this->childBuilder),
+            $stampTokenType,
         ));
     }
 
