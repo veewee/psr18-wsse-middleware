@@ -22,9 +22,13 @@ use Throwable;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Locates the single xenc:EncryptedKey in the wsse:Security header, extracts the wrapped key bytes from the
- * CipherValue, and unwraps the session key through OpenSSL\KeyTransport. The OAEP parameterization the
+ * Locates the single xenc:EncryptedKey in the container the caller names, extracts the wrapped key bytes from
+ * the CipherValue, and unwraps the session key through OpenSSL\KeyTransport. The OAEP parameterization the
  * xenc:EncryptionMethod declares is resolved and allow-list checked by OaepParameterResolver before any unwrap.
+ *
+ * The container bounds every lookup here. A document-wide search would make any xenc:EncryptedKey in the message
+ * a candidate, and since our public key is public an injected one would be unwrapped with our private key,
+ * letting a session key of the attacker's choosing decide what the plaintext becomes.
  *
  * Every structural rejection, every disallowed parameterization, and every unwrap failure collapse to one
  * uniform DecryptionFailed, so the reader is never a Bleichenbacher oracle.
@@ -44,13 +48,14 @@ final class EncryptedKeyReader
      */
     public function read(
         Document $document,
+        Element $container,
         #[SensitiveParameter] Key $privateKey,
         ?CryptoPolicy $policy = null,
     ): SessionKey {
         $policy ??= CryptoPolicy::default();
 
         try {
-            $encryptedKey = $this->locate($document);
+            $encryptedKey = $this->locate($document, $container);
             $encryptionMethod = $this->child($encryptedKey, 'EncryptionMethod', Namespaces::Xenc);
 
             $method = $this->keyEncryptionMethod($encryptionMethod);
@@ -89,9 +94,9 @@ final class EncryptedKeyReader
      *
      * @throws DecryptionFailed
      */
-    public function dataReferences(Document $document): array
+    public function dataReferences(Document $document, Element $container): array
     {
-        $referenceList = $this->referenceList($document);
+        $referenceList = $this->referenceList($document, $container);
 
         $ids = [];
         foreach (ChildElements::named($referenceList, Namespaces::Xenc, 'DataReference') as $child) {
@@ -110,20 +115,24 @@ final class EncryptedKeyReader
 
     /**
      * The one xenc:ReferenceList naming the encrypted parts. XML-Enc lets it sit inside the xenc:EncryptedKey
-     * or stand detached beside it in the Security header, and peers emit both shapes, so either is accepted —
+     * or stand detached beside it in the container, and peers emit both shapes, so either is accepted —
      * but never both at once and never two of one form. This list decides which parts the decryptor touches,
      * so a second candidate is refused outright instead of one being chosen: picking either would let the
      * other be injected. A duplicate of one form is refused rather than read as an absence, which would
      * otherwise let it fall through to an injected instance of the other form.
      *
+     * The detached form is looked for as a child of the container only. Searched document-wide it would let a
+     * list planted elsewhere name the parts, which decides what the session key is applied to.
+     *
      * @throws DecryptionFailed
      */
-    private function referenceList(Document $document): Element
+    private function referenceList(Document $document, Element $container): Element
     {
-        $carried = ChildElements::named($this->locate($document), Namespaces::Xenc, 'ReferenceList');
+        $carried = ChildElements::named($this->locate($document, $container), Namespaces::Xenc, 'ReferenceList');
         $detached = Query::elements(
             $document,
-            '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Xenc->qualify('ReferenceList'),
+            './'.Namespaces::Xenc->qualify('ReferenceList'),
+            $container,
         )->map(static fn (Element $element): Element => $element);
 
         if (count($carried) > 1 || count($detached) > 1 || (count($carried) === 1 && count($detached) === 1)) {
@@ -154,15 +163,16 @@ final class EncryptedKeyReader
     /**
      * @throws DecryptionFailed
      */
-    private function locate(Document $document): Element
+    private function locate(Document $document, Element $container): Element
     {
         $encryptedKeys = Query::elements(
             $document,
-            '//'.Namespaces::Wsse->qualify('Security').'/'.Namespaces::Xenc->qualify('EncryptedKey'),
+            './'.Namespaces::Xenc->qualify('EncryptedKey'),
+            $container,
         );
 
         if ($encryptedKeys->count() !== 1) {
-            throw DecryptionFailed::withReason('Exactly one xenc:EncryptedKey is required in the Security header.');
+            throw DecryptionFailed::withReason('Exactly one xenc:EncryptedKey is required in the container.');
         }
 
         return $encryptedKeys->expectSingle();

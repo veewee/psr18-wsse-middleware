@@ -16,6 +16,12 @@ use VeeWee\Xml\Dom\Document;
  * over-cap message before any crypto (a denial-of-service gate), unwrap the session key (which also refuses a
  * non-SHA-1 OAEP parameterization), then resolve and decrypt each referenced xenc:EncryptedData in place.
  *
+ * The wrapped key and the reference list are read from the container the request names, so only the parts that
+ * container claims are decrypted. The referenced xenc:EncryptedData themselves are resolved document-wide, as
+ * they must be: encrypted content sits where it belongs in the message — most often in the Body — not inside
+ * the container. Their ids resolve to exactly one element or the message is refused, so a planted duplicate
+ * cannot stand in for a genuine part.
+ *
  * Every failure, whatever its cause, collapses to one DecryptionFailed with a non-identifying message, so the
  * caller can never tell an OAEP refusal from a wrong key, a bad tag, a malformed value or an over-cap message;
  * the engine is never a padding or validation oracle. No openssl_* calls live here: unwrap goes through the
@@ -52,13 +58,18 @@ final class Decryptor implements XmlDecryptor
     public function decrypt(Document $document, DecryptionRequest $request): void
     {
         try {
-            $references = $this->encryptedKeyReader->dataReferences($document);
+            $references = $this->encryptedKeyReader->dataReferences($document, $request->container);
 
             if (count($references) > self::MAX_ENCRYPTED_PARTS) {
                 throw DecryptionFailed::withReason('The message declares too many encrypted parts.');
             }
 
-            $sessionKey = $this->encryptedKeyReader->read($document, $request->privateKey, $request->policy);
+            $sessionKey = $this->encryptedKeyReader->read(
+                $document,
+                $request->container,
+                $request->privateKey,
+                $request->policy,
+            );
 
             foreach ($references as $id) {
                 $element = $this->encryptedData->resolve($document, $id);

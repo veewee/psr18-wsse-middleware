@@ -47,6 +47,7 @@ final class FaultUniformityTest extends TestCase
             'signature verification failure' => $this->faultFrom($this->signatureFailure(...)),
             'missing required signed part' => $this->faultFrom($this->missingRequiredPart(...)),
             'decryption failure' => $this->faultFrom($this->decryptionFailure(...)),
+            'no security header for this receiver' => $this->faultFrom($this->noSecurityHeader(...)),
         ];
 
         $reference = $faults['stale timestamp'];
@@ -114,10 +115,30 @@ final class FaultUniformityTest extends TestCase
             ->withDecryptor(new ThrowingDecryptor(DecryptionFailed::withReason(self::DETAIL_TEXTS[1])))($this->context());
     }
 
+    /**
+     * The default envelope carries a Security header addressed to the ultimate receiver. Without one, the
+     * signature and decryption blocks refuse on the missing header and never consult the injected fake, which
+     * would make the detail-text assertions above vacuous — they would be checking a fault the fake never
+     * caused. The blocks that read a header must be given one for their real failure to be the trigger.
+     */
+    /**
+     * A response addressed to nobody we are is refused, and must be refused with the same fault as a wrong key:
+     * telling the two apart would say whether the recipient was expected to decrypt at all.
+     */
+    private function noSecurityHeader(): void
+    {
+        $xml = '<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Body><data>x</data></soap:Body></soap:Envelope>';
+
+        (new Decrypt(new Key('not-real-pem-material')))
+            ->withDecryptor(new ThrowingDecryptor(DecryptionFailed::withReason(self::DETAIL_TEXTS[1])))($this->context($xml));
+    }
+
     private function context(?string $xml = null): WsseContext
     {
         return new WsseContext(
-            Document::fromXmlString($xml ?? '<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Body><data>x</data></soap:Body></soap:Envelope>'),
+            Document::fromXmlString($xml ?? '<soap:Envelope xmlns:soap="'.self::SOAP.'">'
+                .'<soap:Header><wsse:Security xmlns:wsse="'.self::WSSE.'"/></soap:Header>'
+                .'<soap:Body><data>x</data></soap:Body></soap:Envelope>'),
             SoapVersion::Soap12,
             new SecurityProfile(),
         );

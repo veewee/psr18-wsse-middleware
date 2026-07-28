@@ -330,6 +330,11 @@ new Inbound\Decrypt($privateKey);
 
 - `Key $privateKey` — your recipient private key as a `KeyStore\Key`. Required.
 
+The wrapped session key is read from the `wsse:Security` header addressed to you — the header the profile's
+`actorOrRole` selects, the same one the signature verifier reads. A response carrying no header for you is
+refused rather than decrypted against an `xenc:EncryptedKey` found elsewhere in the envelope: your certificate is
+public, so anyone can wrap a key to you, and nothing about a key's position makes it yours.
+
 Any decryption failure collapses to one uniform `SecurityFault` that does not reveal which step failed, so the
 middleware cannot be used as a padding oracle.
 
@@ -905,8 +910,11 @@ only part of this package that knows what a SOAP envelope is.
   `Dom\Element $container` as their first argument — the element the `ds:Signature` / `xenc:EncryptedKey` is
   appended to. The blocks pass their `wsse:Security` header.
 - **The scope is an input too, on the read side.** `XmlSignatureVerifier::verify()` takes the element whose
-  signature is being verified. It is not defaulted, because a default would mean "search the whole document" —
-  which is what lets a signature planted elsewhere be mistaken for the real one.
+  signature is being verified, and `DecryptionRequest` names the container the `xenc:EncryptedKey` and
+  `xenc:ReferenceList` are read from. Neither is defaulted, because a default would mean "search the whole
+  document" — which is what lets an element planted elsewhere be mistaken for the real one. Anyone can wrap a
+  session key to a public certificate, so on the decryption side this is what distinguishes a key meant for this
+  recipient from one an injector supplied.
 
 ```php
 public function sign(Document $document, SigningRequest $request): void;

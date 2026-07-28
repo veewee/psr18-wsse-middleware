@@ -105,10 +105,19 @@ final class DecryptTest extends TestCase
         (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
     }
 
+    /**
+     * The envelope carries a Security header addressed to the ultimate receiver, because that header is the
+     * container the block reads the wrapped key from — without one there is nothing to decrypt against and the
+     * block refuses before reaching the decryptor. The scoping itself is pinned in DecryptScopeTest.
+     */
     private function context(): WsseContext
     {
         return new WsseContext(
-            Document::fromXmlString('<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"><soap:Body/></soap:Envelope>'),
+            Document::fromXmlString(
+                '<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"'
+                .' xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">'
+                .'<soap:Header><wsse:Security/></soap:Header><soap:Body/></soap:Envelope>'
+            ),
             SoapVersion::Soap12,
             new SecurityProfile(),
         );

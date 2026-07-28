@@ -3,8 +3,11 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption;
 
+use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use VeeWee\Xml\Dom\Document;
@@ -27,7 +30,7 @@ final class EncryptedKeyReferenceListTest extends TestCase
             inside: '<xenc:ReferenceList><xenc:DataReference URI="#body"/></xenc:ReferenceList>',
         );
 
-        static::assertSame(['body'], $this->reader()->dataReferences($document));
+        static::assertSame(['body'], $this->reader()->dataReferences($document, $this->ours($document)));
     }
 
     public function test_it_reads_a_detached_reference_list_beside_the_encrypted_key(): void
@@ -36,7 +39,7 @@ final class EncryptedKeyReferenceListTest extends TestCase
             detached: '<xenc:ReferenceList><xenc:DataReference URI="#body"/><xenc:DataReference URI="#ts"/></xenc:ReferenceList>',
         );
 
-        static::assertSame(['body', 'ts'], $this->reader()->dataReferences($document));
+        static::assertSame(['body', 'ts'], $this->reader()->dataReferences($document, $this->ours($document)));
     }
 
     public function test_it_refuses_a_message_carrying_both_forms(): void
@@ -48,7 +51,7 @@ final class EncryptedKeyReferenceListTest extends TestCase
         );
 
         $this->expectException(DecryptionFailed::class);
-        $this->reader()->dataReferences($document);
+        $this->reader()->dataReferences($document, $this->ours($document));
     }
 
     public function test_it_refuses_a_duplicated_detached_reference_list(): void
@@ -59,7 +62,7 @@ final class EncryptedKeyReferenceListTest extends TestCase
         );
 
         $this->expectException(DecryptionFailed::class);
-        $this->reader()->dataReferences($document);
+        $this->reader()->dataReferences($document, $this->ours($document));
     }
 
     public function test_a_duplicated_inner_list_is_refused_rather_than_falling_through_to_a_detached_one(): void
@@ -73,7 +76,7 @@ final class EncryptedKeyReferenceListTest extends TestCase
         );
 
         $this->expectException(DecryptionFailed::class);
-        $this->reader()->dataReferences($document);
+        $this->reader()->dataReferences($document, $this->ours($document));
     }
 
     public function test_it_refuses_a_message_carrying_no_reference_list_at_all(): void
@@ -81,7 +84,7 @@ final class EncryptedKeyReferenceListTest extends TestCase
         $document = $this->envelope();
 
         $this->expectException(DecryptionFailed::class);
-        $this->reader()->dataReferences($document);
+        $this->reader()->dataReferences($document, $this->ours($document));
     }
 
     public function test_it_refuses_a_reference_list_declaring_no_references(): void
@@ -89,7 +92,18 @@ final class EncryptedKeyReferenceListTest extends TestCase
         $document = $this->envelope(detached: '<xenc:ReferenceList/>');
 
         $this->expectException(DecryptionFailed::class);
-        $this->reader()->dataReferences($document);
+        $this->reader()->dataReferences($document, $this->ours($document));
+    }
+
+    /**
+     * The Security header the WS-Security blocks would name as the container.
+     */
+    private function ours(Document $document): Element
+    {
+        return Query::elements(
+            $document,
+            '/soap:Envelope/soap:Header/'.Namespaces::Wsse->qualify('Security'),
+        )->expectSingle();
     }
 
     private function reader(): EncryptedKeyReader

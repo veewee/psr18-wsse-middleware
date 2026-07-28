@@ -75,11 +75,17 @@ final class SpiContractTest extends TestCase
         static::assertSame(DataEncryptionMethod::AES256_GCM, $request->dataEncryptionMethod);
     }
 
-    public function test_decryption_request_carries_the_private_key(): void
+    public function test_decryption_request_carries_the_private_key_and_its_container(): void
     {
         $key = new Key('key');
+        $container = $this->container();
 
-        static::assertSame($key, (new DecryptionRequest($key))->privateKey);
+        $request = new DecryptionRequest($container, $key);
+
+        static::assertSame($key, $request->privateKey);
+        // The read side names its container exactly as the write side does, so the wrapped key is looked for
+        // where the caller says it is rather than anywhere in the document.
+        static::assertSame($container, $request->container);
     }
 
     public function test_verification_policy_pairs_the_trust_store_with_the_algorithm_policy(): void

@@ -5,7 +5,9 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
@@ -16,6 +18,11 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
  * Decrypts the xenc:EncryptedData parts of the inbound message by delegating to the XmlDecryptor SPI. The
  * recipient private key is provided at construction time and the decryptor resolves it internally; the
  * document is mutated in place (each EncryptedData replaced by its plaintext nodes).
+ *
+ * The wrapped session key is read from the Security header addressed to this receiver, the same scope the
+ * signature verifier and the timestamp validator use. Anyone can wrap a key to a public certificate, so a
+ * message carrying no header for us is refused rather than decrypted against an xenc:EncryptedKey found
+ * elsewhere in the envelope, which nothing marks as intended for this recipient.
  *
  * Every decryption failure, whatever its cause, collapses to one SecurityFault with a non-identifying
  * message. The underlying reason is chained for operator logs only and is never forwarded to a remote peer.
@@ -47,9 +54,17 @@ final class Decrypt implements InboundAction
      */
     public function __invoke(WsseContext $context): void
     {
+        $document = $context->document();
+
         try {
-            $this->decryptor->decrypt($context->document(), new DecryptionRequest($this->privateKey, $context->profile()->crypto()));
-        } catch (DecryptionFailed $exception) {
+            $container = SecurityHeader::locate($document, $context->soapVersion(), $context->profile()->actorOrRole())
+                ?? throw DecryptionFailed::withReason('The message carries no Security header for this receiver.');
+
+            $this->decryptor->decrypt(
+                $document,
+                new DecryptionRequest($container, $this->privateKey, $context->profile()->crypto()),
+            );
+        } catch (DecryptionFailed | WsseHeaderException $exception) {
             throw SecurityFault::inboundFailure($exception);
         }
     }

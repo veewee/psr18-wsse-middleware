@@ -17,6 +17,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
@@ -74,7 +76,7 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
 
         // The encrypted body still round-trips after the combined operation.
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator(new WsuIdLookup())))
-            ->decrypt($document, new DecryptionRequest($recipientKey));
+            ->decrypt($document, new DecryptionRequest($this->security($document), $recipientKey));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertStringContainsString('<data>x</data>', $document->toXmlString());
@@ -106,6 +108,18 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         (new Encryption($clientCertificate->publicCertificate(), encKeyRef: EncKeyRef::BinarySecurityToken))->withEncryptor($this->realEncryptor())($context);
 
         static::assertCount(1, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
+    }
+
+    /**
+     * The Security header the encrypting block wrote into, which is also the container the wrapped key is read
+     * back out of.
+     */
+    private function security(Document $document): Element
+    {
+        $security = SecurityHeader::locate($document, SoapVersion::fromDocument($document));
+        static::assertInstanceOf(Element::class, $security);
+
+        return $security;
     }
 
     private function realSigner(): Signer

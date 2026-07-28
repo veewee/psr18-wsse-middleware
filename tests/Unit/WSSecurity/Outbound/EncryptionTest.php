@@ -23,6 +23,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdent
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
@@ -139,7 +141,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertSame(1, $method->getElementsByTagNameNS('http://www.w3.org/2009/xmlenc11#', 'MGF')->count());
 
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator(new WsuIdLookup())))
-            ->decrypt($document, new DecryptionRequest($key));
+            ->decrypt($document, new DecryptionRequest($this->security($document), $key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertSame($originalBody, $document->stringifyNode($this->only($document, self::SOAP12, 'Body')));
@@ -263,7 +265,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertSame('http://www.w3.org/2001/04/xmlenc#Content', $encryptedData->getAttribute('Type'));
 
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator(new WsuIdLookup())))
-            ->decrypt($document, new DecryptionRequest($key));
+            ->decrypt($document, new DecryptionRequest($this->security($document), $key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertSame($originalBody, $document->stringifyNode($this->only($document, self::SOAP12, 'Body')));
@@ -284,9 +286,21 @@ final class EncryptionTest extends OutboundTestCase
         static::assertSame(DataEncryptionMethod::AES256_CBC->value, $method->getAttribute('Algorithm'));
 
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator(new WsuIdLookup())))
-            ->decrypt($document, new DecryptionRequest($key));
+            ->decrypt($document, new DecryptionRequest($this->security($document), $key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
+    }
+
+    /**
+     * The Security header the encrypting block wrote into, which is also the container the wrapped key is read
+     * back out of.
+     */
+    private function security(Document $document): Element
+    {
+        $security = SecurityHeader::locate($document, SoapVersion::fromDocument($document));
+        static::assertInstanceOf(Element::class, $security);
+
+        return $security;
     }
 
     private function realEncryptor(): Encryptor

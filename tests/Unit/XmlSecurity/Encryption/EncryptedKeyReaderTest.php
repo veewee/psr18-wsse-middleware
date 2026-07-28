@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption;
 
+use Dom\Element;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
@@ -11,6 +12,8 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
+use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
@@ -39,7 +42,7 @@ final class EncryptedKeyReaderTest extends TestCase
             ['MGF', self::XENC11, self::MGF1_SHA256],
         ]);
 
-        $sessionKeyRead = (new EncryptedKeyReader(new KeyTransport()))->read($document, $key);
+        $sessionKeyRead = (new EncryptedKeyReader(new KeyTransport()))->read($document, $this->ours($document), $key);
 
         static::assertSame($sessionKey->bytes(), $sessionKeyRead->bytes());
     }
@@ -102,6 +105,17 @@ final class EncryptedKeyReaderTest extends TestCase
         static::assertSame($this->uniformMessage(), $this->captureFailure($document, $key));
     }
 
+    /**
+     * The Security header the WS-Security blocks would name as the container.
+     */
+    private function ours(Document $document): Element
+    {
+        return Query::elements(
+            $document,
+            '/soap:Envelope/soap:Header/'.Namespaces::Wsse->qualify('Security'),
+        )->expectSingle();
+    }
+
     private function uniformMessage(): string
     {
         return DecryptionFailed::withReason('Unable to unwrap the session key.')->getMessage();
@@ -110,7 +124,7 @@ final class EncryptedKeyReaderTest extends TestCase
     private function captureFailure(Document $document, Key $key, ?CryptoPolicy $profile = null): string
     {
         try {
-            (new EncryptedKeyReader(new KeyTransport()))->read($document, $key, $profile);
+            (new EncryptedKeyReader(new KeyTransport()))->read($document, $this->ours($document), $key, $profile);
         } catch (DecryptionFailed $exception) {
             return $exception->getMessage();
         }
