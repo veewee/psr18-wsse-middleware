@@ -23,4 +23,6 @@ jobs:
             - name: Install dependencies
               run: composer update --prefer-dist --no-progress --no-suggest ${{ matrix.composer-options }}
             - name: Run the tests
-              run: ./vendor/bin/phpunit
+              # --fail-on-skipped: the crypto tests are gated to PHP >= 8.4.21 and skip silently below it, so a
+              # CI run on a too-old patch release would report green having verified no signing or encryption.
+              run: ./vendor/bin/phpunit --fail-on-skipped
