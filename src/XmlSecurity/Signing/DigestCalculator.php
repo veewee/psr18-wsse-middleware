@@ -24,19 +24,27 @@ final class DigestCalculator
     }
 
     /**
+     * @param list<string> $inclusivePrefixes the exclusive-c14n PrefixList to canonicalize under, if any
+     *
      * @throws CanonicalizationFailed when the element cannot be canonicalized (propagated from the canonicalizer)
      */
     public function calculate(
         ResolvedReference $reference,
         SignatureCanonicalization $method,
         DigestMethod $digestMethod,
+        array $inclusivePrefixes = [],
     ): DigestResult {
-        $canonical = $this->canonicalizer->canonicalize($reference->element, $method);
+        $canonical = $this->canonicalizer->canonicalize(
+            $reference->element,
+            $method,
+            $inclusivePrefixes === [] ? null : $inclusivePrefixes,
+        );
 
         // The raw digest crosses in from native hash() as a plain string, so its non-emptiness is coerced
         // rather than asserted: this is the boundary where it enters the typed contract DigestResult declares.
         $digest = non_empty_string()->coerce(base64_encode($this->digest->hash($canonical, $digestMethod)));
 
-        return new DigestResult($reference->id, $digest, $digestMethod);
+        // The list travels on the result so the reference declares exactly what it was digested under.
+        return new DigestResult($reference->id, $digest, $digestMethod, $inclusivePrefixes);
     }
 }

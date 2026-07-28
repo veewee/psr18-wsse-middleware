@@ -94,18 +94,71 @@ final class SignedInfoBuilderTest extends TestCase
         static::assertSame(SignatureCanonicalization::C14N->value, $transform->getAttribute('Algorithm'));
     }
 
+    public function test_a_reference_pins_the_prefixes_its_digest_was_computed_under(): void
+    {
+        $signedInfo = $this->build([new DigestResult('Ts-1', 'AAA=', DigestMethod::SHA256, ['wsse', 'soap'])]);
+
+        $transform = $this->transformOfFirstReference($signedInfo);
+        $inclusive = $this->childrenByLocalName($transform, 'InclusiveNamespaces')[0];
+
+        static::assertSame(self::EXC_C14N, $inclusive->namespaceURI);
+        static::assertSame('wsse soap', $inclusive->getAttribute('PrefixList'));
+    }
+
+    public function test_a_reference_with_nothing_to_pin_declares_no_inclusive_namespaces(): void
+    {
+        $signedInfo = $this->build([new DigestResult('Body-1', 'AAA=', DigestMethod::SHA256)]);
+
+        static::assertSame([], $this->childrenByLocalName($this->transformOfFirstReference($signedInfo), 'InclusiveNamespaces'));
+    }
+
+    public function test_the_canonicalization_method_pins_the_prefixes_signed_info_is_canonicalized_under(): void
+    {
+        $signedInfo = $this->build([new DigestResult('Body-1', 'AAA=', DigestMethod::SHA256)], prefixes: ['soap']);
+
+        $inclusive = $this->childrenByLocalName($this->childAt($signedInfo, 0), 'InclusiveNamespaces')[0];
+
+        static::assertSame(self::EXC_C14N, $inclusive->namespaceURI);
+        static::assertSame('soap', $inclusive->getAttribute('PrefixList'));
+    }
+
+    public function test_an_inclusive_canonicalization_pins_no_prefixes_anywhere(): void
+    {
+        // A PrefixList parameterizes exclusive C14N only; inclusive C14N already emits every declaration in
+        // scope, so declaring one would describe a canonicalization that never ran.
+        $signedInfo = $this->build(
+            [new DigestResult('Ts-1', 'AAA=', DigestMethod::SHA256, ['wsse', 'soap'])],
+            SignatureCanonicalization::C14N,
+            ['soap'],
+        );
+
+        static::assertSame([], $this->childrenByLocalName($this->childAt($signedInfo, 0), 'InclusiveNamespaces'));
+        static::assertSame([], $this->childrenByLocalName($this->transformOfFirstReference($signedInfo), 'InclusiveNamespaces'));
+    }
+
+    private function transformOfFirstReference(Element $signedInfo): Element
+    {
+        $reference = $this->childrenByLocalName($signedInfo, 'Reference')[0];
+        $transforms = $this->childrenByLocalName($reference, 'Transforms')[0];
+
+        return $this->childrenByLocalName($transforms, 'Transform')[0];
+    }
+
     /**
      * @param non-empty-list<DigestResult> $results
+     * @param list<string>                 $prefixes
      */
     private function build(
         array $results,
         SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N,
+        array $prefixes = [],
     ): Element {
         return (new SignedInfoBuilder())->build(
             Document::fromXmlString('<root/>'),
             $canonicalization,
             SignatureMethod::RSA_SHA256,
             $results,
+            $prefixes,
         );
     }
 

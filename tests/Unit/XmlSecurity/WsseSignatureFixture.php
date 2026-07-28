@@ -145,6 +145,7 @@ final class WsseSignatureFixture
         DigestMethod $digestMethod = DigestMethod::SHA256,
         ?KeyIdentifier $keyIdentifier = null,
         SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N,
+        bool $inclusivePrefixes = false,
     ): Document {
         $document = $this->envelope($withTimestamp);
 
@@ -157,6 +158,7 @@ final class WsseSignatureFixture
             signatureMethod: $signatureMethod,
             digestMethod: $digestMethod,
             canonicalization: $canonicalization,
+            inclusivePrefixes: $inclusivePrefixes,
         ));
 
         return $document;

@@ -228,6 +228,12 @@ encrypting exactly as before:
   only form accepted inbound; opt in to an inclusive variant outbound with
   `Outbound\Signature::withCanonicalization(...)` and, if you also verify with it, by adding it to the profile's
   `acceptedCanonicalizations`. Canonical XML 1.1 is not supported.
+- **Pinned namespace prefixes.** `Outbound\Signature::withInclusivePrefixes()` makes an exclusive
+  canonicalization emit an `ec:InclusiveNamespaces PrefixList`, pinning the ancestor namespace declarations it
+  would otherwise drop. This is a separate switch from the canonicalization method above — it parameterizes the
+  exclusive form rather than replacing it. Off by default, so existing signatures are byte-identical on the
+  wire; turn it on only for a peer that needs an ancestor declaration preserved. Inbound, a PrefixList sent by a
+  peer was already read and honoured, so nothing changes there.
 
 `SecurityProfile` gained two inbound allow-lists for these: `acceptedOaepHashes` (default SHA-1 and SHA-256) and
 `acceptedCanonicalizations` (default the exclusive variants only). Leave them unset to keep the secure defaults.

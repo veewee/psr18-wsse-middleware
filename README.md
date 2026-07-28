@@ -218,6 +218,22 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   If you sign with an inclusive variant and also verify the response with one, add it to the profile's
   `acceptedCanonicalizations` allow-list as well (see [Security profile and defaults](#security-profile-and-defaults));
   by default only the exclusive variants are accepted inbound.
+- `withInclusivePrefixes(): self` — pin the namespace prefixes an exclusive canonicalization would otherwise
+  drop, as an `ec:InclusiveNamespaces PrefixList`. Off by default.
+
+  Exclusive C14N deliberately emits only the namespace declarations a subtree visibly uses, which is what lets
+  a signature survive being moved into a different envelope. A peer that needs an ancestor's declaration
+  anyway — because it resolves a QName out of attribute or text content, or re-serializes the message before
+  verifying — cannot get it back unless you pin it. Turn this on for such a peer:
+  ```php
+  (new Outbound\Signature($clientCertificate))
+      ->withInclusivePrefixes();
+  ```
+  The list is derived per element rather than configured: each signed part pins the prefixes it inherits but
+  does not itself use, and `ds:CanonicalizationMethod` pins everything in scope around the Security header.
+  That is the same shape a WSS4J peer emits. Nothing changes for the receiver's own checks — the prefix list is
+  self-describing, so a verifier reads it from the signature and canonicalizes accordingly. It has no effect on
+  an inclusive canonicalization, which already emits every declaration in scope.
 
 ## Outbound: `Encryption`
 

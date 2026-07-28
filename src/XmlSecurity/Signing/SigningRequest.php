@@ -24,6 +24,8 @@ final readonly class SigningRequest
 {
     /**
      * @param non-empty-list<Target> $targets
+     * @param bool                   $inclusivePrefixes pin the namespace prefixes an exclusive canonicalization
+     *                                                  would otherwise drop, derived per element
      */
     public function __construct(
         public Element $container,
@@ -34,6 +36,7 @@ final readonly class SigningRequest
         public SignatureMethod $signatureMethod,
         public DigestMethod $digestMethod,
         public SignatureCanonicalization $canonicalization,
+        public bool $inclusivePrefixes = false,
     ) {
     }
 }

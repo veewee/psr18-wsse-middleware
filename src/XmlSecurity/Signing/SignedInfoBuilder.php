@@ -25,12 +25,14 @@ final class SignedInfoBuilder
 {
     /**
      * @param non-empty-list<DigestResult> $references
+     * @param list<string>                 $inclusivePrefixes the PrefixList ds:SignedInfo itself is canonicalized under
      */
     public function build(
         Document $document,
         SignatureCanonicalization $canonicalization,
         SignatureMethod $signatureMethod,
         array $references,
+        array $inclusivePrefixes = [],
     ): Element {
         $referenceBuilders = array_map(
             fn (DigestResult $result): callable => $this->reference($result, $canonicalization),
@@ -45,6 +47,7 @@ final class SignedInfoBuilder
                     Namespaces::Ds->value,
                     Namespaces::Ds->qualify('CanonicalizationMethod'),
                     attribute('Algorithm', $canonicalization->value),
+                    ...$this->inclusiveNamespaces($canonicalization, $inclusivePrefixes),
                 ),
                 namespaced_element(
                     Namespaces::Ds->value,
@@ -73,6 +76,7 @@ final class SignedInfoBuilder
                         Namespaces::Ds->value,
                         Namespaces::Ds->qualify('Transform'),
                         attribute('Algorithm', $canonicalization->value),
+                        ...$this->inclusiveNamespaces($canonicalization, $result->inclusivePrefixes),
                     )),
                 ),
                 namespaced_element(
@@ -87,5 +91,27 @@ final class SignedInfoBuilder
                 ),
             ),
         );
+    }
+
+    /**
+     * The ec:InclusiveNamespaces child pinning a PrefixList, or nothing at all. A PrefixList parameterizes
+     * exclusive C14N only — inclusive C14N already emits every declaration in scope — and an empty list is
+     * indistinguishable from declaring none, so neither case emits an element.
+     *
+     * @param list<string> $prefixes
+     *
+     * @return list<callable>
+     */
+    private function inclusiveNamespaces(SignatureCanonicalization $canonicalization, array $prefixes): array
+    {
+        if (!$canonicalization->isExclusive() || $prefixes === []) {
+            return [];
+        }
+
+        return [children(namespaced_element(
+            SignatureCanonicalization::EXC_C14N->value,
+            'ec:InclusiveNamespaces',
+            attribute('PrefixList', implode(' ', $prefixes)),
+        ))];
     }
 }

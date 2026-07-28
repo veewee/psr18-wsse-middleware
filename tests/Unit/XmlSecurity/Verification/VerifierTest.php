@@ -462,6 +462,59 @@ final class VerifierTest extends TestCase
         );
     }
 
+    /**
+     * A signature that pins prefixes can only verify if the PrefixList it declares is the one its digests were
+     * actually computed under: the verifier re-canonicalizes from the declaration, so any drift between the two
+     * changes the bytes and fails the digest. Asserting a non-empty list was emitted keeps the round trip from
+     * passing as the feature being off.
+     */
+    public function test_it_verifies_a_signature_that_pins_its_inclusive_prefixes(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()], inclusivePrefixes: true);
+
+        $prefixLists = $this->prefixLists($document);
+        static::assertNotSame([], $prefixLists);
+        static::assertNotContains('', $prefixLists);
+
+        $result = $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+
+        static::assertInstanceOf(VerifiedSignature::class, $result);
+        static::assertTrue($result->signedElements->wasSigned($this->body($document)));
+    }
+
+    public function test_a_signature_whose_pinned_prefixes_are_rewritten_no_longer_verifies(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()], inclusivePrefixes: true);
+
+        $this->rewriteAttribute(
+            $document,
+            SignatureCanonicalization::EXC_C14N->value,
+            'InclusiveNamespaces',
+            'PrefixList',
+            'wsu',
+        );
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->verifier()->verify($document, $this->policy($fixture->caCertificate));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function prefixLists(Document $document): array
+    {
+        $lists = [];
+        $elements = $document->toUnsafeDocument()
+            ->getElementsByTagNameNS(SignatureCanonicalization::EXC_C14N->value, 'InclusiveNamespaces');
+        foreach ($elements as $element) {
+            $lists[] = $element->getAttribute('PrefixList');
+        }
+
+        return $lists;
+    }
+
     private function policy(Certificate $anchor): VerificationPolicy
     {
         return new VerificationPolicy(

@@ -12,6 +12,7 @@ use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\InclusivePrefixes;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
@@ -83,20 +84,33 @@ final class Signer implements XmlSigner
         // would produce bytes no verifier reading the wire could reproduce. The reparse is exactly what the
         // wire is, so the digests match across libxml versions.
         $wire = $this->wire($document);
+
+        // A PrefixList parameterizes exclusive C14N only, so an inclusive canonicalization pins nothing even
+        // when the caller asked for it. Each list is derived once and then both declared and canonicalized
+        // under, which is what keeps a reference's declaration from drifting from its own digest.
+        $pinPrefixes = $request->inclusivePrefixes && $request->canonicalization->isExclusive();
         $digests = array_map(
-            fn (ResolvedReference $reference): DigestResult => $this->digestCalculator->calculate(
-                new ResolvedReference($this->idLookup->lookup($wire, $reference->id), $reference->id),
-                $request->canonicalization,
-                $request->digestMethod,
-            ),
+            function (ResolvedReference $reference) use ($wire, $request, $pinPrefixes): DigestResult {
+                $element = $this->idLookup->lookup($wire, $reference->id);
+
+                return $this->digestCalculator->calculate(
+                    new ResolvedReference($element, $reference->id),
+                    $request->canonicalization,
+                    $request->digestMethod,
+                    $pinPrefixes ? InclusivePrefixes::forSignedElement($element) : [],
+                );
+            },
             $references,
         );
+
+        $signedInfoPrefixes = $pinPrefixes ? InclusivePrefixes::forContainer($request->container) : [];
 
         $signedInfo = $this->signedInfoBuilder->build(
             $document,
             $request->canonicalization,
             $request->signatureMethod,
             $digests,
+            $signedInfoPrefixes,
         );
         $keyInfo = $request->keyIdentifier->apply($document, $request->signingCertificate);
 
@@ -107,7 +121,7 @@ final class Signer implements XmlSigner
         append($signature)($container);
         NodeOrder::sort($container);
 
-        $this->signInto($signatureValue, $request, $document);
+        $this->signInto($signatureValue, $request, $document, $signedInfoPrefixes);
     }
 
     /**
@@ -116,12 +130,22 @@ final class Signer implements XmlSigner
      * namespace divergence as the signed parts, so the bytes that get signed must be the wire bytes a
      * verifier re-canonicalizes, not the live DOM bytes.
      *
+     * @param list<string> $inclusivePrefixes the same list ds:CanonicalizationMethod declares
+     *
      * @throws SigningFailed
      */
-    private function signInto(Element $signatureValue, SigningRequest $request, Document $document): void
-    {
+    private function signInto(
+        Element $signatureValue,
+        SigningRequest $request,
+        Document $document,
+        array $inclusivePrefixes,
+    ): void {
         $signedInfo = $this->locateSignedInfo($this->wire($document));
-        $canonical = $this->canonicalizer->canonicalize($signedInfo, $request->canonicalization);
+        $canonical = $this->canonicalizer->canonicalize(
+            $signedInfo,
+            $request->canonicalization,
+            $inclusivePrefixes === [] ? null : $inclusivePrefixes,
+        );
 
         try {
             $signature = $this->opensslSigner->sign($request->signingKey, $canonical, $request->signatureMethod);

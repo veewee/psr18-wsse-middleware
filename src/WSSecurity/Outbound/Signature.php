@@ -45,6 +45,7 @@ final class Signature implements OutboundAction
     private ?SignatureMethod $signatureMethod = null;
     private ?DigestMethod $digestMethod = null;
     private ?SignatureCanonicalization $canonicalization = null;
+    private bool $inclusivePrefixes = false;
 
     private XmlSigner $signer;
 
@@ -102,6 +103,21 @@ final class Signature implements OutboundAction
     }
 
     /**
+     * Pins the namespace prefixes an exclusive canonicalization would otherwise drop, as an
+     * ec:InclusiveNamespaces PrefixList derived per signed element. Turn this on for a peer that needs an
+     * ancestor's namespace declaration to survive into the signed bytes — one that resolves a QName out of
+     * attribute or text content, or re-serializes the message before verifying. It is off by default because
+     * emitting the narrowest possible declaration set is what lets a signature move between envelopes.
+     */
+    public function withInclusivePrefixes(): self
+    {
+        $clone = clone $this;
+        $clone->inclusivePrefixes = true;
+
+        return $clone;
+    }
+
+    /**
      * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException when the header cannot be created
      * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed when signing fails
      */
@@ -124,6 +140,7 @@ final class Signature implements OutboundAction
             signatureMethod: $this->signatureMethod ?? $profile->crypto()->signatureMethod(),
             digestMethod: $this->digestMethod ?? $profile->crypto()->digestMethod(),
             canonicalization: $this->canonicalization ?? $profile->crypto()->canonicalization(),
+            inclusivePrefixes: $this->inclusivePrefixes,
         );
 
         $this->signer->sign($document, $request);

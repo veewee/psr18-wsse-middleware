@@ -63,6 +63,23 @@ final class SignatureTest extends OutboundTestCase
         static::assertSame(SignatureMethod::RSA_SHA1, $signer->lastRequest()->signatureMethod);
     }
 
+    public function test_it_pins_no_inclusive_prefixes_by_default(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
+
+        static::assertFalse($signer->lastRequest()->inclusivePrefixes);
+    }
+
+    public function test_it_pins_inclusive_prefixes_when_asked(): void
+    {
+        $signer = new RecordingSigner();
+        $block = (new Signature($this->clientCertificate()))->withSigner($signer)->withInclusivePrefixes();
+        $block($this->signableContext());
+
+        static::assertTrue($signer->lastRequest()->inclusivePrefixes);
+    }
+
     public function test_with_methods_are_immutable(): void
     {
         $original = (new Signature($this->clientCertificate()))->withSigner(new RecordingSigner());
@@ -71,6 +88,7 @@ final class SignatureTest extends OutboundTestCase
         static::assertNotSame($original, $original->withDigestMethod(DigestMethod::SHA512));
         static::assertNotSame($original, $original->withCanonicalization(SignatureCanonicalization::EXC_C14N_COMMENTS));
         static::assertNotSame($original, $original->withParts([Part::body()]));
+        static::assertNotSame($original, $original->withInclusivePrefixes());
     }
 
     public function test_with_signer_routes_signing_to_the_given_signer(): void
