@@ -962,6 +962,41 @@ public function verify(Document $document, VerificationPolicy $policy, Element $
 public function decrypt(Document $document, DecryptionRequest $request): void;
 ```
 
+### Enveloped signatures (engine level only)
+
+The verifier accepts the `enveloped-signature` transform, so it can verify a signature that lives *inside* the
+element it signs — the standard shape for a plain signed XML document, and the shape a signed SAML assertion
+arrives in. A reference may declare the transform on its own, or followed by one canonicalization; the order is
+enforced, and every canonicalization is still allow-list checked exactly as elsewhere.
+
+Reach it by naming the signed element as the scope:
+
+```php
+$verified = Verifier::create()->verify($document, $policy, $signedElement);
+```
+
+**No WS-Security block uses this.** `Inbound\VerifySignature` scopes to the `wsse:Security` header addressed to
+you, and a signature is only recognised as that scope's own when it is a *direct child* of it — a signature
+nested deeper is never mistaken for it, which is deliberate XML Signature Wrapping hardening. So an assertion's
+own signature is not verified by that block, and this is engine-level capability for a standalone caller.
+
+That is not a gap in message security: when a WSSE signature covers an assertion, its digest already covers the
+assertion *together with* the signature embedded in it, so tampering is caught without this transform. What the
+transform adds is authenticating the issuer's signature on the token, which a SOAP client normally does not do —
+it presents an assertion obtained from an STS, and the service verifies the issuer.
+
+Two rules make it safe to accept at all, and both refuse rather than guess:
+
+- The element must contain **exactly one** `ds:Signature`, and it must be the signature being verified, compared
+  by object identity. Stripping every signature under the element would let an injected second one be dropped
+  from the digest silently.
+- An element containing **no** signature is refused too: the transform claims self-exclusion while the signature
+  sits elsewhere, which is a relocated signature claiming to cover something it is not inside.
+
+The exclusion is applied as a node-set filter while canonicalizing in place. The signature is never detached or
+cloned away, because a detached clone loses the namespace declarations it inherits from its ancestors and the
+canonical bytes would no longer match what the signer computed.
+
 ### Id conventions are injected on both sides
 
 How a signed or encrypted node gets its referenceable id is an `XmlSecurity\IdMinter`, and how a reference
