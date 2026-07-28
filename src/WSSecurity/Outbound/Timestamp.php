@@ -52,7 +52,7 @@ final class Timestamp implements OutboundAction
         $created = $this->clock->now();
         $expires = $created->plusSeconds($this->ttl);
 
-        $header = SecurityHeader::locateOrCreate($document, $context->soapVersion());
+        $header = SecurityHeader::forContext($context);
         $header->appendChildren($this->build($document, $minter, $created, $expires));
     }
 

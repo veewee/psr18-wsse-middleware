@@ -124,11 +124,11 @@ final class Signature implements OutboundAction
     public function __invoke(WsseContext $context): void
     {
         $document = $context->document();
+        $profile = $context->profile();
 
-        $security = SecurityHeader::locateOrCreate($document, $context->soapVersion(), mustUnderstand: true);
+        $security = SecurityHeader::forContext($context);
 
         $keyIdentifier = $this->resolveKeyIdentifier($context);
-        $profile = $context->profile();
 
         $parts = $this->parts ?? [Part::body(), Part::securityHeaderContents()];
         $request = new SigningRequest(

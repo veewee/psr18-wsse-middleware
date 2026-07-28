@@ -722,13 +722,26 @@ $profile = new SecurityProfile(
 );
 ```
 
-`SecurityProfile` carries the WS-Security freshness window and composes a `CryptoPolicy`:
+`SecurityProfile` carries the WS-Security freshness window, how the Security header is targeted, and composes a
+`CryptoPolicy`:
 
 - `int $timestampTtl = 300` — the outbound timestamp window in seconds, and the maximum accepted age of an
   inbound timestamp.
 - `int $clockSkew = 60` — the tolerance, in seconds, applied when checking an inbound timestamp against the
   local clock.
 - `?CryptoPolicy $crypto = null` — the XML-Security algorithm policy below; `null` uses `CryptoPolicy::default()`.
+- `?string $actorOrRole = null` — which hop this exchange belongs to, spelled `soap:actor` in SOAP 1.1 and
+  `soap:role` in SOAP 1.2. `null` (default) means the ultimate receiver, whose header carries no such attribute.
+
+  One value does both jobs, because both answer the same question. Outbound it targets the header the blocks
+  write into; inbound it selects the header they read, so a signature or timestamp in a header addressed to a
+  different hop is not treated as yours. Set it only if your deployment is addressed as a named intermediary:
+
+  ```php
+  $profile = new SecurityProfile(actorOrRole: 'urn:my-gateway');
+  ```
+- `bool $mustUnderstand = true` — whether the outbound Security header demands the receiver process it or
+  fault. Leave it on unless a peer rejects the attribute.
 
 `CryptoPolicy` (namespace `Soap\Psr18WsseMiddleware\XmlSecurity`) carries the algorithm choices and allow-lists,
 and can be used to drive the signing/encryption engine without the SOAP profile:

@@ -238,6 +238,28 @@ encrypting exactly as before:
 `SecurityProfile` gained two inbound allow-lists for these: `acceptedOaepHashes` (default SHA-1 and SHA-256) and
 `acceptedCanonicalizations` (default the exclusive variants only). Leave them unset to keep the secure defaults.
 
+### The Security header is targeted through the profile
+
+`SecurityProfile` gained `?string $actorOrRole = null` and `bool $mustUnderstand = true`. The defaults are the
+previous behaviour exactly — an untargeted header carrying `mustUnderstand="1"` — so a profile you carry over
+signs and verifies identically.
+
+One value drives both directions: outbound it targets the header the blocks write, inbound it selects the header
+they read. Set it if your deployment is addressed as a named intermediary rather than the ultimate receiver:
+
+```php
+$profile = new SecurityProfile(actorOrRole: 'urn:my-gateway');
+```
+
+This also closes the caveat noted when inbound header selection was first scoped: a peer that legitimately
+targets its Security header at an explicit actor/role used to fail closed with no way to configure it. Naming
+that actor on the profile now makes such a message verify.
+
+**Behaviour change worth checking:** the inbound signature is now read out of the Security header addressed to
+you, not searched for across the envelope. A response whose signature sits in a header addressed to another hop,
+or in a `wsse:Security` planted elsewhere in the envelope, is refused where it previously verified. If you rely
+on such a message, set `actorOrRole` to the hop that signed it.
+
 ### One WS-Addressing middleware
 
 `WsaMiddleware2005` is gone. There is now a single `WsaMiddleware` that covers both addressing versions, and

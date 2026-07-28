@@ -45,7 +45,7 @@ final class SamlAssertion implements OutboundAction
         $assertion = $this->parseAssertion();
         $assertionId = $this->extractId($assertion);
 
-        $header = SecurityHeader::locateOrCreate($context->document(), $context->soapVersion());
+        $header = SecurityHeader::forContext($context);
         $header->appendChildren(
             static fn (Element $security): Element => assert_element(append_external_node($security, $assertion)),
         );

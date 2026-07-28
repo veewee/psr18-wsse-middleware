@@ -298,6 +298,30 @@ final class ValidateTimestampTest extends TestCase
         ((new ValidateTimestamp())->withClock($this->clock($now->plusSeconds(361))))($this->context($xml));
     }
 
+    /**
+     * The timestamp is read from the header addressed to us, so a profile naming an actor reads that actor's
+     * header. The delta is the actor alone: the same two headers, and only which one the profile claims, decide
+     * whether the stale timestamp or the fresh one is the one checked.
+     */
+    public function test_it_reads_the_timestamp_from_the_header_addressed_to_the_configured_actor(): void
+    {
+        $stale = '<wsu:Created>2020-01-01T00:00:00Z</wsu:Created><wsu:Expires>2020-01-01T00:05:00Z</wsu:Expires>';
+        $fresh = '<wsu:Created>'.self::NOW.'</wsu:Created><wsu:Expires>2999-01-01T00:00:00Z</wsu:Expires>';
+        $xml = '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsse="'.self::WSSE.'" xmlns:wsu="'.self::WSU.'">'
+            .'<soap:Header>'
+            .'<wsse:Security><wsu:Timestamp>'.$stale.'</wsu:Timestamp></wsse:Security>'
+            .'<wsse:Security soap:role="urn:ours"><wsu:Timestamp>'.$fresh.'</wsu:Timestamp></wsse:Security>'
+            .'</soap:Header><soap:Body/></soap:Envelope>';
+
+        // Ours is the actor-targeted header, whose timestamp is fresh.
+        $this->block()($this->context($xml, new SecurityProfile(actorOrRole: 'urn:ours')));
+        $this->addToAssertionCount(1);
+
+        // Without the actor the untargeted header is ours, and its timestamp is long expired.
+        $this->expectException(SecurityFault::class);
+        $this->block()($this->context($xml, new SecurityProfile()));
+    }
+
     private function block(): ValidateTimestamp
     {
         return (new ValidateTimestamp())->withClock($this->clock($this->instant(self::NOW)));

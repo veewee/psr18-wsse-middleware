@@ -75,7 +75,7 @@ final class ValidateTimestamp implements InboundAction
     private function locateTimestamp(WsseContext $context): Element
     {
         try {
-            $security = SecurityHeader::locate($context->document(), $context->soapVersion());
+            $security = SecurityHeader::locate($context->document(), $context->soapVersion(), $context->profile()->actorOrRole());
         } catch (WsseHeaderException $exception) {
             throw SecurityFault::inboundFailure($exception);
         }

@@ -50,7 +50,7 @@ final class BinarySecurityToken implements OutboundAction
     {
         $document = $context->document();
         $locator = new BinaryToken();
-        $header = SecurityHeader::locateOrCreate($document, $context->soapVersion());
+        $header = SecurityHeader::forContext($context);
 
         try {
             return $locator->locate($header->element(), $this->certificate);

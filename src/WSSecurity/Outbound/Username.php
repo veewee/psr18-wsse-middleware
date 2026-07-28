@@ -85,7 +85,7 @@ final class Username implements OutboundAction
             throw new InvalidArgumentException('Digest mode requires a password.');
         }
 
-        $header = SecurityHeader::locateOrCreate($context->document(), $context->soapVersion());
+        $header = SecurityHeader::forContext($context);
         $header->appendChildren($this->build());
     }
 

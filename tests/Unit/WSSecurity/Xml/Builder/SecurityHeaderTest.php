@@ -6,7 +6,9 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml\Builder;
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -25,6 +27,108 @@ final class SecurityHeaderTest extends TestCase
         return Document::fromXmlString(
             '<soap:Envelope xmlns:soap="'.$soapNs.'">'.$header.'<soap:Body/></soap:Envelope>'
         );
+    }
+
+    public function test_for_context_targets_the_header_as_the_profile_says(): void
+    {
+        $document = $this->envelope(self::SOAP12);
+        $context = new WsseContext(
+            $document,
+            SoapVersion::Soap12,
+            new SecurityProfile(actorOrRole: 'urn:ours', mustUnderstand: false),
+        );
+
+        $security = SecurityHeader::forContext($context)->element();
+
+        static::assertSame('urn:ours', $security->getAttributeNS(self::SOAP12, 'role'));
+        static::assertFalse($security->hasAttributeNS(self::SOAP12, 'mustUnderstand'));
+
+        // One value does both jobs: the header this profile targets outbound is the one it calls ours inbound.
+        $wire = Document::fromXmlString($document->toXmlString());
+        static::assertInstanceOf(
+            Element::class,
+            SecurityHeader::locate($wire, SoapVersion::Soap12, 'urn:ours'),
+        );
+        static::assertNull(SecurityHeader::locate($wire, SoapVersion::Soap12));
+    }
+
+    public function test_for_context_defaults_to_the_ultimate_receiver_and_must_understand(): void
+    {
+        $context = new WsseContext($this->envelope(self::SOAP12), SoapVersion::Soap12, new SecurityProfile());
+
+        $security = SecurityHeader::forContext($context)->element();
+
+        static::assertSame('1', $security->getAttributeNS(self::SOAP12, 'mustUnderstand'));
+        static::assertFalse($security->hasAttributeNS(self::SOAP12, 'role'));
+    }
+
+    public function test_for_context_uses_the_soap_11_actor_spelling(): void
+    {
+        $context = new WsseContext(
+            $this->envelope(self::SOAP11),
+            SoapVersion::Soap11,
+            new SecurityProfile(actorOrRole: 'urn:ours'),
+        );
+
+        $security = SecurityHeader::forContext($context)->element();
+
+        static::assertSame('urn:ours', $security->getAttributeNS(self::SOAP11, 'actor'));
+        static::assertFalse($security->hasAttributeNS(self::SOAP11, 'role'));
+    }
+
+    public function test_locate_finds_the_header_addressed_to_the_configured_actor(): void
+    {
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'" xmlns:wsse="'.self::WSSE.'"><soap:Header>'
+            .'<wsse:Security/>'
+            .'<wsse:Security soap:role="urn:ours"><marker/></wsse:Security>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        // Configured as an intermediary, the header naming us is ours; the untargeted one belongs to the
+        // ultimate receiver, which we are not.
+        $ours = SecurityHeader::locate($document, SoapVersion::Soap12, 'urn:ours');
+
+        static::assertInstanceOf(Element::class, $ours);
+        static::assertSame('marker', $ours->firstElementChild?->localName);
+    }
+
+    public function test_locate_does_not_accept_another_actors_header(): void
+    {
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'" xmlns:wsse="'.self::WSSE.'"><soap:Header>'
+            .'<wsse:Security soap:role="urn:someone-else"/>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        static::assertNull(SecurityHeader::locate($document, SoapVersion::Soap12, 'urn:ours'));
+    }
+
+    public function test_locate_still_defaults_to_the_ultimate_receivers_header(): void
+    {
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'" xmlns:wsse="'.self::WSSE.'"><soap:Header>'
+            .'<wsse:Security soap:role="urn:someone-else"/>'
+            .'<wsse:Security><marker/></wsse:Security>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        $ours = SecurityHeader::locate($document, SoapVersion::Soap12);
+
+        static::assertInstanceOf(Element::class, $ours);
+        static::assertSame('marker', $ours->firstElementChild?->localName);
+    }
+
+    public function test_locate_refuses_two_headers_for_the_same_actor(): void
+    {
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'" xmlns:wsse="'.self::WSSE.'"><soap:Header>'
+            .'<wsse:Security soap:role="urn:ours"/><wsse:Security soap:role="urn:ours"/>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        $this->expectException(WsseHeaderException::class);
+        SecurityHeader::locate($document, SoapVersion::Soap12, 'urn:ours');
     }
 
     /** @return list<Element> */

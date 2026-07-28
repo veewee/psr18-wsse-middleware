@@ -46,9 +46,10 @@ final class RequiredPartsValidator
         SoapVersion $soapVersion,
         VerifiedReferences $signedElements,
         array $requiredParts,
+        ?string $actorOrRole = null,
     ): void {
         try {
-            $securityHeader = SecurityHeader::locate($document, $soapVersion);
+            $securityHeader = SecurityHeader::locate($document, $soapVersion, $actorOrRole);
         } catch (WsseHeaderException $exception) {
             throw SecurityFault::inboundFailure($exception);
         }

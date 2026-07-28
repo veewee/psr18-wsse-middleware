@@ -120,7 +120,7 @@ final class Encryption implements OutboundAction
     {
         $document = $context->document();
 
-        $security = SecurityHeader::locateOrCreate($document, $context->soapVersion());
+        $security = SecurityHeader::forContext($context);
 
         $keyIdentifier = $this->resolveKeyIdentifier($context);
         $profile = $context->profile();

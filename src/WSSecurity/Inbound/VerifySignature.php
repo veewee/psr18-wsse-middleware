@@ -69,7 +69,7 @@ final class VerifySignature implements InboundAction
             // across the envelope: a signature in another hop's header covers that hop's requirements, not
             // ours, and one planted elsewhere is not a candidate at all. A message carrying no header for us
             // is refused rather than verified against whatever else the envelope holds.
-            $scope = SecurityHeader::locate($document, $context->soapVersion())
+            $scope = SecurityHeader::locate($document, $context->soapVersion(), $context->profile()->actorOrRole())
                 ?? throw SignatureVerificationFailed::withReason('The message carries no Security header for this receiver.');
 
             $verified = $this->verifier->verify($document, $policy, $scope);
@@ -77,6 +77,12 @@ final class VerifySignature implements InboundAction
             throw SecurityFault::inboundFailure($exception);
         }
 
-        $this->requiredParts->validate($document, $context->soapVersion(), $verified->signedElements, $this->signed);
+        $this->requiredParts->validate(
+            $document,
+            $context->soapVersion(),
+            $verified->signedElements,
+            $this->signed,
+            $context->profile()->actorOrRole(),
+        );
     }
 }

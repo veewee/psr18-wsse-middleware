@@ -102,6 +102,27 @@ final class VerifySignatureTest extends TestCase
         (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($context);
     }
 
+    public function test_a_profile_naming_an_actor_verifies_within_that_actors_header(): void
+    {
+        // Configured as a named intermediary, the header carrying our actor is the one we verify in — and the
+        // untargeted header, which belongs to the ultimate receiver, is not ours to read.
+        $context = new WsseContext(
+            Document::fromXmlString(
+                '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsse="'.self::WSSE.'"><soap:Header>'
+                .'<wsse:Security><ultimate/></wsse:Security>'
+                .'<wsse:Security soap:role="urn:ours"><ours/></wsse:Security>'
+                .'</soap:Header><soap:Body><data>x</data></soap:Body></soap:Envelope>'
+            ),
+            SoapVersion::Soap12,
+            new SecurityProfile(actorOrRole: 'urn:ours'),
+        );
+        $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
+
+        (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($context);
+
+        static::assertSame('ours', $verifier->lastScope()?->firstElementChild?->localName);
+    }
+
     public function test_it_throws_a_security_fault_when_a_required_part_was_not_signed(): void
     {
         $context = $this->context();
