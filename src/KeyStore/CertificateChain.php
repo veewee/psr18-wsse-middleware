@@ -28,6 +28,48 @@ final class CertificateChain
         return new self(...$certificates);
     }
 
+    /**
+     * Orders a set of certificates whose sequence carries no meaning. A message may hand over a whole
+     * certification path with nothing stating which certificate is the end-entity — XML-DSig says as much of
+     * ds:X509Data — so the leaf is derived: it is the certificate that issued none of the others.
+     *
+     * Exactly one such certificate must exist. With none the set is circular or the leaf is missing; with
+     * several nothing says which key signed, and choosing one would let the sender decide which certificate a
+     * signature is checked against.
+     *
+     * @throws InvalidArgumentException when the set is empty or has no single end-entity
+     */
+    public static function fromUnorderedCertificates(Certificate ...$certificates): self
+    {
+        if (count($certificates) <= 1) {
+            return new self(...$certificates);
+        }
+
+        $leaves = array_values(array_filter(
+            $certificates,
+            static function (Certificate $candidate) use ($certificates): bool {
+                foreach ($certificates as $other) {
+                    if ($other !== $candidate && $other->info()->issuerSerial()->issuer->equals($candidate->info()->subject())) {
+                        return false;
+                    }
+                }
+
+                return true;
+            },
+        ));
+
+        if (count($leaves) !== 1) {
+            throw new InvalidArgumentException('The certificate set has no single end-entity certificate.');
+        }
+
+        $leaf = $leaves[0];
+
+        return new self($leaf, ...array_values(array_filter(
+            $certificates,
+            static fn (Certificate $certificate): bool => $certificate !== $leaf,
+        )));
+    }
+
     public function leaf(): Certificate
     {
         return $this->certificates[0];

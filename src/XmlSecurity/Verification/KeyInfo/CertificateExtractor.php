@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo;
 
 use Dom\Element;
+use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidCertificate;
@@ -34,6 +35,13 @@ use VeeWee\Xml\Dom\Document;
  */
 final class CertificateExtractor
 {
+    /**
+     * A certification path longer than this is refused before any certificate is decoded. Real paths are a
+     * leaf plus a handful of intermediates; a longer one is a peer sending junk, and decoding it is work an
+     * unauthenticated message should not be able to ask for.
+     */
+    private const MAX_CARRIED_CERTIFICATES = 10;
+
     private readonly KeyInfoReader $reader;
     private readonly TrustStoreCertificateResolver $resolver;
 
@@ -52,15 +60,40 @@ final class CertificateExtractor
         $reference = $this->reader->read($document, $signatureElement);
 
         if ($reference->form === CertificateReference::FORM_CARRIED) {
-            try {
-                $certificate = Certificate::fromBase64Der($reference->base64Der);
-            } catch (InvalidCertificate) {
-                throw SignatureVerificationFailed::withReason('The certificate bytes are not valid base64.');
-            }
-
-            return CertificateChain::fromCertificates($certificate);
+            return $this->carriedChain($reference->base64DerCertificates);
         }
 
         return CertificateChain::fromCertificates($this->resolver->resolve($reference, $trustStore));
+    }
+
+    /**
+     * Decodes the certificates the message carries and hands the ordering to CertificateChain, which derives
+     * the end-entity. The path length is capped before any decoding so an oversized KeyInfo costs nothing, and
+     * every malformed or unorderable set collapses into the one uniform failure.
+     *
+     * @param list<string> $base64DerCertificates
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function carriedChain(array $base64DerCertificates): CertificateChain
+    {
+        if (count($base64DerCertificates) > self::MAX_CARRIED_CERTIFICATES) {
+            throw SignatureVerificationFailed::withReason('The carried certificate path is too long.');
+        }
+
+        $certificates = [];
+        foreach ($base64DerCertificates as $base64Der) {
+            try {
+                $certificates[] = Certificate::fromBase64Der($base64Der);
+            } catch (InvalidCertificate) {
+                throw SignatureVerificationFailed::withReason('The certificate bytes are not valid base64.');
+            }
+        }
+
+        try {
+            return CertificateChain::fromUnorderedCertificates(...$certificates);
+        } catch (InvalidArgumentException) {
+            throw SignatureVerificationFailed::withReason('The carried certificate path could not be ordered.');
+        }
     }
 }

@@ -19,11 +19,12 @@ final readonly class CertificateReference
     public const FORM_ISSUER_SERIAL = 'issuerSerial';
 
     /**
-     * @param self::FORM_* $form
+     * @param self::FORM_*  $form
+     * @param list<string>  $base64DerCertificates
      */
     private function __construct(
         public readonly string $form,
-        public readonly string $base64Der = '',
+        public readonly array $base64DerCertificates = [],
         public readonly string $valueType = '',
         public readonly string $reference = '',
         public readonly string $issuerName = '',
@@ -31,9 +32,13 @@ final readonly class CertificateReference
     ) {
     }
 
-    public static function carried(string $base64Der): self
+    /**
+     * A carried reference may hold a whole certification path, not just one certificate: XML-DSig allows
+     * several ds:X509Certificate elements under one ds:X509Data, and a PKIPath token carries a chain too.
+     */
+    public static function carried(string ...$base64DerCertificates): self
     {
-        return new self(self::FORM_CARRIED, base64Der: $base64Der);
+        return new self(self::FORM_CARRIED, base64DerCertificates: array_values($base64DerCertificates));
     }
 
     public static function keyIdentifier(string $valueType, string $reference): self

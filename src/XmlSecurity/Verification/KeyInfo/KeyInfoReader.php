@@ -43,10 +43,14 @@ final class KeyInfoReader
             throw SignatureVerificationFailed::withReason('ds:KeyInfo is missing.');
         }
 
-        $carried = $this->fromSecurityTokenReference($document, $keyInfo)
-            ?? $this->fromInlineX509($keyInfo);
-        if ($carried !== null) {
-            return CertificateReference::carried($carried);
+        $fromToken = $this->fromSecurityTokenReference($document, $keyInfo);
+        if ($fromToken !== null) {
+            return CertificateReference::carried($fromToken);
+        }
+
+        $inline = $this->fromInlineX509($keyInfo);
+        if ($inline !== []) {
+            return CertificateReference::carried(...$inline);
         }
 
         $identifier = $this->fromIdentifierReference($keyInfo);
@@ -107,22 +111,24 @@ final class KeyInfoReader
     }
 
     /**
-     * Reads an inline ds:X509Data > ds:X509Certificate. Returns null when KeyInfo carries no ds:X509Data so the
-     * caller can try an identifier form or refuse with a uniform message.
+     * Reads every inline ds:X509Data > ds:X509Certificate. XML-DSig allows more than one so a peer can carry
+     * its whole certification path, so this returns all of them in document order — which says nothing about
+     * which is the end-entity, a question the caller answers from issuer linkage. An empty list means KeyInfo
+     * carries no inline certificate, leaving the caller to try an identifier form or refuse uniformly.
+     *
+     * @return list<string>
      */
-    private function fromInlineX509(Element $keyInfo): ?string
+    private function fromInlineX509(Element $keyInfo): array
     {
         $x509Data = $this->onlyChild($keyInfo, Namespaces::Ds, 'X509Data');
         if ($x509Data === null) {
-            return null;
+            return [];
         }
 
-        $certificate = $this->onlyChild($x509Data, Namespaces::Ds, 'X509Certificate');
-        if ($certificate === null) {
-            return null;
-        }
-
-        return ElementText::trimmed($certificate);
+        return array_map(
+            static fn (Element $certificate): string => ElementText::trimmed($certificate),
+            ChildElements::named($x509Data, Namespaces::Ds, 'X509Certificate'),
+        );
     }
 
     /**
