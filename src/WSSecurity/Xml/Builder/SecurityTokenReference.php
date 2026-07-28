@@ -42,15 +42,19 @@ final readonly class SecurityTokenReference
      *
      * @param non-empty-string $uri the wsu:Id of the referenced token, without the '#'
      * @param non-empty-string $valueType the token's WS-Security ValueType URI
+     * @param non-empty-string|null $tokenType the wsse11:TokenType the referenced token's profile calls for
      */
-    public static function reference(string $uri, string $valueType): self
+    public static function reference(string $uri, string $valueType, ?string $tokenType = null): self
     {
-        return new self(namespaced_element(
-            Namespaces::Wsse->value,
-            Namespaces::Wsse->qualify('Reference'),
-            attribute('URI', '#'.$uri),
-            attribute('ValueType', $valueType),
-        ));
+        return new self(
+            namespaced_element(
+                Namespaces::Wsse->value,
+                Namespaces::Wsse->qualify('Reference'),
+                attribute('URI', '#'.$uri),
+                attribute('ValueType', $valueType),
+            ),
+            $tokenType,
+        );
     }
 
     /**

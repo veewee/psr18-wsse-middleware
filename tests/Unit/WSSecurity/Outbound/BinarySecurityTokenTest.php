@@ -15,7 +15,8 @@ final class BinarySecurityTokenTest extends OutboundTestCase
 {
     private const X509V3 = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
     private const X509_PKI_PATH = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509PKIPathv1';
-    private const BASE64_BINARY = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
+    private const WSSE11 = 'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd';
+    private const BASE64_BINARY ='http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary';
 
     private function certificate(): Certificate
     {
@@ -147,9 +148,29 @@ final class BinarySecurityTokenTest extends OutboundTestCase
 
         // The reference's ValueType names what the referenced token carries, so it has to move with the token's:
         // a peer that finds them disagreeing refuses the SecurityTokenReference outright.
-        $reference = $identifier->apply($document, $chain->leaf())->getElementsByTagNameNS(self::WSSE, 'Reference')->item(0);
+        $keyInfo = $identifier->apply($document, $chain->leaf());
+        $reference = $keyInfo->getElementsByTagNameNS(self::WSSE, 'Reference')->item(0);
         static::assertInstanceOf(Element::class, $reference);
         static::assertSame(self::X509_PKI_PATH, $reference->getAttribute('ValueType'));
+
+        // The X.509 profile also requires a reference to a path token to name the token's type on the
+        // SecurityTokenReference itself. A reference carrying only the ValueType is refused.
+        $str = $keyInfo->getElementsByTagNameNS(self::WSSE, 'SecurityTokenReference')->item(0);
+        static::assertInstanceOf(Element::class, $str);
+        static::assertSame(self::X509_PKI_PATH, $str->getAttributeNS(self::WSSE11, 'TokenType'));
+    }
+
+    public function test_a_direct_reference_to_a_leaf_token_carries_no_token_type(): void
+    {
+        $document = $this->envelope();
+
+        $identifier = (new BinarySecurityToken($this->certificate()))->embedAsDirectReference($this->context($document));
+
+        // Only the path token needs its type named; a bare certificate reference is complete without it.
+        $str = $identifier->apply($document, $this->certificate())
+            ->getElementsByTagNameNS(self::WSSE, 'SecurityTokenReference')->item(0);
+        static::assertInstanceOf(Element::class, $str);
+        static::assertFalse($str->hasAttributeNS(self::WSSE11, 'TokenType'));
     }
 
     public function test_a_path_token_and_a_leaf_token_are_separate_tokens(): void

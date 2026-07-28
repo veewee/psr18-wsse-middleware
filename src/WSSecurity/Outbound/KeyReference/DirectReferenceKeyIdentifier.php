@@ -24,18 +24,24 @@ final class DirectReferenceKeyIdentifier implements KeyIdentifierInterface
     /** @var non-empty-string */
     private string $valueType;
 
+    /** @var non-empty-string|null */
+    private ?string $tokenType;
+
     /**
      * @param non-empty-string $tokenId the wsu:Id of the already-embedded token, without the '#'
      * @param non-empty-string $valueType the referenced token's WS-Security ValueType URI
+     * @param non-empty-string|null $tokenType the wsse11:TokenType the referenced token's profile calls for
      */
-    public function __construct(string $tokenId, string $valueType)
+    public function __construct(string $tokenId, string $valueType, ?string $tokenType = null)
     {
         $this->tokenId = $tokenId;
         $this->valueType = $valueType;
+        $this->tokenType = $tokenType;
     }
 
     public function apply(Document $document, Certificate $certificate): Element
     {
-        return SecurityTokenReference::reference($this->tokenId, $this->valueType)->buildKeyInfo($document);
+        return SecurityTokenReference::reference($this->tokenId, $this->valueType, $this->tokenType)
+            ->buildKeyInfo($document);
     }
 }

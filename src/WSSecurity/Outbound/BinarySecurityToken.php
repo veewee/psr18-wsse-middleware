@@ -88,11 +88,19 @@ final class BinarySecurityToken implements OutboundAction
      * Signature and the Encryption block reach for.
      *
      * The reference repeats the embedded token's ValueType rather than assuming a bare certificate: the two name
-     * the same token, and a receiver that finds them disagreeing refuses the SecurityTokenReference.
+     * the same token, and a receiver that finds them disagreeing refuses the SecurityTokenReference. A path
+     * token also has its type named on the reference itself, which is what the X.509 profile asks of a
+     * reference to a path and what a bare certificate reference does not carry.
      */
     public function embedAsDirectReference(WsseContext $context): DirectReferenceKeyIdentifier
     {
-        return new DirectReferenceKeyIdentifier($this->embed($context), $this->valueType()->value);
+        $valueType = $this->valueType();
+
+        return new DirectReferenceKeyIdentifier(
+            $this->embed($context),
+            $valueType->value,
+            $this->path === null ? null : $valueType->value,
+        );
     }
 
     /**
