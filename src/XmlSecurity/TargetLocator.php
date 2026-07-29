@@ -20,9 +20,13 @@ use function VeeWee\Xml\Dom\Locator\Element\locate_by_namespaced_tag_name;
  */
 final class TargetLocator
 {
-    public function __construct(
-        private IdLookup $idLookup = new XmlIdLookup(),
-    ) {
+    private readonly IdLookup $idLookup;
+
+    public function __construct(?IdLookup $idLookup = null)
+    {
+        // Defaulted in the body rather than in the signature: the engine's default now comes from a convention,
+        // and a static call is not a legal default parameter value.
+        $this->idLookup = $idLookup ?? AttributeIdConvention::xmlId()->lookup();
     }
 
     /**

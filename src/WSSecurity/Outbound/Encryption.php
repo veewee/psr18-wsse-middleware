@@ -15,8 +15,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIden
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
@@ -58,7 +57,7 @@ final class Encryption implements OutboundAction
     ) {
         // The WS-Security profile mandates wsu:Id on the xenc:EncryptedData, so the block injects the wsu:Id
         // convention on both sides. The engine's own default (xml:id) would break the WSSE wire format.
-        $this->encryptor = Encryptor::create(new WsuIdMinter(), new WsuIdLookup());
+        $this->encryptor = Encryptor::create(new WsuIdConvention());
     }
 
     public function withEncryptor(XmlEncryptor $encryptor): self

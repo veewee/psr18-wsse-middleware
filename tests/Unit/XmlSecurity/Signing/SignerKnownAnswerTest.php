@@ -14,8 +14,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
@@ -49,7 +48,7 @@ final class SignerKnownAnswerTest extends TestCase
     {
         $document = $this->fixedEnvelope();
 
-        Signer::create(new WsuIdMinter(), new WsuIdLookup())->sign($document, new SigningRequest(
+        Signer::create(new WsuIdConvention())->sign($document, new SigningRequest(
             container: $this->security($document),
             targets: [Target::byId('Body-KAT')],
             signingKey: Key::fromFile(FIXTURE_DIR.'/interop/wss4j-recipient-php-client.key'),

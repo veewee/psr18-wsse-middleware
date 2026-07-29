@@ -10,8 +10,9 @@ use Soap\Psr18WsseMiddleware\Clock\Clock;
 use Soap\Psr18WsseMiddleware\Clock\SystemClock;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -47,7 +48,7 @@ final class Timestamp implements OutboundAction
     public function __invoke(WsseContext $context): void
     {
         $document = $context->document();
-        $minter = new WsuIdMinter();
+        $minter = (new WsuIdConvention())->minter();
 
         $created = $this->clock->now();
         $expires = $created->plusSeconds($this->ttl);
@@ -61,7 +62,7 @@ final class Timestamp implements OutboundAction
      */
     private function build(
         Document $document,
-        WsuIdMinter $minter,
+        IdMinter $minter,
         Instant $created,
         Instant $expires,
     ): callable {

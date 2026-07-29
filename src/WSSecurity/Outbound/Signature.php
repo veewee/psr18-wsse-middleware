@@ -17,8 +17,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SigningPartResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
@@ -57,14 +56,12 @@ final class Signature implements OutboundAction
         private readonly ClientCertificate $clientCertificate,
         private readonly KeyRef $keyRef = KeyRef::BinarySecurityToken,
     ) {
-        // The WS-Security profile mandates wsu:Id on signed parts, so the block injects the wsu:Id convention on
-        // both sides — the minter stamps it, the paired lookup re-finds it on the reparsed wire. The engine's
-        // own default (xml:id) would break the WSSE wire format. One minter serves the resolver and the signer:
-        // it holds no state, and a single instance is what keeps the two from drifting onto different id
-        // conventions.
-        $minter = new WsuIdMinter();
-        $this->signer = Signer::create($minter, new WsuIdLookup());
-        $this->partResolver = new SigningPartResolver($minter);
+        // The WS-Security profile mandates wsu:Id on signed parts, so the block hands the engine that
+        // convention; the engine's own default (xml:id) would break the WSSE wire format. One convention serves
+        // the signer and the part resolver, so nothing here can stamp one attribute and reference another.
+        $convention = new WsuIdConvention();
+        $this->signer = Signer::create($convention);
+        $this->partResolver = new SigningPartResolver($convention->minter());
     }
 
     public function withSigner(XmlSigner $signer): self

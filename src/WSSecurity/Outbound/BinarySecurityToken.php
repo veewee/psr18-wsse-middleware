@@ -12,7 +12,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKey
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\BinaryToken;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityEncodingType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
@@ -124,7 +124,7 @@ final class BinarySecurityToken implements OutboundAction
      */
     private function build(Document $document, string $body): callable
     {
-        $minter = new WsuIdMinter();
+        $minter = (new WsuIdConvention())->minter();
         $build = namespaced_element(
             Namespaces::Wsse->value,
             Namespaces::Wsse->qualify('BinarySecurityToken'),

@@ -9,12 +9,10 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Manipulator\NodeOrder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdMinter;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Manipulator\append;
@@ -32,17 +30,19 @@ use function VeeWee\Xml\Dom\Manipulator\append;
 final class Encryptor implements XmlEncryptor
 {
     /**
-     * The minter and lookup must share one id convention: the minter stamps the xenc:EncryptedData id and the
-     * lookup resolves a by-id encryption target. Both default to the engine's xml:id; the WS-Security profile
-     * overrides both with the wsu:Id implementations.
+     * The id convention is taken as a pair: the minter stamps the xenc:EncryptedData id and the lookup resolves
+     * a by-id encryption target, so two that disagree would leave a DataReference pointing at nothing. Defaults
+     * to the engine's xml:id; the WS-Security profile hands over its wsu:Id convention.
      */
-    public static function create(?IdMinter $idMinter = null, ?IdLookup $idLookup = null): self
+    public static function create(?IdConvention $idConvention = null): self
     {
+        $idConvention ??= AttributeIdConvention::xmlId();
+
         return new self(
-            new TargetLocator($idLookup ?? new XmlIdLookup()),
+            new TargetLocator($idConvention->lookup()),
             new SessionKeyFactory(),
             new Cipher(),
-            new EncryptedDataBuilder($idMinter ?? new XmlIdMinter()),
+            new EncryptedDataBuilder($idConvention->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
         );

@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption;
 
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataLocator;
 use VeeWee\Xml\Dom\Document;
@@ -18,7 +18,7 @@ final class EncryptedDataLocatorTest extends TestCase
     /** The WS-Security profile tags xenc:EncryptedData with wsu:Id, so the resolver uses that convention. */
     private function resolver(): EncryptedDataLocator
     {
-        return new EncryptedDataLocator(new WsuIdLookup());
+        return new EncryptedDataLocator((new WsuIdConvention())->lookup());
     }
 
     private function envelope(string $body): Document

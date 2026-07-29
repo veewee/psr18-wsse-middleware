@@ -1021,16 +1021,46 @@ The exclusion is applied as a node-set filter while canonicalizing in place. The
 cloned away, because a detached clone loses the namespace declarations it inherits from its ancestors and the
 canonical bytes would no longer match what the signer computed.
 
-### Id conventions are injected on both sides
+### Id conventions are injected as a pair
 
 How a signed or encrypted node gets its referenceable id is an `XmlSecurity\IdMinter`, and how a reference
-resolves back to its element is its read-side twin, `XmlSecurity\IdLookup`. The engine hard-codes neither.
+resolves back to its element is its read-side twin, `XmlSecurity\IdLookup`. The engine hard-codes neither, and it
+never takes one without the other: the two travel together as an `XmlSecurity\IdConvention`.
 
-`Signer::create()`, `Encryptor::create()`, `Verifier::create()` and `Decryptor::create()` each accept them and
-default to the shipped `XmlIdMinter` / `XmlIdLookup`, which use the W3C `xml:id` — so a standalone caller works
-with zero configuration. The WS-Security blocks inject the `wsu:Id` pair (`WsuIdMinter` / `WsuIdLookup`), as the
-profile mandates.
+```php
+use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 
-**A minter and a lookup passed together must share one id convention**, or a reference will not resolve to the
-node that was stamped. `IdMinter::mint()` is idempotent: minting a node that already carries an id under the
-convention returns that id rather than stamping a second one.
+Signer::create();                                 // the shipped xml:id convention
+Signer::create(AttributeIdConvention::xmlId());    // the same, stated explicitly
+```
+
+`Signer::create()` and `Encryptor::create()` take an `IdConvention` and default to the shipped `xml:id` one
+(`AttributeIdConvention::xmlId()`), so a standalone caller works with zero configuration. The WS-Security blocks
+hand over `WSSecurity\Xml\WsuIdConvention`, which supplies `wsu:Id` as the profile mandates.
+
+`Verifier::create()` and `Decryptor::create()` take an `IdLookup` alone, not a convention. Verifying and
+decrypting only ever resolve ids — a signed element already carries the id its `ds:Reference` used — so the
+inbound path is handed the read half only and holds no minter at all.
+
+**Why a pair and not two arguments.** A minter that stamps `wsu:Id` alongside a lookup that resolves `xml:id`
+emits references nobody can follow, and the two-argument form made that expressible — passing only a minter left
+the lookup on its `xml:id` default. Supplying a convention makes the mismatch unrepresentable rather than
+merely documented.
+
+To add a convention of your own, either build one from an attribute:
+
+```php
+use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdAttribute;
+
+new AttributeIdConvention(IdAttribute::of('urn:my:ns', 'my:Id'));
+```
+
+or implement `IdConvention` directly, which requires both halves by construction. One `IdAttribute` drives the
+minter and the lookup together, so they cannot address different attributes.
+
+`IdMinter::mint()` is idempotent: minting a node that already carries an id under the convention returns that id
+rather than stamping a second one. Both halves are hardened against XML Signature Wrapping — the lookup matches
+only its own attribute through an anchored XPath, never `getElementById`, and refuses a duplicate id as ambiguous
+instead of resolving to the first match.

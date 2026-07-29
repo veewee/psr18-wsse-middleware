@@ -11,7 +11,6 @@ use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\Xml\UniqueMatch;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -27,7 +26,7 @@ use VeeWee\Xml\Dom\Document;
 final class EncryptedDataLocator
 {
     public function __construct(
-        private IdLookup $idLookup = new XmlIdLookup(),
+        private IdLookup $idLookup,
     ) {
     }
 

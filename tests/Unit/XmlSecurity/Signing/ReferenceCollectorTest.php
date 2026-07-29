@@ -4,8 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Signing;
 
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
@@ -65,7 +64,7 @@ final class ReferenceCollectorTest extends TestCase
     private function collector(): ReferenceCollector
     {
         // The minter and locator's lookup must share the wsu:Id convention, as the WS-Security profile pairs them.
-        return new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup()));
+        return new ReferenceCollector((new WsuIdConvention())->minter(), new TargetLocator((new WsuIdConvention())->lookup()));
     }
 
     private function document(string $bodyXml): Document

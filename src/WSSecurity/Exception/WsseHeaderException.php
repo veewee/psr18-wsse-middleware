@@ -31,10 +31,6 @@ final class WsseHeaderException extends RuntimeException
         return new self('Unsupported SOAP envelope namespace "'.$foundNamespace.'"; expected SOAP 1.1 or 1.2.');
     }
 
-    public static function idStampFailed(string $reason): self
-    {
-        return new self('Unable to stamp a wsu:Id onto the element: '.$reason.'.');
-    }
 
     public static function binaryTokenNotLocatable(): self
     {

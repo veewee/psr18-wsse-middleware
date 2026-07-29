@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SigningPartResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetKind;
 use VeeWee\Xml\Dom\Document;
@@ -90,7 +90,7 @@ final class SigningPartResolverTest extends TestCase
      */
     private function resolve(Document $document, array $parts): array
     {
-        return (new SigningPartResolver(new WsuIdMinter()))
+        return (new SigningPartResolver((new WsuIdConvention())->minter()))
             ->resolve($parts, $document, SoapVersion::Soap12, $this->only($document, self::WSSE, 'Security'));
     }
 

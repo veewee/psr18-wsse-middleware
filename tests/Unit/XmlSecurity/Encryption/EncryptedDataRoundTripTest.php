@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
@@ -81,7 +81,7 @@ final class EncryptedDataRoundTripTest extends TestCase
         $original = $this->innerXml($body);
 
         $cipherText = (new Cipher())->encrypt($original, $key, DataEncryptionMethod::TRIPLEDES_CBC);
-        (new EncryptedDataBuilder(new WsuIdMinter()))->build(
+        (new EncryptedDataBuilder((new WsuIdConvention())->minter()))->build(
             $document,
             $body,
             $cipherText,
@@ -102,7 +102,7 @@ final class EncryptedDataRoundTripTest extends TestCase
         $original = $this->innerXml($body);
 
         $cipherText = (new Cipher())->encrypt($original, $key, $method);
-        (new EncryptedDataBuilder(new WsuIdMinter()))->build($document, $body, $cipherText, $method, EncryptionMode::Content);
+        (new EncryptedDataBuilder((new WsuIdConvention())->minter()))->build($document, $body, $cipherText, $method, EncryptionMode::Content);
 
         $encryptedData = $this->onlyEncryptedData($document);
         (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key, CryptoPolicy::default());
@@ -120,7 +120,7 @@ final class EncryptedDataRoundTripTest extends TestCase
         $original = $document->stringifyNode($custom);
 
         $cipherText = (new Cipher())->encrypt($original, $key, $method);
-        (new EncryptedDataBuilder(new WsuIdMinter()))->build($document, $custom, $cipherText, $method, EncryptionMode::Element);
+        (new EncryptedDataBuilder((new WsuIdConvention())->minter()))->build($document, $custom, $cipherText, $method, EncryptionMode::Element);
 
         $encryptedData = $this->onlyEncryptedData($document);
         (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key, CryptoPolicy::default());

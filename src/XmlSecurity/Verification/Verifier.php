@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
+use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
@@ -23,7 +24,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedVerific
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureValidator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParser;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -53,7 +53,7 @@ final class Verifier implements XmlSignatureVerifier
         // The signer and verifier share one canonicalizer instance because digesting and verifying read the
         // same canonical form.
         $canonicalizer = new DomCanonicalizer();
-        $idLookup ??= new XmlIdLookup();
+        $idLookup ??= AttributeIdConvention::xmlId()->lookup();
 
         return new self(
             new SignatureLocator(),

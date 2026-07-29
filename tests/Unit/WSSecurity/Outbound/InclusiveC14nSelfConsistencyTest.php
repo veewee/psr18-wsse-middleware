@@ -19,9 +19,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
-use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
@@ -94,7 +92,7 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         $digest = new Digest();
 
         foreach ($this->referenceDigests($wire) as $wsuId => $emitted) {
-            $element = WsuId::resolve($wire, $wsuId);
+            $element = (new WsuIdConvention())->lookup()->lookup($wire, $wsuId);
             $recomputed = base64_encode($digest->hash(
                 $canonicalizer->canonicalize($element, SignatureCanonicalization::C14N),
                 DigestMethod::SHA256,
@@ -149,12 +147,12 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup())),
+            new ReferenceCollector((new WsuIdConvention())->minter(), new TargetLocator((new WsuIdConvention())->lookup())),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
-            new WsuIdLookup(),
+            (new WsuIdConvention())->lookup(),
         );
     }
 

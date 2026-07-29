@@ -8,7 +8,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
@@ -38,7 +38,8 @@ final class Decrypt implements InboundAction
     ) {
         // The WS-Security profile tags xenc:EncryptedData with wsu:Id, so the decryptor resolves references
         // through the wsu:Id convention (native namespace-less @Id from interop peers is still accepted too).
-        $this->decryptor = Decryptor::create(new WsuIdLookup());
+        // Only the read half is handed over: nothing inbound mints, and a class that holds no minter cannot.
+        $this->decryptor = Decryptor::create((new WsuIdConvention())->lookup());
     }
 
     public function withDecryptor(XmlDecryptor $decryptor): self

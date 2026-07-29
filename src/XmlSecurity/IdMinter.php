@@ -8,10 +8,12 @@ use VeeWee\Xml\Dom\Document;
 
 /**
  * Stamps a document-unique id onto an element so a ds:Reference or xenc:DataReference can address it by
- * URI="#id". The XML-Security engine ships a default that stamps the W3C-standard xml:id (XmlIdMinter); a
- * profile overrides the id convention by supplying its own implementation — the WS-Security profile injects one
- * that stamps wsu:Id, as the spec mandates. Whichever implementation is chosen must be paired with the matching
- * IdLookup, the read-side twin that resolves an id back to its element.
+ * URI="#id". The XML-Security engine ships a default that stamps the W3C-standard xml:id
+ * (AttributeIdConvention::xmlId()); a profile overrides the convention by supplying its own attribute — the
+ * WS-Security profile supplies wsu:Id, as the spec mandates.
+ *
+ * A minter is never chosen on its own: it is one half of an IdConvention, whose other half is the IdLookup that
+ * resolves an id back to its element. Take the pair, never one side.
  */
 interface IdMinter
 {

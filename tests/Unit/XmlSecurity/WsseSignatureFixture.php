@@ -17,8 +17,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
@@ -217,12 +216,12 @@ final class WsseSignatureFixture
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup())),
+            new ReferenceCollector((new WsuIdConvention())->minter(), new TargetLocator((new WsuIdConvention())->lookup())),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
-            new WsuIdLookup(),
+            (new WsuIdConvention())->lookup(),
         );
     }
 

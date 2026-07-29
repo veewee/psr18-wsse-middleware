@@ -19,8 +19,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
@@ -75,7 +74,7 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         );
 
         // The encrypted body still round-trips after the combined operation.
-        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator(new WsuIdLookup())))
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup())))
             ->decrypt($document, new DecryptionRequest($this->security($document), $recipientKey));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
@@ -127,12 +126,12 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $canonicalizer = new DomCanonicalizer();
 
         return new Signer(
-            new ReferenceCollector(new WsuIdMinter(), new TargetLocator(new WsuIdLookup())),
+            new ReferenceCollector((new WsuIdConvention())->minter(), new TargetLocator((new WsuIdConvention())->lookup())),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             $canonicalizer,
             new OpenSslSigner(),
-            new WsuIdLookup(),
+            (new WsuIdConvention())->lookup(),
         );
     }
 
@@ -142,7 +141,7 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
             new TargetLocator(),
             new SessionKeyFactory(),
             new Cipher(),
-            new EncryptedDataBuilder(new WsuIdMinter()),
+            new EncryptedDataBuilder((new WsuIdConvention())->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
         );

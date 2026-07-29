@@ -5,9 +5,9 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
+use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 
@@ -44,14 +44,14 @@ final class Decryptor implements XmlDecryptor
         return new self(
             new EncryptedKeyReader(new KeyTransport()),
             new EncryptedDataReader(new Cipher()),
-            new EncryptedDataLocator($idLookup ?? new XmlIdLookup()),
+            new EncryptedDataLocator($idLookup ?? AttributeIdConvention::xmlId()->lookup()),
         );
     }
 
     public function __construct(
         private readonly EncryptedKeyReader $encryptedKeyReader,
         private readonly EncryptedDataReader $encryptedDataReader,
-        private readonly EncryptedDataLocator $encryptedData = new EncryptedDataLocator(),
+        private readonly EncryptedDataLocator $encryptedData,
     ) {
     }
 

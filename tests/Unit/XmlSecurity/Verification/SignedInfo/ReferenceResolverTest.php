@@ -7,7 +7,7 @@ use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ParsedReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ReferenceResolver;
@@ -26,7 +26,7 @@ final class ReferenceResolverTest extends TestCase
         $document = $this->document(['Body' => self::reference('#Body', self::EXC_C14N)]);
         [$elements, $parsed] = $this->references($document);
 
-        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
         static::assertCount(1, $resolved);
         static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
@@ -38,7 +38,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_resolves_a_reference_that_declares_no_transforms(): void
@@ -46,7 +46,7 @@ final class ReferenceResolverTest extends TestCase
         $document = $this->document(['Body' => self::referenceWithoutTransforms('#Body')]);
         [$elements, $parsed] = $this->references($document);
 
-        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
         static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
     }
@@ -65,7 +65,7 @@ final class ReferenceResolverTest extends TestCase
         static::assertSame(SignatureCanonicalization::C14N, $parsed->references[0]->canonicalization);
         static::assertSame([], $parsed->references[0]->inclusivePrefixes);
 
-        $resolved = (new ReferenceResolver(new WsuIdLookup()))
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))
             ->resolve($document, $parsed->referenceElements, $parsed->references, $signature);
 
         static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
@@ -77,7 +77,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_accepts_an_enveloped_signature_transform_over_the_element_holding_the_signature(): void
@@ -87,7 +87,7 @@ final class ReferenceResolverTest extends TestCase
         $document = $this->enveloped(self::transforms([self::ENVELOPED_SIGNATURE, self::EXC_C14N]));
         [$elements, $parsed] = $this->references($document);
 
-        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
         static::assertCount(1, $resolved);
         static::assertSame($this->byId($document, 'Assertion'), $resolved[0]->element);
@@ -102,7 +102,7 @@ final class ReferenceResolverTest extends TestCase
         $document = $this->enveloped(self::transforms([self::ENVELOPED_SIGNATURE]));
         [$elements, $parsed] = $this->references($document);
 
-        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
         static::assertSame($this->signature($document), $resolved[0]->envelopedSignature);
     }
@@ -118,7 +118,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_refuses_an_enveloped_signature_transform_when_the_element_holds_no_signature(): void
@@ -129,7 +129,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_refuses_a_canonicalization_declared_before_the_enveloped_signature_transform(): void
@@ -140,7 +140,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_a_detached_reference_carries_no_signature_to_strip(): void
@@ -148,7 +148,7 @@ final class ReferenceResolverTest extends TestCase
         $document = $this->document(['Body' => self::reference('#Body', self::EXC_C14N)]);
         [$elements, $parsed] = $this->references($document);
 
-        $resolved = (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
         static::assertNull($resolved[0]->envelopedSignature);
     }
@@ -159,7 +159,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_rejects_an_external_uri(): void
@@ -168,7 +168,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_rejects_a_reference_to_the_signature_itself(): void
@@ -177,7 +177,7 @@ final class ReferenceResolverTest extends TestCase
         [$elements, $parsed] = $this->references($document);
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $elements, $parsed, $this->signature($document));
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
     public function test_it_rejects_a_reference_count_over_the_cap_before_resolving(): void
@@ -195,7 +195,7 @@ final class ReferenceResolverTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
-        (new ReferenceResolver(new WsuIdLookup()))->resolve($document, $referenceElements, $parsed, $this->signature($document));
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $referenceElements, $parsed, $this->signature($document));
     }
 
     /**

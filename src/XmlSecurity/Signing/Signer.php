@@ -10,15 +10,14 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
+use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\InclusivePrefixes;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdMinter;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -41,19 +40,20 @@ use function VeeWee\Xml\Dom\Manipulator\append;
 final class Signer implements XmlSigner
 {
     /**
-     * The minter and lookup must share one id convention: the minter stamps the id and the lookup re-finds it
-     * on the reparsed wire. Both default to the engine's xml:id convention; a profile that overrides one (the
-     * WS-Security profile injects wsu:Id) must override the other with the matching implementation.
+     * The id convention is taken as a pair, not as a minter and a lookup separately: the minter stamps the id
+     * and the lookup re-finds it on the reparsed wire, so two that disagree would emit references nobody can
+     * follow. Defaults to the engine's xml:id; the WS-Security profile hands over its wsu:Id convention.
      */
-    public static function create(?IdMinter $idMinter = null, ?IdLookup $idLookup = null): self
+    public static function create(?IdConvention $idConvention = null): self
     {
         // The signer and verifier share one canonicalizer instance because digesting and signing read the
         // same canonical form.
         $canonicalizer = new DomCanonicalizer();
-        $idLookup ??= new XmlIdLookup();
+        $idConvention ??= AttributeIdConvention::xmlId();
+        $idLookup = $idConvention->lookup();
 
         return new self(
-            new ReferenceCollector($idMinter ?? new XmlIdMinter(), new TargetLocator($idLookup)),
+            new ReferenceCollector($idConvention->minter(), new TargetLocator($idLookup)),
             new DigestCalculator($canonicalizer, new Digest()),
             new SignedInfoBuilder(),
             $canonicalizer,

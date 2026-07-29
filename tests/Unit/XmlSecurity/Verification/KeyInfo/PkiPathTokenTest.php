@@ -6,7 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification\KeyInfo;
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
@@ -92,7 +92,7 @@ final class PkiPathTokenTest extends TestCase
 
     private function extract(Document $document): \Soap\Psr18WsseMiddleware\KeyStore\CertificateChain
     {
-        return (new CertificateExtractor(new WsuIdLookup()))
+        return (new CertificateExtractor((new WsuIdConvention())->lookup()))
             ->extract($document, $this->signature($document), TrustStore::fromCertificates());
     }
 

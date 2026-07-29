@@ -5,7 +5,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
-use Soap\Psr18WsseMiddleware\Xml\Locator\WsuId;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
 use VeeWee\Xml\Dom\Document;
@@ -17,8 +17,8 @@ final class VerifiedReferencesTest extends TestCase
     public function test_was_signed_is_true_only_for_an_exact_signed_instance(): void
     {
         $document = Document::fromXmlString($this->envelope());
-        $timestamp = WsuId::resolve($document, 'TS-1');
-        $body = WsuId::resolve($document, 'Body-1');
+        $timestamp = (new WsuIdConvention())->lookup()->lookup($document, 'TS-1');
+        $body = (new WsuIdConvention())->lookup()->lookup($document, 'Body-1');
 
         $references = new VerifiedReferences([$timestamp]);
 
@@ -32,8 +32,8 @@ final class VerifiedReferencesTest extends TestCase
      */
     public function test_was_signed_is_false_for_an_equal_but_different_element(): void
     {
-        $signed = WsuId::resolve(Document::fromXmlString($this->envelope()), 'TS-1');
-        $lookAlike = WsuId::resolve(Document::fromXmlString($this->envelope()), 'TS-1');
+        $signed = (new WsuIdConvention())->lookup()->lookup(Document::fromXmlString($this->envelope()), 'TS-1');
+        $lookAlike = (new WsuIdConvention())->lookup()->lookup(Document::fromXmlString($this->envelope()), 'TS-1');
 
         $references = new VerifiedReferences([$signed]);
 
@@ -44,8 +44,8 @@ final class VerifiedReferencesTest extends TestCase
     public function test_signed_ids_lists_the_ids_the_references_used(): void
     {
         $document = Document::fromXmlString($this->envelope());
-        $timestamp = WsuId::resolve($document, 'TS-1');
-        $body = WsuId::resolve($document, 'Body-1');
+        $timestamp = (new WsuIdConvention())->lookup()->lookup($document, 'TS-1');
+        $body = (new WsuIdConvention())->lookup()->lookup($document, 'Body-1');
 
         $references = new VerifiedReferences([$timestamp, $body], ['TS-1', 'Body-1']);
 

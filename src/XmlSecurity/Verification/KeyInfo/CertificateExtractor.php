@@ -13,7 +13,6 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -40,7 +39,7 @@ final class CertificateExtractor
     private readonly KeyInfoReader $reader;
     private readonly TrustStoreCertificateResolver $resolver;
 
-    public function __construct(IdLookup $idLookup = new XmlIdLookup())
+    public function __construct(IdLookup $idLookup)
     {
         $this->reader = new KeyInfoReader($idLookup);
         $this->resolver = new TrustStoreCertificateResolver();

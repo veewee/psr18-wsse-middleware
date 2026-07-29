@@ -28,6 +28,9 @@ enum Namespaces: string
         };
     }
 
+    /**
+     * @return non-empty-string the prefix and colon guarantee it, whatever the local name
+     */
     public function qualify(string $localName): string
     {
         return $this->prefix().':'.$localName;

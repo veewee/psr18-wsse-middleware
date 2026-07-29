@@ -14,7 +14,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityEncodingType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -28,7 +27,7 @@ use VeeWee\Xml\Dom\Document;
 final class KeyInfoReader
 {
     public function __construct(
-        private IdLookup $idLookup = new XmlIdLookup(),
+        private IdLookup $idLookup,
     ) {
     }
 

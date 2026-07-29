@@ -13,7 +13,6 @@ use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\XmlIdLookup;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -47,7 +46,7 @@ final class ReferenceResolver
     public const int MAX_REFERENCES = 32;
 
     public function __construct(
-        private IdLookup $idLookup = new XmlIdLookup(),
+        private IdLookup $idLookup,
     ) {
     }
 

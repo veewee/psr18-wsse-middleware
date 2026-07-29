@@ -11,7 +11,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
@@ -97,8 +97,8 @@ final class RevocationFaultUniformityTest extends TestCase
             new SignatureLocator(),
             new SignedInfoParser(),
             new AlgorithmPolicyEnforcer(),
-            new CertificateExtractor(new WsuIdLookup()),
-            new ReferenceResolver(new WsuIdLookup()),
+            new CertificateExtractor((new WsuIdConvention())->lookup()),
+            new ReferenceResolver((new WsuIdConvention())->lookup()),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),
             new ThrowingTrustResolver($cause),

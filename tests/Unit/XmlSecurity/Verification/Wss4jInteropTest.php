@@ -14,7 +14,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedSignature;
@@ -38,7 +38,7 @@ final class Wss4jInteropTest extends TestCase
             FIXTURE_DIR.'/interop/wss4j-signed.xml',
         ));
 
-        $result = Verifier::create(new WsuIdLookup())->verify($document, $this->policy(), $this->security($document));
+        $result = Verifier::create((new WsuIdConvention())->lookup())->verify($document, $this->policy(), $this->security($document));
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -52,7 +52,7 @@ final class Wss4jInteropTest extends TestCase
             FIXTURE_DIR.'/interop/wss4j-signed-ecdsa.xml',
         ));
 
-        $result = Verifier::create(new WsuIdLookup())->verify($document, $this->ecdsaPolicy(), $this->security($document));
+        $result = Verifier::create((new WsuIdConvention())->lookup())->verify($document, $this->ecdsaPolicy(), $this->security($document));
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
@@ -81,7 +81,7 @@ final class Wss4jInteropTest extends TestCase
             FIXTURE_DIR.'/interop/wss4j-signed-inclusive-c14n.xml',
         ));
 
-        $result = Verifier::create(new WsuIdLookup())->verify($document, $this->inclusiveC14nPolicy(), $this->security($document));
+        $result = Verifier::create((new WsuIdConvention())->lookup())->verify($document, $this->inclusiveC14nPolicy(), $this->security($document));
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));

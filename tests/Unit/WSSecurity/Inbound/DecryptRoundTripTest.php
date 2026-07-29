@@ -19,7 +19,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
-use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
@@ -159,7 +159,7 @@ final class DecryptRoundTripTest extends TestCase
             new TargetLocator(),
             new SessionKeyFactory(),
             new Cipher(),
-            new EncryptedDataBuilder(new WsuIdMinter()),
+            new EncryptedDataBuilder((new WsuIdConvention())->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
         );
