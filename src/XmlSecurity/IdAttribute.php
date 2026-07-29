@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 
 use Dom\XPath;
+use InvalidArgumentException;
 
 /**
  * The attribute an id convention writes and reads: which namespace it lives in and how it is spelled. This is
@@ -27,9 +28,18 @@ final readonly class IdAttribute
         public string $namespaceUri,
         public string $qualifiedName,
     ) {
-        $colon = strpos($qualifiedName, ':');
-        /** @var non-empty-string $localName */
-        $localName = $colon === false ? $qualifiedName : substr($qualifiedName, $colon + 1);
+        // A prefixed name has exactly one colon with a non-empty part on each side. Anything else would leave a
+        // local name that addresses no attribute, and since the derivation is what removes the chance of the two
+        // spellings disagreeing, it has to refuse what it cannot derive from rather than produce an empty or
+        // colon-bearing local name that silently matches nothing.
+        $parts = explode(':', $qualifiedName);
+        $localName = end($parts);
+        if (count($parts) > 2 || $parts[0] === '' || $localName === '') {
+            throw new InvalidArgumentException(
+                sprintf('"%s" is not a usable attribute name: expected LocalName or Prefix:LocalName.', $qualifiedName),
+            );
+        }
+
         $this->localName = $localName;
     }
 

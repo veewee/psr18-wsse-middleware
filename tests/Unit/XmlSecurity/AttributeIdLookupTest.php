@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
@@ -112,6 +113,30 @@ final class AttributeIdLookupTest extends TestCase
         $element = (new AttributeIdLookup($this->wsuId()))->lookup($document, 'a\'"b');
 
         static::assertSame('a', $element->localName);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function unusableNameProvider(): iterable
+    {
+        yield 'trailing colon, no local part' => ['wsu:'];
+        yield 'leading colon, no prefix' => [':Id'];
+        yield 'more than one colon' => ['a:b:c'];
+        yield 'empty' => [''];
+    }
+
+    /**
+     * The local name is derived from the qualified one so the two spellings cannot disagree. That only holds if
+     * the input is a name it can be derived from: "wsu:" would yield an empty local name and "a:b:c" a local name
+     * carrying a colon, and either would address no attribute at all while still looking configured.
+     */
+    #[DataProvider('unusableNameProvider')]
+    public function test_it_refuses_a_name_it_cannot_derive_a_local_part_from(string $qualifiedName): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        IdAttribute::of(self::WSU, $qualifiedName);
     }
 
     private function wsuId(): IdAttribute

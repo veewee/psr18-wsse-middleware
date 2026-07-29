@@ -157,6 +157,7 @@ final class Signature implements OutboundAction
 
     /**
      * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException when the header cannot be created
+     * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\IdStampFailed when a signed part cannot carry a wsu:Id
      * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed when signing fails
      */
     public function __invoke(WsseContext $context): void

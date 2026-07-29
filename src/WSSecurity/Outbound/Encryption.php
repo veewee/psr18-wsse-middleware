@@ -113,6 +113,7 @@ final class Encryption implements OutboundAction
 
     /**
      * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException when the header cannot be created
+     * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\IdStampFailed when an encrypted part cannot carry a wsu:Id
      * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed when encryption fails
      */
     public function __invoke(WsseContext $context): void

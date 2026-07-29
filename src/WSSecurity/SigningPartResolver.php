@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\IdStampFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use VeeWee\Xml\Dom\Document;
@@ -38,6 +39,7 @@ final readonly class SigningPartResolver
      * @return non-empty-list<Target>
      *
      * @throws WsseHeaderException when the parts match no element to sign
+     * @throws IdStampFailed when a matched element cannot carry an id
      */
     public function resolve(array $parts, Document $document, SoapVersion $soapVersion, Element $securityHeader): array
     {
