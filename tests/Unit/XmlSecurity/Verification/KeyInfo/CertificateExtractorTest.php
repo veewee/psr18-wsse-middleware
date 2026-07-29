@@ -306,6 +306,24 @@ final class CertificateExtractorTest extends TestCase
         );
     }
 
+    public function test_an_unrecognised_token_reference_does_not_fall_through_to_a_certificate_beside_it(): void
+    {
+        // The one shape whose handling changed when the WS-Security forms moved out of the engine, so it is pinned
+        // here rather than left to be re-derived. A token reference says which key signed. If it names nothing this
+        // profile defines, the answer is refusal -- not the inline certificate sitting next to it, which is a
+        // different key than the sender pointed at. The old reader fell through to that sibling and verified.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $base64Der = $fixture->certificateBase64Der($fixture->leafCertificate);
+        $document = $this->document('', '<ds:KeyInfo>'
+            .'<wsse:SecurityTokenReference/>'
+            .'<ds:X509Data><ds:X509Certificate>'.$base64Der.'</ds:X509Certificate></ds:X509Data>'
+            .'</ds:KeyInfo>');
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('ds:KeyInfo does not carry the certificate in a supported form.');
+        $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
+    }
+
     public function test_a_resolver_that_throws_anything_else_still_fails_as_one_verification_failure(): void
     {
         // The resolver is a replaceable seam, so a third-party one can raise a type of its own. If that escaped,
