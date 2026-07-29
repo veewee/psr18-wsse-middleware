@@ -1,6 +1,6 @@
 # SOAP WSSE/WSA Middleware
 
-This package adds WSSE (WS-Security) and WSA (WS-Addressing) to your PSR-18 based SOAP transport.
+This package adds WSSE (WS-Security), and WSA (WS-Addressing) to your PSR-18 based SOAP transport.
 
 From this major version on, the security engine lives inside this package. It signs, encrypts, decrypts and
 verifies on top of `ext-openssl` and the modern PHP DOM, so you no longer pull in `robrichards/wse-php` or
@@ -61,10 +61,10 @@ $transport = Psr18Transport::createForClient(
             new SecurityProfile(),
             outbound: [
                 new Outbound\Timestamp(),
-                // ... add a username, attach a token, sign, encrypt
+                // ... Add a username, attach a token, sign, encrypt
             ],
             inbound: [
-                // ... decrypt, verify the signature, validate the timestamp
+                // ... Decrypt, verify the signature, validate the timestamp
             ],
         ),
     ])
@@ -85,7 +85,7 @@ what it expects.
 ## Outbound: `Timestamp`
 
 Stamps the message with a created/expires window so the receiver can reject a stale or replayed call. It writes
-a `wsu:Timestamp` carrying `wsu:Created` (now, UTC) and `wsu:Expires` (now + ttl), and mints a `wsu:Id` on it so
+a `wsu:Timestamp` carrying `wsu:Created` (now, UTC), and `wsu:Expires` (now + ttl), and mints a `wsu:Id` on it so
 a later `Signature` block can sign the timestamp by reference.
 
 ```php
@@ -95,7 +95,7 @@ new Outbound\Timestamp();        // expires 300 seconds from now
 new Outbound\Timestamp(60);      // expires 60 seconds from now
 ```
 
-- `int $ttl = 300` — seconds from now until the message's `Expires`. Must be a positive integer. Default `300`
+- `int $ttl = 300`: seconds from now until the message's `Expires`. Must be a positive integer. Default `300`
   (five minutes). Pick a value that comfortably covers your round trip plus the receiver's clock skew.
 
 ## Outbound: `Username`
@@ -121,16 +121,16 @@ new Outbound\Username('your-user', 'your-password', digest: true);
     ->withDigest(true);
 ```
 
-- `string $username` — the username sent in `wsse:Username`. Required.
-- `?string $password = null` — the password. Default `null`, which sends a username-only token (no
+- `string $username`: the username sent in `wsse:Username`. Required.
+- `?string $password = null`: the password. Default `null`, which sends a username-only token (no
   `wsse:Password`). Provide a value to send a password.
-- `bool $digest = false` — how the password is sent. `false` (default) sends `PasswordText`, the cleartext
+- `bool $digest = false`: how the password is sent. `false` (default) sends `PasswordText`, the cleartext
   password; the class does not enforce TLS, so only use this over a TLS connection. `true` sends
   `PasswordDigest`: `Base64(SHA1(nonce + created + password))`, with a fresh `wsse:Nonce` and `wsu:Created`, so
   the password never travels in the clear. Digest mode requires a password; combining `digest: true` with no
   password throws.
-- `withPassword(string $password): self` — returns a copy with the password set.
-- `withDigest(bool $digest): self` — returns a copy with the digest flag set.
+- `withPassword(string $password): self` returns a copy with the password set.
+- `withDigest(bool $digest): self` returns a copy with the digest flag set.
 
 ## Outbound: `BinarySecurityToken`
 
@@ -144,12 +144,12 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 new Outbound\BinarySecurityToken(Certificate::fromFile('security_token.pub'));
 ```
 
-- `Certificate $certificate` — the public X.509 certificate to embed, as a `KeyStore\Certificate`. Required.
+- `Certificate $certificate`: the public X.509 certificate to embed, as a `KeyStore\Certificate`. Required.
 
 You rarely add this block by hand: the `Signature` block embeds one automatically when you reference the key by
 `KeyRef::BinarySecurityToken`. Add it explicitly only when a server expects the token present on its own.
 
-- `BinarySecurityToken::forCertificatePath(CertificateChain $path): self` — a named constructor embedding the
+- `BinarySecurityToken::forCertificatePath(CertificateChain $path): self`: a named constructor embedding the
   whole certification path as a `#X509PKIPathv1` token instead of the leaf alone. Signing with a path is
   configured on the `Signature` block via
   [`withCertificatePath()`](#outbound-signature); reach for this constructor only when the token has to stand on
@@ -177,14 +177,14 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
     ->withParts([Part::body()]);
 ```
 
-- `ClientCertificate $clientCertificate` — the certificate-and-key bundle to sign with. The private key signs;
+- `ClientCertificate $clientCertificate`: the certificate-and-key bundle to sign with. The private key signs;
   the public certificate is advertised in `ds:KeyInfo`. Required.
-- `keyRef: KeyRef $keyRef = KeyRef::BinarySecurityToken` — how the certificate is referenced. Pass it as a named
+- `keyRef: KeyRef $keyRef = KeyRef::BinarySecurityToken`: how the certificate is referenced. Pass it as a named
   argument (`keyRef:`). Default `KeyRef::BinarySecurityToken`, the X.509 direct-reference interop default: a
   `wsse:BinarySecurityToken` is embedded and the signature points at it by `wsu:Id`. The other cases
   (`SubjectKeyIdentifier`, `IssuerSerial`, `Thumbprint`) put an inline reference derived from the certificate and
   embed no token. See [Choosing parts and key references](#choosing-parts-and-key-references).
-- `withCertificatePath(CertificateChain $path): self` — send your whole certificate chain in the token (a
+- `withCertificatePath(CertificateChain $path): self`: send your whole certificate chain in the token (a
   `#X509PKIPathv1` `wsse:BinarySecurityToken`) instead of the leaf certificate alone. Off by default. Turn it on
   for a server that will not complete the chain from its own store and needs the intermediates handed to it:
   ```php
@@ -198,12 +198,12 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   A `.p12` already contains the chain, which is where it usually comes from; a PEM signing identity has none to
   offer. The chain must start with the certificate you sign with, and `keyRef` must be
   `KeyRef::BinarySecurityToken`, or the call throws.
-- `withParts(non-empty-list<Part> $parts): self` — which parts to sign. Default is `[Part::body(),
+- `withParts(non-empty-list<Part> $parts): self`: which parts to sign. Default is `[Part::body(),
   Part::securityHeaderContents()]`: the Body plus every element currently in the Security header (the Timestamp,
   any tokens), resolved at send time. Because it signs whatever is present, the default never fails when a part
   is absent. Must be a non-empty list of `Part` descriptors. See
   [Choosing parts and key references](#choosing-parts-and-key-references) for the dynamic parts and shortcuts.
-- `withSignatureMethod(SignatureMethod $method): self` — the signature algorithm. Default: the profile's
+- `withSignatureMethod(SignatureMethod $method): self`: the signature algorithm. Default: the profile's
   `signatureMethod()` (RSA-SHA256). RSA and ECDSA are both supported. Pick an ECDSA method when your signing
   identity is an EC certificate and key:
   ```php
@@ -216,16 +216,14 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   EC certificate and key; an RSA key paired with an ECDSA method will not sign. The RSA cases stay `RSA_SHA256`
   (the default), `RSA_SHA384` and `RSA_SHA512`.
 
-  Two legacy cases exist and are **not** accepted inbound by default: `RSA_SHA1` and `DSA_SHA1`. `DSA_SHA1` is
-  present because XML Signature 1.1 lists DSAwithSHA1 as a required algorithm for signature *verification*, so
-  a peer may still send one; `DSA_SHA1` needs a DSA key to sign with. Use either only for a peer that requires
-  it, and add it to `acceptedSignatureMethods` to verify it (see
-  [Security profile and defaults](#security-profile-and-defaults)).
-- `withDigestMethod(DigestMethod $method): self` — the per-reference digest algorithm. Default: the profile's
+  Two legacy cases exist and are **not** accepted inbound by default: `RSA_SHA1` and `DSA_SHA1` (which needs a
+  DSA key to sign with). Use either only for a peer that requires it, and add it to `acceptedSignatureMethods`
+  to verify one (see [Security profile and defaults](#security-profile-and-defaults)).
+- `withDigestMethod(DigestMethod $method): self`: the per-reference digest algorithm. Default: the profile's
   `digestMethod()` (SHA-256). `SHA384` and `SHA512` are also accepted inbound by default. `SHA1` and
   `RIPEMD160` are available but not accepted inbound by default; add them to `acceptedDigestMethods` only for a
   peer that requires them.
-- `withCanonicalization(SignatureCanonicalization $canonicalization): self` — the canonicalization method.
+- `withCanonicalization(SignatureCanonicalization $canonicalization): self`: the canonicalization method.
   Default: the profile's `canonicalization()` (exclusive C14N). The exclusive variants (`EXC_C14N`,
   `EXC_C14N_COMMENTS`) are the WSSE norm. The inclusive Canonical XML 1.0 variants (`C14N`, `C14N_COMMENTS`)
   are also available for a server that requires them:
@@ -238,22 +236,18 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   If you sign with an inclusive variant and also verify the response with one, add it to the profile's
   `acceptedCanonicalizations` allow-list as well (see [Security profile and defaults](#security-profile-and-defaults));
   by default only the exclusive variants are accepted inbound.
-- `withInclusivePrefixes(): self` — pin the namespace prefixes an exclusive canonicalization would otherwise
+- `withInclusivePrefixes(): self`: pin the namespace prefixes an exclusive canonicalization would otherwise
   drop, as an `ec:InclusiveNamespaces PrefixList`. Off by default.
 
-  Exclusive C14N deliberately emits only the namespace declarations a subtree visibly uses, which is what lets
-  a signature survive being moved into a different envelope. A peer that needs an ancestor's declaration
-  anyway — because it resolves a QName out of attribute or text content, or re-serializes the message before
-  verifying — cannot get it back unless you pin it. Turn this on for such a peer:
+  Turn it on when a server rejects your signature as invalid even though everything else matches: some peers
+  need a namespace declaration your message inherits from an ancestor, and exclusive canonicalization does not
+  carry those unless they are pinned.
   ```php
   (new Outbound\Signature($clientCertificate))
       ->withInclusivePrefixes();
   ```
-  The list is derived per element rather than configured: each signed part pins the prefixes it inherits but
-  does not itself use, and `ds:CanonicalizationMethod` pins everything in scope around the Security header.
-  That is the same shape a WSS4J peer emits. Nothing changes for the receiver's own checks — the prefix list is
-  self-describing, so a verifier reads it from the signature and canonicalizes accordingly. It has no effect on
-  an inclusive canonicalization, which already emits every declaration in scope.
+  Nothing else changes: the list is worked out per element for you, and the receiver reads it from the signature.
+  It has no effect on an inclusive canonicalization.
 
 ## Outbound: `Encryption`
 
@@ -273,19 +267,19 @@ new Outbound\Encryption($recipient);
 new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::IssuerSerial);
 ```
 
-- `Certificate $recipientCertificate` — the recipient's public certificate, used to wrap the session key.
+- `Certificate $recipientCertificate`: the recipient's public certificate, used to wrap the session key.
   Required.
-- `encKeyRef: EncKeyRef $encKeyRef = EncKeyRef::SubjectKeyIdentifier` — how the recipient's certificate is
+- `encKeyRef: EncKeyRef $encKeyRef = EncKeyRef::SubjectKeyIdentifier`: how the recipient's certificate is
   referenced inside the `xenc:EncryptedKey`, so it knows which private key unwraps the session key. Default
   `EncKeyRef::SubjectKeyIdentifier`. The other cases are `IssuerSerial`, `Thumbprint` and `BinarySecurityToken`.
-- `withParts(non-empty-list<Part> $parts): self` — which parts to encrypt. Default is `[Part::body()]`.
-- `withDataEncryptionMethod(DataEncryptionMethod $method): self` — the bulk-data cipher. Default: the profile's
+- `withParts(non-empty-list<Part> $parts): self`: which parts to encrypt. Default is `[Part::body()]`.
+- `withDataEncryptionMethod(DataEncryptionMethod $method): self`: the bulk-data cipher. Default: the profile's
   `dataEncryptionMethod()` (AES-256-GCM).
-- `withKeyEncryptionMethod(KeyEncryptionMethod $method): self`. The key-transport method that wraps the
+- `withKeyEncryptionMethod(KeyEncryptionMethod $method): self`: the key-transport method that wraps the
   session key. Default: the profile's `keyEncryptionMethod()` (RSA-OAEP). This sets only the method; the OAEP
   hash is resolved from the profile (or its default, SHA-1). To pin the method and the hash together, use
   `withKeyTransportAlgorithm` instead.
-- `withKeyTransportAlgorithm(KeyTransportAlgorithm $algorithm): self`. The whole key-transport choice (method
+- `withKeyTransportAlgorithm(KeyTransportAlgorithm $algorithm): self`: the whole key-transport choice (method
   plus OAEP hash) in one atomic value, so an invalid method/hash pairing cannot be expressed. This override wins
   over both `withKeyEncryptionMethod` and the profile. The default key transport is RSA-OAEP with SHA-1
   (byte-identical on the wire to the previous releases). Select RSA-OAEP-SHA256 when the server expects it:
@@ -296,7 +290,7 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
       ->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
   ```
   The named constructors are `KeyTransportAlgorithm::oaepSha1()` (the default), `oaepSha256()`, `legacyMgf1p()`
-  (RSA-OAEP-MGF1P, SHA-1) and `rsa1_5()` (RSA-1_5, rejected inbound by default).
+  (RSA-OAEP-MGF1P, SHA-1), and `rsa1_5()` (RSA-1_5, rejected inbound by default).
 
 ## Outbound: `SamlAssertion`
 
@@ -314,8 +308,8 @@ new Outbound\SamlAssertion(
 );
 ```
 
-- `string $assertionXml` — the full `saml:Assertion` element as a well-formed XML string. Required, non-empty.
-- `SamlVersion $version` — `SamlVersion::Saml11` or `SamlVersion::Saml20`. Required; the version determines the
+- `string $assertionXml`: the full `saml:Assertion` element as a well-formed XML string. Required, non-empty.
+- `SamlVersion $version`: `SamlVersion::Saml11` or `SamlVersion::Saml20`. Required; the version determines the
   expected namespace and the id attribute (`AssertionID` for 1.1, `ID` for 2.0). The assertion root alone has no
   reliable version discriminant, so you state it.
 
@@ -348,9 +342,9 @@ $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 new Inbound\Decrypt($privateKey);
 ```
 
-- `Key $privateKey` — your recipient private key as a `KeyStore\Key`. Required.
+- `Key $privateKey`: your recipient private key as a `KeyStore\Key`. Required.
 
-The wrapped session key is read from the `wsse:Security` header addressed to you — the header the profile's
+The wrapped session key is read from the `wsse:Security` header addressed to you. The header the profile's
 `actorOrRole` selects, the same one the signature verifier reads. A response carrying no header for you is
 refused rather than decrypted against an `xenc:EncryptedKey` found elsewhere in the envelope: your certificate is
 public, so anyone can wrap a key to you, and nothing about a key's position makes it yours.
@@ -379,11 +373,11 @@ new Inbound\VerifySignature(
 );
 ```
 
-- `TrustStore $trustStore` — the certificates you trust as signers. Build it with
+- `TrustStore $trustStore`: the certificates you trust as signers. Build it with
   `TrustStore::fromCertificates(...)`. Required.
-- `signed: list<Part> $signed = []` — the parts that **must** be covered by a trusted signature. Pass it as a
+- `signed: list<Part> $signed = []`: the parts that **must** be covered by a trusted signature. Pass it as a
   named argument (`signed:`). Default `[]`, which verifies the signature is valid and trusted but requires no
-  particular part to be covered. Name the parts you depend on (typically the body and the timestamp) so an
+  particular part to be covered. Name the parts you depend on (typically the body and the timestamp), so an
   attacker cannot strip the signature from the part that matters. The dynamic parts work here too:
   `Part::securityHeaderContents()` requires every token in the Security header to have been signed, and
   `Part::soapHeaders()` requires every other SOAP header block to have been signed.
@@ -394,8 +388,8 @@ accepted; to accept an inclusive variant, add it to the profile's `acceptedCanon
 [Security profile and defaults](#security-profile-and-defaults)). Every failure cause collapses to one uniform
 `SecurityFault` carrying no step-identifying detail, so the block is never a forgery oracle.
 
-The signer's certificate must chain to a trust anchor, be within its validity window, and — if it carries a
-`keyUsage` extension — assert either `digitalSignature` or `nonRepudiation` (`contentCommitment`). A
+The signer's certificate must chain to a trust anchor, be within its validity window, and: if it carries a
+`keyUsage` extension: assert either `digitalSignature` or `nonRepudiation` (`contentCommitment`). A
 certificate with no `keyUsage` extension is not refused on that ground. No Extended Key Usage is required: the
 X.509 Token Profile mandates none, and no registered EKU describes WS-Security message signing.
 
@@ -415,19 +409,19 @@ The lists are yours to supply and refresh. **Nothing is fetched over the network
 no timeout, and no new denial-of-service lever to the inbound path. Distribution-point and OCSP lookups are
 deliberately not implemented.
 
-Once enabled the check is **fail-closed in every direction** — a signer is accepted only when a list that is
+Once enabled the check is **fail-closed in every direction**: a signer is accepted only when a list that is
 trusted, current, and issued by that signer's own issuer says nothing about it:
 
 | Situation | Outcome |
 |---|---|
 | The list is current and does not name the certificate | Accepted |
 | The list names the certificate | Rejected |
-| No supplied list was issued by the signer's issuer | Rejected — an unrelated CA's list says nothing about this signer |
-| The covering list is past its `nextUpdate` | Rejected — a stalled refresh must not silently disable the check |
-| The covering list's signature does not verify against an anchor | Rejected — a forged empty list would otherwise un-revoke everything |
+| No supplied list was issued by the signer's issuer | Rejected. An unrelated CA's list says nothing about this signer |
+| The covering list is past its `nextUpdate` | Rejected. A stalled refresh must not silently disable the check |
+| The covering list's signature does not verify against an anchor | Rejected. A forged empty list would otherwise un-revoke everything |
 
 That last rule is why the lists live on the trust store rather than beside it: a CRL is believed only once its
-own signature verifies against one of the same anchors. Note the third row in particular — enabling revocation
+own signature verifies against one of the same anchors. Note the third row in particular: enabling revocation
 and then forgetting a CRL for one of your issuers **rejects that issuer's signers** rather than skipping them,
 because a configuration that reads as enabled while checking nothing is worse than one that is plainly off. For
 the same reason, `withRevocationLists()` with no arguments is refused outright.
@@ -583,7 +577,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
 
-// Step 1 — fetch an assertion from the STS by signing the request to it.
+// Step 1. Fetch an assertion from the STS by signing the request to it.
 $stsTransport = Psr18Transport::createForClient(
     new PluginClient($yourPsr18Client, [
         new WsseMiddleware(
@@ -600,7 +594,7 @@ $stsTransport = Psr18Transport::createForClient(
 // response and keep it as an XML string:
 $assertionXml = /* the full <saml:Assertion> ... </saml:Assertion> string from the STS response */;
 
-// Step 2 — attach the assertion to your real service call and sign that call.
+// Step 2. Attach the assertion to your real service call and sign that call.
 $serviceTransport = Psr18Transport::createForClient(
     new PluginClient($yourPsr18Client, [
         new WsseMiddleware(
@@ -649,13 +643,13 @@ $transport = Psr18Transport::createForClient(
                 new Outbound\Timestamp(),
                 // Sign first ...
                 new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken),
-                // ... then encrypt:
+                // ... Then encrypt:
                 new Outbound\Encryption($recipient),
             ],
             inbound: [
                 // Decrypt first ...
                 new Inbound\Decrypt($ourPrivateKey),
-                // ... then verify and check freshness:
+                // ... Then verify and check freshness:
                 new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]),
                 new Inbound\ValidateTimestamp(),
             ],
@@ -725,23 +719,23 @@ A few value objects let you say which parts to protect and how a token is refere
 
 `Part` names the parts a block targets:
 
-- `Part::body()` — the SOAP Body.
-- `Part::timestamp()` — the `wsu:Timestamp` in the Security header (add a `Timestamp` block to produce one).
-- `Part::element(string $namespace, string $localName)` — a specific element by qualified name.
-- `Part::byId(string $id)` — an element by its `wsu:Id`.
-- `Part::usernameToken()` / `Part::binarySecurityToken()` — shortcuts for the `wsse:UsernameToken` and
+- `Part::body()`: the SOAP Body.
+- `Part::timestamp()`: the `wsu:Timestamp` in the Security header (add a `Timestamp` block to produce one).
+- `Part::element(string $namespace, string $localName)`: a specific element by qualified name.
+- `Part::byId(string $id)`: an element by its `wsu:Id`.
+- `Part::usernameToken()` / `Part::binarySecurityToken()`. Shortcuts for the `wsse:UsernameToken` and
   `wsse:BinarySecurityToken` in the Security header (equivalent to `Part::element()` with the WS-Security namespace).
 
-Two **dynamic** parts are expanded against the live message rather than naming one element — the equivalents of
+Two **dynamic** parts are expanded against the live message rather than naming one element: the equivalents of
 RobRichards `wse-php`'s header signing. They work in both directions: outbound the Signature block signs every
 element they expand to; inbound `VerifySignature` requires every such element to have been signed.
 
-- `Part::securityHeaderContents()` — every element currently in the `wsse:Security` header (the Timestamp, any
+- `Part::securityHeaderContents()`: every element currently in the `wsse:Security` header (the Timestamp, any
   tokens; the `ds:Signature` itself is excluded). This is part of the signing default.
-- `Part::soapHeaders()` — every SOAP header block **except** the `wsse:Security` header itself (for example
+- `Part::soapHeaders()`: every SOAP header block **except** the `wsse:Security` header itself (for example
   WS-Addressing headers). Opt in with `withParts([Part::body(), Part::securityHeaderContents(), Part::soapHeaders()])`.
 
-`KeyRef` (for signing) and `EncKeyRef` (for encryption) choose how your certificate is referenced:
+`KeyRef` (for signing), and `EncKeyRef` (for encryption) choose how your certificate is referenced:
 
 - `Outbound\KeyReference\KeyRef`: `BinarySecurityToken` (embed the token and point at it; the X.509 interop default for
   signing), `SubjectKeyIdentifier`, `IssuerSerial`, `Thumbprint`.
@@ -750,7 +744,7 @@ element they expand to; inbound `VerifySignature` requires every such element to
 
 `KeyStore\TrustStore::fromCertificates(Certificate ...$anchors)` lists the certificates you trust when verifying a
 response. `->withRevocationLists(CertificateRevocationList ...$lists)` additionally turns on fail-closed
-revocation checking against lists you supply — see
+revocation checking against lists you supply: see
 [Revocation checking](#revocation-checking-opt-in).
 
 # Security profile and defaults
@@ -768,7 +762,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
-// Secure defaults — equivalent to SecurityProfile::default():
+// Secure defaults: equivalent to SecurityProfile::default():
 $profile = new SecurityProfile();
 
 // A fully spelled-out profile: the WS-Security timestamp window plus an XML-Security CryptoPolicy that
@@ -789,12 +783,12 @@ $profile = new SecurityProfile(
 `SecurityProfile` carries the WS-Security freshness window, how the Security header is targeted, and composes a
 `CryptoPolicy`:
 
-- `int $timestampTtl = 300` — the outbound timestamp window in seconds, and the maximum accepted age of an
+- `int $timestampTtl = 300`: the outbound timestamp window in seconds, and the maximum accepted age of an
   inbound timestamp.
-- `int $clockSkew = 60` — the tolerance, in seconds, applied when checking an inbound timestamp against the
+- `int $clockSkew = 60`: the tolerance, in seconds, applied when checking an inbound timestamp against the
   local clock.
-- `?CryptoPolicy $crypto = null` — the XML-Security algorithm policy below; `null` uses `CryptoPolicy::default()`.
-- `?string $actorOrRole = null` — which hop this exchange belongs to, spelled `soap:actor` in SOAP 1.1 and
+- `?CryptoPolicy $crypto = null`: the XML-Security algorithm policy below; `null` uses `CryptoPolicy::default()`.
+- `?string $actorOrRole = null`: which hop this exchange belongs to, spelled `soap:actor` in SOAP 1.1 and
   `soap:role` in SOAP 1.2. `null` (default) means the ultimate receiver, whose header carries no such attribute.
 
   One value does both jobs, because both answer the same question. Outbound it targets the header the blocks
@@ -804,25 +798,25 @@ $profile = new SecurityProfile(
   ```php
   $profile = new SecurityProfile(actorOrRole: 'urn:my-gateway');
   ```
-- `bool $mustUnderstand = true` — whether the outbound Security header demands the receiver process it or
+- `bool $mustUnderstand = true`: whether the outbound Security header demands the receiver process it or
   fault. Leave it on unless a peer rejects the attribute.
 
 `CryptoPolicy` (namespace `Soap\Psr18WsseMiddleware\XmlSecurity`) carries the algorithm choices and allow-lists,
 and can be used to drive the signing/encryption engine without the SOAP profile:
 
-- `SignatureMethod $signatureMethod = SignatureMethod::RSA_SHA256` — the outbound signature algorithm.
-- `DigestMethod $digestMethod = DigestMethod::SHA256` — the outbound per-reference digest.
-- `SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N` — the outbound
+- `SignatureMethod $signatureMethod = SignatureMethod::RSA_SHA256`: the outbound signature algorithm.
+- `DigestMethod $digestMethod = DigestMethod::SHA256`: the outbound per-reference digest.
+- `SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N`: the outbound
   canonicalization method.
-- `DataEncryptionMethod $dataEncryptionMethod = DataEncryptionMethod::AES256_GCM` — the outbound bulk cipher.
-- `KeyEncryptionMethod $keyEncryptionMethod = KeyEncryptionMethod::RSA_OAEP` — the outbound key-transport
+- `DataEncryptionMethod $dataEncryptionMethod = DataEncryptionMethod::AES256_GCM`: the outbound bulk cipher.
+- `KeyEncryptionMethod $keyEncryptionMethod = KeyEncryptionMethod::RSA_OAEP`: the outbound key-transport
   algorithm.
-- `?array $acceptedSignatureMethods = null` — the inbound allow-list for signature algorithms. `null` (default)
+- `?array $acceptedSignatureMethods = null`: the inbound allow-list for signature algorithms. `null` (default)
   applies secure defaults: RSA-SHA256/384/512 and ECDSA-SHA256/384/512, rejecting SHA-1 and HMAC methods.
-- `?array $acceptedDigestMethods = null` — the inbound allow-list for digests. Default: SHA-256/384/512.
-- `?array $acceptedKeyEncryptionMethods = null` — the inbound allow-list for key transport. Default: RSA-OAEP and
+- `?array $acceptedDigestMethods = null`: the inbound allow-list for digests. Default: SHA-256/384/512.
+- `?array $acceptedKeyEncryptionMethods = null`: the inbound allow-list for key transport. Default: RSA-OAEP and
   RSA-OAEP-MGF1P, rejecting RSA-1_5.
-- `?array $acceptedDataEncryptionMethods = null` — the inbound allow-list for bulk ciphers. Default: AES-GCM and
+- `?array $acceptedDataEncryptionMethods = null`: the inbound allow-list for bulk ciphers. Default: AES-GCM and
   AES-CBC at 128/192/256, rejecting 3DES. The CBC ciphers are accepted because peers commonly send them, but
   only the GCM ciphers authenticate their own ciphertext, and this library does not require an encrypted part
   to also be covered by a verified signature. If your peer can encrypt with GCM, narrow the list and get
@@ -838,9 +832,9 @@ and can be used to drive the signing/encryption engine without the SOAP profile:
       ],
   ));
   ```
-- `?array $acceptedOaepHashes = null` — the inbound allow-list for the OAEP hash on an inbound `EncryptedKey`.
+- `?array $acceptedOaepHashes = null`: the inbound allow-list for the OAEP hash on an inbound `EncryptedKey`.
   Default: SHA-1 and SHA-256.
-- `?array $acceptedCanonicalizations = null` — the inbound allow-list for the canonicalization on an inbound
+- `?array $acceptedCanonicalizations = null`: the inbound allow-list for the canonicalization on an inbound
   signature. Default: the exclusive variants only (`SignatureCanonicalization::EXC_C14N` and
   `EXC_C14N_COMMENTS`). The inclusive variants are not the WSSE norm, so accepting them only widens the attack
   surface; opt in by listing `SignatureCanonicalization::C14N` and/or `C14N_COMMENTS` here:
@@ -856,11 +850,11 @@ and can be used to drive the signing/encryption engine without the SOAP profile:
   ));
   ```
   This is also what a peer whose `ds:Reference` elements carry no `ds:Transforms` needs. XML-DSig digests such
-  a reference under inclusive canonicalization — `ds:SignedInfo`'s own `CanonicalizationMethod` covers only
-  `ds:SignedInfo` — so with the exclusive-only default those signatures are refused. Listing
+  a reference under inclusive canonicalization: `ds:SignedInfo`'s own `CanonicalizationMethod` covers only
+  `ds:SignedInfo`. So with the exclusive-only default those signatures are refused. Listing
   `SignatureCanonicalization::C14N` above is the supported way to verify them.
 
-The defaults reject weak algorithms (SHA-1, RSA-1_5, 3DES) and use SHA-256 with exclusive canonicalization. The
+The defaults reject weak algorithms (SHA-1, RSA-1_5, 3DES), and use SHA-256 with exclusive canonicalization. The
 algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMethod`, `DigestMethod`,
 `SignatureCanonicalization`, `DataEncryptionMethod`, `KeyEncryptionMethod`, `KeyTransportAlgorithm` and
 `OaepHash`.
@@ -881,8 +875,8 @@ algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMeth
 ## Limits on an inbound message
 
 Every parse rejects a DOCTYPE declaration before any block runs, which removes external entities and entity
-expansion as an attack surface. Beyond that the middleware relies on the parser's own default limits — it never
-asks for the "huge" parse mode that lifts them — so an inbound response is refused once it nests deeper than
+expansion as an attack surface. Beyond that the middleware relies on the parser's own default limits: it never
+asks for the "huge" parse mode that lifts them: so an inbound response is refused once it nests deeper than
 256 elements.
 
 Note what that does **not** cover: the parser does not bound the length of an individual text node, and there
@@ -920,17 +914,17 @@ $transport = Psr18Transport::createForClient(
 ```
 
 Everything is configured through `WsaOptions`. Every property is optional, because each one has a sensible
-answer without configuration — the default `new WsaOptions()` produces the headers a service expects:
+answer without configuration: the default `new WsaOptions()` produces the headers a service expects:
 
-- `WsaNamespace $namespace = WsaNamespace::W3c200508` — the addressing version. `WsaNamespace::W3c200508`
+- `WsaNamespace $namespace = WsaNamespace::W3c200508`: the addressing version. `WsaNamespace::W3c200508`
   (default) is the W3C 2005/08 namespace; `WsaNamespace::Submission200408` is the older 2004/08 submission
   namespace.
-- `?string $action = null` — the `wsa:Action`. Default `null`, which uses the request's `SOAPAction`.
-- `?string $to = null` — the `wsa:To`. Default `null`, which uses the request URI.
-- `?string $replyTo = null` — the `wsa:ReplyTo` address. Default `null`, which uses the version's
+- `?string $action = null`: the `wsa:Action`. Default `null`, which uses the request's `SOAPAction`.
+- `?string $to = null`: the `wsa:To`. Default `null`, which uses the request URI.
+- `?string $replyTo = null`: the `wsa:ReplyTo` address. Default `null`, which uses the version's
   anonymous URI.
-- `?string $from = null` — the `wsa:From` address. Default `null`, which omits the header.
-- `?string $faultTo = null` — the `wsa:FaultTo` address, where the service sends a fault instead of to
+- `?string $from = null`: the `wsa:From` address. Default `null`, which omits the header.
+- `?string $faultTo = null`: the `wsa:FaultTo` address, where the service sends a fault instead of to
   `ReplyTo`. Default `null`, which omits the header so faults follow `ReplyTo`.
 
 `wsa:MessageID` is always freshly generated and is not configurable: the receiver echoes it back in
@@ -959,17 +953,20 @@ with a `with*()` method:
 
 Reach for this only when the defaults genuinely do not fit.
 
-## The engine carries no SOAP knowledge
+## Driving the engine without SOAP
+
+**Skip this unless you want to sign, verify, encrypt or decrypt plain XML that is not a SOAP message.** Using the
+middleware, none of it applies: the blocks wire the engine up for you.
 
 The engine under `Soap\Psr18WsseMiddleware\XmlSecurity\` never looks for a `wsse:Security` header. It is given
-the element to work against, so it can be driven standalone on any XML document — the WS-Security blocks are the
-only part of this package that knows what a SOAP envelope is.
+the element to work against, so it can be driven on any XML document, and the WS-Security blocks are the only
+part of this package that knows what a SOAP envelope is.
 
 - **The container is an input, not something searched for.** `SigningRequest` and `EncryptionRequest` take a
-  `Dom\Element $container` as their first argument — the element the `ds:Signature` / `xenc:EncryptedKey` is
+  `Dom\Element $container` as their first argument: the element the `ds:Signature` / `xenc:EncryptedKey` is
   appended to. The blocks pass their `wsse:Security` header.
 - **Which `ds:KeyInfo` shapes are understood is an input as well.** Standalone, the engine reads the plain
-  XML-DSig form — an inline `ds:X509Certificate`. The WS-Security token forms (a `wsse:BinarySecurityToken`
+  XML-DSig form. An inline `ds:X509Certificate`. The WS-Security token forms (a `wsse:BinarySecurityToken`
   reference, a `wsse:KeyIdentifier`, an issuer and serial) come from the profile, so pass its resolver to read
   them outside the middleware:
   ```php
@@ -980,7 +977,7 @@ only part of this package that knows what a SOAP envelope is.
 - **The scope is an input too, on the read side.** `XmlSignatureVerifier::verify()` takes the element whose
   signature is being verified, and `DecryptionRequest` names the container the `xenc:EncryptedKey` and
   `xenc:ReferenceList` are read from. Neither is defaulted, because a default would mean "search the whole
-  document" — which is what lets an element planted elsewhere be mistaken for the real one. Anyone can wrap a
+  document": which is what lets an element planted elsewhere be mistaken for the real one. Anyone can wrap a
   session key to a public certificate, so on the decryption side this is what distinguishes a key meant for this
   recipient from one an injector supplied.
 
@@ -994,7 +991,7 @@ public function decrypt(Document $document, DecryptionRequest $request): void;
 ### Enveloped signatures (engine level only)
 
 The verifier accepts the `enveloped-signature` transform, so it can verify a signature that lives *inside* the
-element it signs — the standard shape for a plain signed XML document, and the shape a signed SAML assertion
+element it signs. The standard shape for a plain signed XML document, and the shape a signed SAML assertion
 arrives in. A reference may declare the transform on its own, or followed by one canonicalization; the order is
 enforced, and every canonicalization is still allow-list checked exactly as elsewhere.
 
@@ -1005,13 +1002,13 @@ $verified = Verifier::create()->verify($document, $policy, $signedElement);
 ```
 
 **No WS-Security block uses this.** `Inbound\VerifySignature` scopes to the `wsse:Security` header addressed to
-you, and a signature is only recognised as that scope's own when it is a *direct child* of it — a signature
+you, and a signature is only recognised as that scope's own when it is a *direct child* of it. A signature
 nested deeper is never mistaken for it, which is deliberate XML Signature Wrapping hardening. So an assertion's
 own signature is not verified by that block, and this is engine-level capability for a standalone caller.
 
 That is not a gap in message security: when a WSSE signature covers an assertion, its digest already covers the
 assertion *together with* the signature embedded in it, so tampering is caught without this transform. What the
-transform adds is authenticating the issuer's signature on the token, which a SOAP client normally does not do —
+transform adds is authenticating the issuer's signature on the token, which a SOAP client normally does not do:
 it presents an assertion obtained from an STS, and the service verifies the issuer.
 
 Two rules make it safe to accept at all, and both refuse rather than guess:
@@ -1036,7 +1033,7 @@ Signer::create();      // xml:id
 Verifier::create();     // xml:id
 ```
 
-The WS-Security blocks need `wsu:Id` instead, as the profile mandates, and set that up themselves — nothing to
+The WS-Security blocks need `wsu:Id` instead, as the profile mandates, and set that up themselves. Nothing to
 configure when you use the middleware. To drive the engine standalone under that convention, or under one of your
 own:
 
