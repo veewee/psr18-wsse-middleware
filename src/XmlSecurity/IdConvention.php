@@ -11,6 +11,12 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity;
  *
  * Implement this to add a convention of your own; implementing it means supplying both halves, which is the
  * point.
+ *
+ * It belongs at the seam where an engine is wired up and both halves are used, and nowhere further: it is
+ * decomposed there, and each collaborator underneath takes the one capability it needs — a minter or a lookup,
+ * naming which. Do not widen those to take a convention. There is no pair to mismatch in a class that only
+ * resolves, and holding a minter it never uses is precisely what stops "this cannot mint" from being a fact
+ * about the inbound path.
  */
 interface IdConvention
 {

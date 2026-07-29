@@ -184,11 +184,9 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   `wsse:BinarySecurityToken` is embedded and the signature points at it by `wsu:Id`. The other cases
   (`SubjectKeyIdentifier`, `IssuerSerial`, `Thumbprint`) put an inline reference derived from the certificate and
   embed no token. See [Choosing parts and key references](#choosing-parts-and-key-references).
-- `withCertificatePath(CertificateChain $path): self` — advertise your whole certification path in the embedded
-  token: a `#X509PKIPathv1` `wsse:BinarySecurityToken` (the ASN.1 `SEQUENCE OF Certificate` the X.509 Token
-  Profile prefers over PKCS#7) instead of the leaf certificate alone. Off by default, because a bare certificate
-  is what every stack accepts without configuration. Turn it on for a peer that will not complete the chain from
-  its own store and needs the intermediates handed to it:
+- `withCertificatePath(CertificateChain $path): self` — send your whole certificate chain in the token (a
+  `#X509PKIPathv1` `wsse:BinarySecurityToken`) instead of the leaf certificate alone. Off by default. Turn it on
+  for a server that will not complete the chain from its own store and needs the intermediates handed to it:
   ```php
   use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
 
@@ -197,11 +195,9 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   (new Outbound\Signature(ClientCertificate::fromPkcs12($bundle)))
       ->withCertificatePath($bundle->chain);
   ```
-  The path is supplied here rather than carried on `ClientCertificate`: a PKCS#12 bundle already holds one, a PEM
-  signing identity has none to offer, and no peer requires a path. It must start at the certificate you sign with
-  (the chain's leaf) and `keyRef` must be `KeyRef::BinarySecurityToken` — the inline references embed no token to
-  carry a path — otherwise the call throws. The certificates go on the wire from the trust anchor down to the
-  end-entity, as ITU-T X.509 defines a `PkiPath`, which is the order a Java peer reads back.
+  A `.p12` already contains the chain, which is where it usually comes from; a PEM signing identity has none to
+  offer. The chain must start with the certificate you sign with, and `keyRef` must be
+  `KeyRef::BinarySecurityToken`, or the call throws.
 - `withParts(non-empty-list<Part> $parts): self` — which parts to sign. Default is `[Part::body(),
   Part::securityHeaderContents()]`: the Body plus every element currently in the Security header (the Timestamp,
   any tokens), resolved at send time. Because it signs whatever is present, the default never fails when a part
@@ -1021,46 +1017,33 @@ The exclusion is applied as a node-set filter while canonicalizing in place. The
 cloned away, because a detached clone loses the namespace declarations it inherits from its ancestors and the
 canonical bytes would no longer match what the signer computed.
 
-### Id conventions are injected as a pair
+### Id conventions
 
-How a signed or encrypted node gets its referenceable id is an `XmlSecurity\IdMinter`, and how a reference
-resolves back to its element is its read-side twin, `XmlSecurity\IdLookup`. The engine hard-codes neither, and it
-never takes one without the other: the two travel together as an `XmlSecurity\IdConvention`.
+The engine references what it signs and encrypts by id, and does not hard-code which attribute carries it. It
+ships the W3C `xml:id`, so driving the engine directly needs no configuration:
 
 ```php
-use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
-
-Signer::create();                                 // the shipped xml:id convention
-Signer::create(AttributeIdConvention::xmlId());    // the same, stated explicitly
+Signer::create();      // xml:id
+Verifier::create();     // xml:id
 ```
 
-`Signer::create()` and `Encryptor::create()` take an `IdConvention` and default to the shipped `xml:id` one
-(`AttributeIdConvention::xmlId()`), so a standalone caller works with zero configuration. The WS-Security blocks
-hand over `WSSecurity\Xml\WsuIdConvention`, which supplies `wsu:Id` as the profile mandates.
-
-`Verifier::create()` and `Decryptor::create()` take an `IdLookup` alone, not a convention. Verifying and
-decrypting only ever resolve ids — a signed element already carries the id its `ds:Reference` used — so the
-inbound path is handed the read half only and holds no minter at all.
-
-**Why a pair and not two arguments.** A minter that stamps `wsu:Id` alongside a lookup that resolves `xml:id`
-emits references nobody can follow, and the two-argument form made that expressible — passing only a minter left
-the lookup on its `xml:id` default. Supplying a convention makes the mismatch unrepresentable rather than
-merely documented.
-
-To add a convention of your own, either build one from an attribute:
+The WS-Security blocks need `wsu:Id` instead, as the profile mandates, and set that up themselves — nothing to
+configure when you use the middleware. To drive the engine standalone under that convention, or under one of your
+own:
 
 ```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdAttribute;
 
-new AttributeIdConvention(IdAttribute::of('urn:my:ns', 'my:Id'));
+$ids = new WsuIdConvention();                                          // wsu:Id
+$ids = new AttributeIdConvention(IdAttribute::of('urn:my:ns', 'my:Id'));  // your own
+
+Signer::create($ids);
+Encryptor::create($ids);
+Verifier::create($ids->lookup());     // verifying only ever resolves ids
+Decryptor::create($ids->lookup());
 ```
 
-or implement `IdConvention` directly, which requires both halves by construction. One `IdAttribute` drives the
-minter and the lookup together, so they cannot address different attributes.
-
-`IdMinter::mint()` is idempotent: minting a node that already carries an id under the convention returns that id
-rather than stamping a second one. Both halves are hardened against XML Signature Wrapping — the lookup matches
-only its own attribute through an anchored XPath, never `getElementById`, and refuses a duplicate id as ambiguous
-instead of resolving to the first match.
+Sign and verify with the same convention or the references will not resolve. Handing over the pair is what makes
+that hard to get wrong; `XmlSecurity\IdConvention` documents the rest.
