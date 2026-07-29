@@ -127,7 +127,6 @@ final class EncryptorDecryptorTest extends TestCase
         static::assertCount(0, $this->encryptedData($document));
     }
 
-
     public function test_a_wrong_private_key_fails_uniformly(): void
     {
         [, $certificate] = $this->keyAndCertificate();

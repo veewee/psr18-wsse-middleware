@@ -103,6 +103,10 @@ final class EncryptedKeyReferenceListTest extends TestCase
         return Query::elements(
             $document,
             '/soap:Envelope/soap:Header/'.WsseNamespaces::Wsse->qualify('Security'),
+            // Bound explicitly. Without it the query passes only while the fixture happens to declare wsse on the
+            // root element, because Dom\XPath registers whatever is in scope at the context node -- so the test
+            // would be green through a side channel rather than through the binding it means to use.
+            prefixes: [WsseNamespaces::Wsse->prefix() => WsseNamespaces::Wsse->uri()],
         )->expectSingle();
     }
 

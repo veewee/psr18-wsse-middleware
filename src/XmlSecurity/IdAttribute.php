@@ -54,7 +54,8 @@ final readonly class IdAttribute
 
     /**
      * The W3C-standard `xml:id`, which the engine uses unless a profile overrides the convention. The XML
-     * namespace is bound to the `xml` prefix everywhere by definition, so no XPath registration is needed.
+     * namespace is bound to the `xml` prefix everywhere by definition, so binding it again is redundant rather
+     * than wrong, and passing it anyway keeps this convention on the same path as every other one.
      */
     public static function xmlId(): self
     {
