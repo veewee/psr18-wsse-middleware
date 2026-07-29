@@ -9,6 +9,7 @@ use Dom\Node;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SamlVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
@@ -48,8 +49,8 @@ final readonly class SecurityTokenReference
     {
         return new self(
             namespaced_element(
-                Namespaces::Wsse->value,
-                Namespaces::Wsse->qualify('Reference'),
+                WsseNamespaces::Wsse->value,
+                WsseNamespaces::Wsse->qualify('Reference'),
                 attribute('URI', '#'.$uri),
                 attribute('ValueType', $valueType),
             ),
@@ -67,8 +68,8 @@ final readonly class SecurityTokenReference
     public static function keyIdentifier(string $encodedValue, string $valueType, string $encodingType): self
     {
         return new self(namespaced_element(
-            Namespaces::Wsse->value,
-            Namespaces::Wsse->qualify('KeyIdentifier'),
+            WsseNamespaces::Wsse->value,
+            WsseNamespaces::Wsse->qualify('KeyIdentifier'),
             attribute('ValueType', $valueType),
             attribute('EncodingType', $encodingType),
             value($encodedValue),
@@ -86,8 +87,8 @@ final readonly class SecurityTokenReference
     public static function thumbprint(string $encodedValue): self
     {
         return new self(namespaced_element(
-            Namespaces::Wsse->value,
-            Namespaces::Wsse->qualify('KeyIdentifier'),
+            WsseNamespaces::Wsse->value,
+            WsseNamespaces::Wsse->qualify('KeyIdentifier'),
             attribute('ValueType', WsSecurityValueType::ThumbprintSha1->value),
             attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
             value($encodedValue),
@@ -107,8 +108,8 @@ final readonly class SecurityTokenReference
     {
         return new self(
             namespaced_element(
-                Namespaces::Wsse->value,
-                Namespaces::Wsse->qualify('KeyIdentifier'),
+                WsseNamespaces::Wsse->value,
+                WsseNamespaces::Wsse->qualify('KeyIdentifier'),
                 attribute('ValueType', $version->keyIdentifierValueType()->value),
                 value($assertionId),
             ),
@@ -153,14 +154,14 @@ final readonly class SecurityTokenReference
         $stampTokenType = $tokenType === null
             ? static fn (Element $reference): Element => $reference
             : namespaced_attribute(
-                Namespaces::Wsse11->value,
-                Namespaces::Wsse11->qualify('TokenType'),
+                WsseNamespaces::Wsse11->value,
+                WsseNamespaces::Wsse11->qualify('TokenType'),
                 $tokenType,
             );
 
         return $document->map(namespaced_element(
-            Namespaces::Wsse->value,
-            Namespaces::Wsse->qualify('SecurityTokenReference'),
+            WsseNamespaces::Wsse->value,
+            WsseNamespaces::Wsse->qualify('SecurityTokenReference'),
             children($this->childBuilder),
             $stampTokenType,
         ));

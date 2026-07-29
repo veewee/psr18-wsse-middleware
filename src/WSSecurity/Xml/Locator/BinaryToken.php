@@ -6,9 +6,9 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 
 /**
  * Finds the wsse:BinarySecurityToken in a wsse:Security header that carries given bytes and returns its
@@ -33,12 +33,12 @@ final class BinaryToken
     {
         $expected = Certificate::normalizeBase64Der($base64Body);
 
-        foreach (ChildElements::named($securityHeader, Namespaces::Wsse, 'BinarySecurityToken') as $token) {
+        foreach (ChildElements::named($securityHeader, WsseNamespaces::Wsse, 'BinarySecurityToken') as $token) {
             if (Certificate::normalizeBase64Der(ElementText::trimmed($token)) !== $expected) {
                 continue;
             }
 
-            $id = $token->getAttributeNS(Namespaces::Wsu->value, 'Id');
+            $id = $token->getAttributeNS(WsseNamespaces::Wsu->value, 'Id');
             if ($id !== null && $id !== '') {
                 return $id;
             }

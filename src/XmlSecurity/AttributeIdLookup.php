@@ -31,7 +31,7 @@ final readonly class AttributeIdLookup implements IdLookup
     public function lookup(Document $document, string $id): Element
     {
         return UniqueMatch::require(
-            Query::elements($document, $this->attribute->matches($id))
+            Query::elements($document, $this->attribute->matches($id), prefixes: $this->attribute->binding())
                 ->map(static fn (Element $element): Element => $element),
             $id,
         );

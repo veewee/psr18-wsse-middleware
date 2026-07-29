@@ -14,9 +14,9 @@ use Dom\Element;
  */
 final class ElementName
 {
-    public static function matches(Element $element, Namespaces $namespace, string $localName): bool
+    public static function matches(Element $element, XmlNamespace $namespace, string $localName): bool
     {
-        return self::matchesUri($element, $namespace->value, $localName);
+        return self::matchesUri($element, $namespace->uri(), $localName);
     }
 
     /**

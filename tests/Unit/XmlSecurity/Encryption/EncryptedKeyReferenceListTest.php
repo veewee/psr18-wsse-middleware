@@ -6,7 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption;
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
@@ -102,7 +102,7 @@ final class EncryptedKeyReferenceListTest extends TestCase
     {
         return Query::elements(
             $document,
-            '/soap:Envelope/soap:Header/'.Namespaces::Wsse->qualify('Security'),
+            '/soap:Envelope/soap:Header/'.WsseNamespaces::Wsse->qualify('Security'),
         )->expectSingle();
     }
 

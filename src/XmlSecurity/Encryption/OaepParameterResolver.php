@@ -12,6 +12,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\XmlNamespace;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 /**
@@ -97,7 +98,7 @@ final class OaepParameterResolver
      *
      * @throws UnsupportedAlgorithmException
      */
-    private function declaredAlgorithm(Element $encryptionMethod, Namespaces $namespace, string $localName): ?string
+    private function declaredAlgorithm(Element $encryptionMethod, XmlNamespace $namespace, string $localName): ?string
     {
         $matches = ChildElements::named($encryptionMethod, $namespace, $localName);
         if (count($matches) > 1) {

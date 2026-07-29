@@ -5,14 +5,14 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
 use VeeWee\Xml\Dom\Document;
 
 final class VerifiedReferencesTest extends TestCase
 {
-    private const WSU = Namespaces::Wsu;
+    private const WSU = WsseNamespaces::Wsu;
 
     public function test_was_signed_is_true_only_for_an_exact_signed_instance(): void
     {

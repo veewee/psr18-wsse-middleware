@@ -40,7 +40,7 @@ final class ReferenceResolver
 
     /**
      * Upper bound on the number of ds:Reference entries a single ds:SignedInfo may declare. A conservative
-     * ceiling far above any legitimate WSSE message; it could later move to the verification policy if a
+     * ceiling far above any legitimate message; it could later move to the verification policy if a
      * deployment ever needs to tune it.
      */
     public const int MAX_REFERENCES = 32;
@@ -195,7 +195,12 @@ final class ReferenceResolver
      */
     private function signatureToStrip(Document $document, Element $element, Element $signatureElement): Element
     {
-        $contained = Query::elements($document, './/'.Namespaces::Ds->qualify('Signature'), $element)
+        $contained = Query::elements(
+            $document,
+            './/'.Namespaces::Ds->qualify('Signature'),
+            $element,
+            [Namespaces::Ds->prefix() => Namespaces::Ds->uri()],
+        )
             ->map(static fn (Element $candidate): Element => $candidate);
 
         if (count($contained) !== 1 || $contained[0] !== $signatureElement) {

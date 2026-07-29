@@ -6,7 +6,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Builds a detached, multi-reference, WSSE-aware ds:Signature and inserts it into the document. Mutates the
+ * Builds a detached, multi-reference ds:Signature and inserts it into the document. Mutates the
  * document in place.
  */
 interface XmlSigner

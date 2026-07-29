@@ -17,11 +17,10 @@ use Throwable;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Reads the signer's certificate from ds:KeyInfo. Two inbound forms carry the certificate inside the message: a
- * direct BST reference (wsse:SecurityTokenReference > wsse:Reference pointing at a wsse:BinarySecurityToken) and
- * an inline ds:X509Data > ds:X509Certificate. A third group names the certificate by identifier without carrying
- * it: a wsse:KeyIdentifier holding a Subject Key Identifier or a SHA-1 thumbprint, or a ds:X509IssuerSerial.
- * Those references are resolved by matching the identifier against the trust store the caller already holds.
+ * Turns whatever ds:KeyInfo names into the signer's certificate chain. Which shapes are recognised is the
+ * injected KeyInfoResolver's business, not this class's: some carry the certificate in the message and are
+ * decoded here, while the identifier forms carry only a pointer and are resolved by matching the identifier
+ * against the trust store the caller already holds.
  *
  * Resolving by identifier requires the actual certificate to be available locally, since the message carries
  * only a pointer to it. The trust store is the only local source of candidate certificates, so an identifier

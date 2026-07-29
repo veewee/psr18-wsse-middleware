@@ -46,7 +46,7 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
         $keyInfo = OnlyChild::named($signatureElement, Namespaces::Ds, 'KeyInfo')
             ?? throw SignatureVerificationFailed::withReason('ds:KeyInfo is missing.');
 
-        $str = OnlyChild::named($keyInfo, Namespaces::Wsse, 'SecurityTokenReference');
+        $str = OnlyChild::named($keyInfo, WsseNamespaces::Wsse, 'SecurityTokenReference');
         if ($str === null) {
             return $this->plain->read($document, $signatureElement, $idLookup);
         }
@@ -69,7 +69,7 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
      */
     private function fromDirectReference(Document $document, Element $str, IdLookup $idLookup): ?CertificateReference
     {
-        $reference = OnlyChild::named($str, Namespaces::Wsse, 'Reference');
+        $reference = OnlyChild::named($str, WsseNamespaces::Wsse, 'Reference');
         if ($reference === null) {
             return null;
         }
@@ -83,7 +83,7 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
             throw SignatureVerificationFailed::withReason('The referenced security token was not found.');
         }
 
-        if (!ElementName::matches($token, Namespaces::Wsse, 'BinarySecurityToken')) {
+        if (!ElementName::matches($token, WsseNamespaces::Wsse, 'BinarySecurityToken')) {
             throw SignatureVerificationFailed::withReason('The token reference does not point at a BinarySecurityToken.');
         }
 
@@ -116,8 +116,8 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
      */
     private function fromKeyIdentifier(Element $str): ?CertificateReference
     {
-        $wsse = OnlyChild::named($str, Namespaces::Wsse, 'KeyIdentifier');
-        $wsse11 = OnlyChild::named($str, Namespaces::Wsse11, 'KeyIdentifier');
+        $wsse = OnlyChild::named($str, WsseNamespaces::Wsse, 'KeyIdentifier');
+        $wsse11 = OnlyChild::named($str, WsseNamespaces::Wsse11, 'KeyIdentifier');
 
         if ($wsse !== null && $wsse11 !== null) {
             throw SignatureVerificationFailed::withReason('wsse:KeyIdentifier must appear at most once in its parent.');

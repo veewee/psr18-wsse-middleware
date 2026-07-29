@@ -8,7 +8,6 @@ use Dom\Node;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdConvention;
@@ -97,7 +96,6 @@ final class Encryptor implements XmlEncryptor
             );
 
             append($encryptedKey)($container);
-            NodeOrder::sort($container);
         } catch (EncryptionFailed $exception) {
             throw $exception;
         } catch (Throwable $exception) {

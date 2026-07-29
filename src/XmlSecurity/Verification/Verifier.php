@@ -29,7 +29,8 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParse
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Orchestrates WSSE signature verification. It locates the single ds:Signature in the wsse:Security header,
+ * Orchestrates signature verification. It locates the single ds:Signature directly inside the scope element the
+ * caller hands over,
  * enforces the policy algorithm allow-lists before any expensive work, extracts the signer certificate from
  * the message, establishes trust against the policy trust store, resolves every reference to its exact DOM
  * element, verifies all digests, verifies the signature value, and returns the verified references together

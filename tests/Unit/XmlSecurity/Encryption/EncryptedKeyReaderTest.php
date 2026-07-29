@@ -12,7 +12,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
@@ -112,7 +112,7 @@ final class EncryptedKeyReaderTest extends TestCase
     {
         return Query::elements(
             $document,
-            '/soap:Envelope/soap:Header/'.Namespaces::Wsse->qualify('Security'),
+            '/soap:Envelope/soap:Header/'.WsseNamespaces::Wsse->qualify('Security'),
         )->expectSingle();
     }
 

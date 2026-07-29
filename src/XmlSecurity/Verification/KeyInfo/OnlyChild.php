@@ -5,7 +5,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\Xml\XmlNamespace;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 
 /**
@@ -18,7 +18,7 @@ final class OnlyChild
     /**
      * @throws SignatureVerificationFailed when more than one such child is present
      */
-    public static function named(Element $parent, Namespaces $namespace, string $localName): ?Element
+    public static function named(Element $parent, XmlNamespace $namespace, string $localName): ?Element
     {
         $matches = ChildElements::named($parent, $namespace, $localName);
         if (count($matches) > 1) {

@@ -9,13 +9,22 @@ use function VeeWee\Xml\Dom\Locator\root_namespace_uri;
 use function VeeWee\Xml\Dom\Xpath\Configurator\namespaces;
 
 /**
- * Xpath configurator registering the SOAP root namespace (as `soap`) together with the
- * WSSE / WSU / DSig / XML-Enc namespaces. Works for both SOAP 1.1 and 1.2 envelopes.
+ * Xpath configurator binding the prefixes a query uses. The SOAP root namespace is bound as `soap` from the
+ * document itself, which works for both SOAP 1.1 and 1.2; everything else is passed in.
+ *
+ * The bindings are explicit rather than "every namespace this package knows" so that no layer has to be able to
+ * name the specifications above it. A query the engine runs under a profile's id convention is handed that
+ * profile's binding along with the query, and the engine never learns what the prefix stands for.
  */
 final class Xpath implements Configurator
 {
+    /**
+     * @param array<non-empty-string, non-empty-string> $prefixes prefix => namespace URI, for every prefix the
+     *        query uses beyond `soap`
+     */
     public function __construct(
         private readonly Document $document,
+        private readonly array $prefixes = [],
     ) {
     }
 
@@ -24,11 +33,6 @@ final class Xpath implements Configurator
         // `soap` binds to the document's root namespace; dropped for a bare fragment that has none.
         $prefixes = array_filter(['soap' => $this->document->locate(root_namespace_uri())]);
 
-        // Each namespace registers under the prefix it declares on the enum, keeping one source of truth.
-        foreach (Namespaces::cases() as $namespace) {
-            $prefixes[$namespace->prefix()] = $namespace->value;
-        }
-
-        return namespaces($prefixes)($xpath);
+        return namespaces([...$prefixes, ...$this->prefixes])($xpath);
     }
 }

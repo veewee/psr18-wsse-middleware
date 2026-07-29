@@ -16,6 +16,7 @@ use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
+use Soap\Psr18WsseMiddleware\Xml\XmlNamespace;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Throwable;
@@ -133,6 +134,7 @@ final class EncryptedKeyReader
             $document,
             './'.Namespaces::Xenc->qualify('ReferenceList'),
             $container,
+            [Namespaces::Xenc->prefix() => Namespaces::Xenc->uri()],
         )->map(static fn (Element $element): Element => $element);
 
         if (count($carried) > 1 || count($detached) > 1 || (count($carried) === 1 && count($detached) === 1)) {
@@ -169,6 +171,7 @@ final class EncryptedKeyReader
             $document,
             './'.Namespaces::Xenc->qualify('EncryptedKey'),
             $container,
+            [Namespaces::Xenc->prefix() => Namespaces::Xenc->uri()],
         );
 
         if ($encryptedKeys->count() !== 1) {
@@ -181,7 +184,7 @@ final class EncryptedKeyReader
     /**
      * @throws DecryptionFailed
      */
-    private function child(Element $parent, string $localName, Namespaces $namespace): Element
+    private function child(Element $parent, string $localName, XmlNamespace $namespace): Element
     {
         // Exactly one, so an injected sibling cannot shadow the element the unwrap depends on.
         return ChildElements::single($parent, $namespace, $localName)

@@ -14,8 +14,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\BinaryToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -126,8 +126,8 @@ final class BinarySecurityToken implements OutboundAction
     {
         $minter = (new WsuIdConvention())->minter();
         $build = namespaced_element(
-            Namespaces::Wsse->value,
-            Namespaces::Wsse->qualify('BinarySecurityToken'),
+            WsseNamespaces::Wsse->value,
+            WsseNamespaces::Wsse->qualify('BinarySecurityToken'),
             attribute('ValueType', $this->valueType()->value),
             attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
             value($body),

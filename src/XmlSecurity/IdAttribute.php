@@ -62,6 +62,25 @@ final readonly class IdAttribute
     }
 
     /**
+     * The prefix-to-URI binding a query over this attribute needs, which the caller passes along with the query.
+     * The engine runs such a query without knowing which specification the attribute belongs to.
+     *
+     * @return array<non-empty-string, non-empty-string>
+     */
+    public function binding(): array
+    {
+        $colon = strpos($this->qualifiedName, ':');
+        if ($colon === false) {
+            return [];
+        }
+
+        /** @var non-empty-string $prefix */
+        $prefix = substr($this->qualifiedName, 0, $colon);
+
+        return [$prefix => $this->namespaceUri];
+    }
+
+    /**
      * An XPath predicate matching an element that carries this attribute with the given value. The value is
      * embedded as a string literal, so an id crafted to break out of the query cannot.
      */

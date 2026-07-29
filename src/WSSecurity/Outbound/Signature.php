@@ -183,6 +183,9 @@ final class Signature implements OutboundAction
         );
 
         $this->signer->sign($document, $request);
+
+        // The engine appends the signature; which order this header must be in is the profile's rule.
+        $security->sort();
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier

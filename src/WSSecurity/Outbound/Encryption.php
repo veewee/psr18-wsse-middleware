@@ -151,6 +151,9 @@ final class Encryption implements OutboundAction
         );
 
         $this->encryptor->encrypt($document, $request);
+
+        // The engine appends the encrypted key; which order this header must be in is the profile's rule.
+        $security->sort();
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier

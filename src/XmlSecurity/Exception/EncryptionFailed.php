@@ -7,7 +7,7 @@ use RuntimeException;
 
 /**
  * Thrown when outbound encryption cannot complete: a part that cannot be located, a key-wrap failure, a DOM
- * manipulation failure, or a missing wsse:Security header to attach the xenc:EncryptedKey to. Unlike
+ * manipulation failure, or a container that cannot take the xenc:EncryptedKey. Unlike
  * DecryptionFailed this is a non-oracle path, so the real reason may surface in operator logs.
  */
 final class EncryptionFailed extends RuntimeException

@@ -21,7 +21,7 @@ final class ChildElements
      * same as an absence so an injected sibling can never shadow the element a reader depends on; the caller
      * turns the null into its own uniform failure.
      */
-    public static function single(Element $parent, Namespaces $namespace, string $localName): ?Element
+    public static function single(Element $parent, XmlNamespace $namespace, string $localName): ?Element
     {
         $matches = self::named($parent, $namespace, $localName);
 
@@ -31,7 +31,7 @@ final class ChildElements
     /**
      * @return list<Element>
      */
-    public static function named(Element $parent, Namespaces $namespace, string $localName): array
+    public static function named(Element $parent, XmlNamespace $namespace, string $localName): array
     {
         return children($parent)
             ->filter(static fn (Element $child): bool => ElementName::matches($child, $namespace, $localName))

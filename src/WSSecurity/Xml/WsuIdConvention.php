@@ -24,7 +24,7 @@ final readonly class WsuIdConvention implements IdConvention
     public function __construct()
     {
         $this->convention = new AttributeIdConvention(
-            IdAttribute::of(Namespaces::Wsu->value, Namespaces::Wsu->qualify('Id')),
+            IdAttribute::of(WsseNamespaces::Wsu->value, WsseNamespaces::Wsu->qualify('Id')),
         );
     }
 

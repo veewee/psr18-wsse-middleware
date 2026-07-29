@@ -65,7 +65,11 @@ final class EncryptedDataLocator
      */
     private function nativeMatches(Document $document, string $id): array
     {
-        return Query::elements($document, '//xenc:EncryptedData[@Id='.XPath::quote($id).']')
+        return Query::elements(
+            $document,
+            '//xenc:EncryptedData[@Id='.XPath::quote($id).']',
+            prefixes: [Namespaces::Xenc->prefix() => Namespaces::Xenc->uri()],
+        )
             ->map(static fn (Element $element): Element => $element);
     }
 

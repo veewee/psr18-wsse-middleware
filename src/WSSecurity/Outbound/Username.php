@@ -16,7 +16,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Random;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
@@ -95,7 +95,7 @@ final class Username implements OutboundAction
     private function build(): callable
     {
         $children = [
-            namespaced_element(Namespaces::Wsse->value, Namespaces::Wsse->qualify('Username'), value($this->username)),
+            namespaced_element(WsseNamespaces::Wsse->value, WsseNamespaces::Wsse->qualify('Username'), value($this->username)),
         ];
 
         if ($this->password !== null) {
@@ -103,8 +103,8 @@ final class Username implements OutboundAction
         }
 
         return namespaced_element(
-            Namespaces::Wsse->value,
-            Namespaces::Wsse->qualify('UsernameToken'),
+            WsseNamespaces::Wsse->value,
+            WsseNamespaces::Wsse->qualify('UsernameToken'),
             children(...$children),
         );
     }
@@ -117,8 +117,8 @@ final class Username implements OutboundAction
         if (!$this->digest) {
             return [
                 namespaced_element(
-                    Namespaces::Wsse->value,
-                    Namespaces::Wsse->qualify('Password'),
+                    WsseNamespaces::Wsse->value,
+                    WsseNamespaces::Wsse->qualify('Password'),
                     attribute('Type', self::TYPE_TEXT),
                     value($password),
                 ),
@@ -131,20 +131,20 @@ final class Username implements OutboundAction
 
         return [
             namespaced_element(
-                Namespaces::Wsse->value,
-                Namespaces::Wsse->qualify('Password'),
+                WsseNamespaces::Wsse->value,
+                WsseNamespaces::Wsse->qualify('Password'),
                 attribute('Type', self::TYPE_DIGEST),
                 value($digest),
             ),
             namespaced_element(
-                Namespaces::Wsse->value,
-                Namespaces::Wsse->qualify('Nonce'),
+                WsseNamespaces::Wsse->value,
+                WsseNamespaces::Wsse->qualify('Nonce'),
                 attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
                 value(base64_encode($nonce)),
             ),
             namespaced_element(
-                Namespaces::Wsu->value,
-                Namespaces::Wsu->qualify('Created'),
+                WsseNamespaces::Wsu->value,
+                WsseNamespaces::Wsu->qualify('Created'),
                 value($created),
             ),
         ];

@@ -39,6 +39,10 @@ use VeeWee\Xml\Dom\Document;
  * The strong proof of the encrypt/decrypt round-trip through the real OpenSSL\ path, plus the security arms:
  * a uniform inbound failure for every cause (wrong key, tampered ciphertext, non-SHA-1 OAEP, over-cap), and the
  * part-count cap before any crypto.
+ *
+ * Where the xenc:EncryptedKey ends up inside the container is deliberately not asserted here. That order is the
+ * WS-Security header profile's rule, not XML-Enc's -- the engine appends -- and it is pinned at the layer that
+ * owns it by SignThenEncryptOrderTest.
  */
 final class EncryptorDecryptorTest extends TestCase
 {
@@ -123,22 +127,6 @@ final class EncryptorDecryptorTest extends TestCase
         static::assertCount(0, $this->encryptedData($document));
     }
 
-    public function test_the_encrypted_key_is_placed_before_a_pre_existing_signature(): void
-    {
-        [$key, $certificate] = $this->keyAndCertificate();
-        $document = $this->envelope(withStaleSignature: true);
-
-        $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), [$this->bodyTarget()], $certificate, DataEncryptionMethod::AES256_GCM));
-
-        $order = [];
-        foreach ($this->security($document)->childNodes as $child) {
-            if ($child instanceof Element) {
-                $order[] = $child->localName;
-            }
-        }
-
-        static::assertSame(['EncryptedKey', 'Signature'], $order);
-    }
 
     public function test_a_wrong_private_key_fails_uniformly(): void
     {

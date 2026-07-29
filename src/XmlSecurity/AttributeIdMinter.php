@@ -70,7 +70,7 @@ final readonly class AttributeIdMinter implements IdMinter
         // existing ambiguity.
         do {
             $id = 'id-'.Uuid::v4()->toRfc4122();
-        } while (Query::elements($document, $this->attribute->matches($id))->count() !== 0);
+        } while (Query::elements($document, $this->attribute->matches($id), prefixes: $this->attribute->binding())->count() !== 0);
 
         return $id;
     }

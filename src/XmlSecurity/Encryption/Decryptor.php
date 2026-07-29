@@ -12,7 +12,7 @@ use Throwable;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Orchestrates the WSSE XML decryption flow for one request: count the declared data references and reject an
+ * Orchestrates the XML decryption flow for one request: count the declared data references and reject an
  * over-cap message before any crypto (a denial-of-service gate), unwrap the session key (which also refuses a
  * non-SHA-1 OAEP parameterization), then resolve and decrypt each referenced xenc:EncryptedData in place.
  *
@@ -31,7 +31,7 @@ final class Decryptor implements XmlDecryptor
 {
     /**
      * The upper bound on xenc:DataReference entries a single xenc:ReferenceList may declare, a conservative
-     * ceiling far above any legitimate WSSE message. Enforced before any unwrap or decrypt work.
+     * ceiling far above any legitimate message. Enforced before any unwrap or decrypt work.
      */
     public const int MAX_ENCRYPTED_PARTS = 32;
 

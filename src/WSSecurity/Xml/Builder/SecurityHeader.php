@@ -8,8 +8,8 @@ use Dom\XPath;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
-use Soap\Psr18WsseMiddleware\Xml\Manipulator\NodeOrder;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\NodeOrder;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Xml\Builder\SoapHeaders;
 use Soap\Xml\Locator\SoapHeaderLocator;
@@ -121,7 +121,8 @@ final class SecurityHeader
 
         $ours = Query::elements(
             $document,
-            '/soap:Envelope/soap:Header/'.Namespaces::Wsse->qualify('Security').'['.$addressedToUs.']',
+            '/soap:Envelope/soap:Header/'.WsseNamespaces::Wsse->qualify('Security').'['.$addressedToUs.']',
+            prefixes: [WsseNamespaces::Wsse->prefix() => WsseNamespaces::Wsse->uri()],
         );
 
         return match ($ours->count()) {
@@ -149,6 +150,16 @@ final class SecurityHeader
         }
 
         children(...$builders)($this->element);
+        $this->sort();
+    }
+
+    /**
+     * Re-applies the canonical WS-Security order. The blocks call this after the engine has written a signature
+     * or an encrypted key into the header: the engine appends, and what a valid order is for this header is the
+     * profile's business rather than the engine's.
+     */
+    public function sort(): void
+    {
         NodeOrder::sort($this->element);
     }
 
@@ -174,13 +185,18 @@ final class SecurityHeader
 
     private static function locateOrCreateSecurity(Document $document, Element $header): Element
     {
-        $existing = Query::elements($document, './'.Namespaces::Wsse->qualify('Security'), $header)->first();
+        $existing = Query::elements(
+            $document,
+            './'.WsseNamespaces::Wsse->qualify('Security'),
+            $header,
+            [WsseNamespaces::Wsse->prefix() => WsseNamespaces::Wsse->uri()],
+        )->first();
 
         if ($existing !== null) {
             return $existing;
         }
 
-        $security = namespaced_element(Namespaces::Wsse->value, Namespaces::Wsse->qualify('Security'))($header);
+        $security = namespaced_element(WsseNamespaces::Wsse->value, WsseNamespaces::Wsse->qualify('Security'))($header);
         append($security)($header);
 
         return $security;

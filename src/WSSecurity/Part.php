@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity;
 
 use LogicException;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
@@ -42,7 +42,7 @@ final readonly class Part
      */
     public static function timestamp(): self
     {
-        return self::element(Namespaces::Wsu->value, 'Timestamp');
+        return self::element(WsseNamespaces::Wsu->value, 'Timestamp');
     }
 
     /**
@@ -50,7 +50,7 @@ final readonly class Part
      */
     public static function usernameToken(): self
     {
-        return self::element(Namespaces::Wsse->value, 'UsernameToken');
+        return self::element(WsseNamespaces::Wsse->value, 'UsernameToken');
     }
 
     /**
@@ -59,7 +59,7 @@ final readonly class Part
      */
     public static function binarySecurityToken(): self
     {
-        return self::element(Namespaces::Wsse->value, 'BinarySecurityToken');
+        return self::element(WsseNamespaces::Wsse->value, 'BinarySecurityToken');
     }
 
     /**

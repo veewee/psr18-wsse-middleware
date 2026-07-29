@@ -7,7 +7,6 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
-use Soap\Psr18WsseMiddleware\Xml\Manipulator\NodeOrder;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
@@ -119,7 +118,6 @@ final class Signer implements XmlSigner
         $signatureValue = $this->buildSignatureValueElement($document);
         $signature = $this->buildSignature($document, $signedInfo, $signatureValue, $keyInfo);
         append($signature)($container);
-        NodeOrder::sort($container);
 
         $this->signInto($signatureValue, $request, $document, $signedInfoPrefixes);
     }
@@ -171,7 +169,11 @@ final class Signer implements XmlSigner
      */
     private function locateSignedInfo(Document $document): Element
     {
-        return Query::elements($document, '//'.Namespaces::Ds->qualify('SignedInfo'))->expectSingle();
+        return Query::elements(
+            $document,
+            '//'.Namespaces::Ds->qualify('SignedInfo'),
+            prefixes: [Namespaces::Ds->prefix() => Namespaces::Ds->uri()],
+        )->expectSingle();
     }
 
     private function buildSignatureValueElement(Document $document): Element

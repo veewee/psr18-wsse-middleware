@@ -14,9 +14,9 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\TimestampValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
-use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 
 /**
  * Rejects a stale, future-dated, or replayed-window message before the application sees it. It locates the
@@ -85,14 +85,14 @@ final class ValidateTimestamp implements InboundAction
         }
 
         // Exactly one, so a second injected wsu:Timestamp cannot shadow the real one.
-        return ChildElements::single($security, Namespaces::Wsu, 'Timestamp')
+        return ChildElements::single($security, WsseNamespaces::Wsu, 'Timestamp')
             ?? throw SecurityFault::inboundFailure();
     }
 
     private function requireChildText(Element $timestamp, string $localName): string
     {
         // Exactly one, so a second injected wsu:Created/wsu:Expires cannot shadow the real one.
-        $child = ChildElements::single($timestamp, Namespaces::Wsu, $localName)
+        $child = ChildElements::single($timestamp, WsseNamespaces::Wsu, $localName)
             ?? throw SecurityFault::inboundFailure();
 
         $text = ElementText::trimmed($child);
