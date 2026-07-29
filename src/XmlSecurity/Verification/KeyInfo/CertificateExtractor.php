@@ -13,6 +13,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
+use Throwable;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -31,17 +32,23 @@ use VeeWee\Xml\Dom\Document;
  * The returned chain is not yet trusted; establishing trust is a separate step. A certificate resolved from the
  * trust store still flows through that step unchanged.
  *
- * This class orchestrates: the KeyInfoReader turns the DOM into a typed certificate reference, and either the
- * carried bytes are rewrapped into a chain or the TrustStoreCertificateResolver resolves the identifier form.
+ * This class orchestrates: the injected KeyInfoResolver turns the DOM into a typed certificate reference, and
+ * either the carried bytes are rewrapped into a chain or the TrustStoreCertificateResolver resolves the
+ * identifier form. Which ds:KeyInfo shapes are understood is therefore the resolver's business, not this one's.
  */
 final class CertificateExtractor
 {
-    private readonly KeyInfoReader $reader;
     private readonly TrustStoreCertificateResolver $resolver;
 
-    public function __construct(IdLookup $idLookup)
-    {
-        $this->reader = new KeyInfoReader($idLookup);
+    /**
+     * The id lookup is held only to hand to the resolver, which needs it to follow a token reference. Wiring the
+     * two together here is what keeps a resolver that reads wsu:Id from being paired with a lookup that resolves
+     * something else.
+     */
+    public function __construct(
+        private readonly KeyInfoResolver $keyInfo,
+        private readonly IdLookup $idLookup,
+    ) {
         $this->resolver = new TrustStoreCertificateResolver();
     }
 
@@ -51,7 +58,7 @@ final class CertificateExtractor
      */
     public function extract(Document $document, Element $signatureElement, TrustStore $trustStore): CertificateChain
     {
-        $reference = $this->reader->read($document, $signatureElement);
+        $reference = $this->readKeyInfo($document, $signatureElement);
 
         if ($reference->form === CertificateReference::FORM_CARRIED) {
             return $this->carriedChain($reference->base64DerCertificates);
@@ -62,6 +69,25 @@ final class CertificateExtractor
         }
 
         return CertificateChain::fromCertificates($this->resolver->resolve($reference, $trustStore));
+    }
+
+    /**
+     * Reads ds:KeyInfo through the configured resolver, collapsing anything it throws into the one verification
+     * failure. A resolver is a replaceable seam, so without this a third-party one could raise a type of its own
+     * and tell a peer which shape of ds:KeyInfo its message failed on -- the sort of difference the uniform fault
+     * exists to deny. The original is chained for the operator log only.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function readKeyInfo(Document $document, Element $signatureElement): CertificateReference
+    {
+        try {
+            return $this->keyInfo->read($document, $signatureElement, $this->idLookup);
+        } catch (SignatureVerificationFailed $failure) {
+            throw $failure;
+        } catch (Throwable $foreign) {
+            throw SignatureVerificationFailed::withReason('ds:KeyInfo could not be read.', $foreign);
+        }
     }
 
     /**

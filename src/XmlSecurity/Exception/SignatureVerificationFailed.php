@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Exception;
 
 use RuntimeException;
+use Throwable;
 
 /**
  * Signature verification was refused. The single named constructor takes an operator-log reason but the type
@@ -14,8 +15,12 @@ use RuntimeException;
  */
 final class SignatureVerificationFailed extends RuntimeException
 {
-    public static function withReason(string $reason): self
+    /**
+     * The cause, when there is one, is chained for the operator log only. It never reaches a peer: the inbound
+     * layer collapses this whole type into one fault whose message says nothing about which check failed.
+     */
+    public static function withReason(string $reason, ?Throwable $previous = null): self
     {
-        return new self($reason);
+        return new self($reason, 0, $previous);
     }
 }

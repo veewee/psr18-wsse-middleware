@@ -15,8 +15,10 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyInfoResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\OpenSslTrustResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\TrustResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\X509DataKeyInfoResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\AlgorithmPolicyEnforcer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\DigestVerifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ReferenceResolver;
@@ -45,10 +47,14 @@ use VeeWee\Xml\Dom\Document;
 final class Verifier implements XmlSignatureVerifier
 {
     /**
-     * The id lookup resolves each ds:Reference (and the ds:KeyInfo token reference) back to its element. It
+     * The id lookup resolves each ds:Reference (and any ds:KeyInfo token reference) back to its element. It
      * defaults to the engine's xml:id convention; the WS-Security profile injects the wsu:Id implementation.
+     *
+     * The key-info resolver decides which ds:KeyInfo shapes are understood, and defaults to plain XML-DSig: an
+     * inline ds:X509Certificate. The WS-Security profile injects its own, which reads the token forms its spec
+     * defines. It is handed the id lookup above per call, so the two cannot address different id attributes.
      */
-    public static function create(?IdLookup $idLookup = null): self
+    public static function create(?IdLookup $idLookup = null, ?KeyInfoResolver $keyInfo = null): self
     {
         // The signer and verifier share one canonicalizer instance because digesting and verifying read the
         // same canonical form.
@@ -59,7 +65,7 @@ final class Verifier implements XmlSignatureVerifier
             new SignatureLocator(),
             new SignedInfoParser(),
             new AlgorithmPolicyEnforcer(),
-            new CertificateExtractor($idLookup),
+            new CertificateExtractor($keyInfo ?? new X509DataKeyInfoResolver(), $idLookup),
             new ReferenceResolver($idLookup),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),

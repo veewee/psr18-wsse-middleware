@@ -968,6 +968,15 @@ only part of this package that knows what a SOAP envelope is.
 - **The container is an input, not something searched for.** `SigningRequest` and `EncryptionRequest` take a
   `Dom\Element $container` as their first argument — the element the `ds:Signature` / `xenc:EncryptedKey` is
   appended to. The blocks pass their `wsse:Security` header.
+- **Which `ds:KeyInfo` shapes are understood is an input as well.** Standalone, the engine reads the plain
+  XML-DSig form — an inline `ds:X509Certificate`. The WS-Security token forms (a `wsse:BinarySecurityToken`
+  reference, a `wsse:KeyIdentifier`, an issuer and serial) come from the profile, so pass its resolver to read
+  them outside the middleware:
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseKeyInfoResolver;
+
+  Verifier::create($ids->lookup(), new WsseKeyInfoResolver());
+  ```
 - **The scope is an input too, on the read side.** `XmlSignatureVerifier::verify()` takes the element whose
   signature is being verified, and `DecryptionRequest` names the container the `xenc:EncryptedKey` and
   `xenc:ReferenceList` are read from. Neither is defaulted, because a default would mean "search the whole

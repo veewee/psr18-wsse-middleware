@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\RequiredPartsValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseKeyInfoResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
@@ -45,7 +46,9 @@ final class VerifySignature implements InboundAction
         // locator resolve ids through the wsu:Id convention.
         // Only the read half is handed over: nothing inbound mints, and a class that holds no minter cannot.
         $lookup = (new WsuIdConvention())->lookup();
-        $this->verifier = Verifier::create($lookup);
+        // The profile's own key-info resolver reads the WS-Security token forms; the engine on its own understands
+        // only plain XML-DSig.
+        $this->verifier = Verifier::create($lookup, new WsseKeyInfoResolver());
         $this->requiredParts = new RequiredPartsValidator(new TargetLocator($lookup));
     }
 

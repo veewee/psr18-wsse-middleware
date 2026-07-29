@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
+use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Psl\DateTime\Timestamp;
 use Psl\DateTime\Timezone;
+use RuntimeException;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
@@ -19,10 +21,15 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyInfoResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedReferences;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerifiedSignature;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\Verifier;
 use SoapTest\Psr18WsseMiddleware\Unit\Clock\FrozenClock;
 use VeeWee\Xml\Dom\Document;
 
@@ -38,7 +45,7 @@ final class FaultUniformityTest extends TestCase
     private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
     private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
 
-    private const DETAIL_TEXTS = ['sig-detail-text', 'decrypt-detail-text'];
+    private const DETAIL_TEXTS = ['sig-detail-text', 'decrypt-detail-text', 'keyinfo-detail-text'];
 
     public function test_every_inbound_block_fails_with_one_indistinguishable_fault(): void
     {
@@ -48,6 +55,7 @@ final class FaultUniformityTest extends TestCase
             'missing required signed part' => $this->faultFrom($this->missingRequiredPart(...)),
             'decryption failure' => $this->faultFrom($this->decryptionFailure(...)),
             'no security header for this receiver' => $this->faultFrom($this->noSecurityHeader(...)),
+            'a key-info resolver raising its own type' => $this->faultFrom($this->keyInfoResolverFailure(...)),
         ];
 
         $reference = $faults['stale timestamp'];
@@ -89,6 +97,26 @@ final class FaultUniformityTest extends TestCase
         $now = Timestamp::parse('2026-01-01T12:00:00Z', "yyyy-MM-dd'T'HH:mm:ss'Z'", Timezone::UTC);
 
         ((new ValidateTimestamp())->withClock(new FrozenClock($now)))($this->context($xml));
+    }
+
+    /**
+     * The key-info resolver is a replaceable seam, so an implementation can raise a type of its own. It must reach
+     * a peer as the same fault as everything else: a distinguishable one would say which shape of ds:KeyInfo the
+     * message failed on, and it is reachable by anyone who can send a message.
+     */
+    private function keyInfoResolverFailure(): void
+    {
+        $hostile = new class implements KeyInfoResolver {
+            public function read(Document $document, Element $signatureElement, IdLookup $idLookup): CertificateReference
+            {
+                throw new RuntimeException(self::DETAIL);
+            }
+
+            private const DETAIL = 'keyinfo-detail-text';
+        };
+
+        (new VerifySignature($this->trustStore(), signed: [Part::body()]))
+            ->withVerifier(Verifier::create((new WsuIdConvention())->lookup(), $hostile))($this->context());
     }
 
     private function signatureFailure(): void

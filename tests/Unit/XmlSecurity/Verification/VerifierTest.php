@@ -17,6 +17,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseKeyInfoResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
@@ -537,7 +538,7 @@ final class VerifierTest extends TestCase
             new SignatureLocator(),
             new SignedInfoParser(),
             new AlgorithmPolicyEnforcer(),
-            new CertificateExtractor((new WsuIdConvention())->lookup()),
+            new CertificateExtractor(new WsseKeyInfoResolver(), (new WsuIdConvention())->lookup()),
             new ReferenceResolver((new WsuIdConvention())->lookup()),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\XmlSecurity;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
 
 /**
  * The OASIS WS-Security EncodingType URIs that name how a token body is encoded. Base64Binary is the only

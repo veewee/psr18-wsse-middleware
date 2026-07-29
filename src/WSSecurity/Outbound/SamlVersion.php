@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
-use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 
 /**
  * Distinguishes SAML 1.1 from SAML 2.0 within the WSSE assertion block. The two versions differ in

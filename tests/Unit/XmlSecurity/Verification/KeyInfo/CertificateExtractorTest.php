@@ -5,15 +5,20 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification\KeyInfo;
 
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseKeyInfoResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyInfoResolver;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
@@ -22,6 +27,10 @@ use VeeWee\Xml\Dom\Document;
  * BST direct reference and an inline ds:X509Certificate), and resolves the three forms that name the certificate
  * by identifier (Subject Key Identifier, SHA-1 thumbprint, IssuerSerial) against the verifier's trust store. A
  * reference to a certificate the trust store does not hold is refused, and an ambiguous match is refused.
+ *
+ * The rejection cases assert the reason and not only the class. Every failure in here is one class by design, so
+ * a class-only assertion passes on whichever check happens to fire -- which is how a refused ValueType and a
+ * merely-unknown certificate become indistinguishable to the suite.
  */
 final class CertificateExtractorTest extends TestCase
 {
@@ -77,6 +86,7 @@ final class CertificateExtractorTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('The referenced security token was not found.');
         $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
     }
 
@@ -92,6 +102,7 @@ final class CertificateExtractorTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('The BinarySecurityToken value type is unsupported.');
         $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
     }
 
@@ -108,6 +119,7 @@ final class CertificateExtractorTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('The BinarySecurityToken encoding type is unsupported.');
         $this->extractor()->extract($document, $this->signature($document), TrustStore::fromCertificates());
     }
 
@@ -294,9 +306,33 @@ final class CertificateExtractorTest extends TestCase
         );
     }
 
+    public function test_a_resolver_that_throws_anything_else_still_fails_as_one_verification_failure(): void
+    {
+        // The resolver is a replaceable seam, so a third-party one can raise a type of its own. If that escaped,
+        // a peer could tell from the exception which shape of ds:KeyInfo its message failed on -- exactly the
+        // difference the uniform fault exists to deny. The cause stays available for the operator log.
+        $hostile = new class implements KeyInfoResolver {
+            public function read(Document $document, Element $signatureElement, IdLookup $idLookup): CertificateReference
+            {
+                throw new RuntimeException('resolver-detail-text');
+            }
+        };
+        $document = $this->document('', '<ds:KeyInfo><ds:X509Data/></ds:KeyInfo>');
+
+        try {
+            (new CertificateExtractor($hostile, (new WsuIdConvention())->lookup()))
+                ->extract($document, $this->signature($document), TrustStore::fromCertificates());
+            static::fail('The hostile resolver was expected to be refused.');
+        } catch (SignatureVerificationFailed $failure) {
+            static::assertStringNotContainsString('resolver-detail-text', $failure->getMessage());
+            static::assertInstanceOf(RuntimeException::class, $failure->getPrevious());
+            static::assertSame('resolver-detail-text', $failure->getPrevious()->getMessage());
+        }
+    }
+
     private function extractor(): CertificateExtractor
     {
-        return new CertificateExtractor((new WsuIdConvention())->lookup());
+        return new CertificateExtractor(new WsseKeyInfoResolver(), (new WsuIdConvention())->lookup());
     }
 
     /**

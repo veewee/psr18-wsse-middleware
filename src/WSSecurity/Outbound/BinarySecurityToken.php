@@ -12,10 +12,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKey
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\BinaryToken;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
-use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityEncodingType;
-use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;

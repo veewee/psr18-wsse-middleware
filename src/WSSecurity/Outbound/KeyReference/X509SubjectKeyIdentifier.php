@@ -6,9 +6,9 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityTokenReference;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier as KeyIdentifierInterface;
-use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityEncodingType;
-use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 use VeeWee\Xml\Dom\Document;
 
 /**
