@@ -25,7 +25,7 @@ use VeeWee\Xml\Dom\Document;
  * A dynamic required part (securityHeaderContents/soapHeaders) is expanded against the received message and
  * every member it resolves to must have been signed; unlike the outbound side it never mints, since a signed
  * element already carries the wsu:Id its ds:Reference used. Once the Security header is identified, a dynamic
- * part that expands to no member is vacuously satisfied — an empty header genuinely holds nothing to require.
+ * part that expands to no member is vacuously satisfied: an empty header genuinely holds nothing to require.
  * A dynamic part whose header cannot be identified at all is a different case and is refused, since expanding
  * it to no member would drop the requirement on a message that may well carry unsigned tokens.
  */
@@ -58,7 +58,7 @@ final class RequiredPartsValidator
             if ($part->kind()->isDynamic()) {
                 // No header to expand against means the requirement cannot be met, and must not pass by
                 // expanding to nothing: the wsse:Security element is not itself a signed reference target, so
-                // stamping an actor/role on the genuine header — or moving it out of the SOAP header — is a
+                // stamping an actor/role on the genuine header (or moving it out of the SOAP header) is a
                 // signature-preserving way to make it read as some other hop's and slip the check.
                 if ($securityHeader === null) {
                     throw SecurityFault::inboundFailure();

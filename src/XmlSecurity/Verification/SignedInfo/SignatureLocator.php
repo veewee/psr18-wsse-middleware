@@ -16,8 +16,8 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
  *
  * The scope is the caller's, not this class's business: the engine carries no notion of which region of a
  * message belongs to this receiver. The WS-Security profile resolves the Security header addressed to the
- * ultimate receiver and passes it, so a signature in another hop's header — or planted elsewhere in the
- * envelope entirely — is never a candidate.
+ * ultimate receiver and passes it, so a signature in another hop's header: or planted elsewhere in the
+ * envelope entirely: is never a candidate.
  */
 final class SignatureLocator
 {

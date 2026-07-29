@@ -9,7 +9,7 @@ use VeeWee\Xml\Dom\Document;
 /**
  * Stamps a document-unique id onto an element so a ds:Reference or xenc:DataReference can address it by
  * URI="#id". The XML-Security engine ships a default that stamps the W3C-standard xml:id
- * (AttributeIdConvention::xmlId()); a profile overrides the convention by supplying its own attribute — the
+ * (AttributeIdConvention::xmlId()); a profile overrides the convention by supplying its own attribute. The
  * WS-Security profile supplies wsu:Id, as the spec mandates.
  *
  * A minter is never chosen on its own: it is one half of an IdConvention, whose other half is the IdLookup that

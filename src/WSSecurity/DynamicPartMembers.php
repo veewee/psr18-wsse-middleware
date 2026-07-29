@@ -12,7 +12,7 @@ use function VeeWee\Xml\Dom\Locator\Element\children;
  * Expands a dynamic Part (securityHeaderContents/soapHeaders) to the live elements it addresses, or returns
  * null for a static Part. Pure enumeration shared by both directions: the outbound Signature block mints a
  * wsu:Id on each member and signs it, the inbound RequiredPartsValidator checks each member was signed. The
- * ds:Signature is excluded from securityHeaderContents in both directions — a signature is never one of the
+ * ds:Signature is excluded from securityHeaderContents in both directions. A signature is never one of the
  * parts it covers, and outbound it does not yet exist when the parts are resolved.
  */
 final class DynamicPartMembers

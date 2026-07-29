@@ -15,7 +15,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
  * signed and encrypted parts carry wsu:Id and every reference resolves through the same attribute.
  *
  * It lives in the WSSE layer, not beside the engine's own default, because the engine has no business knowing
- * the WS-Security namespaces — supplying the attribute from here is what keeps it that way.
+ * the WS-Security namespaces: supplying the attribute from here is what keeps it that way.
  */
 final readonly class WsuIdConvention implements IdConvention
 {

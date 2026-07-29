@@ -11,7 +11,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
  * must understand it, and composes the XML-Security algorithm policy that drives signing, encryption and the
  * inbound accept allow-lists. Required by WsseMiddleware; every field has a secure default.
  *
- * The actor/role is one setting doing two jobs, because both answer the same question — which hop this
+ * The actor/role is one setting doing two jobs, because both answer the same question: which hop this
  * exchange belongs to. Outbound it targets the header we write; inbound it selects the header we read, so a
  * deployment that speaks as a named intermediary is understood in both directions from one value.
  *

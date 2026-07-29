@@ -27,7 +27,7 @@ use function Psl\Type\vec;
  * ds:X509IssuerName: a comma separates two relative names while a plus sign joins the values of a single
  * multi-valued one, so the two forms describe different names and cannot be guessed apart afterwards. This
  * reads the encoded sequence instead, where each relative name and its values are still distinct, and it
- * covers the issuer as well — openssl exposes a lossless form for the subject alone.
+ * covers the issuer as well: openssl exposes a lossless form for the subject alone.
  */
 final class DistinguishedNameParser
 {
@@ -51,7 +51,7 @@ final class DistinguishedNameParser
      * @return array{subject: DistinguishedName, issuer: DistinguishedName}
      *
      * @throws CryptoOperationFailed when the certificate cannot be read, or carries a name this cannot
-     *         render as text — refused rather than approximated, since a distinguished name is matched
+     *         render as text, and is refused rather than approximated, since a distinguished name is matched
      *         against a trust anchor and a name that reads differently is a different identity
      */
     public function parse(Certificate $certificate): array
@@ -74,12 +74,12 @@ final class DistinguishedNameParser
     }
 
     /**
-     * Renders an encoded name — phpseclib's DN_ARRAY form, an rdnSequence — as a DistinguishedName.
+     * Renders an encoded name (phpseclib's DN_ARRAY form, an rdnSequence) as a DistinguishedName.
      *
      * Public because a certificate is not the only thing that carries a name to compare: a CRL states the issuer
-     * it speaks for, and that name has to be rendered by this exact code to be comparable. phpseclib's own
+     * it speaks for, and that name has to be rendered by this exact code to be comparable. Phpseclib's own
      * DN_STRING joins the sequence in encoded order, least-specific first, while RFC 2253 (and so
-     * DistinguishedName) is most-specific first — so rendering the two sides by different routes makes every
+     * DistinguishedName) is most-specific first: so rendering the two sides by different routes makes every
      * multi-attribute name compare unequal.
      *
      * @throws CryptoOperationFailed

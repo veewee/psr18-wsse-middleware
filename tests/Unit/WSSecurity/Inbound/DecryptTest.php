@@ -107,7 +107,7 @@ final class DecryptTest extends TestCase
 
     /**
      * The envelope carries a Security header addressed to the ultimate receiver, because that header is the
-     * container the block reads the wrapped key from — without one there is nothing to decrypt against and the
+     * container the block reads the wrapped key from. Without one there is nothing to decrypt against and the
      * block refuses before reaching the decryptor. The scoping itself is pinned in DecryptScopeTest.
      */
     private function context(): WsseContext

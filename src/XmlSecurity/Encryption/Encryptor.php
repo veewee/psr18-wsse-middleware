@@ -22,7 +22,7 @@ use function VeeWee\Xml\Dom\Manipulator\append;
  * session key under the recipient certificate, build one xenc:EncryptedKey carrying the ReferenceList, insert
  * it into the container element the caller supplies on the request and re-sort that container.
  *
- * The Encryptor does not locate or create the container (the caller does that and passes the element in — the
+ * The Encryptor does not locate or create the container (the caller does that and passes the element in: the
  * WS-Security profile hands over its wsse:Security header). No openssl_* calls live here: every cipher operation
  * goes through OpenSSL\Cipher and every key-wrap through OpenSSL\KeyTransport.
  */

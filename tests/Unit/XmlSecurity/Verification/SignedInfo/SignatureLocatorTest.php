@@ -11,8 +11,8 @@ use VeeWee\Xml\Dom\Document;
 
 /**
  * The locator reads the signature out of the scope its caller resolved, never out of the document. The
- * caller decides which region of the message is its own — for the WS-Security profile, the Security header
- * addressed to this receiver — so a ds:Signature sitting anywhere else belongs to another hop or was planted,
+ * caller decides which region of the message is its own: for the WS-Security profile, the Security header
+ * addressed to this receiver: so a ds:Signature sitting anywhere else belongs to another hop or was planted,
  * and must not be offered to the verifier.
  */
 final class SignatureLocatorTest extends TestCase
@@ -35,7 +35,7 @@ final class SignatureLocatorTest extends TestCase
     public function test_it_refuses_a_signature_that_lives_outside_the_scope(): void
     {
         // Two Security headers: the second is another hop's. Scoped to the first, which carries none, the
-        // signature in the second must not be found — document-wide it would have been the only one.
+        // signature in the second must not be found: document-wide it would have been the only one.
         $document = $this->document(
             '<wsse:Security/><wsse:Security><ds:Signature ds:Id="other-hop"/></wsse:Security>',
         );

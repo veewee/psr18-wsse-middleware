@@ -46,7 +46,7 @@ final class CertificateInfoParserTest extends TestCase
         $info = (new CertificateInfoParser())->parse($certificate);
 
         static::assertSame($expected, $info->subject()->toString());
-        // These fixtures are self-signed, so the issuer must render identically — and the issuer is the one
+        // These fixtures are self-signed, so the issuer must render identically, and the issuer is the one
         // that goes on the wire in a ds:X509IssuerSerial reference.
         static::assertSame($expected, $info->issuerSerial()->issuer->toString());
     }
@@ -74,7 +74,7 @@ final class CertificateInfoParserTest extends TestCase
     {
         // openssl reports serialNumber in decimal on some builds and hexadecimal on others, so an all-digit
         // value is ambiguous: read as decimal, a hex serial like 12345678 becomes 12345678 instead of
-        // 305419896. serialNumberHex states the base, so it is read from there.
+        // 305419896. SerialNumberHex states the base, so it is read from there.
         $certificate = Certificate::fromFile(FIXTURE_DIR.'/certificates/dn-repeated-ou.pem');
         $fields = openssl_x509_parse($certificate->contents());
         static::assertIsArray($fields);

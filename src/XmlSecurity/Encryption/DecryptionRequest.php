@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 /**
  * The inputs to a single decryption operation: the container the xenc:EncryptedKey and xenc:ReferenceList are
- * read from (the caller locates it — the WS-Security profile passes the wsse:Security header addressed to it),
+ * read from (the caller locates it. The WS-Security profile passes the wsse:Security header addressed to it),
  * the recipient private key the OpenSSL\ module resolves internally, and the crypto policy whose allow-lists
  * govern which inbound algorithms are accepted.
  *

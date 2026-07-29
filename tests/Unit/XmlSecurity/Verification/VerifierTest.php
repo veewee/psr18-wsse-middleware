@@ -547,7 +547,7 @@ final class VerifierTest extends TestCase
     }
 
     /**
-     * The Security header addressed to the ultimate receiver — the scope the WSSE block resolves and hands the
+     * The Security header addressed to the ultimate receiver. The scope the WSSE block resolves and hands the
      * verifier, so these tests verify the same region production does.
      */
     private function security(Document $document): Element

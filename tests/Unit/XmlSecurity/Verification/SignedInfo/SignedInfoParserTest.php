@@ -144,7 +144,7 @@ final class SignedInfoParserTest extends TestCase
     public function test_a_reference_without_transforms_digests_under_inclusive_c14n(): void
     {
         // XML-DSig converts a node-set to octets with Canonical XML when no transform says otherwise, so a
-        // reference that declares no ds:Transforms is digested under inclusive c14n — not under whatever
+        // reference that declares no ds:Transforms is digested under inclusive c14n, not under whatever
         // SignedInfo happens to declare for itself.
         $signedInfo = $this->signedInfo(
             canonicalization: '<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>',

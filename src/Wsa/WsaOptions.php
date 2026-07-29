@@ -9,7 +9,7 @@ namespace Soap\Psr18WsseMiddleware\Wsa;
  *
  * Every property is optional because every one of them has a sensible answer without configuration. A null
  * Action is detected from the SOAPAction of the request, a null To is the request URI, and a null ReplyTo is
- * the addressing version's anonymous URI — so the default instance produces exactly the headers a service
+ * the addressing version's anonymous URI: so the default instance produces exactly the headers a service
  * expects. From and FaultTo have no derived value and are simply omitted when null, since a message that
  * names neither is complete.
  *

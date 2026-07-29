@@ -14,7 +14,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\TargetKind;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Covers how the Signature block lowers Parts to engine Targets — the target-resolution step only, driven by a
+ * Covers how the Signature block lowers Parts to engine Targets: the target-resolution step only, driven by a
  * recording signer so it never canonicalizes. This is why it is not gated on the libxml C14N floor the
  * real-crypto SignatureTest carries: no signing happens here.
  */

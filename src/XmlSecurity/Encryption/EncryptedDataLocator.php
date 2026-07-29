@@ -17,7 +17,7 @@ use VeeWee\Xml\Dom\Document;
  * Resolves an xenc:DataReference target to the single xenc:EncryptedData that carries it.
  *
  * An encrypted part may be tagged two ways: with the profile's id attribute (whatever the injected IdLookup
- * resolves — xml:id for a standalone caller, wsu:Id under WS-Security), or with the native, namespace-less
+ * resolves. Xml:id for a standalone caller, wsu:Id under WS-Security), or with the native, namespace-less
  * XML-Encryption Id attribute that some interop peers emit. Both are accepted, but the resolved element must be
  * an xenc:EncryptedData, so a stray id elsewhere cannot be targeted. Each path keeps the hardening: anchored
  * XPath, never getElementById or DTD-declared IDs, the id embedded as a string literal, and a duplicate carrier

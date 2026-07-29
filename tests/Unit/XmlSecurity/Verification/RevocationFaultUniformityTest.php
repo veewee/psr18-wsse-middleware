@@ -30,12 +30,12 @@ use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use Throwable;
 
 /**
- * Revocation adds five new ways for trust to fail, and a peer must not be able to tell any of them apart — from
+ * Revocation adds five new ways for trust to fail, and a peer must not be able to tell any of them apart: from
  * each other, or from a plainly untrusted certificate. "Revoked" would leak that the signer was once legitimate;
  * "no list covers this issuer" and "the list is stale" would leak the state of the verifier's own configuration,
  * telling an attacker when the revocation check is effectively switched off.
  *
- * The fixture signs a real document to produce something the verifier will parse, which canonicalizes — hence
+ * The fixture signs a real document to produce something the verifier will parse, which canonicalizes: hence
  * the version gate, for the libxml canonicalization defect and nothing else.
  */
 #[RequiresPhp('>= 8.4.21')]

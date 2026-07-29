@@ -62,7 +62,7 @@ final class PkiPathTokenTest extends TestCase
 
     public function test_a_path_whose_element_is_well_formed_der_but_not_a_certificate_is_refused_uniformly(): void
     {
-        // The dangerous shape: the path parses structurally — both elements are non-empty SEQUENCEs — so the
+        // The dangerous shape: the path parses structurally (both elements are non-empty SEQUENCEs), so the
         // failure only appears when the certificate is read, which happens inside the end-entity derivation.
         // That read throws its own crypto exception, and if it escapes, this inbound failure reaches the caller
         // as a different type from every other one and becomes a failure-cause oracle.

@@ -8,7 +8,7 @@ use Dom\Element;
 /**
  * Tests whether an element carries a given qualified name: the local name plus the full namespace URI.
  *
- * Both halves are always compared, so an unqualified element — or one in a look-alike namespace — can never
+ * Both halves are always compared, so an unqualified element (or one in a look-alike namespace) can never
  * stand in for the element a reader expects. Every qualified-name test in the codebase runs through here, so
  * the rule is stated once rather than restated per call site.
  */

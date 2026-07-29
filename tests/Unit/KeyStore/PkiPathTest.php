@@ -84,7 +84,7 @@ final class PkiPathTest extends TestCase
     public function test_it_refuses_an_element_that_is_not_a_sequence(): void
     {
         // A certificate is a SEQUENCE. Without this check the walker hands back a Certificate wrapping any
-        // bytes at all, because base64-to-PEM does not parse — the garbage would only surface later, at the
+        // bytes at all, because base64-to-PEM does not parse: the garbage would only surface later, at the
         // trust check, or not at all for a single-element path that skips the ordering step.
         $this->expectException(InvalidCertificate::class);
         PkiPath::certificates($this->derSequence("\x04\x01a"));

@@ -11,7 +11,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 
 /**
  * The inputs to a single encryption operation. The container is the element the xenc:EncryptedKey is appended to
- * (the caller locates it — the WS-Security profile passes its wsse:Security header); the engine never reaches
+ * (the caller locates it. The WS-Security profile passes its wsse:Security header); the engine never reaches
  * into a SOAP header to find it. The recipient certificate carries the PEM material the OpenSSL\ module resolves
  * internally.
  */

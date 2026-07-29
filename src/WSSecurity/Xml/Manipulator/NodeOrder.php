@@ -46,7 +46,7 @@ final class NodeOrder
 
     public static function sort(Element $securityElement): void
     {
-        // The sort is stable, so unknown children — and ties within one rank — keep their original
+        // The sort is stable, so unknown children (and ties within one rank) keep their original
         // relative order without a tiebreaker.
         $sorted = children($securityElement)
             ->sort(static fn (Element $a, Element $b): int => self::rankOf($a) <=> self::rankOf($b))

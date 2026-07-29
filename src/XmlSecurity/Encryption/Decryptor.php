@@ -18,7 +18,7 @@ use VeeWee\Xml\Dom\Document;
  *
  * The wrapped key and the reference list are read from the container the request names, so only the parts that
  * container claims are decrypted. The referenced xenc:EncryptedData themselves are resolved document-wide, as
- * they must be: encrypted content sits where it belongs in the message — most often in the Body — not inside
+ * they must be: encrypted content sits where it belongs in the message (most often in the Body) not inside
  * the container. Their ids resolve to exactly one element or the message is refused, so a planted duplicate
  * cannot stand in for a genuine part.
  *

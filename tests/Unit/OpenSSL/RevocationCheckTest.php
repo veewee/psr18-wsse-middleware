@@ -19,13 +19,13 @@ use SoapTest\Psr18WsseMiddleware\Unit\Clock\FrozenClock;
 
 /**
  * Revocation is opt-in, and once opted in it is fail-closed: a signer is accepted only when a list that is
- * trusted, current, and issued by the signer's own issuer says nothing about it. Every other outcome — revoked,
+ * trusted, current, and issued by the signer's own issuer says nothing about it. Every other outcome: revoked,
  * no list covering that issuer, a list past its nextUpdate, or a list whose signature does not verify against an
- * anchor — rejects. Revocation that silently skips the issuers you forgot to supply is worse than none, because
+ * anchor: rejects. Revocation that silently skips the issuers you forgot to supply is worse than none, because
  * the configuration reads as enabled.
  *
  * Every rejection here asserts the reason, not just the exception type. Every trust failure shares one exception
- * class, so a test that only asserted the class would pass whichever rule fired — and each of these scenarios can
+ * class, so a test that only asserted the class would pass whichever rule fired: and each of these scenarios can
  * fail for more than one reason at once. Asserting the message is what pins the rule under test; the uniform,
  * non-identifying fault a peer sees is produced further out, at the SecurityFault boundary.
  */
@@ -73,7 +73,7 @@ final class RevocationCheckTest extends TestCase
     {
         // Fail closed on missing: a list is supplied, but not one issued by the signer's issuer, so nothing
         // vouches for this certificate. The unrelated CA is also anchored here, so the list is genuinely
-        // trusted — otherwise this would pass on the signature rule instead of the coverage rule.
+        // trusted: otherwise this would pass on the signature rule instead of the coverage rule.
         $this->assertRejectedBecause(
             'No supplied revocation list covers the issuer',
             fn (): mixed => (new CertificateTrust())->verify(
@@ -127,8 +127,8 @@ final class RevocationCheckTest extends TestCase
 
     public function test_the_list_issuer_is_matched_by_the_same_rendering_certificates_use(): void
     {
-        // The regression pin for the ordering bug this feature shipped with. phpseclib's own DN_STRING joins the
-        // encoded sequence least-specific first, while RFC 2253 — and so DistinguishedName — is most-specific
+        // The regression pin for the ordering bug this feature shipped with. Phpseclib's own DN_STRING joins the
+        // encoded sequence least-specific first, while RFC 2253 (and so DistinguishedName) is most-specific
         // first, which made every multi-attribute issuer compare unequal and rejected every signer. The fixtures
         // carry a three-component DN precisely so a CN-only name cannot hide it again.
         $crl = new X509();
@@ -147,7 +147,7 @@ final class RevocationCheckTest extends TestCase
     public function test_a_list_stating_no_next_update_is_refused(): void
     {
         // A list with no nextUpdate can never be shown to be current, so it must not be read as valid forever.
-        // openssl refuses to emit one at all, so it is minted here with phpseclib, whose CRL writer omits it —
+        // Openssl refuses to emit one at all, so it is minted here with phpseclib, whose CRL writer omits it:
         // the same quirk that makes that writer unusable for the real fixtures.
         $issuer = new X509();
         $issuer->loadX509(file_get_contents(FIXTURE_DIR.'/certificates/revocation/ca.crt'));

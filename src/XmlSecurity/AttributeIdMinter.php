@@ -15,7 +15,7 @@ use function VeeWee\Xml\Dom\Builder\namespaced_attribute;
  * Stamps an id under one IdAttribute. A v4 UUID gives uniqueness without any shared state; the "id-" prefix
  * makes the value a valid XML NCName, which cannot start with a digit.
  *
- * One implementation serves every convention, because the algorithm never varied between them — only the
+ * One implementation serves every convention, because the algorithm never varied between them: only the
  * attribute did. Pair it with an AttributeIdLookup built from the same IdAttribute; IdConvention exists so that
  * pairing is not something a caller has to get right.
  */

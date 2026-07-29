@@ -88,7 +88,7 @@ final class RequiredPartsValidatorTest extends TestCase
         );
         $timestamp = $this->locate($document, self::WSU, 'Timestamp');
 
-        // The ds:Signature is intentionally NOT in the signed set — a signature never covers itself.
+        // The ds:Signature is intentionally NOT in the signed set. A signature never covers itself.
         $this->validator()->validate(
             $document,
             SoapVersion::Soap12,

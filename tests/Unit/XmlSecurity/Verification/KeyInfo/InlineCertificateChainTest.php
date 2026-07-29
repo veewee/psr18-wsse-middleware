@@ -17,7 +17,7 @@ use VeeWee\Xml\Dom\Document;
  * A peer may carry its whole certification path inline: XML-DSig §4.5.4 allows several ds:X509Certificate
  * elements in one ds:X509Data provided each relates to the validation key or its chain, and its Example 9 does
  * exactly that. Crucially the same section states that <em>no ordering is implied</em>, so the end-entity
- * certificate cannot be taken as the one that happens to appear first — it is the one that issued nothing else
+ * certificate cannot be taken as the one that happens to appear first: it is the one that issued nothing else
  * in the set. Reading only a single certificate silently discarded the intermediates a chain-to-anchor check
  * needs; picking by position would break on a conformant peer that lists its CA first.
  */
@@ -71,7 +71,7 @@ final class InlineCertificateChainTest extends TestCase
     public function test_an_inline_entry_that_is_not_a_certificate_is_refused_uniformly(): void
     {
         // Base64 that decodes cleanly but is not a certificate. Nothing notices until the end-entity derivation
-        // reads it, and that read raises its own crypto exception — which must not escape as a type no other
+        // reads it, and that read raises its own crypto exception: which must not escape as a type no other
         // inbound failure produces, or the failure cause becomes observable.
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->withInlineCertificates(

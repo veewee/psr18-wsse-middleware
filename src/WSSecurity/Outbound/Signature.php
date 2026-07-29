@@ -108,7 +108,7 @@ final class Signature implements OutboundAction
     }
 
     /**
-     * Advertises the signer's whole certification path in the embedded token — a #X509PKIPathv1
+     * Advertises the signer's whole certification path in the embedded token. A #X509PKIPathv1
      * wsse:BinarySecurityToken instead of the leaf certificate alone. Turn this on for a peer that will not
      * complete the chain from its own store and needs the intermediates handed to it; leave it off otherwise,
      * because a bare certificate is what every stack accepts without configuration.
@@ -143,7 +143,7 @@ final class Signature implements OutboundAction
     /**
      * Pins the namespace prefixes an exclusive canonicalization would otherwise drop, as an
      * ec:InclusiveNamespaces PrefixList derived per signed element. Turn this on for a peer that needs an
-     * ancestor's namespace declaration to survive into the signed bytes — one that resolves a QName out of
+     * ancestor's namespace declaration to survive into the signed bytes: one that resolves a QName out of
      * attribute or text content, or re-serializes the message before verifying. It is off by default because
      * emitting the narrowest possible declaration set is what lets a signature move between envelopes.
      */

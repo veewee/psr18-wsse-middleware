@@ -84,7 +84,7 @@ final class BinarySecurityToken implements OutboundAction
     }
 
     /**
-     * Embeds the token and hands back the key identifier pointing at it — the X.509 interop default both the
+     * Embeds the token and hands back the key identifier pointing at it. The X.509 interop default both the
      * Signature and the Encryption block reach for.
      *
      * The reference repeats the embedded token's ValueType rather than assuming a bare certificate: the two name

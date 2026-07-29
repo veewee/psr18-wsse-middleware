@@ -20,9 +20,9 @@ final readonly class KeyUsage
     }
 
     /**
-     * Either signing bit permits signing. digitalSignature is the common one, but nonRepudiation (renamed
+     * Either signing bit permits signing. DigitalSignature is the common one, but nonRepudiation (renamed
      * contentCommitment) is defined for verifying signatures too, and qualified-signature PKIs issue signing
-     * certificates carrying only that bit — refusing those would be stricter than the peers this library
+     * certificates carrying only that bit: refusing those would be stricter than the peers this library
      * interoperates with.
      */
     public function permitsSigning(): bool

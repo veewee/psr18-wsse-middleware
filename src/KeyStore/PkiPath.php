@@ -53,7 +53,7 @@ final class PkiPath
      *
      * The chain is ordered leaf first, while ITU-T X.509 defines a PkiPath as ordered from the trust anchor
      * down to the end-entity, so the certificates go out in the opposite order to the one they are held in.
-     * Reading stays order-agnostic on purpose — a peer may not honour this — but writing has to pick, and the
+     * Reading stays order-agnostic on purpose (a peer may not honour this), but writing has to pick, and the
      * only defensible pick is what the format says.
      *
      * @throws InvalidCertificate when a certificate in the chain is not decodable PEM
@@ -121,7 +121,7 @@ final class PkiPath
         // A certificate is itself a SEQUENCE, and it must be checked here rather than left to whoever parses
         // the bytes later: wrapping base64 into PEM does not parse anything, so without this the walker would
         // hand back a certificate-shaped object for any bytes at all. An empty one is refused for the same
-        // reason — it cannot be a certificate, and a path of thousands of them costs a peer nothing to send.
+        // reason: it cannot be a certificate, and a path of thousands of them costs a peer nothing to send.
         if (ord($der[$offset]) !== self::SEQUENCE_TAG) {
             throw InvalidCertificate::malformedEncoding('the certificate path holds something other than a certificate');
         }

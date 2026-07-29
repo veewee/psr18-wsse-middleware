@@ -16,7 +16,7 @@ use Throwable;
  * Symmetric bulk encryption (AES-CBC/GCM, 3DES-CBC) routed through the symmetric cipher library.
  *
  * GCM authenticates its own ciphertext; CBC does not, and nothing in this library ties a CBC part to a
- * verified signature — Decrypt and VerifySignature are independent inbound blocks with no ordering or
+ * verified signature: Decrypt and VerifySignature are independent inbound blocks with no ordering or
  * coverage coupling between them. CBC stays in the default inbound allow-list because peers commonly send
  * it; a deployment that wants authenticated encryption guaranteed narrows the accepted data encryption
  * methods to the GCM ciphers. What removes the padding oracle either way is that every decrypt failure

@@ -15,7 +15,7 @@ use function VeeWee\Xml\Dom\Predicate\is_xmlns_attribute;
  *
  * Exclusive C14N emits only the namespace declarations a subtree visibly uses, which is what makes a
  * signature survive being moved into a different envelope. A peer that needs an ancestor's declaration
- * anyway — because it resolves a QName out of attribute or text content, or re-serializes the message —
+ * anyway: because it resolves a QName out of attribute or text content, or re-serializes the message:
  * cannot get it back unless the sender pins it here. Nothing is pinned unless the caller asks for it, so
  * the default output stays the narrowest thing the spec allows.
  *

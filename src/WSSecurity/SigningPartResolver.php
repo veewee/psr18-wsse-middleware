@@ -17,7 +17,7 @@ use VeeWee\Xml\Dom\Document;
  * reused) and targeting it by that id.
  *
  * Named for signing, not merely for outbound, because signing is the only direction that mints: the Encryption
- * block is outbound too and deliberately does not come here — it refuses a dynamic part outright, since a
+ * block is outbound too and deliberately does not come here. It refuses a dynamic part outright, since a
  * signing-only part is not encryptable, and it needs an encryption mode alongside each Target.
  *
  * Nothing inbound may resolve parts through this class. RequiredPartsValidator expands the same dynamic parts

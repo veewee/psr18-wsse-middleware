@@ -16,7 +16,7 @@ use VeeWee\Xml\Dom\Document;
  * The session key is unwrapped with our private key, so which xenc:EncryptedKey counts as ours decides what we
  * apply it to. Our public key is public: anyone can wrap a key to us, so an EncryptedKey found anywhere in the
  * envelope is not evidence the sender meant it for this receiver. The block therefore reads it out of the
- * Security header addressed to us — the same scope the signature verifier uses — and a message carrying no
+ * Security header addressed to us (the same scope the signature verifier uses), and a message carrying no
  * header for us is refused rather than decrypted against whatever else the envelope holds.
  */
 final class DecryptScopeTest extends TestCase
@@ -40,7 +40,7 @@ final class DecryptScopeTest extends TestCase
     public function test_a_profile_naming_an_actor_decrypts_within_that_actors_header(): void
     {
         // Configured as a named intermediary, the header carrying our actor is the one we read the wrapped key
-        // from — the untargeted header belongs to the ultimate receiver and its key is not ours to unwrap.
+        // from. The untargeted header belongs to the ultimate receiver and its key is not ours to unwrap.
         $context = $this->context(
             '<soap:Header>'
             .'<wsse:Security><ultimate/></wsse:Security>'

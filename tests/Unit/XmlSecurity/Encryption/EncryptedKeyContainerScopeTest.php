@@ -14,8 +14,8 @@ use VeeWee\Xml\Dom\Document;
 
 /**
  * The reader works inside the container the caller names and nowhere else. Searching the document instead would
- * make any xenc:EncryptedKey or xenc:ReferenceList in the envelope a candidate — including one an injector
- * placed in a Body or in another recipient's header — and the wrapped key would then be unwrapped with our
+ * make any xenc:EncryptedKey or xenc:ReferenceList in the envelope a candidate, including one an injector
+ * placed in a Body or in another recipient's header, and the wrapped key would then be unwrapped with our
  * private key on the strength of the attacker's own choice of session key.
  */
 final class EncryptedKeyContainerScopeTest extends TestCase
@@ -100,7 +100,7 @@ final class EncryptedKeyContainerScopeTest extends TestCase
     }
 
     /**
-     * The Security header addressed to the ultimate receiver — the one the WS-Security blocks would pass in.
+     * The Security header addressed to the ultimate receiver: the one the WS-Security blocks would pass in.
      */
     private function ours(Document $document): Element
     {

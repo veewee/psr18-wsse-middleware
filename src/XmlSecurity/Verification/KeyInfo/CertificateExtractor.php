@@ -121,8 +121,8 @@ final class CertificateExtractor
     /**
      * Unwraps a PKIPath token body into its certificates and orders them the same way, so a path token and an
      * inline path reach the trust check as the same shape. The profile calls a PKIPath ordered without this
-     * code relying on that: the end-entity is derived, which is also what makes the sibling PKCS#7 form — whose
-     * order the profile says carries no meaning — tractable should it ever be accepted.
+     * code relying on that: the end-entity is derived, which is also what makes the sibling PKCS#7 form. Whose
+     * order the profile says carries no meaning, and which stays tractable should it ever be accepted.
      *
      * @throws SignatureVerificationFailed
      */

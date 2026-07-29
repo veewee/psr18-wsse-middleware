@@ -100,7 +100,7 @@ final class SignedInfoParser
      * Resolves the canonicalization a reference's digest is computed under. When ds:Transforms is present it
      * must declare exactly one c14n transform and nothing else; the optional PrefixList of an exclusive
      * transform is read. When ds:Transforms is absent the reference's node-set is converted to octets with
-     * inclusive Canonical XML, the conversion XML-DSig prescribes when no transform says otherwise — not with
+     * inclusive Canonical XML, the conversion XML-DSig prescribes when no transform says otherwise. Not with
      * whatever SignedInfo declares for itself, which governs only SignedInfo. Whether the resolved
      * canonicalization is accepted at all is decided later by the policy enforcer, not here: the default
      * allow-list is exclusive-only, so a transform-less reference is refused there unless a deployment opts

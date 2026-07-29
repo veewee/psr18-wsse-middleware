@@ -104,7 +104,7 @@ final class VerifySignatureTest extends TestCase
 
     public function test_a_profile_naming_an_actor_verifies_within_that_actors_header(): void
     {
-        // Configured as a named intermediary, the header carrying our actor is the one we verify in — and the
+        // Configured as a named intermediary, the header carrying our actor is the one we verify in, and the
         // untargeted header, which belongs to the ultimate receiver, is not ours to read.
         $context = new WsseContext(
             Document::fromXmlString(
@@ -139,7 +139,7 @@ final class VerifySignatureTest extends TestCase
 
         (new VerifySignature($this->trustStore(), signed: []))->withVerifier($verifier)($context);
 
-        // "Only" cuts both ways: no part is demanded, but the signature itself must still verify — an empty
+        // "Only" cuts both ways: no part is demanded, but the signature itself must still verify. An empty
         // signed list never bypasses verification.
         $this->expectException(SecurityFault::class);
         (new VerifySignature($this->trustStore(), signed: []))

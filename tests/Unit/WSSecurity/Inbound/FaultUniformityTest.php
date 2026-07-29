@@ -35,8 +35,8 @@ use VeeWee\Xml\Dom\Document;
 
 /**
  * The cross-block half of the no-oracle guarantee. Each block's own suite proves its failures collapse to a
- * SecurityFault; this suite proves the faults are indistinguishable BETWEEN blocks — same type, same code,
- * byte-identical message — so a peer cannot tell a decryption failure from a signature failure from a stale
+ * SecurityFault; this suite proves the faults are indistinguishable BETWEEN blocks: same type, same code,
+ * byte-identical message: so a peer cannot tell a decryption failure from a signature failure from a stale
  * timestamp, and cannot learn which detail text triggered any of them.
  */
 final class FaultUniformityTest extends TestCase
@@ -146,7 +146,7 @@ final class FaultUniformityTest extends TestCase
     /**
      * The default envelope carries a Security header addressed to the ultimate receiver. Without one, the
      * signature and decryption blocks refuse on the missing header and never consult the injected fake, which
-     * would make the detail-text assertions above vacuous — they would be checking a fault the fake never
+     * would make the detail-text assertions above vacuous: they would be checking a fault the fake never
      * caused. The blocks that read a header must be given one for their real failure to be the trigger.
      */
     /**

@@ -7,7 +7,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity;
  * An IdConvention driven by a single IdAttribute: both halves are built from that one value, so they cannot
  * address different attributes.
  *
- * The engine ships the `xml:id` case as its zero-configuration default. A profile supplies its own attribute —
+ * The engine ships the `xml:id` case as its zero-configuration default. A profile supplies its own attribute:
  * the WS-Security one supplies wsu:Id, from its own layer, so no spec-specific namespace has to live here.
  */
 final readonly class AttributeIdConvention implements IdConvention

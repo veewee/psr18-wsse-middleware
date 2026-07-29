@@ -24,7 +24,7 @@ use VeeWee\Xml\Dom\Document;
  * A known-answer vector: a fixed key signing a fixed document must reproduce the exact recorded bytes for
  * the canonical ds:SignedInfo, the ds:DigestValue and the ds:SignatureValue. Every input is pinned (preset
  * wsu:Id values, a hand-embedded token, no timestamp), so the whole pipeline is deterministic and any drift
- * in canonicalization, digesting or signing surfaces as a byte mismatch here — unlike the sign-then-verify
+ * in canonicalization, digesting or signing surfaces as a byte mismatch here. Unlike the sign-then-verify
  * tests, which share the implementation between both sides and stay green through a symmetric bug.
  *
  * The pinned bytes were anchored independently when recorded: openssl verifies the SignatureValue over the

@@ -14,7 +14,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
 /**
  * The inputs to a single signing operation. The container is the element the detached ds:Signature is appended
- * to (the caller locates it — the WS-Security profile passes its wsse:Security header); the engine never reaches
+ * to (the caller locates it. The WS-Security profile passes its wsse:Security header); the engine never reaches
  * into a SOAP header to find it. The signing key is the private key material, which the OpenSSL\ module resolves
  * to a live handle internally so the raw handle never escapes that module. The advertised signing certificate is
  * an explicit input, distinct from the private key: the KeyIdentifier strategy turns it into the ds:KeyInfo

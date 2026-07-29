@@ -8,7 +8,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 /**
  * The policy a signature is verified against: the trust anchors plus the algorithm policy whose allow-lists
- * gate every algorithm the signature names. The pair is carried as-is — the CryptoPolicy answers acceptance
+ * gate every algorithm the signature names. The pair is carried as-is: the CryptoPolicy answers acceptance
  * itself, so no allow-list is ever copied out of it.
  *
  * This DTO supplies the trust store and the algorithm policy; whether the required parts are in the

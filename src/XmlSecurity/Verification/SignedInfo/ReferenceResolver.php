@@ -186,7 +186,7 @@ final class ReferenceResolver
      *
      * The transform removes the signature that contains it, not any signature in the document. Stripping every
      * ds:Signature under the element would let an injected second one be dropped from the digest silently, so
-     * more than one is refused outright rather than resolved by picking — and the single one must be, by object
+     * more than one is refused outright rather than resolved by picking, and the single one must be, by object
      * identity, the signature being verified. An element holding none is refused too: the transform claims
      * self-exclusion while the signature sits elsewhere, which is a relocated signature claiming coverage of an
      * element it is not inside.

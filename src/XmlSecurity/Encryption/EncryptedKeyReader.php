@@ -116,8 +116,8 @@ final class EncryptedKeyReader
 
     /**
      * The one xenc:ReferenceList naming the encrypted parts. XML-Enc lets it sit inside the xenc:EncryptedKey
-     * or stand detached beside it in the container, and peers emit both shapes, so either is accepted —
-     * but never both at once and never two of one form. This list decides which parts the decryptor touches,
+     * or stand detached beside it in the container, and peers emit both shapes, so either is accepted.
+     * But never both at once and never two of one form. This list decides which parts the decryptor touches,
      * so a second candidate is refused outright instead of one being chosen: picking either would let the
      * other be injected. A duplicate of one form is refused rather than read as an absence, which would
      * otherwise let it fall through to an injected instance of the other form.

@@ -12,7 +12,7 @@ use function VeeWee\Xml\Dom\Configurator\disallow_doctype;
 /**
  * Every parse in this library refuses a DOCTYPE, but that refusal is a post-parse check: by the time it runs,
  * libxml has already decided what to do with any entity the DOCTYPE declared. So refusing the document is only
- * half the defence — the other half is that the parse itself never resolves an external entity, which holds
+ * half the defence: the other half is that the parse itself never resolves an external entity, which holds
  * because no parse passes any LIBXML_* option. Nothing pinned that, and it is not ours to change: a dependency
  * whose loader started substituting entities would silently turn an already-refused message into a file read
  * or an outbound fetch, and the fetch is the exfiltration channel whether or not the document is then rejected.
@@ -38,7 +38,7 @@ final class DoctypeDefenceTest extends TestCase
     {
         // Loaded exactly the way every parse in this library loads, but without the doctype configurator: the
         // refusal would mask what the parse did, and what the parse did is the whole point. Going through the
-        // real loader is what makes this a guard — a changed option there is the failure being watched for.
+        // real loader is what makes this a guard: a changed option there is the failure being watched for.
         $root = Document::fromXmlString($this->externalEntityPayload())
             ->toUnsafeDocument()
             ->documentElement;
@@ -58,8 +58,8 @@ final class DoctypeDefenceTest extends TestCase
 
     public function test_an_entity_expansion_bomb_is_refused_before_it_expands(): void
     {
-        // Nine levels of tenfold self-reference: 10^9 expansions if anything expands them. libxml's own
-        // amplification guard refuses it, and the memory bound is what proves nothing expanded — were the
+        // Nine levels of tenfold self-reference: 10^9 expansions if anything expands them. Libxml's own
+        // amplification guard refuses it, and the memory bound is what proves nothing expanded: were the
         // guard lost, this would consume gigabytes rather than report a failed assertion.
         $before = memory_get_peak_usage(true);
         $refused = false;

@@ -13,7 +13,7 @@ use InvalidArgumentException;
  *
  * The local name is derived from the qualified name rather than passed alongside it. Stamping needs the
  * qualified form (`wsu:Id`), reading an attribute node needs the local form (`Id`), and a caller supplying both
- * could supply two that do not match — a mismatch no test would notice until a reference failed to resolve.
+ * could supply two that do not match. A mismatch no test would notice until a reference failed to resolve.
  */
 final readonly class IdAttribute
 {

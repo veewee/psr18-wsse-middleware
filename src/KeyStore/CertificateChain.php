@@ -30,8 +30,8 @@ final class CertificateChain
 
     /**
      * Orders a set of certificates whose sequence carries no meaning. A message may hand over a whole
-     * certification path with nothing stating which certificate is the end-entity — XML-DSig says as much of
-     * ds:X509Data — so the leaf is derived: it is the certificate that issued none of the others.
+     * certification path with nothing stating which certificate is the end-entity: XML-DSig says as much of
+     * ds:X509Data, so the leaf is derived: it is the certificate that issued none of the others.
      *
      * Exactly one such certificate must exist. With none the set is circular or the leaf is missing; with
      * several nothing says which key signed, and choosing one would let the sender decide which certificate a
