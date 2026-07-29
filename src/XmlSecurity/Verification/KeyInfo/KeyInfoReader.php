@@ -156,7 +156,7 @@ final class KeyInfoReader
             }
 
             return CertificateReference::keyIdentifier(
-                (string) $keyIdentifier->getAttribute('ValueType'),
+                $this->keyIdentifierKind((string) $keyIdentifier->getAttribute('ValueType')),
                 $reference,
             );
         }
@@ -167,6 +167,20 @@ final class KeyInfoReader
         }
 
         return null;
+    }
+
+    /**
+     * Translates the WS-Security ValueType URI into the identifier it names. This is where a spelling this
+     * library does not support is refused: past here the reference carries a kind, so an unsupported one has no
+     * way to travel any further.
+     */
+    private function keyIdentifierKind(string $valueType): KeyIdentifierKind
+    {
+        return match (WsSecurityValueType::tryFrom($valueType)) {
+            WsSecurityValueType::X509SubjectKeyIdentifier => KeyIdentifierKind::SubjectKeyIdentifier,
+            WsSecurityValueType::ThumbprintSha1 => KeyIdentifierKind::ThumbprintSha1,
+            default => throw SignatureVerificationFailed::withReason('The key identifier value type is unsupported.'),
+        };
     }
 
     /**

@@ -8,7 +8,6 @@ use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\WsSecurityValueType;
 
 /**
  * Resolves an identifier reference (Subject Key Identifier, SHA-1 thumbprint, or issuer DN plus serial) to a
@@ -36,12 +35,14 @@ final class TrustStoreCertificateResolver
 
     private function resolveByKeyIdentifier(CertificateReference $reference, TrustStore $trustStore): Certificate
     {
-        $identifierOf = match ($reference->valueType) {
-            WsSecurityValueType::X509SubjectKeyIdentifier->value
+        // Every kind is handled: an identifier this library cannot name was refused while ds:KeyInfo was read,
+        // so there is no unsupported case left to reject here.
+        $identifierOf = match ($reference->kind) {
+            KeyIdentifierKind::SubjectKeyIdentifier
                 => static fn (Certificate $candidate): string => $candidate->info()->subjectKeyIdentifier()->toBase64(),
-            WsSecurityValueType::ThumbprintSha1->value
+            KeyIdentifierKind::ThumbprintSha1
                 => static fn (Certificate $candidate): string => $candidate->info()->thumbprintSha1()->toBase64(),
-            default => throw SignatureVerificationFailed::withReason('The key identifier value type is unsupported.'),
+            null => throw SignatureVerificationFailed::withReason('The key identifier names no supported identifier.'),
         };
 
         return $this->uniqueMatch(

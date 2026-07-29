@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyIdentifierKind;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\TrustStoreCertificateResolver;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 
@@ -14,19 +15,18 @@ use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
  * Covers the trust-store matching policy in isolation: a typed certificate reference resolves to the single
  * matching anchor, an unknown identifier is refused, and two anchors carrying the same identifier make the
  * reference ambiguous. The match is by computed identifier, so no anchor is ever silently preferred.
+ *
+ * A reference naming an identifier this library does not support is not covered here, because it cannot be
+ * built: the reference carries a KeyIdentifierKind, so an unknown spelling is refused while ds:KeyInfo is read.
+ * CertificateExtractorTest pins that from the document instead.
  */
 final class TrustStoreCertificateResolverTest extends TestCase
 {
-    private const SUBJECT_KEY_IDENTIFIER_VALUE_TYPE
-        = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509SubjectKeyIdentifier';
-    private const THUMBPRINT_SHA1_VALUE_TYPE
-        = 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1';
-
     public function test_it_resolves_a_unique_subject_key_identifier_match(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $reference = CertificateReference::keyIdentifier(
-            self::SUBJECT_KEY_IDENTIFIER_VALUE_TYPE,
+            KeyIdentifierKind::SubjectKeyIdentifier,
             $fixture->leafCertificate->info()->subjectKeyIdentifier()->toBase64(),
         );
 
@@ -42,7 +42,7 @@ final class TrustStoreCertificateResolverTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $reference = CertificateReference::keyIdentifier(
-            self::THUMBPRINT_SHA1_VALUE_TYPE,
+            KeyIdentifierKind::ThumbprintSha1,
             $fixture->leafCertificate->info()->thumbprintSha1()->toBase64(),
         );
 
@@ -74,7 +74,7 @@ final class TrustStoreCertificateResolverTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $reference = CertificateReference::keyIdentifier(
-            self::SUBJECT_KEY_IDENTIFIER_VALUE_TYPE,
+            KeyIdentifierKind::SubjectKeyIdentifier,
             $fixture->leafCertificate->info()->subjectKeyIdentifier()->toBase64(),
         );
 
@@ -90,7 +90,7 @@ final class TrustStoreCertificateResolverTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $reference = CertificateReference::keyIdentifier(
-            self::SUBJECT_KEY_IDENTIFIER_VALUE_TYPE,
+            KeyIdentifierKind::SubjectKeyIdentifier,
             $fixture->leafCertificate->info()->subjectKeyIdentifier()->toBase64(),
         );
 
@@ -102,17 +102,6 @@ final class TrustStoreCertificateResolverTest extends TestCase
         );
     }
 
-    public function test_it_refuses_an_unsupported_key_identifier_value_type(): void
-    {
-        $fixture = WsseSignatureFixture::caSignedLeaf();
-        $reference = CertificateReference::keyIdentifier('urn:unsupported', 'anything');
-
-        $this->expectException(SignatureVerificationFailed::class);
-        (new TrustStoreCertificateResolver())->resolve(
-            $reference,
-            TrustStore::fromCertificates($fixture->leafCertificate),
-        );
-    }
 
     public function test_it_refuses_a_carried_reference_it_cannot_resolve(): void
     {

@@ -26,7 +26,7 @@ final readonly class CertificateReference
     private function __construct(
         public readonly string $form,
         public readonly array $base64DerCertificates = [],
-        public readonly string $valueType = '',
+        public readonly ?KeyIdentifierKind $kind = null,
         public readonly string $reference = '',
         public readonly string $issuerName = '',
         public readonly string $serialNumber = '',
@@ -52,9 +52,9 @@ final readonly class CertificateReference
         return new self(self::FORM_CARRIED_PATH, base64DerCertificates: [$base64DerPath]);
     }
 
-    public static function keyIdentifier(string $valueType, string $reference): self
+    public static function keyIdentifier(KeyIdentifierKind $kind, string $reference): self
     {
-        return new self(self::FORM_KEY_IDENTIFIER, valueType: $valueType, reference: $reference);
+        return new self(self::FORM_KEY_IDENTIFIER, kind: $kind, reference: $reference);
     }
 
     public static function issuerSerial(string $issuerName, string $serialNumber): self

@@ -199,6 +199,28 @@ final class CertificateExtractorTest extends TestCase
         static::assertSame($this->base64Der($fixture->leafCertificate), $this->base64Der($chain->leaf()));
     }
 
+    public function test_it_refuses_a_key_identifier_whose_value_type_names_nothing_it_supports(): void
+    {
+        // Pinned at the document level on purpose. Only two identifier kinds can name a certificate here, and
+        // which of them a reference carries is decided while reading ds:KeyInfo -- so an unknown ValueType has to
+        // be refused from the message, not from whatever internal shape the reader happens to produce.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $this->document('', '<ds:KeyInfo><wsse:SecurityTokenReference>'
+            .'<wsse:KeyIdentifier ValueType="urn:not-a-key-identifier-we-know">anything</wsse:KeyIdentifier>'
+            .'</wsse:SecurityTokenReference></ds:KeyInfo>');
+
+        // The reason, not just the class: every failure in here is the same class by design, so a class-only
+        // assertion passes whether the ValueType was refused or the identifier merely matched no anchor. Treating
+        // an unknown ValueType as a Subject Key Identifier would still fail -- on "not known" -- and go unnoticed.
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('The key identifier value type is unsupported.');
+        $this->extractor()->extract(
+            $document,
+            $this->signature($document),
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+        );
+    }
+
     public function test_a_reference_carrying_both_key_identifier_namespaces_is_refused(): void
     {
         // Tolerating the 1.1 form must not let a second KeyIdentifier shadow the real one.
