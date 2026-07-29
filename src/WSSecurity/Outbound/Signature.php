@@ -14,7 +14,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\PartResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\SigningPartResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\WsuIdLookup;
@@ -51,6 +51,7 @@ final class Signature implements OutboundAction
     private ?CertificateChain $certificateChain = null;
 
     private XmlSigner $signer;
+    private readonly SigningPartResolver $partResolver;
 
     public function __construct(
         private readonly ClientCertificate $clientCertificate,
@@ -58,8 +59,12 @@ final class Signature implements OutboundAction
     ) {
         // The WS-Security profile mandates wsu:Id on signed parts, so the block injects the wsu:Id convention on
         // both sides — the minter stamps it, the paired lookup re-finds it on the reparsed wire. The engine's
-        // own default (xml:id) would break the WSSE wire format.
-        $this->signer = Signer::create(new WsuIdMinter(), new WsuIdLookup());
+        // own default (xml:id) would break the WSSE wire format. One minter serves the resolver and the signer:
+        // it holds no state, and a single instance is what keeps the two from drifting onto different id
+        // conventions.
+        $minter = new WsuIdMinter();
+        $this->signer = Signer::create($minter, new WsuIdLookup());
+        $this->partResolver = new SigningPartResolver($minter);
     }
 
     public function withSigner(XmlSigner $signer): self
@@ -169,7 +174,7 @@ final class Signature implements OutboundAction
         $parts = $this->parts ?? [Part::body(), Part::securityHeaderContents()];
         $request = new SigningRequest(
             container: $security->element(),
-            targets: (new PartResolver(new WsuIdMinter()))->resolve($parts, $document, $context->soapVersion(), $security->element()),
+            targets: $this->partResolver->resolve($parts, $document, $context->soapVersion(), $security->element()),
             signingKey: $this->clientCertificate->privateKey(),
             signingCertificate: $this->clientCertificate->publicCertificate(),
             keyIdentifier: $keyIdentifier,

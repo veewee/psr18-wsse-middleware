@@ -7,7 +7,7 @@ use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
-use Soap\Psr18WsseMiddleware\WSSecurity\PartResolver;
+use Soap\Psr18WsseMiddleware\WSSecurity\SigningPartResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator\WsuIdMinter;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
@@ -15,11 +15,11 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\TargetKind;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Covers PartResolver, the WSSE-layer lowering of Parts to engine Targets: static parts delegate to
+ * Covers SigningPartResolver, the WSSE-layer lowering of Parts to engine Targets: static parts delegate to
  * Part::toTarget, the dynamic parts (securityHeaderContents/soapHeaders) are expanded against the live header
  * with a minted wsu:Id, and a parts list that matches nothing raises the uniform "nothing to sign" fault.
  */
-final class PartResolverTest extends TestCase
+final class SigningPartResolverTest extends TestCase
 {
     private const SOAP12 = 'http://www.w3.org/2003/05/soap-envelope';
     private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
@@ -90,7 +90,7 @@ final class PartResolverTest extends TestCase
      */
     private function resolve(Document $document, array $parts): array
     {
-        return (new PartResolver(new WsuIdMinter()))
+        return (new SigningPartResolver(new WsuIdMinter()))
             ->resolve($parts, $document, SoapVersion::Soap12, $this->only($document, self::WSSE, 'Security'));
     }
 
