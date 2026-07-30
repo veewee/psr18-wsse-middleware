@@ -8,6 +8,7 @@ use DateTimeZone;
 use Psl\DateTime\SecondsStyle;
 use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use SoapTest\Psr18WsseMiddleware\Unit\Clock\FrozenClock;
 use VeeWee\Xml\Dom\Document;
 
@@ -63,6 +64,24 @@ final class TimestampTest extends OutboundTestCase
         (new Timestamp())($this->context($document));
 
         static::assertSame(300, $this->ttlDelta($document));
+    }
+
+    public function test_the_profile_ttl_drives_expires_when_no_block_ttl_is_given(): void
+    {
+        $document = $this->envelope();
+
+        (new Timestamp())($this->context($document, new SecurityProfile(timestampTtl: 30)));
+
+        static::assertSame(30, $this->ttlDelta($document));
+    }
+
+    public function test_a_block_ttl_overrides_the_profile(): void
+    {
+        $document = $this->envelope();
+
+        (new Timestamp(600))($this->context($document, new SecurityProfile(timestampTtl: 30)));
+
+        static::assertSame(600, $this->ttlDelta($document));
     }
 
     public function test_custom_ttl_is_applied(): void

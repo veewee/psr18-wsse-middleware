@@ -91,12 +91,13 @@ a later `Signature` block can sign the timestamp by reference.
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
-new Outbound\Timestamp();        // expires 300 seconds from now
+new Outbound\Timestamp();        // expires timestampTtl seconds from now (300 by default)
 new Outbound\Timestamp(60);      // expires 60 seconds from now
 ```
 
-- `int $ttl = 300`: seconds from now until the message's `Expires`. Must be a positive integer. Default `300`
-  (five minutes). Pick a value that comfortably covers your round trip plus the receiver's clock skew.
+- `?int $ttl = null`: seconds from now until the message's `Expires`. Must be a positive integer. `null`, the
+  default, takes the window from the profile's `timestampTtl`, so narrowing it there narrows both directions.
+  Pick a value that comfortably covers your round trip plus the receiver's clock skew.
 
 ## Outbound: `Username`
 

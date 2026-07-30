@@ -29,10 +29,11 @@ final class Timestamp implements OutboundAction
     private Clock $clock;
 
     /**
-     * @param positive-int $ttl seconds until expiry
+     * @param positive-int|null $ttl seconds until expiry; null takes the window from the security profile, so
+     *                               an operator narrowing it there narrows it in both directions
      */
     public function __construct(
-        private readonly int $ttl = 300,
+        private readonly ?int $ttl = null,
     ) {
         $this->clock = new SystemClock();
     }
@@ -51,7 +52,7 @@ final class Timestamp implements OutboundAction
         $minter = (new WsuIdConvention())->minter();
 
         $created = $this->clock->now();
-        $expires = $created->plusSeconds($this->ttl);
+        $expires = $created->plusSeconds($this->ttl ?? $context->profile()->timestampTtl());
 
         $header = SecurityHeader::forContext($context);
         $header->appendChildren($this->build($document, $minter, $created, $expires));
