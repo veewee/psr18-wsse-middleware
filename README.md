@@ -94,8 +94,8 @@ list you compose, so these are yours to get right:
   closed against an encrypt-then-sign peer, so that mistake breaks loudly rather than silently.
 - **An empty `inbound` list checks nothing.** A client that signs every request and accepts any response at all
   is a valid configuration as far as this middleware is concerned. If you sign outbound, verify inbound.
-- **`ValidateTimestamp` needs a signed timestamp** and **`VerifySignature` needs you to name the parts you
-  depend on**; both are covered in their own sections below.
+- **`ValidateTimestamp` needs a signed timestamp.** `VerifySignature` requires the body by default but nothing
+  more, so name `Part::timestamp()` too. Both are covered in their own sections below.
 
 ## Outbound: `Timestamp`
 
@@ -398,10 +398,14 @@ new Inbound\VerifySignature(
 
 - `TrustStore $trustStore`: the certificates you trust as signers. Build it with
   `TrustStore::fromCertificates(...)`. Required.
-- `signed: list<Part> $signed = []`: the parts that **must** be covered by a trusted signature. Pass it as a
-  named argument (`signed:`). Default `[]`, which verifies the signature is valid and trusted but requires no
-  particular part to be covered. Name the parts you depend on (typically the body and the timestamp), so an
-  attacker cannot strip the signature from the part that matters. The dynamic parts work here too:
+- `signed: ?list<Part> $signed = null`: the parts that **must** be covered by a trusted signature. Pass it as a
+  named argument (`signed:`). `null`, the default, requires `Part::body()`: without that floor, a peer holding
+  any trusted certificate could sign one decoy element it minted in its own Security header and leave the body
+  attacker-controlled. An explicit list replaces the default entirely, so name every part you depend on. Add
+  `Part::timestamp()` whenever the peer signs one, which is what makes `ValidateTimestamp` mean anything. The
+  default stops at the body on purpose: peers commonly leave their own `BinarySecurityToken` unsigned (WSS4J
+  does), so requiring the whole header contents would refuse conformant messages. The dynamic parts work here
+  too:
   `Part::securityHeaderContents()` requires every token in the Security header to have been signed, and
   `Part::soapHeaders()` requires every other SOAP header block to have been signed.
 

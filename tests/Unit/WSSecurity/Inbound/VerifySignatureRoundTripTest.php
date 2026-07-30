@@ -42,6 +42,36 @@ final class VerifySignatureRoundTripTest extends TestCase
         $this->assertTheSameConfigurationRefusesATamperedBody($block, $document);
     }
 
+    /**
+     * The insecure composition is the shorter call, so naming no parts must not mean requiring none: a peer
+     * holding any trusted certificate could sign a decoy it minted in the Security header and leave the Body
+     * attacker-controlled. Here only the Timestamp is signed, so the default must refuse the message.
+     */
+    public function test_naming_no_parts_still_requires_the_body_to_have_been_signed(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign([WsseSignatureFixture::timestampTarget()], withTimestamp: true);
+
+        $this->expectException(SecurityFault::class);
+        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))(
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+        );
+    }
+
+    public function test_naming_no_parts_accepts_a_message_whose_body_was_signed(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        // The Timestamp is signed and the BinarySecurityToken is not, which is what a conformant peer emits.
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget(), WsseSignatureFixture::timestampTarget()], withTimestamp: true);
+
+        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))(
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+        );
+
+        // Reaching here is the pass: the block throws rather than returning a verdict.
+        static::assertStringContainsString('<soap:Body', $document->toXmlString());
+    }
+
     public function test_it_verifies_a_real_ecdsa_signed_body_and_timestamp(): void
     {
         $fixture = WsseSignatureFixture::ecCaSignedLeaf();

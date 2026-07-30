@@ -36,11 +36,20 @@ final class VerifySignature implements InboundAction
     private readonly RequiredPartsValidator $requiredParts;
 
     /**
-     * @param list<Part> $signed
+     * A signature must cover the Body unless the caller says otherwise, so the shorter call is not the weaker
+     * one. Requiring nothing would let a valid signature over a decoy the peer minted in its own header pass
+     * while the Body stayed attacker-controlled.
+     *
+     * The Body alone, rather than everything the outbound block signs: peers commonly sign the Body and the
+     * Timestamp and leave their own BinarySecurityToken unsigned, so requiring the header contents would
+     * refuse conformant messages. Name the Timestamp explicitly when the peer signs it, which pairs with
+     * ValidateTimestamp.
+     *
+     * @param list<Part>|null $signed null requires the Body; an explicit list replaces that entirely
      */
     public function __construct(
         private readonly TrustStore $trustStore,
-        private readonly array $signed = [],
+        private readonly ?array $signed = null,
     ) {
         // The WS-Security profile references signed parts by wsu:Id, so both the verifier and the required-part
         // locator resolve ids through the wsu:Id convention.
@@ -85,7 +94,7 @@ final class VerifySignature implements InboundAction
             $document,
             $context->soapVersion(),
             $verified->signedElements,
-            $this->signed,
+            $this->signed ?? [Part::body()],
             $context->profile()->actorOrRole(),
         );
     }
