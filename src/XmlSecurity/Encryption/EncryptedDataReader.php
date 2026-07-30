@@ -111,13 +111,26 @@ final class EncryptedDataReader
 
     private function restore(Document $document, Element $encryptedDataElement, #[SensitiveParameter] string $plaintext): void
     {
-        $mode = EncryptionMode::tryFrom((string) $encryptedDataElement->getAttribute('Type'))
-            ?? EncryptionMode::Element;
+        // XML-Enc leaves Type optional, so an absent one means Element mode. A Type that is present but names
+        // something else is the sender contradicting itself, and assuming a mode there would restore whichever
+        // nodes that guess happens to fit.
+        $declared = (string) $encryptedDataElement->getAttribute('Type');
+        $mode = $declared === ''
+            ? EncryptionMode::Element
+            : EncryptionMode::tryFrom($declared)
+                ?? throw DecryptionFailed::withReason('The encrypted part declares an unknown type.');
 
         $recovered = $this->parseFragment($plaintext);
 
         if ($mode === EncryptionMode::Element) {
             $first = $recovered[0] ?? throw DecryptionFailed::withReason('The recovered element is empty.');
+
+            // Element mode recovers exactly one element by definition. Restoring the first and dropping the rest
+            // would hand the caller a document the sender never described.
+            if (count($recovered) > 1) {
+                throw DecryptionFailed::withReason('The recovered element holds more than one node.');
+            }
+
             replace_by_external_node($encryptedDataElement, $first);
 
             return;

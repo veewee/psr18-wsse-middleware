@@ -39,6 +39,82 @@ final class EncryptedDataRoundTripTest extends TestCase
         yield 'aes-128-cbc' => [DataEncryptionMethod::AES128_CBC, 16];
     }
 
+    /**
+     * XML-Enc leaves Type optional, so an absent one still means Element mode. A Type that is present but names
+     * neither Element nor Content is the peer contradicting itself, and guessing Element there would restore
+     * the first recovered node and drop the rest on a guess.
+     */
+    public function test_an_unrecognised_type_is_refused_rather_than_assumed(): void
+    {
+        $key = SessionKey::fromBytes(str_repeat("\x03", 32));
+        $document = $this->encryptedCustom($key, '<app:Custom xmlns:app="'.self::APP.'">payload</app:Custom>');
+        $this->onlyEncryptedData($document)->setAttribute('Type', self::XENC.'Wat');
+
+        $this->expectException(DecryptionFailed::class);
+        (new EncryptedDataReader(new Cipher()))->read(
+            $document,
+            $this->onlyEncryptedData($document),
+            $key,
+            CryptoPolicy::default(),
+        );
+    }
+
+    public function test_an_absent_type_still_means_element_mode(): void
+    {
+        $key = SessionKey::fromBytes(str_repeat("\x04", 32));
+        $document = $this->encryptedCustom($key, '<app:Custom xmlns:app="'.self::APP.'">payload</app:Custom>');
+        $this->onlyEncryptedData($document)->removeAttribute('Type');
+
+        (new EncryptedDataReader(new Cipher()))->read(
+            $document,
+            $this->onlyEncryptedData($document),
+            $key,
+            CryptoPolicy::default(),
+        );
+
+        static::assertStringContainsString('<app:Custom', $document->toXmlString());
+        static::assertStringNotContainsString('EncryptedData', $document->toXmlString());
+    }
+
+    /**
+     * Element mode recovers exactly one element by definition, so several nodes is a contradiction. Restoring
+     * the first and discarding the rest hands the application a document the sender never described.
+     */
+    public function test_element_mode_recovering_several_nodes_is_refused_rather_than_truncated(): void
+    {
+        $key = SessionKey::fromBytes(str_repeat("\x05", 32));
+        $document = $this->encryptedCustom(
+            $key,
+            '<app:Custom xmlns:app="'.self::APP.'">first</app:Custom><app:Custom xmlns:app="'.self::APP.'">second</app:Custom>',
+        );
+
+        $this->expectException(DecryptionFailed::class);
+        (new EncryptedDataReader(new Cipher()))->read(
+            $document,
+            $this->onlyEncryptedData($document),
+            $key,
+            CryptoPolicy::default(),
+        );
+    }
+
+    /**
+     * An EncryptedData in Element mode over the given plaintext, replacing the app:Custom element.
+     */
+    private function encryptedCustom(SessionKey $key, string $plaintext): Document
+    {
+        $document = $this->envelope();
+        $cipherText = (new Cipher())->encrypt($plaintext, $key, DataEncryptionMethod::AES256_GCM);
+        (new EncryptedDataBuilder((new WsuIdConvention())->minter()))->build(
+            $document,
+            $this->custom($document),
+            $cipherText,
+            DataEncryptionMethod::AES256_GCM,
+            EncryptionMode::Element,
+        );
+
+        return $document;
+    }
+
     private static function accepting(DataEncryptionMethod $method): CryptoPolicy
     {
         return new CryptoPolicy(acceptedDataEncryptionMethods: [$method]);
