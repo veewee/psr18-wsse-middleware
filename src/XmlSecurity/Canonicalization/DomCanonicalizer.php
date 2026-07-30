@@ -41,6 +41,13 @@ final class DomCanonicalizer implements Canonicalizer
                 throw CanonicalizationFailed::excludesEverything($node);
             }
 
+            // The invariant is enforced rather than trusted: a caller naming a subtree that lives elsewhere has a
+            // bug, and canonicalizing the whole node as though nothing were excluded would digest content that
+            // caller believed it had left out.
+            if (!$node->contains($withoutSubtree)) {
+                throw CanonicalizationFailed::excludedSubtreeIsElsewhere($node);
+            }
+
             $restore = $this->lift($withoutSubtree);
         }
 

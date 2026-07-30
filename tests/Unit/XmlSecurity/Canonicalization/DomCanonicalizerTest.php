@@ -186,6 +186,24 @@ final class DomCanonicalizerTest extends TestCase
         static::assertLessThan(2.0, microtime(true) - $started);
     }
 
+    /**
+     * The excluded subtree has to live inside what is being canonicalized. A caller passing an unrelated element
+     * has a bug, and canonicalizing the whole node as if nothing were excluded would digest content that caller
+     * believed it had left out.
+     */
+    public function test_excluding_a_subtree_from_outside_the_canonicalized_node_is_refused(): void
+    {
+        $document = XMLDocument::createFromString('<root xmlns="urn:t"><scope><keep>k</keep></scope><elsewhere/></root>');
+        $scope = $document->documentElement?->firstElementChild;
+        static::assertInstanceOf(Element::class, $scope);
+        $elsewhere = $document->documentElement?->lastElementChild;
+        static::assertInstanceOf(Element::class, $elsewhere);
+
+        $this->expectException(CanonicalizationFailed::class);
+        $this->expectExceptionMessage('is not inside');
+        (new DomCanonicalizer())->canonicalize($scope, SignatureCanonicalization::EXC_C14N, null, $elsewhere);
+    }
+
     public function test_excluding_a_subtree_leaves_the_document_unchanged(): void
     {
         $document = XMLDocument::createFromString('<root xmlns="urn:t"><keep>k</keep><sig>s</sig></root>');

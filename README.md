@@ -439,6 +439,13 @@ $trustStore = TrustStore::fromCertificates(Certificate::fromFile('service-leaf.p
 This is the strongest option and needs no extra code. Its cost is rotation: when the service replaces its
 certificate you must ship the new one, so keep both in the store across a planned changeover.
 
+**A pin does not combine with revocation checking.** Revocation looks for a list issued by the signer's own
+issuer, and verifies that list against an anchor in the same store. A pinned certificate is not its own issuer,
+so no supplied list covers it and the check fails closed. Adding the issuing CA to the store to fix that also
+makes every certificate that CA ever signed trusted again, which is the exposure the pin existed to close. Pick
+one: pin the peer, or anchor the CA and check revocation. A pin needs revocation less anyway, since you are
+trusting exactly one certificate and withdrawing trust means removing it from your store.
+
 **Or name the identity you expect.** When you have to anchor a CA (short-lived certificates, many endpoints),
 check who signed. The callback runs only after the signature verified and the required parts were confirmed
 covered, and throwing from it refuses the message as any other inbound failure:
@@ -908,7 +915,7 @@ and can be used to drive the signing/encryption engine without the SOAP profile:
   $profile = new SecurityProfile(crypto: new CryptoPolicy(
       acceptedDataEncryptionMethods: [
           DataEncryptionMethod::AES256_GCM,
-          DataEncryptionMethod::AES256_CBC, // CVE-2011-1096: only for a peer that offers nothing better
+          DataEncryptionMethod::AES256_CBC, // only for a peer that offers nothing better
       ],
   ));
   ```

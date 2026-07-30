@@ -34,6 +34,14 @@ final class CanonicalizationFailed extends RuntimeException
         ));
     }
 
+    public static function excludedSubtreeIsElsewhere(Node $node): self
+    {
+        return new self(sprintf(
+            'The subtree to exclude is not inside <%s>, so canonicalizing it would exclude nothing.',
+            (string) $node->nodeName, // psalm's new-Dom stub underspecifies nodeName as mixed; it is a string
+        ));
+    }
+
     public static function nativeError(Node $node, SignatureCanonicalization $method, ?Throwable $previous = null): self
     {
         return new self(
