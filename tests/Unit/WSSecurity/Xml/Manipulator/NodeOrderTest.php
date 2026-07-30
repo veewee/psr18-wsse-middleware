@@ -14,6 +14,7 @@ final class NodeOrderTest extends TestCase
     private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
     private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
+    private const WSSE11 = 'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd';
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
 
     private function security(string $innerXml): Element
@@ -86,6 +87,27 @@ final class NodeOrderTest extends TestCase
         NodeOrder::sort($security);
 
         static::assertSame(['Assertion', 'Signature'], $this->childLocalNames($security));
+    }
+
+    public function test_a_username_token_precedes_the_signature_that_references_it(): void
+    {
+        $security = $this->security('<ds:Signature/><wsse:UsernameToken/>');
+
+        NodeOrder::sort($security);
+
+        static::assertSame(['UsernameToken', 'Signature'], $this->childLocalNames($security));
+    }
+
+    public function test_a_signature_confirmation_precedes_the_signature_that_covers_it(): void
+    {
+        $security = $this->security(
+            '<ds:Signature/>'
+            .'<wsse11:SignatureConfirmation xmlns:wsse11="'.self::WSSE11.'"/>'
+        );
+
+        NodeOrder::sort($security);
+
+        static::assertSame(['SignatureConfirmation', 'Signature'], $this->childLocalNames($security));
     }
 
     public function test_sorting_is_idempotent(): void

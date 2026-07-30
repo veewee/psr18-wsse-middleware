@@ -27,19 +27,21 @@ final class NodeOrder
     private const SAML20_ASSERTION = 'urn:oasis:names:tc:SAML:2.0:assertion';
 
     /**
-     * The canonical sequence, by namespace URI + local name. A SAML assertion is a security token, so it
-     * precedes the Signature that may reference it. Children not in this list keep their relative order
-     * after the known ones.
+     * The canonical sequence, by namespace URI + local name. Every security token (binary, username, SAML)
+     * precedes the Signature that may reference it, and so does a SignatureConfirmation, which a response
+     * signature may cover. Children not in this list keep their relative order after the known ones.
      *
      * @var list<array{0: non-empty-string, 1: string}>
      */
     private const SEQUENCE = [
         [WsseNamespaces::Wsse->value, 'BinarySecurityToken'],
+        [WsseNamespaces::Wsse->value, 'UsernameToken'],
         [WsseNamespaces::Wsu->value, 'Timestamp'],
         [self::SAML11_ASSERTION, 'Assertion'],
         [self::SAML20_ASSERTION, 'Assertion'],
         [Namespaces::Xenc->value, 'EncryptedKey'],
         [Namespaces::Xenc->value, 'ReferenceList'],
+        [WsseNamespaces::Wsse11->value, 'SignatureConfirmation'],
         [Namespaces::Ds->value, 'Signature'],
         [Namespaces::Xenc->value, 'EncryptedData'],
     ];
