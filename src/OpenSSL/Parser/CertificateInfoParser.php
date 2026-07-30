@@ -9,6 +9,8 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\CertificateInfo;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\IssuerSerial;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\KeyUsage;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\PublicKeyFamily;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\PublicKeyStrength;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\SerialNumber;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\Thumbprint;
@@ -85,6 +87,39 @@ final class CertificateInfoParser
             $subjectKeyIdentifierHex !== null ? SubjectKeyIdentifier::fromHex($subjectKeyIdentifierHex) : null,
             $keyUsage !== null ? KeyUsage::fromExtension($keyUsage) : null,
             Thumbprint::fromRawBytes($fingerprint),
+            $this->publicKeyStrength($certificate),
         );
+    }
+
+    /**
+     * The public key's family and size. Null when the key cannot be read at all: a certificate whose key is
+     * unreadable fails the signature check anyway, so refusing here would only move the same refusal earlier.
+     */
+    private function publicKeyStrength(Certificate $certificate): ?PublicKeyStrength
+    {
+        $key = openssl_pkey_get_public($certificate->contents());
+        if ($key === false) {
+            return null;
+        }
+
+        $details = openssl_pkey_get_details($key);
+        if ($details === false) {
+            return null;
+        }
+
+        $bits = $details['bits'] ?? null;
+        $type = $details['type'] ?? null;
+        if (!is_int($bits) || !is_int($type)) {
+            return null;
+        }
+
+        $family = match ($type) {
+            OPENSSL_KEYTYPE_RSA => PublicKeyFamily::Rsa,
+            OPENSSL_KEYTYPE_DSA => PublicKeyFamily::Dsa,
+            OPENSSL_KEYTYPE_EC => PublicKeyFamily::Ec,
+            default => PublicKeyFamily::Other,
+        };
+
+        return new PublicKeyStrength($family, $bits);
     }
 }

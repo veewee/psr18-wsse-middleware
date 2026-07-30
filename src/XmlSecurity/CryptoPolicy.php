@@ -10,6 +10,8 @@ use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\PublicKeyFamily;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\PublicKeyStrength;
 
 /**
  * The XML-Security algorithm policy: the outbound algorithm choices and the inbound *accept* allow-lists.
@@ -54,7 +56,17 @@ final class CryptoPolicy
         ?array $acceptedDataEncryptionMethods = null,
         ?array $acceptedOaepHashes = null,
         ?array $acceptedCanonicalizations = null,
+        private readonly int $minimumRsaKeyBits = 1024,
+        private readonly int $minimumEcKeyBits = 224,
     ) {
+        // WS-Security predates the 2048-bit norm and this is a client library: the peer chooses its own key, so
+        // the floor admits the sizes legacy services still run and refuses only the sizes that are broken
+        // outright. Raise it when your peer allows. Nothing else enforces this, since OpenSSL's path validation
+        // carries no key-size policy (its security levels govern TLS handshakes, not certificate chains).
+        if ($minimumRsaKeyBits < 1 || $minimumEcKeyBits < 1) {
+            throw new InvalidArgumentException('A minimum key size must be a positive number of bits.');
+        }
+
         $this->acceptedSignatureMethods = self::requireNonEmpty($acceptedSignatureMethods ?? [
             SignatureMethod::RSA_SHA256,
             SignatureMethod::RSA_SHA384,
@@ -172,5 +184,28 @@ final class CryptoPolicy
     public function acceptsCanonicalization(SignatureCanonicalization $canonicalization): bool
     {
         return in_array($canonicalization, $this->acceptedCanonicalizations, true);
+    }
+
+    public function acceptsRsaKeyBits(int $bits): bool
+    {
+        return $bits >= $this->minimumRsaKeyBits;
+    }
+
+    public function acceptsEcKeyBits(int $bits): bool
+    {
+        return $bits >= $this->minimumEcKeyBits;
+    }
+
+    /**
+     * Whether a signer's key clears the floor for its own family. A key family this library cannot verify with
+     * has no floor to clear and is left to the signature check, which refuses it for a reason of its own.
+     */
+    public function acceptsPublicKeyStrength(PublicKeyStrength $strength): bool
+    {
+        return match ($strength->family) {
+            PublicKeyFamily::Rsa, PublicKeyFamily::Dsa => $this->acceptsRsaKeyBits($strength->bits),
+            PublicKeyFamily::Ec => $this->acceptsEcKeyBits($strength->bits),
+            PublicKeyFamily::Other => true,
+        };
     }
 }

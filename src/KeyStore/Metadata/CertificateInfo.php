@@ -22,6 +22,7 @@ final readonly class CertificateInfo
         private ?SubjectKeyIdentifier $subjectKeyIdentifier,
         private ?KeyUsage $keyUsage,
         private Thumbprint $thumbprint,
+        private ?PublicKeyStrength $publicKeyStrength = null,
     ) {
     }
 
@@ -62,6 +63,14 @@ final readonly class CertificateInfo
     public function validity(): ValidityWindow
     {
         return $this->validity;
+    }
+
+    /**
+     * The public key's family and size, or null when the key could not be read.
+     */
+    public function publicKeyStrength(): ?PublicKeyStrength
+    {
+        return $this->publicKeyStrength;
     }
 
     public function keyUsage(): ?KeyUsage

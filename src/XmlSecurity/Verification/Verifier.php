@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CertificateTrustException;
+use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
@@ -95,6 +96,7 @@ final class Verifier implements XmlSignatureVerifier
 
         $chain = $this->certificateExtractor->extract($document, $signature, $policy->trustStore);
         $signer = $this->establishTrust($chain, $policy);
+        $this->assertKeyStrongEnough($signer, $policy);
 
         $resolved = $this->referenceResolver->resolve(
             $document,
@@ -135,6 +137,27 @@ final class Verifier implements XmlSignatureVerifier
             return $this->trustResolver->verifyTrust($chain, $policy->trustStore);
         } catch (CertificateTrustException) {
             throw SignatureVerificationFailed::withReason('The signer certificate is not trusted.');
+        }
+    }
+
+    /**
+     * A valid chain says nothing about how big the signer's key is, and OpenSSL's path validation carries no
+     * key-size policy of its own, so the floor the crypto policy states is applied here. It runs with trust,
+     * before any reference resolution or digesting, so a weak signer never learns which references resolved.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function assertKeyStrongEnough(TrustedSigner $signer, VerificationPolicy $policy): void
+    {
+        try {
+            $strength = $signer->certificate()->info()->publicKeyStrength();
+        } catch (CryptoOperationFailed) {
+            throw SignatureVerificationFailed::withReason('The signer certificate is not trusted.');
+        }
+
+        // An unreadable key is left to the signature check, which cannot verify with it either.
+        if ($strength !== null && !$policy->crypto->acceptsPublicKeyStrength($strength)) {
+            throw SignatureVerificationFailed::withReason('The signer key is weaker than the policy accepts.');
         }
     }
 

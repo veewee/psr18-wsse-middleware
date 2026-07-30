@@ -60,6 +60,15 @@ final class WsseSignatureFixture
     }
 
     /**
+     * A CA-signed leaf whose own key is deliberately too small, for the key-strength policy cases. The chain is
+     * genuinely valid: only the modulus is weak.
+     */
+    public static function caSignedLeafWithRsaBits(int $bits): self
+    {
+        return self::caSignedLeafWithKey(self::rsaKey($bits));
+    }
+
+    /**
      * A leaf key and certificate signed by a generated CA, using an elliptic-curve leaf key so the round trip
      * exercises the ECDSA signing and verification path.
      */
@@ -225,9 +234,9 @@ final class WsseSignatureFixture
         );
     }
 
-    private static function rsaKey(): OpenSSLAsymmetricKey
+    private static function rsaKey(int $bits = 2048): OpenSSLAsymmetricKey
     {
-        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        $key = openssl_pkey_new(['private_key_bits' => $bits, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
         if ($key === false) {
             throw new RuntimeException('Unable to generate an RSA key.');
         }

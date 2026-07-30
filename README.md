@@ -918,6 +918,15 @@ and can be used to drive the signing/encryption engine without the SOAP profile:
   ```
 - `?array $acceptedOaepHashes = null`: the inbound allow-list for the OAEP hash on an inbound `EncryptedKey`.
   Default: SHA-1 and SHA-256.
+- `int $minimumRsaKeyBits = 1024`: the smallest RSA (or DSA) signer key accepted inbound. The allow-lists gate
+  *which* algorithm a peer may use, not how big its key is, and OpenSSL's certificate-path validation carries no
+  key-size policy of its own (its security levels govern TLS handshakes, not chains), so without this a 512-bit
+  RSA signer chaining to your anchor is accepted. The default admits the sizes legacy WS-Security services still
+  run and refuses only the sizes that are broken outright: 512-bit RSA is factorable in hours. **Raise it to
+  `2048` if your peer allows** — this is a client library, so you cannot choose the server's key, but you can
+  refuse to accept a bad one.
+- `int $minimumEcKeyBits = 224`: the same floor for elliptic-curve signers, measured separately because 256 bits
+  is a strong EC key and a broken RSA one. P-256 and up clear it.
 - `?array $acceptedCanonicalizations = null`: the inbound allow-list for the canonicalization on an inbound
   signature. Default: the exclusive variants only (`SignatureCanonicalization::EXC_C14N` and
   `EXC_C14N_COMMENTS`). The inclusive variants are not the WSSE norm, so accepting them only widens the attack
