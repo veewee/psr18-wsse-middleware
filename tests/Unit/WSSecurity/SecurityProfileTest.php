@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -24,6 +25,27 @@ final class SecurityProfileTest extends TestCase
 
         static::assertSame(120, $profile->timestampTtl());
         static::assertSame(30, $profile->clockSkew());
+    }
+
+    public function test_it_refuses_a_timestamp_window_that_is_not_positive(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The timestamp TTL must be a positive number of seconds.');
+
+        new SecurityProfile(timestampTtl: 0);
+    }
+
+    public function test_it_refuses_a_negative_clock_skew(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The clock skew must not be negative.');
+
+        new SecurityProfile(clockSkew: -1);
+    }
+
+    public function test_a_zero_clock_skew_is_allowed(): void
+    {
+        static::assertSame(0, (new SecurityProfile(clockSkew: 0))->clockSkew());
     }
 
     public function test_it_composes_the_secure_default_crypto_policy(): void

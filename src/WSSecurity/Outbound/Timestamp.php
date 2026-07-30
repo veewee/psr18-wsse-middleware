@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
 use Dom\Element;
+use InvalidArgumentException;
 use Psl\DateTime\SecondsStyle;
 use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\Clock\Clock;
@@ -29,12 +30,16 @@ final class Timestamp implements OutboundAction
     private Clock $clock;
 
     /**
-     * @param positive-int|null $ttl seconds until expiry; null takes the window from the security profile, so
-     *                               an operator narrowing it there narrows it in both directions
+     * @param int|null $ttl seconds until expiry, which must be positive; null takes the window from the
+     *                      security profile, so an operator narrowing it there narrows both directions
      */
     public function __construct(
         private readonly ?int $ttl = null,
     ) {
+        if ($ttl !== null && $ttl < 1) {
+            throw new InvalidArgumentException('The timestamp TTL must be a positive number of seconds.');
+        }
+
         $this->clock = new SystemClock();
     }
 

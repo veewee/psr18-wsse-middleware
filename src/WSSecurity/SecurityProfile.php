@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity;
 
+use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 /**
@@ -34,6 +35,16 @@ final class SecurityProfile
         private readonly ?string $actorOrRole = null,
         private readonly bool $mustUnderstand = true,
     ) {
+        // The window is checked here rather than left to a static-analysis annotation: the TTL also drives the
+        // outbound Expires, where a non-positive value would emit a token that expired before it was created.
+        if ($timestampTtl < 1) {
+            throw new InvalidArgumentException('The timestamp TTL must be a positive number of seconds.');
+        }
+
+        if ($clockSkew < 0) {
+            throw new InvalidArgumentException('The clock skew must not be negative.');
+        }
+
         $this->crypto = $crypto ?? CryptoPolicy::default();
     }
 

@@ -5,6 +5,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use InvalidArgumentException;
 use Psl\DateTime\SecondsStyle;
 use Psl\DateTime\Timestamp as Instant;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
@@ -91,6 +92,14 @@ final class TimestampTest extends OutboundTestCase
         (new Timestamp(600))($this->context($document));
 
         static::assertSame(600, $this->ttlDelta($document));
+    }
+
+    public function test_it_refuses_a_block_ttl_that_is_not_positive(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The timestamp TTL must be a positive number of seconds.');
+
+        new Timestamp(0);
     }
 
     public function test_created_and_expires_use_millisecond_precision(): void
