@@ -19,8 +19,14 @@ use Throwable;
  * verified signature: Decrypt and VerifySignature are independent inbound blocks with no ordering or
  * coverage coupling between them. CBC stays in the default inbound allow-list because peers commonly send
  * it; a deployment that wants authenticated encryption guaranteed narrows the accepted data encryption
- * methods to the GCM ciphers. What removes the padding oracle either way is that every decrypt failure
- * collapses to one uniform error, revealing nothing about which step failed.
+ * methods to the GCM ciphers.
+ *
+ * The uniform decrypt failure does not close the padding oracle, and must not be read as doing so. It hides
+ * which step failed; an oracle only needs whether the message was accepted, and a caller who can trigger
+ * requests observes that from the difference between a returned response and a thrown one. Recovering a CBC
+ * plaintext byte by byte therefore stays possible for a peer that can replay a captured EncryptedKey beside
+ * a mangled CipherValue. Only narrowing the allow-list to GCM, or coupling a CBC part to a region a verified
+ * signature covered, removes it.
  */
 final class Cipher
 {

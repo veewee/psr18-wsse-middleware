@@ -350,8 +350,10 @@ The wrapped session key is read from the `wsse:Security` header addressed to you
 refused rather than decrypted against an `xenc:EncryptedKey` found elsewhere in the envelope: your certificate is
 public, so anyone can wrap a key to you, and nothing about a key's position makes it yours.
 
-Any decryption failure collapses to one uniform `SecurityFault` that does not reveal which step failed, so the
-middleware cannot be used as a padding oracle.
+Any decryption failure collapses to one uniform `SecurityFault` that does not reveal which step failed. That
+hides *which* step failed, not *whether* it did: a caller who can trigger requests still sees the difference
+between a returned response and a thrown one. If you accept AES-CBC, read the note on
+`acceptedDataEncryptionMethods` below.
 
 ## Inbound: `VerifySignature`
 
@@ -820,8 +822,11 @@ and can be used to drive the signing/encryption engine without the SOAP profile:
 - `?array $acceptedDataEncryptionMethods = null`: the inbound allow-list for bulk ciphers. Default: AES-GCM and
   AES-CBC at 128/192/256, rejecting 3DES. The CBC ciphers are accepted because peers commonly send them, but
   only the GCM ciphers authenticate their own ciphertext, and this library does not require an encrypted part
-  to also be covered by a verified signature. If your peer can encrypt with GCM, narrow the list and get
-  authenticated encryption guaranteed rather than assumed:
+  to also be covered by a verified signature. **Accepting CBC exposes your peer's plaintext**, not just its
+  integrity: a party who can make your client send requests can replay a captured `xenc:EncryptedKey` beside a
+  mangled `CipherValue` and read accept-or-reject from each reply, which recovers the plaintext byte by byte.
+  If your peer can encrypt with GCM, narrow the list and get authenticated encryption guaranteed rather than
+  assumed:
   ```php
   use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 
