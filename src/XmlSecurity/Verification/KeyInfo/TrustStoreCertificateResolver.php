@@ -5,6 +5,8 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo;
 
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\SubjectKeyIdentifier;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\Thumbprint;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
@@ -35,21 +37,23 @@ final class TrustStoreCertificateResolver
 
     private function resolveByKeyIdentifier(CertificateReference $reference, TrustStore $trustStore): Certificate
     {
+        // The reference is decoded to the octets it names, so an identifier rendered with different base64
+        // line breaks or padding than the one computed here still matches the certificate it points at.
         // Every kind is handled: an identifier this library cannot name was refused while ds:KeyInfo was read,
         // so there is no unsupported case left to reject here.
-        $identifierOf = match ($reference->kind) {
-            KeyIdentifierKind::SubjectKeyIdentifier
-                => static fn (Certificate $candidate): string => $candidate->info()->subjectKeyIdentifier()->toBase64(),
-            KeyIdentifierKind::ThumbprintSha1
-                => static fn (Certificate $candidate): string => $candidate->info()->thumbprintSha1()->toBase64(),
-            null => throw SignatureVerificationFailed::withReason('The key identifier names no supported identifier.'),
-        };
+        try {
+            $matches = match ($reference->kind) {
+                KeyIdentifierKind::SubjectKeyIdentifier => $this->matchingSubjectKeyIdentifier($reference->reference),
+                KeyIdentifierKind::ThumbprintSha1 => $this->matchingThumbprint($reference->reference),
+                null => throw SignatureVerificationFailed::withReason(
+                    'The key identifier names no supported identifier.',
+                ),
+            };
+        } catch (CryptoOperationFailed) {
+            throw SignatureVerificationFailed::withReason('The key identifier is not a readable identifier.');
+        }
 
-        return $this->uniqueMatch(
-            $trustStore,
-            static fn (string $candidate): bool => $candidate === $reference->reference,
-            $identifierOf,
-        );
+        return $this->uniqueMatch($trustStore, $matches);
     }
 
     private function resolveByIssuerSerial(CertificateReference $reference, TrustStore $trustStore): Certificate
@@ -78,20 +82,44 @@ final class TrustStoreCertificateResolver
     }
 
     /**
+     * @throws CryptoOperationFailed when the reference does not decode to identifier octets
+     *
+     * @return callable(Certificate): bool
+     */
+    private function matchingSubjectKeyIdentifier(string $reference): callable
+    {
+        $wanted = SubjectKeyIdentifier::fromBase64($reference);
+
+        return static fn (Certificate $candidate): bool
+            => $candidate->info()->subjectKeyIdentifier()->equals($wanted);
+    }
+
+    /**
+     * @throws CryptoOperationFailed when the reference does not decode to identifier octets
+     *
+     * @return callable(Certificate): bool
+     */
+    private function matchingThumbprint(string $reference): callable
+    {
+        $wanted = Thumbprint::fromBase64($reference);
+
+        return static fn (Certificate $candidate): bool => $candidate->info()->thumbprintSha1()->equals($wanted);
+    }
+
+    /**
      * Selects the single trust store certificate whose computed identifier matches. Computing the identifier may
      * fail for a candidate that lacks the field (a CA without a Subject Key Identifier, say); such a candidate
      * simply does not match rather than aborting the search.
      *
-     * @param callable(string): bool $matches
-     * @param callable(Certificate): string $identifierOf
+     * @param callable(Certificate): bool $matches
      */
-    private function uniqueMatch(TrustStore $trustStore, callable $matches, callable $identifierOf): Certificate
+    private function uniqueMatch(TrustStore $trustStore, callable $matches): Certificate
     {
         $found = array_values(array_filter(
             $trustStore->anchors(),
-            static function (Certificate $candidate) use ($matches, $identifierOf): bool {
+            static function (Certificate $candidate) use ($matches): bool {
                 try {
-                    return $matches(trim($identifierOf($candidate)));
+                    return $matches($candidate);
                 } catch (CryptoOperationFailed) {
                     return false;
                 }

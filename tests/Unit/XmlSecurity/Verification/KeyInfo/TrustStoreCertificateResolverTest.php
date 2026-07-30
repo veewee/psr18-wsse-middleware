@@ -54,6 +54,39 @@ final class TrustStoreCertificateResolverTest extends TestCase
         static::assertSame($fixture->leafCertificate, $resolved);
     }
 
+    /**
+     * Java stacks have historically wrapped base64 at 76 characters, so an identifier naming the right bytes
+     * can arrive rendered differently. The match is on the octets the reference names, not on their spelling.
+     */
+    public function test_it_resolves_an_identifier_whose_base64_is_line_wrapped(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $base64 = $fixture->leafCertificate->info()->subjectKeyIdentifier()->toBase64();
+        $reference = CertificateReference::keyIdentifier(
+            KeyIdentifierKind::SubjectKeyIdentifier,
+            implode("\n", str_split($base64, 8)),
+        );
+
+        $resolved = (new TrustStoreCertificateResolver())->resolve(
+            $reference,
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+        );
+
+        static::assertSame($fixture->leafCertificate, $resolved);
+    }
+
+    public function test_it_refuses_an_identifier_that_is_not_base64(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $reference = CertificateReference::keyIdentifier(KeyIdentifierKind::SubjectKeyIdentifier, 'not base64 $$$');
+
+        $this->expectException(SignatureVerificationFailed::class);
+        (new TrustStoreCertificateResolver())->resolve(
+            $reference,
+            TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
+        );
+    }
+
     public function test_it_resolves_a_unique_issuer_serial_match(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
