@@ -41,6 +41,18 @@ final class CipherTest extends TestCase
         static::assertSame($plaintext, $cipher->decrypt($cipherText, $key, $method));
     }
 
+    #[DataProvider('methods')]
+    public function test_it_refuses_a_session_key_of_a_length_the_method_does_not_use(DataEncryptionMethod $method, int $keySize): void
+    {
+        $cipher = new Cipher();
+        // A key length no method here shares with its own: 3DES accepting 16 bytes would silently run
+        // two-key 3DES under a URI promising three.
+        $key = SessionKey::fromBytes(random_bytes($keySize === 16 ? 24 : 16));
+
+        $this->expectException(CryptoOperationFailed::class);
+        $cipher->encrypt('the SOAP body to protect', $key, $method);
+    }
+
     public function test_gcm_uses_a_fresh_96_bit_iv_per_operation(): void
     {
         $cipher = new Cipher();

@@ -138,6 +138,9 @@ final class Cipher
     ): BlockCipher {
         if ($method === DataEncryptionMethod::TRIPLEDES_CBC) {
             $cipher = new TripleDES('cbc');
+            // Pinned before the key is set: the cipher library otherwise expands a two-key session key into
+            // K1||K2||K1, running 3DES at roughly 80-bit strength under a URI that promises three keys.
+            $cipher->setKeyLength(192);
             $cipher->setKey($key);
             $cipher->setIV($iv);
             $cipher->disablePadding();
