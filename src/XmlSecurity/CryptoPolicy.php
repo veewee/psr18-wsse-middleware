@@ -16,7 +16,9 @@ use Soap\Psr18WsseMiddleware\KeyStore\Metadata\PublicKeyStrength;
 /**
  * The XML-Security algorithm policy: the outbound algorithm choices and the inbound *accept* allow-lists.
  * Independent of any SOAP concern, so the signing/encryption engine can be driven without the WS-Security
- * profile. Secure-by-default: omitted allow-lists reject sha1 / rsa-1_5 / 3des.
+ * profile. Secure-by-default, on one rule: an omitted allow-list accepts the algorithms that are sound on
+ * their own and rejects every weak or unauthenticated one (sha1, ripemd160, dsa, rsa-1_5, 3des, AES-CBC), so
+ * reaching a peer that offers nothing better is always a deliberate act.
  *
  * @psalm-immutable
  */
@@ -84,13 +86,15 @@ final class CryptoPolicy
             KeyEncryptionMethod::RSA_OAEP,
             KeyEncryptionMethod::RSA_OAEP_MGF1P,
         ], 'key encryption method');
+        // Only the GCM ciphers authenticate their own ciphertext, and nothing here ties a decrypted part to a
+        // region a verified signature covered. A CBC part is therefore decrypted on a peer's word alone, and the
+        // difference between a returned response and a thrown one tells a caller who can trigger requests
+        // whether their crafted ciphertext was accepted, which recovers the plaintext byte by byte. CBC joins
+        // sha1, rsa-1_5 and 3des as something a deployment names deliberately rather than inherits.
         $this->acceptedDataEncryptionMethods = self::requireNonEmpty($acceptedDataEncryptionMethods ?? [
             DataEncryptionMethod::AES128_GCM,
             DataEncryptionMethod::AES192_GCM,
             DataEncryptionMethod::AES256_GCM,
-            DataEncryptionMethod::AES128_CBC,
-            DataEncryptionMethod::AES192_CBC,
-            DataEncryptionMethod::AES256_CBC,
         ], 'data encryption method');
         $this->acceptedOaepHashes = self::requireNonEmpty($acceptedOaepHashes ?? [
             OaepHash::Sha1,

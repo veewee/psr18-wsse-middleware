@@ -54,17 +54,17 @@ final class EncryptorDecryptorTest extends TestCase
     private const X509_TOKEN = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
 
     /**
-     * The matrix is derived from the default allow-list, so admitting a new data encryption method to the
-     * default policy forces a round-trip row for it here.
+     * Every cipher the engine can drive, whether or not the default policy accepts it inbound: a cipher a
+     * deployment may opt into still has to round-trip. Deriving the matrix from the default allow-list instead
+     * would silently drop rows the moment a cipher becomes opt-in, which is how the CBC rows went missing when
+     * the default narrowed to GCM.
      *
      * @return iterable<string, array{0: DataEncryptionMethod}>
      */
     public static function dataMethods(): iterable
     {
         foreach (DataEncryptionMethod::cases() as $method) {
-            if (CryptoPolicy::default()->acceptsDataEncryptionMethod($method)) {
-                yield $method->name => [$method];
-            }
+            yield $method->name => [$method];
         }
     }
 
@@ -81,7 +81,11 @@ final class EncryptorDecryptorTest extends TestCase
         static::assertCount(1, $this->encryptedData($document));
         static::assertNotNull($this->encryptedKey($document));
 
-        $this->decryptor()->decrypt($document, new DecryptionRequest($this->security($document), $key));
+        $this->decryptor()->decrypt($document, new DecryptionRequest(
+            $this->security($document),
+            $key,
+            new CryptoPolicy(acceptedDataEncryptionMethods: [$method]),
+        ));
 
         static::assertSame($originalBody, $this->innerXml($this->body($document)));
         static::assertCount(0, $this->encryptedData($document));

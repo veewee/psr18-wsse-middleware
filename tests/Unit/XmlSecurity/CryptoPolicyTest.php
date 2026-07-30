@@ -45,6 +45,23 @@ final class CryptoPolicyTest extends TestCase
         static::assertFalse($policy->acceptsDigestMethod(DigestMethod::RIPEMD160));
         static::assertFalse($policy->acceptsKeyEncryptionMethod(KeyEncryptionMethod::RSA_1_5));
         static::assertFalse($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::TRIPLEDES_CBC));
+        // CBC carries no integrity of its own and no block ties a decrypted part to a verified signature, so
+        // it joins the opt-in list rather than being the one weak algorithm accepted silently.
+        static::assertFalse($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES128_CBC));
+        static::assertFalse($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES192_CBC));
+        static::assertFalse($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_CBC));
+    }
+
+    /** A peer that can only encrypt with CBC stays reachable by naming it. */
+    public function test_cbc_can_be_opted_into_for_a_peer_that_offers_nothing_better(): void
+    {
+        $policy = new CryptoPolicy(acceptedDataEncryptionMethods: [
+            DataEncryptionMethod::AES256_GCM,
+            DataEncryptionMethod::AES256_CBC,
+        ]);
+
+        static::assertTrue($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_CBC));
+        static::assertFalse($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES128_CBC));
     }
 
     /** SECURITY: the default allow-list accepts the strong algorithms. */
@@ -58,8 +75,9 @@ final class CryptoPolicyTest extends TestCase
         static::assertTrue($policy->acceptsSignatureMethod(SignatureMethod::ECDSA_SHA512));
         static::assertTrue($policy->acceptsDigestMethod(DigestMethod::SHA256));
         static::assertTrue($policy->acceptsKeyEncryptionMethod(KeyEncryptionMethod::RSA_OAEP));
+        static::assertTrue($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES128_GCM));
+        static::assertTrue($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES192_GCM));
         static::assertTrue($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_GCM));
-        static::assertTrue($policy->acceptsDataEncryptionMethod(DataEncryptionMethod::AES256_CBC));
     }
 
     /**

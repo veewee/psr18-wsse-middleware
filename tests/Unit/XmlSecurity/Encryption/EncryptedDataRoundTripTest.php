@@ -39,6 +39,11 @@ final class EncryptedDataRoundTripTest extends TestCase
         yield 'aes-128-cbc' => [DataEncryptionMethod::AES128_CBC, 16];
     }
 
+    private static function accepting(DataEncryptionMethod $method): CryptoPolicy
+    {
+        return new CryptoPolicy(acceptedDataEncryptionMethods: [$method]);
+    }
+
     public function test_a_data_cipher_outside_the_policy_is_rejected(): void
     {
         // 3DES is off the default allow-list (Sweet32). Without this gate a peer picks the weakest cipher the
@@ -105,7 +110,9 @@ final class EncryptedDataRoundTripTest extends TestCase
         (new EncryptedDataBuilder((new WsuIdConvention())->minter()))->build($document, $body, $cipherText, $method, EncryptionMode::Content);
 
         $encryptedData = $this->onlyEncryptedData($document);
-        (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key, CryptoPolicy::default());
+        // The policy names the cipher under test: CBC is opt-in, so CryptoPolicy::default() would refuse it and
+        // the round trip would only ever cover GCM.
+        (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key, self::accepting($method));
 
         static::assertSame($original, $this->innerXml($this->body($document)));
     }
@@ -123,7 +130,7 @@ final class EncryptedDataRoundTripTest extends TestCase
         (new EncryptedDataBuilder((new WsuIdConvention())->minter()))->build($document, $custom, $cipherText, $method, EncryptionMode::Element);
 
         $encryptedData = $this->onlyEncryptedData($document);
-        (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key, CryptoPolicy::default());
+        (new EncryptedDataReader(new Cipher()))->read($document, $encryptedData, $key, self::accepting($method));
 
         static::assertStringContainsString('<app:Custom', $document->toXmlString());
         static::assertStringContainsString('payload', $document->toXmlString());

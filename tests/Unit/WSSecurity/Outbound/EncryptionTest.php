@@ -285,7 +285,12 @@ final class EncryptionTest extends OutboundTestCase
         static::assertSame(DataEncryptionMethod::AES256_CBC->value, $method->getAttribute('Algorithm'));
 
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup())))
-            ->decrypt($document, new DecryptionRequest($this->security($document), $key));
+            ->decrypt($document, new DecryptionRequest(
+                $this->security($document),
+                $key,
+                // CBC is opt-in inbound, so reading back what this block deliberately emitted needs it named.
+                new CryptoPolicy(acceptedDataEncryptionMethods: [DataEncryptionMethod::AES256_CBC]),
+            ));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
     }
