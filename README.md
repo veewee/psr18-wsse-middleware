@@ -82,6 +82,21 @@ Every block is a small, immutable value object you drop into the `outbound` or `
 documents each one: a short example, then every constructor argument and fluent method with its default and
 what it expects.
 
+## The order to list them in
+
+Blocks run in the order you write them, and the order is part of your security policy. Nothing inspects the
+list you compose, so these are yours to get right:
+
+- **Outbound:** `Timestamp`, then the tokens (`Username`, `BinarySecurityToken`, `SamlAssertion`), then
+  `Signature`, then `Encryption`. Signing before encrypting is what lets the receiver verify the signature over
+  the plaintext it will read.
+- **Inbound:** `Decrypt`, then `VerifySignature`, then `ValidateTimestamp`. Verifying before decrypting fails
+  closed against an encrypt-then-sign peer, so that mistake breaks loudly rather than silently.
+- **An empty `inbound` list checks nothing.** A client that signs every request and accepts any response at all
+  is a valid configuration as far as this middleware is concerned. If you sign outbound, verify inbound.
+- **`ValidateTimestamp` needs a signed timestamp** and **`VerifySignature` needs you to name the parts you
+  depend on**; both are covered in their own sections below.
+
 ## Outbound: `Timestamp`
 
 Stamps the message with a created/expires window so the receiver can reject a stale or replayed call. It writes
@@ -355,6 +370,11 @@ hides *which* step failed, not *whether* it did: a caller who can trigger reques
 between a returned response and a thrown one. If you accept AES-CBC, read the note on
 `acceptedDataEncryptionMethods` below.
 
+**This block does not require anything to have arrived encrypted.** It decrypts what the response marks as
+encrypted; it has no counterpart to `VerifySignature`'s `signed:` list. A peer, or a gateway in front of it,
+that stops encrypting the sensitive region sends plaintext and nothing objects. If that matters to you, check
+the region is present and shaped as you expect in your own application code after the exchange.
+
 ## Inbound: `VerifySignature`
 
 Verifies the response signature and confirms that the parts you require were actually signed by a trusted
@@ -442,6 +462,17 @@ in the future, each within the configured clock skew.
 This is not replay detection. There is no nonce cache, so a captured response replayed inside the freshness
 window is accepted; what the block does is bound how long that window stays open. Narrow `timestampTtl` and
 `clockSkew` to shrink it.
+
+**Pair it with a signed timestamp.** This block reads `wsu:Created` and `wsu:Expires` as text and cannot tell
+whether anyone vouched for them. Unless `Part::timestamp()` is in `VerifySignature`'s `signed:` list, a peer
+rewrites both values and the window is unbounded, which makes this block decorative. Register the two together:
+
+```php
+inbound: [
+    new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]),
+    new Inbound\ValidateTimestamp(),
+],
+```
 
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
