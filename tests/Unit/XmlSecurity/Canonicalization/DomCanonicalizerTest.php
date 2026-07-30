@@ -164,6 +164,88 @@ final class DomCanonicalizerTest extends TestCase
         );
     }
 
+    /**
+     * A reference may cover an element the signature it is verifying sits inside, and the attacker controls
+     * that element's size. Excluding the signature subtree must therefore cost time proportional to the node
+     * count, not to node count times depth times a re-resolved path. The bound is deliberately loose: the
+     * quadratic form takes seconds here, a linear one milliseconds.
+     */
+    public function test_excluding_a_subtree_stays_affordable_on_a_wide_element(): void
+    {
+        $document = XMLDocument::createFromString(
+            '<root xmlns="urn:wide">'.str_repeat('<pad>x</pad>', 6400).'<sig><inner>s</inner></sig></root>',
+        );
+        $root = $document->documentElement;
+        static::assertInstanceOf(Element::class, $root);
+        $signature = $root->lastElementChild;
+        static::assertInstanceOf(Element::class, $signature);
+
+        $started = microtime(true);
+        (new DomCanonicalizer())->canonicalize($root, SignatureCanonicalization::EXC_C14N, null, $signature);
+
+        static::assertLessThan(2.0, microtime(true) - $started);
+    }
+
+    public function test_excluding_a_subtree_leaves_the_document_unchanged(): void
+    {
+        $document = XMLDocument::createFromString('<root xmlns="urn:t"><keep>k</keep><sig>s</sig></root>');
+        $root = $document->documentElement;
+        static::assertInstanceOf(Element::class, $root);
+        $signature = $root->lastElementChild;
+        static::assertInstanceOf(Element::class, $signature);
+        $before = $document->saveXml();
+
+        (new DomCanonicalizer())->canonicalize($root, SignatureCanonicalization::EXC_C14N, null, $signature);
+
+        static::assertSame($before, $document->saveXml());
+    }
+
+    /**
+     * The exclusion addresses one node instance, so a look-alike sibling must stay in the digest. Excluding by
+     * name would drop every element sharing it.
+     */
+    public function test_only_the_named_instance_is_excluded_not_its_look_alikes(): void
+    {
+        $document = XMLDocument::createFromString('<root xmlns="urn:t"><sig>decoy</sig><sig>real</sig></root>');
+        $root = $document->documentElement;
+        static::assertInstanceOf(Element::class, $root);
+        $signature = $root->lastElementChild;
+        static::assertInstanceOf(Element::class, $signature);
+
+        $canonical = (new DomCanonicalizer())->canonicalize($root, SignatureCanonicalization::EXC_C14N, null, $signature);
+
+        static::assertStringContainsString('decoy', $canonical);
+        static::assertStringNotContainsString('real', $canonical);
+    }
+
+    /**
+     * Excluding the very node being canonicalized leaves nothing, which must be refused rather than answered
+     * with the bytes of the subtree the caller asked to leave out.
+     */
+    public function test_excluding_the_canonicalized_node_itself_is_refused(): void
+    {
+        $document = XMLDocument::createFromString('<root xmlns="urn:t"><sig>s</sig></root>');
+        $signature = $document->documentElement?->firstElementChild;
+        static::assertInstanceOf(Element::class, $signature);
+
+        $this->expectException(CanonicalizationFailed::class);
+        $this->expectExceptionMessage('would leave nothing to digest');
+        (new DomCanonicalizer())->canonicalize($signature, SignatureCanonicalization::EXC_C14N, null, $signature);
+    }
+
+    public function test_excluding_an_ancestor_of_the_canonicalized_node_is_refused(): void
+    {
+        $document = XMLDocument::createFromString('<root xmlns="urn:t"><sig><inner>s</inner></sig></root>');
+        $signature = $document->documentElement?->firstElementChild;
+        static::assertInstanceOf(Element::class, $signature);
+        $inner = $signature->firstElementChild;
+        static::assertInstanceOf(Element::class, $inner);
+
+        $this->expectException(CanonicalizationFailed::class);
+        $this->expectExceptionMessage('would leave nothing to digest');
+        (new DomCanonicalizer())->canonicalize($inner, SignatureCanonicalization::EXC_C14N, null, $signature);
+    }
+
     private function newBody(): Element
     {
         $document = XMLDocument::createFromString($this->envelope());
