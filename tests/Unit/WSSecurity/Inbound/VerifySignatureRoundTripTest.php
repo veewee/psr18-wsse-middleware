@@ -6,8 +6,10 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 use Dom\Element;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
@@ -70,6 +72,71 @@ final class VerifySignatureRoundTripTest extends TestCase
 
         // Reaching here is the pass: the block throws rather than returning a verdict.
         static::assertStringContainsString('<soap:Body', $document->toXmlString());
+    }
+
+    /**
+     * Chaining to an anchor proves someone the CA vouched for signed the message, never that your service did.
+     * The block therefore hands the verified signer back, so an application anchoring a CA can still compare
+     * the identity it expected.
+     */
+    public function test_it_hands_the_verified_signer_to_the_callback(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
+        $seen = null;
+
+        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))
+            ->onTrustedSigner(static function (TrustedSigner $signer) use (&$seen): void {
+                $seen = $signer;
+            })(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+
+        static::assertInstanceOf(TrustedSigner::class, $seen);
+        static::assertStringContainsString('WSSE', $seen->subjectDistinguishedName()->toString());
+        static::assertSame($fixture->leafCertificate->toBase64Der(), $seen->certificate()->toBase64Der());
+    }
+
+    public function test_a_callback_that_rejects_the_signer_refuses_the_message_uniformly(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
+
+        $block = (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))
+            ->onTrustedSigner(static function (TrustedSigner $signer): void {
+                if ($signer->subjectDistinguishedName()->toString() !== 'CN=some other service') {
+                    throw new RuntimeException('unexpected peer: ' . $signer->subjectDistinguishedName()->toString());
+                }
+            });
+
+        try {
+            $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            static::fail('Expected the rejected signer to refuse the message.');
+        } catch (SecurityFault $fault) {
+            // The reason reaches the log, never the message a peer could read.
+            static::assertSame('The inbound security header could not be processed.', $fault->getMessage());
+            static::assertInstanceOf(RuntimeException::class, $fault->getPrevious());
+            static::assertStringContainsString('unexpected peer', (string) $fault->getPrevious()?->getMessage());
+        }
+    }
+
+    public function test_the_callback_only_runs_once_coverage_has_been_asserted(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        // Only the Timestamp is signed, so the default body requirement refuses the message.
+        $document = $fixture->sign([WsseSignatureFixture::timestampTarget()], withTimestamp: true);
+        $ran = false;
+
+        $block = (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))
+            ->onTrustedSigner(static function (TrustedSigner $signer) use (&$ran): void {
+                $ran = true;
+            });
+
+        try {
+            $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        } catch (SecurityFault) {
+            // expected
+        }
+
+        static::assertFalse($ran);
     }
 
     public function test_it_verifies_a_real_ecdsa_signed_body_and_timestamp(): void

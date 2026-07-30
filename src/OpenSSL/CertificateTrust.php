@@ -5,7 +5,9 @@ namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
 use Soap\Psr18WsseMiddleware\Clock\Clock;
 use Soap\Psr18WsseMiddleware\Clock\SystemClock;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\KeyUsage;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\ValidityWindow;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
@@ -55,7 +57,15 @@ final class CertificateTrust
 
         $this->assertWithinValidity($info->validity());
         $this->assertMaySign($info->keyUsage());
-        $this->assertChainsToAnchor($chain, $trust);
+
+        // A store entry may be the peer's own certificate rather than an issuer. That is the only way to say
+        // "this service" instead of "anything that CA issued", and it cannot go through chain building: a
+        // CA-issued certificate does not terminate at a self-signed certificate inside the store, and PHP
+        // exposes no way to ask OpenSSL to accept a partial chain. Every other check still applies, so a
+        // pinned certificate that is expired or forbidden from signing is refused above.
+        if (!$this->isPinned($leaf, $trust)) {
+            $this->assertChainsToAnchor($chain, $trust);
+        }
 
         // Revocation runs last, once the certificate is known to chain to an anchor: asking whether an untrusted
         // certificate is revoked is meaningless, and the revocation lists are verified against those same anchors.
@@ -64,6 +74,32 @@ final class CertificateTrust
         }
 
         return new TrustedSigner($info->subject(), $leaf);
+    }
+
+    /**
+     * Whether the presented certificate is itself one of the store entries, compared as DER so a difference in
+     * PEM line wrapping or surrounding text cannot decide trust. An entry that cannot be decoded is skipped
+     * rather than aborting the search, matching how the rest of the store tolerates an unusable entry.
+     */
+    private function isPinned(Certificate $leaf, TrustStore $trust): bool
+    {
+        try {
+            $presented = $leaf->toBase64Der();
+        } catch (InvalidCertificate) {
+            return false;
+        }
+
+        foreach ($trust->anchors() as $anchor) {
+            try {
+                if (hash_equals($anchor->toBase64Der(), $presented)) {
+                    return true;
+                }
+            } catch (InvalidCertificate) {
+                continue;
+            }
+        }
+
+        return false;
     }
 
     private function assertWithinValidity(ValidityWindow $validity): void

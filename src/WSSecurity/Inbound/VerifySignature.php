@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
+use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
@@ -18,6 +19,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\Verifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\XmlSignatureVerifier;
+use Throwable;
 
 /**
  * Enforces the signature policy over the evidence the verifier returns. The verifier reports which exact nodes
@@ -34,6 +36,9 @@ final class VerifySignature implements InboundAction
 {
     private XmlSignatureVerifier $verifier;
     private readonly RequiredPartsValidator $requiredParts;
+
+    /** @var (callable(TrustedSigner): void)|null */
+    private $signerCheck = null;
 
     /**
      * A signature must cover the Body unless the caller says otherwise, so the shorter call is not the weaker
@@ -70,6 +75,26 @@ final class VerifySignature implements InboundAction
     }
 
     /**
+     * Registers a check on who signed the message. Chaining to an anchor establishes that a certificate the
+     * anchor vouched for signed this message, not that your peer did: every other certificate the same issuer
+     * ever signed satisfies it equally. Where the anchor is a CA rather than the peer's own pinned certificate,
+     * this is where an application states which identity it expected.
+     *
+     * The callback runs only after the signature verified and the required parts were confirmed covered, so it
+     * never sees a signer from a message that failed. Throwing from it refuses the message, and the reason is
+     * chained for logs only, so it cannot become an identity oracle for a peer.
+     *
+     * @param callable(TrustedSigner): void $check
+     */
+    public function onTrustedSigner(callable $check): self
+    {
+        $clone = clone $this;
+        $clone->signerCheck = $check;
+
+        return $clone;
+    }
+
+    /**
      * @throws SecurityFault
      */
     public function __invoke(WsseContext $context): void
@@ -97,5 +122,13 @@ final class VerifySignature implements InboundAction
             $this->signed ?? [Part::body()],
             $context->profile()->actorOrRole(),
         );
+
+        if ($this->signerCheck !== null) {
+            try {
+                ($this->signerCheck)($verified->signer);
+            } catch (Throwable $exception) {
+                throw SecurityFault::inboundFailure($exception);
+            }
+        }
     }
 }

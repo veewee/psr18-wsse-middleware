@@ -34,6 +34,49 @@ final class CertificateTrustTest extends TestCase
         static::assertStringContainsString('WSSE Pinned', $signer->subjectDistinguishedName()->toString());
     }
 
+    /**
+     * The store advertises pinned certificates, and pinning the peer's own certificate is the only way to say
+     * "this service" rather than "anything that CA issued". A CA-issued leaf never terminates a chain at a
+     * self-signed certificate inside the store, and PHP exposes no way to ask OpenSSL for a partial chain, so
+     * the pin has to be honoured directly.
+     */
+    public function test_a_pinned_ca_issued_leaf_is_accepted_without_its_issuer(): void
+    {
+        $signer = (new CertificateTrust())->verify(
+            CertificateChain::fromCertificates($this->certificate('leaf.crt')),
+            TrustStore::fromCertificates($this->certificate('leaf.crt')),
+        );
+
+        static::assertStringContainsString('WSSE Leaf', $signer->subjectDistinguishedName()->toString());
+    }
+
+    public function test_a_pinned_leaf_does_not_make_a_sibling_from_the_same_ca_trusted(): void
+    {
+        $this->expectException(CertificateTrustException::class);
+        $this->expectExceptionMessage('does not chain to a configured trust anchor');
+
+        (new CertificateTrust())->verify(
+            CertificateChain::fromCertificates($this->certificate('leaf.crt')),
+            TrustStore::fromCertificates($this->certificate('pinned.crt')),
+        );
+    }
+
+    /**
+     * A pin is a statement about one certificate, not a licence to skip the rest of the checks: an expired or
+     * signing-forbidden certificate stays refused even when it is the pin.
+     */
+    public function test_a_pinned_leaf_is_still_checked_for_expiry(): void
+    {
+        $this->expectException(CertificateTrustException::class);
+
+        (new CertificateTrust())
+            ->withClock(new FrozenClock(Timestamp::fromParts(4102444800)))
+            ->verify(
+                CertificateChain::fromCertificates($this->certificate('leaf.crt')),
+                TrustStore::fromCertificates($this->certificate('leaf.crt')),
+            );
+    }
+
     public function test_a_self_signed_certificate_not_in_the_truststore_is_rejected(): void
     {
         $this->expectException(CertificateTrustException::class);

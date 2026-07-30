@@ -415,10 +415,51 @@ accepted; to accept an inclusive variant, add it to the profile's `acceptedCanon
 [Security profile and defaults](#security-profile-and-defaults)). Every failure cause collapses to one uniform
 `SecurityFault` carrying no step-identifying detail, so the block is never a forgery oracle.
 
-The signer's certificate must chain to a trust anchor, be within its validity window, and: if it carries a
+The signer's certificate must be trusted by the store, be within its validity window, and: if it carries a
 `keyUsage` extension: assert either `digitalSignature` or `nonRepudiation` (`contentCommitment`). A
 certificate with no `keyUsage` extension is not refused on that ground. No Extended Key Usage is required: the
 X.509 Token Profile mandates none, and no registered EKU describes WS-Security message signing.
+
+## Chain validity is not authentication
+
+**If you anchor a CA, you are trusting every certificate that CA ever issued.** The check proves the response
+was signed by *somebody the CA vouched for*, never that it was signed by *your service*. Where the anchor is a
+public root, or a corporate CA that also issues certificates to other services or tenants, anyone holding one of
+those certificates can sign a response your client accepts.
+
+Two ways to close that, and you want at least one:
+
+**Pin the service's own certificate.** Put it in the trust store instead of its issuer. It is matched directly,
+so no chain has to be built:
+
+```php
+$trustStore = TrustStore::fromCertificates(Certificate::fromFile('service-leaf.pub'));
+```
+
+This is the strongest option and needs no extra code. Its cost is rotation: when the service replaces its
+certificate you must ship the new one, so keep both in the store across a planned changeover.
+
+**Or name the identity you expect.** When you have to anchor a CA (short-lived certificates, many endpoints),
+check who signed. The callback runs only after the signature verified and the required parts were confirmed
+covered, and throwing from it refuses the message as any other inbound failure:
+
+```php
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
+
+$expected = DistinguishedName::fromString('CN=payments.example.com,O=Example,C=BE');
+
+(new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]))
+    ->onTrustedSigner(function (TrustedSigner $signer) use ($expected): void {
+        if (!$signer->subjectDistinguishedName()->equals($expected)) {
+            throw new RuntimeException('the response was signed by an unexpected peer');
+        }
+    });
+```
+
+- `onTrustedSigner(callable(TrustedSigner): void $check): self` returns a copy with the check registered.
+  `TrustedSigner` carries `subjectDistinguishedName()` and `certificate()`, so you can compare the subject, or
+  the certificate's own bytes for a per-message pin.
 
 ### Revocation checking (opt-in)
 
@@ -781,9 +822,11 @@ element they expand to; inbound `VerifySignature` requires every such element to
   `BinarySecurityToken`.
 
 `KeyStore\TrustStore::fromCertificates(Certificate ...$anchors)` lists the certificates you trust when verifying a
-response. `->withRevocationLists(CertificateRevocationList ...$lists)` additionally turns on fail-closed
-revocation checking against lists you supply: see
-[Revocation checking](#revocation-checking-opt-in).
+response. Each entry may be a CA to chain up to, or the peer's own certificate, which is honoured as a direct
+pin: the presented certificate must be that exact certificate, byte for byte. A pin is still checked for
+validity and key usage, and pinning one certificate does not extend trust to anything its issuer signed.
+`->withRevocationLists(CertificateRevocationList ...$lists)` additionally turns on fail-closed revocation
+checking against lists you supply: see [Revocation checking](#revocation-checking-opt-in).
 
 # Security profile and defaults
 
