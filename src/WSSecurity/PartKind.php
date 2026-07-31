@@ -10,6 +10,13 @@ enum PartKind
     case Id;
 
     /**
+     * An element named by where it sits rather than only by what it is called: an ordered list of qualified
+     * names from the document element down. Body is this shape with the steps filled in for the message's SOAP
+     * version, so the two lower the same way.
+     */
+    case Path;
+
+    /**
      * A dynamic part standing for every current child of the wsse:Security header. Unlike the others it does
      * not lower to a single Target: the Signature block expands it against the live header at send time, once
      * the earlier blocks (Timestamp, BinarySecurityToken, ...) have added their elements.
@@ -32,7 +39,7 @@ enum PartKind
     {
         return match ($this) {
             self::SecurityHeaderContents, self::SoapHeaders => true,
-            self::Body, self::Element, self::Id => false,
+            self::Body, self::Element, self::Id, self::Path => false,
         };
     }
 }

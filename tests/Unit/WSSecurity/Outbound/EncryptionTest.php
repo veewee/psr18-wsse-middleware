@@ -26,6 +26,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
+use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
@@ -181,7 +182,7 @@ final class EncryptionTest extends OutboundTestCase
 
         $targets = $encryptor->lastRequest()->targets;
         static::assertCount(1, $targets);
-        static::assertTrue($targets[0]->target->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertTrue($targets[0]->target->equals(self::bodyPath()));
         static::assertSame(EncryptionMode::Content, $targets[0]->mode);
     }
 
@@ -194,7 +195,7 @@ final class EncryptionTest extends OutboundTestCase
 
         $targets = $encryptor->lastRequest()->targets;
         static::assertCount(2, $targets);
-        static::assertTrue($targets[0]->target->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertTrue($targets[0]->target->equals(self::bodyPath()));
         static::assertTrue($targets[1]->target->equals(Target::element(self::WSU, 'Timestamp')));
     }
 
@@ -371,5 +372,12 @@ final class EncryptionTest extends OutboundTestCase
         static::assertIsString($certificatePem);
 
         return [new Key($privatePem), new Certificate($certificatePem)];
+    }
+    private static function bodyPath(): Target
+    {
+        return Target::path(
+            new QualifiedName(self::SOAP12, 'Envelope'),
+            new QualifiedName(self::SOAP12, 'Body'),
+        );
     }
 }

@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity;
 
 use LogicException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
+use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
@@ -22,6 +23,7 @@ final readonly class Part
      * @param non-empty-string|null $namespace
      * @param non-empty-string|null $localName
      * @param non-empty-string|null $id
+     * @param list<QualifiedName>   $path
      */
     private function __construct(
         private PartKind $kind,
@@ -29,6 +31,7 @@ final readonly class Part
         private ?string $localName = null,
         private ?string $id = null,
         private ?EncryptionMode $encryptionMode = null,
+        private array $path = [],
     ) {
     }
 
@@ -93,6 +96,16 @@ final readonly class Part
     }
 
     /**
+     * The element at a position in the message rather than the element with a name: the steps run from the
+     * document element down, and each must match exactly one direct child of the one before it. Reach for this
+     * when a name alone would also be answered by the same element sitting somewhere a reader will not look.
+     */
+    public static function path(QualifiedName ...$steps): self
+    {
+        return new self(PartKind::Path, encryptionMode: EncryptionMode::Element, path: array_values($steps));
+    }
+
+    /**
      * @param non-empty-string $id
      */
     public static function byId(string $id): self
@@ -105,7 +118,7 @@ final readonly class Part
      */
     public function withEncryptionMode(EncryptionMode $mode): self
     {
-        return new self($this->kind, $this->namespace, $this->localName, $this->id, $mode);
+        return new self($this->kind, $this->namespace, $this->localName, $this->id, $mode, $this->path);
     }
 
     public function kind(): PartKind
@@ -151,7 +164,23 @@ final readonly class Part
             && $this->namespace === $other->namespace
             && $this->localName === $other->localName
             && $this->id === $other->id
-            && $this->encryptionMode === $other->encryptionMode;
+            && $this->encryptionMode === $other->encryptionMode
+            && $this->samePath($other);
+    }
+
+    private function samePath(self $other): bool
+    {
+        if (count($this->path) !== count($other->path)) {
+            return false;
+        }
+
+        foreach ($this->path as $index => $step) {
+            if (!$step->equals($other->path[$index])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -165,7 +194,13 @@ final readonly class Part
     public function toTarget(SoapVersion $soapVersion): Target
     {
         return match ($this->kind) {
-            PartKind::Body => Target::element($soapVersion->envelopeNamespace(), 'Body'),
+            // The Body is addressed by its position, not merely by its name: a signed Body relocated out of the
+            // envelope would otherwise still answer for the empty slot a reader looks at.
+            PartKind::Body => Target::path(
+                new QualifiedName($soapVersion->envelopeNamespace(), 'Envelope'),
+                new QualifiedName($soapVersion->envelopeNamespace(), 'Body'),
+            ),
+            PartKind::Path => Target::path(...$this->path),
             PartKind::Element => Target::element($this->require($this->namespace), $this->require($this->localName)),
             PartKind::Id => Target::byId($this->require($this->id)),
             PartKind::SecurityHeaderContents, PartKind::SoapHeaders => throw new LogicException(

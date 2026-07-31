@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 
 use Dom\Element;
 use LogicException;
+use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\UniqueMatch;
 use VeeWee\Xml\Dom\Document;
@@ -37,6 +38,7 @@ final class TargetLocator
         return match ($target->kind()) {
             TargetKind::Element => $this->locateElement($document, $target),
             TargetKind::Id => $this->idLookup->lookup($document, $this->requireId($target)),
+            TargetKind::Path => $this->locatePath($document, $target),
         };
     }
 
@@ -49,6 +51,30 @@ final class TargetLocator
     private function requireId(Target $target): string
     {
         return $target->id() ?? throw new LogicException('A Target of kind Id carries no id.');
+    }
+
+    /**
+     * Walks the path one step at a time, requiring exactly one match among the direct children at each. Both an
+     * absent and a duplicated step are refused, so no step is ever resolved by picking a candidate, and a
+     * descendant never satisfies a step that names a child.
+     *
+     * @throws IdReferenceException when a step is absent, duplicated, or names a different document element
+     */
+    private function locatePath(Document $document, Target $target): Element
+    {
+        $steps = $target->steps();
+        $root = $steps[0] ?? throw new LogicException('A Target of kind Path carries no steps.');
+
+        $element = $document->locate(document_element());
+        if (!$root->matches($element)) {
+            throw IdReferenceException::notFound($root->toString());
+        }
+
+        foreach (array_slice($steps, 1) as $step) {
+            $element = UniqueMatch::require(ChildElements::matching($element, $step), $step->toString());
+        }
+
+        return $element;
     }
 
     /**

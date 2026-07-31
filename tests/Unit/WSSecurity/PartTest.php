@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
+use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
@@ -60,13 +61,12 @@ final class PartTest extends TestCase
 
     public function test_it_lowers_the_body_to_the_soap_envelope_body_of_the_version(): void
     {
+        // The Body lowers to its position in the envelope, not to its name alone.
         static::assertTrue(
-            Part::body()->toTarget(SoapVersion::Soap11)
-                ->equals(Target::element('http://schemas.xmlsoap.org/soap/envelope/', 'Body')),
+            Part::body()->toTarget(SoapVersion::Soap11)->equals(self::bodyPath('http://schemas.xmlsoap.org/soap/envelope/')),
         );
         static::assertTrue(
-            Part::body()->toTarget(SoapVersion::Soap12)
-                ->equals(Target::element('http://www.w3.org/2003/05/soap-envelope', 'Body')),
+            Part::body()->toTarget(SoapVersion::Soap12)->equals(self::bodyPath('http://www.w3.org/2003/05/soap-envelope')),
         );
     }
 
@@ -166,5 +166,12 @@ final class PartTest extends TestCase
         $element = Part::element('urn:a', 'X');
 
         static::assertFalse($element->equals($element->withEncryptionMode(EncryptionMode::Content)));
+    }
+    private static function bodyPath(string $envelopeNamespace): Target
+    {
+        return Target::path(
+            new QualifiedName($envelopeNamespace, 'Envelope'),
+            new QualifiedName($envelopeNamespace, 'Body'),
+        );
     }
 }

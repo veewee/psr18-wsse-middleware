@@ -21,6 +21,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
+use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
@@ -116,7 +117,7 @@ final class SignatureTest extends OutboundTestCase
         // Default keyRef embeds a BinarySecurityToken into the Security header, so the default parts resolve to
         // the Body plus the security-header children (the embedded BST here), each targeted by id.
         $targets = $signer->lastRequest()->targets;
-        static::assertTrue($targets[0]->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertTrue($targets[0]->equals(self::bodyPath()));
         static::assertGreaterThanOrEqual(2, count($targets));
         static::assertSame(\Soap\Psr18WsseMiddleware\XmlSecurity\TargetKind::Id, $targets[1]->kind());
     }
@@ -129,7 +130,7 @@ final class SignatureTest extends OutboundTestCase
 
         $targets = $signer->lastRequest()->targets;
         static::assertCount(1, $targets);
-        static::assertTrue($targets[0]->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertTrue($targets[0]->equals(self::bodyPath()));
     }
 
     public function test_direct_reference_embeds_a_bst_and_wires_the_key_info(): void
@@ -304,5 +305,12 @@ final class SignatureTest extends OutboundTestCase
         static::assertIsString($certificatePem);
 
         return new ClientCertificate($certificatePem.$privatePem);
+    }
+    private static function bodyPath(): Target
+    {
+        return Target::path(
+            new QualifiedName(self::SOAP12, 'Envelope'),
+            new QualifiedName(self::SOAP12, 'Body'),
+        );
     }
 }

@@ -37,4 +37,17 @@ final class ChildElements
             ->filter(static fn (Element $child): bool => ElementName::matches($child, $namespace, $localName))
             ->map(static fn (Element $child): Element => $child);
     }
+
+    /**
+     * The same rule for a name that arrives as a value rather than as one of the known namespaces: a step of a
+     * path target, whose namespace is whatever the caller named.
+     *
+     * @return list<Element>
+     */
+    public static function matching(Element $parent, QualifiedName $name): array
+    {
+        return children($parent)
+            ->filter(static fn (Element $child): bool => $name->matches($child))
+            ->map(static fn (Element $child): Element => $child);
+    }
 }

@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetKind;
 use VeeWee\Xml\Dom\Document;
@@ -61,7 +62,7 @@ final class SignatureTargetResolutionTest extends OutboundTestCase
         (new Signature($this->clientCertificate()))->withSigner($signer)($this->context($document));
 
         $targets = $signer->lastRequest()->targets;
-        static::assertTrue($targets[0]->equals(Target::element(self::SOAP12, 'Body')), 'Body is signed first.');
+        static::assertTrue($targets[0]->equals(self::bodyPath()), 'Body is signed first.');
         static::assertGreaterThanOrEqual(2, count($targets), 'Body plus the security-header children are signed.');
         foreach (array_slice($targets, 1) as $target) {
             static::assertSame(TargetKind::Id, $target->kind());
@@ -79,7 +80,7 @@ final class SignatureTargetResolutionTest extends OutboundTestCase
         // No timestamp, SKI reference embeds no token: securityHeaderContents adds nothing, Body still signs.
         $targets = $signer->lastRequest()->targets;
         static::assertCount(1, $targets);
-        static::assertTrue($targets[0]->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertTrue($targets[0]->equals(self::bodyPath()));
     }
 
     public function test_it_throws_when_only_dynamic_parts_match_nothing(): void
@@ -125,5 +126,12 @@ final class SignatureTargetResolutionTest extends OutboundTestCase
         static::assertIsString($certificatePem);
 
         return new ClientCertificate($certificatePem.$privatePem);
+    }
+    private static function bodyPath(): Target
+    {
+        return Target::path(
+            new QualifiedName(self::SOAP12, 'Envelope'),
+            new QualifiedName(self::SOAP12, 'Body'),
+        );
     }
 }

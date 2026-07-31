@@ -806,9 +806,25 @@ A few value objects let you say which parts to protect and how a token is refere
 
 `Part` names the parts a block targets:
 
-- `Part::body()`: the SOAP Body.
+- `Part::body()`: the SOAP Body. Named by its position (`Envelope` then `Body`), not by its name alone, so a
+  signed Body moved out of the envelope no longer answers for the empty slot a reader would look at.
 - `Part::timestamp()`: the `wsu:Timestamp` in the Security header (add a `Timestamp` block to produce one).
-- `Part::element(string $namespace, string $localName)`: a specific element by qualified name.
+- `Part::element(string $namespace, string $localName)`: a specific element by qualified name, wherever it sits
+  in the message. There must be exactly one: two elements sharing the name make the part ambiguous, which is
+  refused rather than resolved by picking one.
+- `Part::path(QualifiedName ...$steps)`: an element by **where it sits** rather than only by what it is called.
+  The steps run from the document element down and each must match exactly one direct child of the one before
+  it, so an element carrying the same name elsewhere never satisfies it. Reach for this instead of
+  `Part::element()` when your application reads the element at a fixed position:
+  ```php
+  use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
+
+  Part::path(
+      new QualifiedName('http://www.w3.org/2003/05/soap-envelope', 'Envelope'),
+      new QualifiedName('http://www.w3.org/2003/05/soap-envelope', 'Body'),
+      new QualifiedName('urn:my-service', 'Order'),
+  );
+  ```
 - `Part::byId(string $id)`: an element by its `wsu:Id`.
 - `Part::usernameToken()` / `Part::binarySecurityToken()`. Shortcuts for the `wsse:UsernameToken` and
   `wsse:BinarySecurityToken` in the Security header (equivalent to `Part::element()` with the WS-Security namespace).

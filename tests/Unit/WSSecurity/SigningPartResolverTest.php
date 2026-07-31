@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SigningPartResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
+use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetKind;
 use VeeWee\Xml\Dom\Document;
@@ -31,7 +32,7 @@ final class SigningPartResolverTest extends TestCase
         $targets = $this->resolve($document, [Part::body(), Part::element('urn:x', 'Foo'), Part::byId('abc')]);
 
         static::assertCount(3, $targets);
-        static::assertTrue($targets[0]->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertTrue($targets[0]->equals(self::bodyPath()));
         static::assertTrue($targets[1]->equals(Target::element('urn:x', 'Foo')));
         static::assertTrue($targets[2]->equals(Target::byId('abc')));
     }
@@ -72,7 +73,7 @@ final class SigningPartResolverTest extends TestCase
         $targets = $this->resolve($document, [Part::body(), Part::securityHeaderContents()]);
 
         static::assertCount(1, $targets);
-        static::assertTrue($targets[0]->equals(Target::element(self::SOAP12, 'Body')));
+        static::assertTrue($targets[0]->equals(self::bodyPath()));
     }
 
     public function test_it_throws_when_the_whole_parts_list_matches_nothing(): void
@@ -115,5 +116,12 @@ final class SigningPartResolverTest extends TestCase
         static::assertInstanceOf(Element::class, $found[0]);
 
         return $found[0];
+    }
+    private static function bodyPath(): Target
+    {
+        return Target::path(
+            new QualifiedName(self::SOAP12, 'Envelope'),
+            new QualifiedName(self::SOAP12, 'Body'),
+        );
     }
 }
