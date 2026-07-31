@@ -29,6 +29,20 @@ A few value objects let you say which parts to protect and how a token is refere
 - `Part::usernameToken()` / `Part::binarySecurityToken()`. Shortcuts for the `wsse:UsernameToken` and
   `wsse:BinarySecurityToken` in the Security header (equivalent to `Part::element()` with the WS-Security namespace).
 
+When a part is encrypted, it also carries **how** it is encrypted, and the two shortcuts differ on purpose:
+`Part::body()` encrypts in `EncryptionMode::Content`, replacing the Body's children and leaving the Body element
+itself in place, while every other part encrypts in `EncryptionMode::Element`, replacing the element whole.
+Override it with `withEncryptionMode()` when a peer expects the other form:
+
+```php
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
+
+Part::body()->withEncryptionMode(EncryptionMode::Element);
+```
+
+This only affects encryption. A signature covers the element either way, and the signing-only parts below carry
+no mode at all.
+
 Two **dynamic** parts are expanded against the live message rather than naming one element. They work in both
 directions: outbound the Signature block signs every element they expand to; inbound `VerifySignature` requires
 every such element to have been signed.

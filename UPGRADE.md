@@ -176,6 +176,23 @@ $recipient = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secr
 $trustStore = TrustStore::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
 ```
 
+A trusted-CA file (several certificates concatenated into one PEM file, no private key) loads through
+`KeyStore\Pem`, which now reads a bundle as well as writing one:
+
+```php
+use Soap\Psr18WsseMiddleware\KeyStore\Pem;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+
+$trustStore = TrustStore::fromPem(Pem::fromFile('anchors.pem'));   // or Pem::fromString($bytes)
+```
+
+- `Pem::fromString()`, `Pem::fromFile()` and `Pem::certificates()` are new.
+- `TrustStore::fromPem()` is new, and makes **every** certificate in the bundle an anchor. This is the path for a
+  trusted-CA file or a converted Java truststore; `TrustStore::fromPkcs12()` is for an identity bundle and skips
+  entry 0 as the leaf certificate, so do not use it for a truststore or you lose one anchor.
+- Text outside the certificate armor is ignored, so output from `openssl pkcs12 -nokeys` loads as it comes.
+- A bundle carrying private key material is refused: a PEM bundle holds public certificates only.
+
 ### Blocks take credentials, not crypto wiring
 
 `Entry\Signature` and `Entry\Encryption` each took a key plus a `KeyIdentifier` object. The blocks now take the

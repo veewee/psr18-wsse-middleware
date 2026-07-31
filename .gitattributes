@@ -8,3 +8,6 @@ tools/*         binary
 /.phive/phars.xml      export-ignore
 /.phive/phars.xml      export-ignore
 /.php-cs-fixer.dist.php    export-ignore
+# AGENTS.md is about developing this package (commands, layering guard, interop), so it stays out of the dist.
+# .agents/ ships: its import skills are for consumers translating a peer's config, and they link into docs/.
+/AGENTS.md      export-ignore

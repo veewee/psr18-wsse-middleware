@@ -119,6 +119,7 @@ default you are about to change, drop one level down:
 | [Trust](docs/trust.md) | Why a verified signature is not an authenticated peer, pinning, and opt-in revocation checking |
 | [Security profile and defaults](docs/security-profile.md) | `SecurityProfile`, `CryptoPolicy`, the inbound allow-lists, and what is rejected by default and why |
 | [The XML-Security layer](docs/xmlsecurity.md) | Swapping an engine service, and signing or encrypting plain XML without SOAP |
+| [Importing a peer's existing configuration](docs/importing-a-peer-configuration.md) | Turning a SoapUI project or an IBM WebSphere descriptor you were handed into these blocks |
 
 ## The building blocks
 
@@ -261,6 +262,19 @@ blob is parsed a single time. `TrustStore::fromPkcs12()` builds its anchors from
 bundle (the `extracerts`), so it throws if the bundle embeds no chain. To keep using separate PEM files, see
 `Certificate::fromFile(...)`, `Key::fromFile(...)` and `ClientCertificate::fromFile(...)` under
 [Key stores](docs/key-stores.md).
+
+Handed a trusted-CA file instead, with several certificates concatenated into one PEM and no private key? Load
+it as a PEM bundle, where every certificate becomes a trust anchor:
+
+```php
+use Soap\Psr18WsseMiddleware\KeyStore\Pem;
+
+$trustStore = TrustStore::fromPem(Pem::fromFile('anchors.pem'));
+```
+
+Use this rather than `TrustStore::fromPkcs12()` for a trusted-CA file or a converted Java truststore: `fromPem()`
+keeps every certificate, while `fromPkcs12()` treats entry 0 as the leaf certificate of a signing identity and
+skips it. See [Key stores](docs/key-stores.md) for the details.
 
 ### SAML assertion flow
 
