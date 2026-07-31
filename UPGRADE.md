@@ -3,10 +3,10 @@
 ## Upgrading to the new major version
 
 Everything below is written against the last released version. This release swaps the old `robrichards/wse-php`
-wrapper for a WSSE engine that lives in this package. You still build security as a list of blocks, so the idea
-is familiar, but the names, the credential objects and several defaults changed.
+wrapper for an XML-Security layer that lives in this package. You still build security as a list of blocks, so
+the idea is familiar, but the names, the credential objects and several defaults changed.
 
-### The engine is now part of this package
+### The XML-Security layer is now part of this package
 
 Signing, encryption, decryption and verification run inside this package on the modern PHP DOM, `ext-openssl`
 (symmetric ciphers, digests and certificates), and the `phpseclib/phpseclib` library (RSA and ECDSA key
@@ -176,7 +176,7 @@ $recipient = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secr
 $trustStore = TrustStore::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
 ```
 
-### Blocks take credentials, not engine wiring
+### Blocks take credentials, not crypto wiring
 
 `Entry\Signature` and `Entry\Encryption` each took a key plus a `KeyIdentifier` object. The blocks now take the
 credential and an enum case, and build the engine service they need internally with secure defaults:
@@ -196,8 +196,8 @@ new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp(
 
 For the rare case where you need a custom engine service, override it with a `with*()` method
 (`Outbound\Signature::withSigner`, `Outbound\Encryption::withEncryptor`, `Inbound\Decrypt::withDecryptor`,
-`Inbound\VerifySignature::withVerifier`) rather than a constructor argument. See "Custom engine services" in the
-README for the SPI those methods take.
+`Inbound\VerifySignature::withVerifier`) rather than a constructor argument. See
+[Custom engine services](docs/xmlsecurity.md#custom-engine-services) for the SPI those methods take.
 
 ### What the Signature block signs is now a list of parts
 
@@ -312,7 +312,7 @@ $profile = new SecurityProfile(crypto: new CryptoPolicy(
 
 `SecurityProfile` itself carries only the WS-Security timestamp window (`timestampTtl`, `clockSkew`), and the
 header targeting; read the algorithm settings back through `$profile->crypto()`. The split lets the
-XML-Security engine be driven by a `CryptoPolicy` alone, without the SOAP profile.
+XML-Security layer be driven by a `CryptoPolicy` alone, without the SOAP profile.
 
 `CryptoPolicy` is also where the inbound allow-lists live: `acceptedSignatureMethods`, `acceptedDigestMethods`,
 `acceptedKeyEncryptionMethods`, `acceptedDataEncryptionMethods`, `acceptedOaepHashes` and

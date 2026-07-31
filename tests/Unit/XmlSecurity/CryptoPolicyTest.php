@@ -82,7 +82,7 @@ final class CryptoPolicyTest extends TestCase
 
     /**
      * SECURITY: only the GCM ciphers authenticate their own ciphertext, and no block ties an encrypted part
-     * to a verified signature, so the README documents narrowing the list as the way to get authenticated
+     * to a verified signature, so the docs describe narrowing the list as the way to get authenticated
      * encryption guaranteed. This pins that the escape hatch actually shuts CBC out.
      */
     public function test_narrowing_the_data_ciphers_to_gcm_rejects_every_cbc_variant(): void
