@@ -12,6 +12,13 @@ use RuntimeException;
  */
 final class InvalidTrustStore extends RuntimeException
 {
+    public static function withoutAnchors(): self
+    {
+        return new self(
+            'A trust store needs at least one trust anchor, and the supplied PEM bundle carries no certificate.',
+        );
+    }
+
     public static function withoutRevocationLists(): self
     {
         return new self(

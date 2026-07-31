@@ -33,8 +33,30 @@ final class TrustStore
     }
 
     /**
-     * Builds the trust anchors from the CA chain embedded in an already-decoded PKCS#12 bundle. A store with
-     * zero anchors is unusable, so a bundle without an embedded chain is rejected rather than returned empty.
+     * Builds the trust anchors from a PEM bundle, the form a trusted-CA file carries. Every certificate in the
+     * bundle is an anchor: unlike a PKCS#12 identity bundle there is no end-entity certificate to skip, so a
+     * bundle of thirty anchors yields thirty. A store with zero anchors is unusable and is rejected.
+     *
+     * @throws InvalidTrustStore when the bundle carries no certificate
+     */
+    public static function fromPem(Pem $bundle): self
+    {
+        $anchors = $bundle->certificates();
+        if ($anchors === []) {
+            throw InvalidTrustStore::withoutAnchors();
+        }
+
+        return new self(...$anchors);
+    }
+
+    /**
+     * Builds the trust anchors from the CA chain embedded in an already-decoded PKCS#12 bundle. The input is an
+     * identity bundle (a leaf certificate with its private key), so entry 0 is that leaf and is deliberately
+     * skipped; only the certificates above it are anchors. A store with zero anchors is unusable, so a bundle
+     * without an embedded chain is rejected rather than returned empty.
+     *
+     * A Java truststore converted with keytool is not this shape: it has no leaf and no key. Load it as a PEM
+     * bundle through fromPem() instead, which keeps every certificate.
      */
     public static function fromPkcs12(Pkcs12Bundle $bundle): self
     {
