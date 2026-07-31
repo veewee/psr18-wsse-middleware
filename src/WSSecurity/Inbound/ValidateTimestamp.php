@@ -31,13 +31,17 @@ use Soap\Psr18WsseMiddleware\Xml\ElementText;
  */
 final class ValidateTimestamp implements InboundAction
 {
-    // Numeric-offset patterns are tried before the literal-Z ones so an offset string is read with its true
-    // offset rather than being swallowed by the more lenient literal-Z match.
+    // The instant shape a conforming peer writes, captured so the fraction can be normalised: date and time,
+    // an optional fraction of any length, then the zone. Anchored at both ends because the Intl parser would
+    // otherwise accept trailing characters after a valid prefix.
+    private const INSTANT_SHAPE = '/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/';
+
+    // Every value reaching the parser carries a three-digit fraction. The numeric-offset pattern is tried
+    // before the literal-Z one so an offset string is read with its true offset rather than being swallowed by
+    // the more lenient literal-Z match.
     private const ACCEPTED_FORMATS = [
         "yyyy-MM-dd'T'HH:mm:ss.SSSxxx",
-        "yyyy-MM-dd'T'HH:mm:ssxxx",
         "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-        "yyyy-MM-dd'T'HH:mm:ss'Z'",
     ];
 
     private Clock $clock;
@@ -107,9 +111,14 @@ final class ValidateTimestamp implements InboundAction
     {
         // The underlying Intl parser is lenient and would accept trailing characters after a valid prefix,
         // so the exact instant shape is pinned here first; only a fully matching value reaches the parser.
-        if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})$/', $value) !== 1) {
+        if (preg_match(self::INSTANT_SHAPE, $value, $parts) !== 1) {
             throw SecurityFault::inboundFailure();
         }
+
+        // A conforming peer may write any number of fractional digits, and they disagree in practice, so the
+        // fraction is rewritten to the millisecond form the parser reads. Dropping digits past the third
+        // cannot change a verdict: the window is decided on whole seconds.
+        $value = $parts[1].'.'.substr($parts[2].'000', 0, 3).$parts[3];
 
         foreach (self::ACCEPTED_FORMATS as $format) {
             try {

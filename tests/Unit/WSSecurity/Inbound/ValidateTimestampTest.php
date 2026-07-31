@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 use Psl\DateTime\SecondsStyle;
@@ -234,6 +235,55 @@ final class ValidateTimestampTest extends TestCase
         $this->block()($this->context($xml));
 
         $this->assertTheDatesWereRead($xml, $now);
+    }
+
+    /**
+     * xs:dateTime puts no bound on the fractional digits, and peers differ: WSS4J emits three, .NET's
+     * round-trip form up to seven, and a conforming peer may emit one or two. Accepting only exactly three
+     * refused legal timestamps, which failed the whole exchange behind an intentionally uninformative fault.
+     *
+     * @return iterable<string, array{0: string}>
+     */
+    public static function fractionalDigits(): iterable
+    {
+        yield 'one digit' => ['.1'];
+        yield 'two digits' => ['.12'];
+        yield 'three digits, what WSS4J emits' => ['.123'];
+        yield 'six digits' => ['.123456'];
+        yield 'seven digits, the .NET round-trip form' => ['.1234567'];
+        yield 'nine digits' => ['.123456789'];
+    }
+
+    /**
+     * Accepted, and read as the instant it names. The assertion is a one-second boundary either side of Expires,
+     * so a fraction leaking into the seconds field (123456 read as milliseconds would move the instant by two
+     * minutes) shows up as a flipped verdict rather than passing unnoticed.
+     */
+    #[DataProvider('fractionalDigits')]
+    public function test_any_legal_fractional_precision_parses_to_the_instant_it_names(string $fraction): void
+    {
+        $xml = $this->envelope($this->timestamp(
+            '2026-01-01T12:00:00'.$fraction.'Z',
+            '2026-01-01T12:05:00'.$fraction.'Z',
+        ));
+        $exact = $this->context($xml, new SecurityProfile(clockSkew: 0));
+
+        // On the expiry second the message is still fresh.
+        ((new ValidateTimestamp())->withClock($this->clock($this->instant('2026-01-01T12:05:00Z'))))($exact);
+
+        // One second past it, it is not.
+        $this->expectException(SecurityFault::class);
+        ((new ValidateTimestamp())->withClock($this->clock($this->instant('2026-01-01T12:05:01Z'))))(
+            $this->context($xml, new SecurityProfile(clockSkew: 0)),
+        );
+    }
+
+    public function test_a_fractional_part_with_no_digits_is_rejected(): void
+    {
+        $xml = $this->envelope($this->timestamp('2026-01-01T12:00:00.Z', '2026-01-01T12:05:00.Z'));
+
+        $this->expectException(SecurityFault::class);
+        $this->block()($this->context($xml));
     }
 
     public function test_no_security_header_is_rejected(): void

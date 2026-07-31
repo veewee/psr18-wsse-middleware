@@ -140,8 +140,9 @@ new Outbound\Username('your-user', 'your-password', digest: true);
 - `string $username`: the username sent in `wsse:Username`. Required.
 - `?string $password = null`: the password. Default `null`, which sends a username-only token (no
   `wsse:Password`). Provide a value to send a password.
-- `bool $digest = false`: how the password is sent. `false` (default) sends `PasswordText`, the cleartext
-  password; the class does not enforce TLS, so only use this over a TLS connection. `true` sends
+- `bool $digest = false`: how the password is sent. `false` (default) sends `PasswordText`, **the password in
+  the clear**. Nothing here enforces TLS, so on a plain HTTP transport this puts your credentials on the wire
+  for anyone on the path; use it only over TLS, and prefer `digest: true` where the service accepts it. `true` sends
   `PasswordDigest`: `Base64(SHA1(nonce + created + password))`, with a fresh `wsse:Nonce` and `wsu:Created`, so
   the password never travels in the clear. Digest mode requires a password; combining `digest: true` with no
   password throws.
