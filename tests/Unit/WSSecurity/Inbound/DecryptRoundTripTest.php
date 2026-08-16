@@ -134,6 +134,45 @@ final class DecryptRoundTripTest extends TestCase
                 $document = $this->envelope();
                 (new Decrypt($key))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
             },
+            // The allow-list and structural refusals. These are here for uniformity coverage, not to pin the
+            // gates: whether a gate still fires is settled at the engine layer, where the reason is visible and
+            // a correctly encrypted body proves the refusal was the policy rather than a failed decrypt (see
+            // EncryptedDataRoundTripTest's rejected/widened pair). At this boundary every cause shares one
+            // message by design, so what these rows prove is that these causes are indistinguishable from the
+            // others, which is the property this test exists for.
+            'disallowed-data-encryption-method' => function () use ($certificate, $key): void {
+                $document = $this->envelope();
+                $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
+                $method = $this->body($document)->getElementsByTagNameNS(self::XENC, 'EncryptionMethod')->item(0);
+                static::assertInstanceOf(Element::class, $method);
+                $method->setAttribute('Algorithm', 'http://www.w3.org/2001/04/xmlenc#tripledes-cbc');
+                (new Decrypt($key))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            },
+            'unknown-data-encryption-method' => function () use ($certificate, $key): void {
+                $document = $this->envelope();
+                $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
+                $method = $this->body($document)->getElementsByTagNameNS(self::XENC, 'EncryptionMethod')->item(0);
+                static::assertInstanceOf(Element::class, $method);
+                $method->setAttribute('Algorithm', 'urn:not-a-cipher');
+                (new Decrypt($key))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            },
+            'disallowed-key-encryption-method' => function () use ($certificate, $key): void {
+                $document = $this->envelope();
+                $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
+                $method = $this->security($document)->getElementsByTagNameNS(self::XENC, 'EncryptionMethod')->item(0);
+                static::assertInstanceOf(Element::class, $method);
+                $method->setAttribute('Algorithm', 'http://www.w3.org/2001/04/xmlenc#rsa-1_5');
+                (new Decrypt($key))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            },
+            'encrypted-key-outside-our-container' => function () use ($certificate, $key): void {
+                $document = $this->envelope();
+                $this->encryptor()->encrypt($document, $this->encryptionRequest($this->security($document), $certificate));
+                $encryptedKey = $this->security($document)->getElementsByTagNameNS(self::XENC, 'EncryptedKey')->item(0);
+                static::assertInstanceOf(Element::class, $encryptedKey);
+                // Moved into the Body: still in the document, no longer addressed to this receiver.
+                $this->body($document)->appendChild($encryptedKey);
+                (new Decrypt($key))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            },
         ];
 
         $messages = [];
@@ -148,7 +187,8 @@ final class DecryptRoundTripTest extends TestCase
             }
         }
 
-        static::assertCount(3, $messages);
+        // Derived from the table rather than hardcoded, so adding a cause cannot leave it silently unchecked.
+        static::assertCount(count($causes), $messages);
         static::assertCount(1, array_unique($messages), 'Every failure cause must expose one identical message.');
         static::assertCount(1, array_unique($types), 'Every failure cause must surface the same exception type.');
     }

@@ -107,20 +107,66 @@ final class FaultUniformityTest extends TestCase
      * The key-info resolver is a replaceable seam, so an implementation can raise a type of its own. It must reach
      * a peer as the same fault as everything else: a distinguishable one would say which shape of ds:KeyInfo the
      * message failed on, and it is reachable by anyone who can send a message.
+     *
+     * The envelope has to carry a parseable ds:Signature for this to test anything. Verification locates the
+     * signature and parses its ds:SignedInfo before it reads ds:KeyInfo, so against an empty Security header it
+     * aborts several steps early and the resolver is never consulted: the case then passes whether the seam is
+     * hardened or not. No crypto runs before the extractor, so the signature only has to parse, not verify.
      */
     private function keyInfoResolverFailure(): void
     {
         $hostile = new class implements KeyInfoResolver {
+            public bool $consulted = false;
+
             public function read(Document $document, Element $signatureElement, IdLookup $idLookup): CertificateReference
             {
+                $this->consulted = true;
+
                 throw new RuntimeException(self::DETAIL);
             }
 
             private const DETAIL = 'keyinfo-detail-text';
         };
 
-        (new VerifySignature($this->trustStore(), signed: [Part::body()]))
-            ->withVerifier(Verifier::create((new WsuIdConvention())->lookup(), $hostile))($this->context());
+        try {
+            (new VerifySignature($this->trustStore(), signed: [Part::body()]))
+                ->withVerifier(Verifier::create((new WsuIdConvention())->lookup(), $hostile))(
+                    $this->context($this->envelopeWithParseableSignature()),
+                );
+        } finally {
+            // Without this the assertions above are vacuous: they would be checking a fault the fake never caused.
+            static::assertTrue($hostile->consulted, 'the hostile key-info resolver must actually be reached');
+        }
+    }
+
+    /**
+     * A Security header carrying a ds:Signature that parses: one reference, algorithms the default policy
+     * accepts, and a ds:KeyInfo for the resolver to be handed. The digest and signature values are filler,
+     * because verification never gets that far.
+     */
+    private function envelopeWithParseableSignature(): string
+    {
+        $ds = 'http://www.w3.org/2000/09/xmldsig#';
+
+        return '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsu="'.self::WSU.'"><soap:Header>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'">'
+            .'<ds:Signature xmlns:ds="'.$ds.'">'
+            .'<ds:SignedInfo>'
+            .'<ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>'
+            .'<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>'
+            .'<ds:Reference URI="#Body-1">'
+            .'<ds:Transforms>'
+            .'<ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>'
+            .'</ds:Transforms>'
+            .'<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>'
+            .'<ds:DigestValue>ZmlsbGVy</ds:DigestValue>'
+            .'</ds:Reference>'
+            .'</ds:SignedInfo>'
+            .'<ds:SignatureValue>ZmlsbGVy</ds:SignatureValue>'
+            .'<ds:KeyInfo><ds:X509Data><ds:X509Certificate>ZmlsbGVy</ds:X509Certificate></ds:X509Data></ds:KeyInfo>'
+            .'</ds:Signature>'
+            .'</wsse:Security>'
+            .'</soap:Header><soap:Body wsu:Id="Body-1"><data>x</data></soap:Body></soap:Envelope>';
     }
 
     /**

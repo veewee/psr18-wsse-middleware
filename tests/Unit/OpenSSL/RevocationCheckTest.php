@@ -241,6 +241,45 @@ final class RevocationCheckTest extends TestCase
         );
     }
 
+    public function test_a_list_that_cannot_be_parsed_is_refused(): void
+    {
+        // The fifth fail-closed arm, and the only one no test drove through the real code. It is reached from
+        // six places, so a refactor letting any of them swallow the error instead would change the fail-closed
+        // behaviour with a green suite.
+        $this->assertRejectedBecause(
+            'could not be read',
+            fn (): mixed => (new CertificateTrust())->verify(
+                CertificateChain::fromCertificates($this->certificate('leaf.crt')),
+                TrustStore::fromCertificates($this->certificate('ca.crt'))
+                    ->withRevocationLists(new CertificateRevocationList(
+                        "-----BEGIN X509 CRL-----\nbm90LWEtY3Js\n-----END X509 CRL-----\n",
+                    )),
+            ),
+        );
+    }
+
+    /**
+     * The related worry, that a future phpseclib returning a DateTimeInterface instead of a formatted string
+     * would make statedTime() read null for every list and silently refuse everything, needs no test of its own:
+     * it cannot be silent. test_a_leaf_absent_from_a_current_list_is_accepted and
+     * test_the_staleness_rule_does_not_reject_a_still_current_list both assert acceptance through that same
+     * parse, so a format change turns them red rather than passing unnoticed.
+     */
+    public function test_an_unreadable_list_does_not_hide_a_usable_one(): void
+    {
+        // One unusable entry must not end the search. A store holding a broken list beside a good one still
+        // reaches the good one, which is what keeps the arm above a refusal rather than a denial of service.
+        $signer = (new CertificateTrust())->verify(
+            CertificateChain::fromCertificates($this->certificate('leaf.crt')),
+            TrustStore::fromCertificates($this->certificate('ca.crt'))->withRevocationLists(
+                new CertificateRevocationList("-----BEGIN X509 CRL-----\nbm90LWEtY3Js\n-----END X509 CRL-----\n"),
+                $this->revocationList('crl-empty.pem'),
+            ),
+        );
+
+        static::assertStringContainsString('WSSE Revocation Leaf', $signer->subjectDistinguishedName()->toString());
+    }
+
     public function test_enabling_revocation_with_no_lists_is_refused_at_configuration_time(): void
     {
         // A store that requires revocation but carries nothing to check against would reject every message.

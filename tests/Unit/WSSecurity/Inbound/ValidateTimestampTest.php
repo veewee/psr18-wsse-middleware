@@ -121,35 +121,37 @@ final class ValidateTimestampTest extends TestCase
     public function test_a_missing_created_element_is_rejected(): void
     {
         $now = $this->instant(self::NOW);
-        $context = $this->context($this->envelope(
-            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'"><wsu:Expires>'.$this->fmt($now->plusSeconds(300)).'</wsu:Expires></wsu:Timestamp>',
-        ));
+        $expires = '<wsu:Expires>'.$this->fmt($now->plusSeconds(300)).'</wsu:Expires>';
+        $created = '<wsu:Created>'.$this->fmt($now).'</wsu:Created>';
 
-        $this->expectException(SecurityFault::class);
-        $this->block()($context);
+        $this->assertRefusedOnlyBecause(
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$expires.'</wsu:Timestamp>',
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$created.$expires.'</wsu:Timestamp>',
+        );
     }
 
     public function test_a_missing_expires_element_is_rejected(): void
     {
         $now = $this->instant(self::NOW);
-        $context = $this->context($this->envelope(
-            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'"><wsu:Created>'.$this->fmt($now).'</wsu:Created></wsu:Timestamp>',
-        ));
+        $created = '<wsu:Created>'.$this->fmt($now).'</wsu:Created>';
+        $expires = '<wsu:Expires>'.$this->fmt($now->plusSeconds(300)).'</wsu:Expires>';
 
-        $this->expectException(SecurityFault::class);
-        $this->block()($context);
+        $this->assertRefusedOnlyBecause(
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$created.'</wsu:Timestamp>',
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$created.$expires.'</wsu:Timestamp>',
+        );
     }
 
     public function test_a_duplicate_created_element_is_rejected(): void
     {
         $now = $this->instant(self::NOW);
         $created = '<wsu:Created>'.$this->fmt($now).'</wsu:Created>';
-        $context = $this->context($this->envelope(
-            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$created.$created.'<wsu:Expires>'.$this->fmt($now->plusSeconds(300)).'</wsu:Expires></wsu:Timestamp>',
-        ));
+        $expires = '<wsu:Expires>'.$this->fmt($now->plusSeconds(300)).'</wsu:Expires>';
 
-        $this->expectException(SecurityFault::class);
-        $this->block()($context);
+        $this->assertRefusedOnlyBecause(
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$created.$created.$expires.'</wsu:Timestamp>',
+            '<wsu:Timestamp xmlns:wsu="'.self::WSU.'">'.$created.$expires.'</wsu:Timestamp>',
+        );
     }
 
     public function test_an_unparseable_date_is_rejected(): void
@@ -342,6 +344,29 @@ final class ValidateTimestampTest extends TestCase
      * The proof a format-parse acceptance was real: the same message must be refused once the clock passes
      * its freshness window, which can only happen if the dates were actually parsed and compared.
      */
+    /**
+     * Asserts a malformed Timestamp is refused AND that the same Timestamp with only the named defect repaired
+     * is accepted.
+     *
+     * Every refusal in this block collapses to one SecurityFault with one message and, for the structural
+     * paths, no chained cause, so asserting the type or the message cannot say which guard fired. A test that
+     * only asserted the refusal would keep passing if a future edit made a different check fail on this input:
+     * the branch under test would stop being exercised and its name would start lying. The repaired control is
+     * what pins it, because it proves the defect named here is the only thing this input fails on.
+     */
+    private function assertRefusedOnlyBecause(string $malformedTimestamp, string $repairedTimestamp): void
+    {
+        try {
+            $this->block()($this->context($this->envelope($malformedTimestamp)));
+            static::fail('Expected the malformed timestamp to be refused.');
+        } catch (SecurityFault) {
+            // expected
+        }
+
+        $this->block()($this->context($this->envelope($repairedTimestamp)));
+        static::assertTrue(true, 'the repaired timestamp is accepted, so the refusal above was the named defect');
+    }
+
     private function assertTheDatesWereRead(string $xml, Timestamp $now): void
     {
         $this->expectException(SecurityFault::class);
