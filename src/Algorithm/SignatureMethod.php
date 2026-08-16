@@ -29,9 +29,12 @@ enum SignatureMethod: string
      */
     public function isEcdsa(): bool
     {
+        // Every case is named rather than defaulted: this predicate decides between two incompatible
+        // signature-value encodings, so a case added later must become a static-analysis error here instead of
+        // silently taking the RSA route.
         return match ($this) {
             self::ECDSA_SHA256, self::ECDSA_SHA384, self::ECDSA_SHA512 => true,
-            default => false,
+            self::RSA_SHA1, self::RSA_SHA256, self::RSA_SHA384, self::RSA_SHA512, self::DSA_SHA1 => false,
         };
     }
 }

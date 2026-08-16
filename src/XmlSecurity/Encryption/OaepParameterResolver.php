@@ -45,22 +45,28 @@ final class OaepParameterResolver
             return KeyTransportAlgorithm::rsa1_5();
         }
 
-        $oaepHash = $this->resolveOaepHash($method, $encryptionMethod);
+        [$labelHash, $mgfHash] = $this->resolveOaepHashes($method, $encryptionMethod);
 
-        if (!$policy->acceptsOaepHash($oaepHash)) {
-            throw UnsupportedAlgorithmException::forAlgorithm($oaepHash->digestMethod()->value);
+        // Both are gated: a deployment that narrowed the accepted hashes narrowed them for the mask too, and a
+        // mask it did not admit is no more acceptable for arriving as a default than for being declared.
+        foreach ([$labelHash, $mgfHash] as $hash) {
+            if (!$policy->acceptsOaepHash($hash)) {
+                throw UnsupportedAlgorithmException::forAlgorithm($hash->digestMethod()->value);
+            }
         }
 
-        return KeyTransportAlgorithm::fromMethod($method, $oaepHash);
+        return KeyTransportAlgorithm::declared($method, $labelHash, $mgfHash);
     }
 
     /**
-     * Maps the declared DigestMethod / MGF children onto the OAEP label hash, defaulting an absent digest to
-     * SHA-1 per the spec. A non-empty OAEPparams is rejected.
+     * Maps the declared DigestMethod / MGF children onto the OAEP label hash and mask hash, defaulting an
+     * absent digest to SHA-1 per the spec. A non-empty OAEPparams is rejected.
+     *
+     * @return array{0: OaepHash, 1: OaepHash} the label hash and the MGF1 mask hash
      *
      * @throws UnsupportedAlgorithmException
      */
-    private function resolveOaepHash(KeyEncryptionMethod $method, Element $encryptionMethod): OaepHash
+    private function resolveOaepHashes(KeyEncryptionMethod $method, Element $encryptionMethod): array
     {
         $this->rejectNonEmptyOaepParams($encryptionMethod);
 
@@ -79,16 +85,24 @@ final class OaepParameterResolver
                 throw UnsupportedAlgorithmException::forAlgorithm($mgfUri);
             }
 
-            return $digestHash;
+            return [$digestHash, OaepHash::Sha1];
         }
 
-        // Under rsa-oaep both are declarable, and the pair is required to agree: a mismatch is not something a
-        // peer needs and admitting it would only widen the parameterizations that reach the unwrap.
-        if (OaepHash::fromMgfUri($mgfUri) !== $digestHash) {
-            throw UnsupportedAlgorithmException::forAlgorithm($mgfUri ?? '');
+        // Under rsa-oaep the mask is its own child, and the spec makes it optional: an absent one means the
+        // default MGF1-SHA1 rather than a declaration to agree with. Reading the absence as a declared SHA-1
+        // and requiring it to equal the label refused a conformant peer asking for a SHA-256 label under the
+        // default mask. A mask the peer actually declares is still required to match, because a contradictory
+        // pair is not something a peer needs and admitting it would widen what reaches the unwrap.
+        if ($mgfUri === null) {
+            return [$digestHash, OaepHash::Sha1];
         }
 
-        return $digestHash;
+        $mgfHash = OaepHash::fromMgfUri($mgfUri);
+        if ($mgfHash !== $digestHash) {
+            throw UnsupportedAlgorithmException::forAlgorithm($mgfUri);
+        }
+
+        return [$digestHash, $mgfHash];
     }
 
     /**

@@ -18,6 +18,7 @@ final class DomCanonicalizerTest extends TestCase
 {
     private const SOAP = 'http://www.w3.org/2003/05/soap-envelope';
     private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
+    private const XMLNS = 'http://www.w3.org/2000/xmlns/';
 
     public function test_it_canonicalizes_a_subtree_exclusively(): void
     {
@@ -145,9 +146,8 @@ final class DomCanonicalizerTest extends TestCase
     }
 
     /**
-     * The mutate-then-canonicalize path (set wsu:Id, then C14N) is the CVE-2026-7263 / GH-21548 trigger: on
-     * an unpatched libxml it corrupts the attribute list (DoS). On the >= 8.4.21 floor it must produce bytes
-     * identical to the legacy oracle.
+     * The stamp the signer performs before it digests: set wsu:Id on a part, then canonicalize the same tree.
+     * It must produce bytes identical to the legacy oracle, since a peer reproduces them with neither DOM.
      */
     #[RequiresPhp('>= 8.4.21')]
     public function test_mutation_path_is_byte_identical_to_the_legacy_oracle(): void
@@ -162,6 +162,36 @@ final class DomCanonicalizerTest extends TestCase
             $legacyBody->C14N(true, false),
             (new DomCanonicalizer())->canonicalize($newBody, SignatureCanonicalization::EXC_C14N),
         );
+    }
+
+    /**
+     * Adding a namespace declaration to an element that already carries a default namespace and a plain
+     * attribute is the CVE-2026-7263 / GH-21548 trigger, and it is why the floor is 8.4.21 rather than the
+     * 8.4.17 the parse-time defect alone would need. Below the fix the declaration is emitted twice and an
+     * xmlns:xmlns declaration appears from nowhere, so every digest over such a part is wrong.
+     *
+     * The shape is exact: the test above stamps a prefixed non-xmlns attribute instead and passes on 8.4.19
+     * and 8.4.20, both of which corrupt this one.
+     */
+    #[RequiresPhp('>= 8.4.21')]
+    public function test_adding_a_namespace_declaration_before_canonicalizing_matches_the_legacy_oracle(): void
+    {
+        $xml = '<root xmlns="urn:default" attr="v"><child>x</child></root>';
+
+        $new = XMLDocument::createFromString($xml)->documentElement;
+        static::assertInstanceOf(Element::class, $new);
+        $new->setAttributeNS(self::XMLNS, 'xmlns:added', 'urn:added');
+
+        $legacy = new DOMDocument();
+        static::assertTrue($legacy->loadXML($xml));
+        $legacyRoot = $legacy->documentElement;
+        static::assertInstanceOf(DOMElement::class, $legacyRoot);
+        $legacyRoot->setAttributeNS(self::XMLNS, 'xmlns:added', 'urn:added');
+
+        $canonical = (new DomCanonicalizer())->canonicalize($new, SignatureCanonicalization::EXC_C14N);
+
+        static::assertSame($legacyRoot->C14N(true, false), $canonical);
+        static::assertStringNotContainsString('xmlns:xmlns', $canonical);
     }
 
     /**

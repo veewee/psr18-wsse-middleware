@@ -58,6 +58,21 @@ final readonly class KeyTransportAlgorithm
         };
     }
 
+    /**
+     * The parameterization an inbound xenc:EncryptionMethod declared, where the label and the mask are read
+     * from separate children and need not agree. XML-Enc 1.1 makes the xenc11:MGF child optional and defaults
+     * an absent one to MGF1-SHA1, so a SHA-256 label under the default mask is a conformant thing to receive
+     * and this is the pairing that expresses it. The legacy URI still fixes the mask whatever was declared.
+     */
+    public static function declared(KeyEncryptionMethod $method, OaepHash $labelHash, OaepHash $mgfHash): self
+    {
+        return match ($method) {
+            KeyEncryptionMethod::RSA_1_5 => self::rsa1_5(),
+            KeyEncryptionMethod::RSA_OAEP_MGF1P => new self($method, $labelHash, OaepHash::Sha1),
+            KeyEncryptionMethod::RSA_OAEP => new self($method, $labelHash, $mgfHash),
+        };
+    }
+
     public function isOaep(): bool
     {
         return $this->method !== KeyEncryptionMethod::RSA_1_5;
