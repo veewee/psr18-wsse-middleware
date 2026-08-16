@@ -5,11 +5,9 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
 use Dom\Element;
 use SensitiveParameter;
-use Soap\Psr18WsseMiddleware\Algorithm\Exception\UnsupportedAlgorithmException;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
-use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
@@ -51,9 +49,8 @@ final class EncryptedKeyReader
         Document $document,
         Element $container,
         #[SensitiveParameter] Key $privateKey,
-        ?CryptoPolicy $policy = null,
+        CryptoPolicy $policy,
     ): SessionKey {
-        $policy ??= CryptoPolicy::default();
 
         try {
             $encryptedKey = $this->locate($document, $container);
@@ -69,8 +66,10 @@ final class EncryptedKeyReader
             $sessionKey = $this->keyTransport->unwrap($wrappedKey, $privateKey, $algorithm);
         } catch (DecryptionFailed $exception) {
             throw $exception;
-        } catch (UnsupportedAlgorithmException | CryptoOperationFailed | Throwable $exception) {
-            throw DecryptionFailed::withReason('Unable to unwrap the session key.');
+        } catch (Throwable $exception) {
+            // Chained for the operator log only: the reason never reaches a peer, which sees the one uniform
+            // fault the block produces. Without it a production unwrap failure arrives with no cause at all.
+            throw DecryptionFailed::withReason('Unable to unwrap the session key.', $exception);
         }
 
         return $sessionKey;

@@ -27,6 +27,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedVerific
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureValidator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParser;
+use Throwable;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -129,14 +130,23 @@ final class Verifier implements XmlSignatureVerifier
         return new VerifiedSignature(new VerifiedReferences($elements, $ids), $signer);
     }
 
+    /**
+     * The trust resolver is a replaceable seam, and the reason to replace it is to reach a corporate PKI or an
+     * OCSP responder. Such a resolver raises types of its own -- a lookup miss, a timeout, a transport error --
+     * so anything it throws collapses to the same refusal the in-tree one produces. Without that, a peer learns
+     * from the exception it triggered whether the service knew its certificate, and often what the service is.
+     * The original is chained for the operator log only.
+     */
     private function establishTrust(
         CertificateChain $chain,
         VerificationPolicy $policy,
     ): TrustedSigner {
         try {
             return $this->trustResolver->verifyTrust($chain, $policy->trustStore);
-        } catch (CertificateTrustException) {
-            throw SignatureVerificationFailed::withReason('The signer certificate is not trusted.');
+        } catch (CertificateTrustException $exception) {
+            throw SignatureVerificationFailed::withReason('The signer certificate is not trusted.', $exception);
+        } catch (Throwable $foreign) {
+            throw SignatureVerificationFailed::withReason('The signer certificate is not trusted.', $foreign);
         }
     }
 
@@ -155,8 +165,11 @@ final class Verifier implements XmlSignatureVerifier
             throw SignatureVerificationFailed::withReason('The signer certificate is not trusted.');
         }
 
-        // An unreadable key is left to the signature check, which cannot verify with it either.
-        if ($strength !== null && !$policy->crypto->acceptsPublicKeyStrength($strength)) {
+        // A key that could not be read is refused here rather than deferred to the signature check. The two do
+        // not share a parser: this verdict comes from ext-openssl while the signature is verified with
+        // phpseclib, which has its own acceptance set and may well load a key openssl declined. Deferring
+        // would leave the only check on signer key size unapplied for exactly the keys it cannot measure.
+        if ($strength === null || !$policy->crypto->acceptsPublicKeyStrength($strength)) {
             throw SignatureVerificationFailed::withReason('The signer key is weaker than the policy accepts.');
         }
     }

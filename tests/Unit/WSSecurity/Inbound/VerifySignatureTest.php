@@ -170,13 +170,25 @@ final class VerifySignatureTest extends TestCase
         (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($context);
     }
 
-    public function test_it_does_not_rewrap_unexpected_exceptions(): void
+    public function test_it_collapses_a_foreign_verifier_exception_while_keeping_the_cause(): void
     {
-        $unexpected = new RuntimeException('programming error');
-        $verifier = new ThrowingVerifier($unexpected);
+        // The verifier is a replaceable seam, so a type this package never declares is what a third-party one
+        // raises. Reaching the caller as itself would give a peer an outcome per implementation quirk, which is
+        // what the uniform fault denies. The operator keeps everything: the original is the chained cause.
+        $foreign = new RuntimeException('pki-service timeout for CN=peer.example.com');
+        $verifier = new ThrowingVerifier($foreign);
 
-        $this->expectExceptionObject($unexpected);
-        (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($this->context());
+        try {
+            (new VerifySignature($this->trustStore(), signed: [Part::body()]))->withVerifier($verifier)($this->context());
+        } catch (SecurityFault $fault) {
+            static::assertSame('The inbound security header could not be processed.', $fault->getMessage());
+            static::assertStringNotContainsString('peer.example.com', $fault->getMessage());
+            static::assertSame($foreign, $fault->getPrevious());
+
+            return;
+        }
+
+        static::fail('Expected a SecurityFault.');
     }
 
     public function test_it_builds_the_policy_from_the_default_profile(): void

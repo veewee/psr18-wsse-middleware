@@ -75,9 +75,9 @@ final class Decryptor implements XmlDecryptor
                 $element = $this->encryptedData->resolve($document, $id);
                 $this->encryptedDataReader->read($document, $element, $sessionKey, $request->policy);
             }
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
             // Every cause collapses to one message so the inbound path is never a padding or validation oracle.
-            throw DecryptionFailed::withReason('Unable to decrypt the message.');
+            throw DecryptionFailed::withReason('Unable to decrypt the message.', $exception);
         }
     }
 }

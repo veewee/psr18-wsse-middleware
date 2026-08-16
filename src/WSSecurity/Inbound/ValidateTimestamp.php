@@ -17,6 +17,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
+use Throwable;
 
 /**
  * Rejects a stale, future-dated, or replayed-window message before the application sees it. It locates the
@@ -66,7 +67,7 @@ final class ValidateTimestamp implements InboundAction
      */
     public function __invoke(WsseContext $context): void
     {
-        $now = $this->clock->now();
+        $now = $this->now();
         $profile = $context->profile();
 
         $timestamp = $this->locateTimestamp($context);
@@ -74,6 +75,22 @@ final class ValidateTimestamp implements InboundAction
         $expires = $this->parseInstant($this->requireChildText($timestamp, 'Expires'));
 
         $this->validator->validate($now, $created, $expires, $profile->clockSkew(), $profile->timestampTtl());
+    }
+
+    /**
+     * The clock is a replaceable seam, so a deployment can hand over one backed by a time service. Such a clock
+     * raises types of its own on a timeout or a transport error, and left alone each reaches the caller
+     * distinguishable from every other inbound refusal. The reason stays chained, for the operator log only.
+     *
+     * @throws SecurityFault
+     */
+    private function now(): Timestamp
+    {
+        try {
+            return $this->clock->now();
+        } catch (Throwable $exception) {
+            throw SecurityFault::inboundFailure($exception);
+        }
     }
 
     private function locateTimestamp(WsseContext $context): Element

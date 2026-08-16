@@ -113,6 +113,13 @@ final class VerifySignature implements InboundAction
             $verified = $this->verifier->verify($document, $policy, $scope);
         } catch (SignatureVerificationFailed | CanonicalizationFailed | WsseHeaderException $exception) {
             throw SecurityFault::inboundFailure($exception);
+        } catch (Throwable $foreign) {
+            // The verifier is a replaceable seam, so a third-party one raises types this package never declares.
+            // Letting those through would hand a peer one distinguishable outcome per implementation quirk,
+            // which is the oracle this fault exists to deny; whether the cause is a bug or a deliberate type is
+            // not something the code can tell apart, and the peer observes the difference either way. Nothing
+            // is lost locally: the original is chained, so an operator still gets its message and trace.
+            throw SecurityFault::inboundFailure($foreign);
         }
 
         $this->requiredParts->validate(

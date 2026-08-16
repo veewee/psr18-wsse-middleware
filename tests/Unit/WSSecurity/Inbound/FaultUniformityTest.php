@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Psl\DateTime\Timestamp;
 use Psl\DateTime\Timezone;
 use RuntimeException;
+use Soap\Psr18WsseMiddleware\Clock\Clock;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
@@ -56,6 +57,9 @@ final class FaultUniformityTest extends TestCase
             'decryption failure' => $this->faultFrom($this->decryptionFailure(...)),
             'no security header for this receiver' => $this->faultFrom($this->noSecurityHeader(...)),
             'a key-info resolver raising its own type' => $this->faultFrom($this->keyInfoResolverFailure(...)),
+            'a clock raising its own type' => $this->faultFrom($this->foreignClockFailure(...)),
+            'a signature verifier raising its own type' => $this->faultFrom($this->foreignVerifierFailure(...)),
+            'a decryptor raising its own type' => $this->faultFrom($this->foreignDecryptorFailure(...)),
         ];
 
         $reference = $faults['stale timestamp'];
@@ -117,6 +121,36 @@ final class FaultUniformityTest extends TestCase
 
         (new VerifySignature($this->trustStore(), signed: [Part::body()]))
             ->withVerifier(Verifier::create((new WsuIdConvention())->lookup(), $hostile))($this->context());
+    }
+
+    /**
+     * The remaining replaceable seams, each driven with a type the in-tree implementation never raises. A
+     * deployment backing the clock with a time service, or supplying its own verifier or decryptor, gets
+     * timeouts and transport errors rather than anything this package declares. The trust resolver is the same
+     * shape and is covered where its harness already lives, in RevocationFaultUniformityTest.
+     */
+    private function foreignVerifierFailure(): void
+    {
+        (new VerifySignature($this->trustStore(), signed: [Part::body()]))
+            ->withVerifier(new ThrowingVerifier(new RuntimeException(self::DETAIL_TEXTS[0])))($this->context());
+    }
+
+    private function foreignDecryptorFailure(): void
+    {
+        (new Decrypt(new Key('not-real-pem-material')))
+            ->withDecryptor(new ThrowingDecryptor(new RuntimeException(self::DETAIL_TEXTS[1])))($this->context());
+    }
+
+    private function foreignClockFailure(): void
+    {
+        $hostile = new class implements Clock {
+            public function now(): Timestamp
+            {
+                throw new RuntimeException('clock-detail-text');
+            }
+        };
+
+        ((new ValidateTimestamp())->withClock($hostile))($this->context());
     }
 
     private function signatureFailure(): void

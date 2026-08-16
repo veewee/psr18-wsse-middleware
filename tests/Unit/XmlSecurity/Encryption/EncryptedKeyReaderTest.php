@@ -6,6 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption;
 use Dom\Element;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
@@ -31,6 +32,49 @@ final class EncryptedKeyReaderTest extends TestCase
     private const MGF1_SHA1 = 'http://www.w3.org/2009/xmlenc11#mgf1sha1';
     private const MGF1_SHA256 = 'http://www.w3.org/2009/xmlenc11#mgf1sha256';
 
+    public function test_it_reads_a_sha256_label_under_the_default_mgf(): void
+    {
+        // XML-Enc 1.1 makes the xenc11:MGF child optional and defaults an absent one to MGF1-SHA1, so a peer
+        // asking for a SHA-256 label with the default mask simply omits it. Reading that absence as a DECLARED
+        // SHA-1 and then requiring it to equal the label refuses a conformant peer outright, with the uniform
+        // fault giving the operator nothing to go on.
+        [$key, $certificate] = $this->keyAndCertificate();
+        $sessionKey = SessionKey::fromBytes(random_bytes(32));
+        $wrapped = (new KeyTransport())->wrap(
+            $sessionKey,
+            $certificate,
+            KeyTransportAlgorithm::declared(KeyEncryptionMethod::RSA_OAEP, OaepHash::Sha256, OaepHash::Sha1),
+        );
+
+        $document = $this->envelope($wrapped, [
+            ['DigestMethod', self::DS, self::SHA256],
+        ]);
+
+        $sessionKeyRead = (new EncryptedKeyReader(new KeyTransport()))
+            ->read($document, $this->ours($document), $key, CryptoPolicy::default());
+
+        static::assertSame($sessionKey->bytes(), $sessionKeyRead->bytes());
+    }
+
+    public function test_it_still_refuses_a_declared_mgf_that_contradicts_the_label(): void
+    {
+        // The other half: when the peer DOES declare a mask, a mismatch is still refused. The relaxation above
+        // is about an absent child meaning the spec default, not about admitting contradictory declarations.
+        [$key, $certificate] = $this->keyAndCertificate();
+        $sessionKey = SessionKey::fromBytes(random_bytes(32));
+        $wrapped = (new KeyTransport())->wrap($sessionKey, $certificate, KeyTransportAlgorithm::oaepSha256());
+
+        $document = $this->envelope($wrapped, [
+            ['DigestMethod', self::DS, self::SHA256],
+            ['MGF', self::XENC11, self::MGF1_SHA1],
+        ]);
+
+        static::assertSame(
+            $this->uniformMessage(),
+            $this->captureFailure($document, $key),
+        );
+    }
+
     public function test_it_reads_a_sha256_encrypted_key(): void
     {
         [$key, $certificate] = $this->keyAndCertificate();
@@ -42,7 +86,8 @@ final class EncryptedKeyReaderTest extends TestCase
             ['MGF', self::XENC11, self::MGF1_SHA256],
         ]);
 
-        $sessionKeyRead = (new EncryptedKeyReader(new KeyTransport()))->read($document, $this->ours($document), $key);
+        $sessionKeyRead = (new EncryptedKeyReader(new KeyTransport()))
+            ->read($document, $this->ours($document), $key, CryptoPolicy::default());
 
         static::assertSame($sessionKey->bytes(), $sessionKeyRead->bytes());
     }
@@ -128,7 +173,14 @@ final class EncryptedKeyReaderTest extends TestCase
     private function captureFailure(Document $document, Key $key, ?CryptoPolicy $profile = null): string
     {
         try {
-            (new EncryptedKeyReader(new KeyTransport()))->read($document, $this->ours($document), $key, $profile);
+            // The reader takes the policy as a required argument, so a caller cannot silently fall back to the
+            // library defaults and discard a hardened one; the default is materialised here instead.
+            (new EncryptedKeyReader(new KeyTransport()))->read(
+                $document,
+                $this->ours($document),
+                $key,
+                $profile ?? CryptoPolicy::default(),
+            );
         } catch (DecryptionFailed $exception) {
             return $exception->getMessage();
         }

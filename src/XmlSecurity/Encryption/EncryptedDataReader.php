@@ -59,7 +59,7 @@ final class EncryptedDataReader
         } catch (CryptoOperationFailed | Throwable $exception) {
             // Uniform: a cipher failure, a missing tag, a parse failure and a structural error are
             // indistinguishable to the caller, so the reader is never an oracle.
-            throw DecryptionFailed::withReason('Unable to decrypt an encrypted element.');
+            throw DecryptionFailed::withReason('Unable to decrypt an encrypted element.', $exception);
         }
     }
 

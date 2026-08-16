@@ -96,13 +96,25 @@ final class DecryptTest extends TestCase
         }
     }
 
-    public function test_it_does_not_rewrap_other_exceptions(): void
+    public function test_it_collapses_a_foreign_decryptor_exception_while_keeping_the_cause(): void
     {
-        $unexpected = new RuntimeException('a programming error, not part of the SPI contract');
-        $decryptor = new ThrowingDecryptor($unexpected);
+        // The decryptor is the padding-oracle channel, so one distinguishable outcome per cause is exactly what
+        // recovers a plaintext. A replaceable seam raising its own type must not become that channel. The
+        // operator keeps everything: the original is the chained cause.
+        $foreign = new RuntimeException('hsm-backend: session expired');
+        $decryptor = new ThrowingDecryptor($foreign);
 
-        $this->expectExceptionObject($unexpected);
-        (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
+        try {
+            (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($this->context());
+        } catch (SecurityFault $fault) {
+            static::assertSame('The inbound security header could not be processed.', $fault->getMessage());
+            static::assertStringNotContainsString('hsm-backend', $fault->getMessage());
+            static::assertSame($foreign, $fault->getPrevious());
+
+            return;
+        }
+
+        static::fail('Expected a SecurityFault.');
     }
 
     /**

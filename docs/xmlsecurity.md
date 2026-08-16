@@ -24,6 +24,11 @@ with a `with*()` method:
 
 Reach for this only when the defaults genuinely do not fit.
 
+Every engine class that gates an algorithm takes its `CryptoPolicy` as a required argument rather than falling
+back to `CryptoPolicy::default()`. If you drive the layer directly, pass the policy you configured on every
+call: a deployment that hardened its allow-lists and then silently got the library defaults would accept
+parameterizations it had explicitly refused.
+
 ## Driving the layer without SOAP
 
 **Skip this unless you want to sign, verify, encrypt or decrypt plain XML that is not a SOAP message.** Using the

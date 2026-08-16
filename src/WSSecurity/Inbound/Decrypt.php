@@ -13,6 +13,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
+use Throwable;
 
 /**
  * Decrypts the xenc:EncryptedData parts of the inbound message by delegating to the XmlDecryptor SPI. The
@@ -67,6 +68,12 @@ final class Decrypt implements InboundAction
             );
         } catch (DecryptionFailed | WsseHeaderException $exception) {
             throw SecurityFault::inboundFailure($exception);
+        } catch (Throwable $foreign) {
+            // The decryptor is a replaceable seam, so a third-party one raises types this package never
+            // declares. This is the padding-oracle channel, where one distinguishable outcome per cause is
+            // precisely what recovers a plaintext, and the code cannot tell a bug apart from a deliberate type.
+            // Nothing is lost locally: the original is chained, so an operator still gets its message and trace.
+            throw SecurityFault::inboundFailure($foreign);
         }
     }
 }
