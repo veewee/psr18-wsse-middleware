@@ -124,9 +124,19 @@ final class SecurityHeader
         ?string $actorOrRole = null,
     ): ?Element {
         $attribute = '@soap:'.$soapVersion->actorOrRoleName();
-        $addressedToUs = $actorOrRole === null
+
+        // The reserved values a receiver must read as naming itself count as ours wherever they appear, and
+        // the absent attribute names the ultimate receiver implicitly. A configured intermediary still matches
+        // its own value, and also the reserved ones, because a header targeted at every node is targeted at it.
+        $predicates = array_map(
+            static fn (string $reserved): string => $attribute.'='.XPath::quote($reserved),
+            $soapVersion->reservedSelfTargets(),
+        );
+        $predicates[] = $actorOrRole === null
             ? 'not('.$attribute.')'
             : $attribute.'='.XPath::quote($actorOrRole);
+
+        $addressedToUs = implode(' or ', $predicates);
 
         $ours = Query::elements(
             $document,

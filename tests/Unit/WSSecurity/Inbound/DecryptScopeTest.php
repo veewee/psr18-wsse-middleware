@@ -63,8 +63,7 @@ final class DecryptScopeTest extends TestCase
             new SecurityProfile(),
         );
 
-        $this->expectException(SecurityFault::class);
-        (new Decrypt($this->privateKey()))->withDecryptor(new RecordingDecryptor())($context);
+        $this->assertRefusedWithoutReachingTheDecryptor($context);
     }
 
     public function test_a_security_header_planted_in_the_body_is_not_a_candidate(): void
@@ -77,16 +76,37 @@ final class DecryptScopeTest extends TestCase
             '<soap:Body><wsse:Security><planted/></wsse:Security></soap:Body>',
         );
 
-        $this->expectException(SecurityFault::class);
-        (new Decrypt($this->privateKey()))->withDecryptor(new RecordingDecryptor())($context);
+        $this->assertRefusedWithoutReachingTheDecryptor($context);
     }
 
     public function test_a_message_carrying_no_security_header_is_refused(): void
     {
         $context = $this->context('', new SecurityProfile());
 
-        $this->expectException(SecurityFault::class);
-        (new Decrypt($this->privateKey()))->withDecryptor(new RecordingDecryptor())($context);
+        $this->assertRefusedWithoutReachingTheDecryptor($context);
+    }
+
+    /**
+     * Asserts the message is refused AND that the decryptor was never handed anything.
+     *
+     * Every inbound refusal collapses to one SecurityFault with one message, so asserting the refusal alone
+     * cannot say whether scope resolution rejected the header or the decryptor was given a container it should
+     * never have seen and failed on it. Only the second is a scoping bug, and it is the one these tests are
+     * named for. The recording double answers it: a null request means the block stopped before the seam.
+     */
+    private function assertRefusedWithoutReachingTheDecryptor(WsseContext $context): void
+    {
+        $decryptor = new RecordingDecryptor();
+
+        try {
+            (new Decrypt($this->privateKey()))->withDecryptor($decryptor)($context);
+            static::fail('Expected the message to be refused.');
+        } catch (SecurityFault) {
+            static::assertNull(
+                $decryptor->lastRequest(),
+                'the decryptor must not be handed a header that is not addressed to this receiver',
+            );
+        }
     }
 
     private function context(

@@ -133,4 +133,50 @@ final class DistinguishedNameTest extends TestCase
 
         return DistinguishedName::fromRelativeNames($sequence);
     }
+
+    public function test_a_hex_escape_names_the_same_entity_as_a_backslash_escape(): void
+    {
+        // RFC 4514 allows either form for the same character, so a peer emitting the hex escape names the
+        // same entity. Reading them as different signers presents as an unknown certificate, which looks
+        // exactly like an attack while being an ordinary rendering difference.
+        static::assertTrue(
+            DistinguishedName::fromString('CN=Acme\\2C Inc.,O=Acme')
+                ->equals(DistinguishedName::fromString('CN=Acme\\, Inc.,O=Acme')),
+        );
+    }
+
+    public function test_a_value_ending_in_a_backslash_does_not_swallow_the_next_component(): void
+    {
+        // The escaped backslash is even, so the comma after it is a live separator. Looking behind a single
+        // character reads it as escaped and folds two relative names into one, which is how two different
+        // names could end up sharing a key.
+        $twoComponents = DistinguishedName::fromString('CN=ends-with\\\\,O=Acme');
+        $oneComponent = DistinguishedName::fromString('CN=ends-with\\\\\\,O=Acme');
+
+        static::assertFalse($twoComponents->equals($oneComponent));
+    }
+
+    public function test_hex_and_backslash_escapes_of_a_separator_still_differ_from_a_real_separator(): void
+    {
+        // The fold unescapes, so it has to re-escape before building the key. Without the re-escape these two
+        // collapse to the same key: one is a single relative name whose value contains a comma, the other is
+        // two relative names split on one. That is identity confusion rather than the fail-closed mismatch
+        // this class had before unescaping existed, so it is the case that has to stay pinned.
+        static::assertFalse(
+            DistinguishedName::fromString('CN=a\\2Cb')
+                ->equals(DistinguishedName::fromString('CN=a,b')),
+        );
+        static::assertFalse(
+            DistinguishedName::fromString('CN=a\\,b')
+                ->equals(DistinguishedName::fromString('CN=a,b')),
+        );
+    }
+
+    public function test_an_uppercase_hex_escape_folds_with_a_lowercase_one(): void
+    {
+        static::assertTrue(
+            DistinguishedName::fromString('CN=Acme\\2C Inc.')
+                ->equals(DistinguishedName::fromString('CN=Acme\\2c Inc.')),
+        );
+    }
 }

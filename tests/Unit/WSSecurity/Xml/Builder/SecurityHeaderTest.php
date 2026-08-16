@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Xml\Builder;
 
 use Dom\Element;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -389,6 +390,59 @@ final class SecurityHeaderTest extends TestCase
 
         $this->expectException(WsseHeaderException::class);
         SecurityHeader::locateOrCreate($document, SoapVersion::Soap12);
+    }
+
+    /**
+     * @return iterable<string, array{0: SoapVersion, 1: string, 2: string}>
+     */
+    public static function reservedSelfTargets(): iterable
+    {
+        yield 'soap 1.2 role/next' => [SoapVersion::Soap12, self::SOAP12, 'http://www.w3.org/2003/05/soap-envelope/role/next'];
+        yield 'soap 1.2 role/ultimateReceiver' => [SoapVersion::Soap12, self::SOAP12, 'http://www.w3.org/2003/05/soap-envelope/role/ultimateReceiver'];
+        yield 'soap 1.1 actor/next' => [SoapVersion::Soap11, self::SOAP11, 'http://schemas.xmlsoap.org/soap/actor/next'];
+    }
+
+    #[DataProvider('reservedSelfTargets')]
+    public function test_a_header_naming_a_reserved_self_target_is_ours(
+        SoapVersion $version,
+        string $namespace,
+        string $reserved,
+    ): void {
+        // These are the values the specs give for "every node" and "the ultimate receiver". A peer spelling one
+        // out is addressing us conformantly, and reading it as another hop's header refused a correct message.
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.$namespace.'"><soap:Header>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'" soap:'.$version->actorOrRoleName().'="'.$reserved.'"/>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        static::assertNotNull(SecurityHeader::locate($document, $version));
+    }
+
+    public function test_a_header_addressed_to_no_one_is_never_ours(): void
+    {
+        // role/none means no node processes the header, so it is the one reserved value that is not ours.
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'"><soap:Header>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'" soap:role="http://www.w3.org/2003/05/soap-envelope/role/none"/>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        static::assertNull(SecurityHeader::locate($document, SoapVersion::Soap12));
+    }
+
+    public function test_a_bare_header_and_a_reserved_one_together_are_ambiguous(): void
+    {
+        // Both are addressed to us, so there is no single answer to which one this receiver must process.
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'"><soap:Header>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'"/>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'" soap:role="http://www.w3.org/2003/05/soap-envelope/role/next"/>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        $this->expectException(WsseHeaderException::class);
+        SecurityHeader::locate($document, SoapVersion::Soap12);
     }
 
     public function test_append_children_attaches_and_reorders_nodes(): void

@@ -46,6 +46,30 @@ enum SoapVersion
     }
 
     /**
+     * The reserved actor/role values a receiver must treat as addressed to itself, alongside the absent
+     * attribute that names the ultimate receiver implicitly.
+     *
+     * SOAP 1.2 role/next targets every node on the path, and the ultimate receiver is one of them; role/
+     * ultimateReceiver names it outright. SOAP 1.1 actor/next is the same idea: for a client reading a
+     * response, the next node is this one. A peer that spells any of them out is addressing us conformantly,
+     * so refusing the header for carrying one would reject a correct message.
+     *
+     * role/none is deliberately absent: it means no node processes the header, so it is never ours.
+     *
+     * @return list<non-empty-string>
+     */
+    public function reservedSelfTargets(): array
+    {
+        return match ($this) {
+            self::Soap11 => ['http://schemas.xmlsoap.org/soap/actor/next'],
+            self::Soap12 => [
+                'http://www.w3.org/2003/05/soap-envelope/role/next',
+                'http://www.w3.org/2003/05/soap-envelope/role/ultimateReceiver',
+            ],
+        };
+    }
+
+    /**
      * @throws WsseHeaderException when the document root is neither a SOAP 1.1 nor a SOAP 1.2 envelope
      */
     public static function fromDocument(Document $document): self
