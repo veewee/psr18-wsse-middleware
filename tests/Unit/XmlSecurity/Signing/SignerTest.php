@@ -195,6 +195,30 @@ final class SignerTest extends TestCase
         static::assertContains('a', $prefixes);
     }
 
+    public function test_it_signs_a_message_that_already_carries_a_complete_signature(): void
+    {
+        // A security token an issuer already signed travels inside the Security header, so a complete foreign
+        // ds:Signature is present before ours is built. This is not hypothetical: it is what every SAML
+        // Holder-of-Key message looks like, and it is the shape the WSS4J harness refused first.
+        [, , $document] = $this->sign([Target::path(
+            new \Soap\Psr18WsseMiddleware\Xml\QualifiedName(self::SOAP, 'Envelope'),
+            new \Soap\Psr18WsseMiddleware\Xml\QualifiedName(self::SOAP, 'Body'),
+        )], withForeignSignature: true);
+
+        $signedInfos = $document->xpath(new \Soap\Psr18WsseMiddleware\Xml\Xpath($document, ['ds' => self::DS]))
+            ->query('//ds:SignedInfo');
+
+        // Without this the test would pin nothing: the defect is that a document-wide lookup finds two.
+        static::assertCount(2, $signedInfos, 'the fixture must really carry a second complete signature');
+
+        $ours = $this->signature($document);
+        $value = $this->child($ours, 'SignatureValue');
+        static::assertInstanceOf(Element::class, $value);
+        static::assertNotSame('', trim($value->textContent));
+        // The issuer's signature is left exactly as it arrived; re-signing over it would invalidate it.
+        static::assertStringContainsString('Zm9yZWlnbg==', $document->toXmlString());
+    }
+
     /**
      * @return array{0: Key, 1: Certificate, 2: Document}
      */
@@ -204,9 +228,10 @@ final class SignerTest extends TestCase
         bool $withCustom = false,
         bool $withStaleSignature = false,
         ?string $presetBodyId = null,
+        bool $withForeignSignature = false,
     ): array {
         [$key, $certificate] = $this->keyAndCertificate();
-        $document = $this->envelope($withTimestamp, $withCustom, $withStaleSignature, $presetBodyId);
+        $document = $this->envelope($withTimestamp, $withCustom, $withStaleSignature, $presetBodyId, $withForeignSignature);
 
         $this->signer()->sign($document, $this->request($this->security($document), $targets, $key, $certificate));
 
@@ -244,12 +269,25 @@ final class SignerTest extends TestCase
         );
     }
 
-    private function envelope(bool $withTimestamp, bool $withCustom, bool $withStaleSignature, ?string $presetBodyId): Document
-    {
+    private function envelope(
+        bool $withTimestamp,
+        bool $withCustom,
+        bool $withStaleSignature,
+        ?string $presetBodyId,
+        bool $withForeignSignature = false,
+    ): Document {
         $bodyId = $presetBodyId !== null ? ' wsu:Id="'.$presetBodyId.'"' : '';
         $timestamp = $withTimestamp ? '<wsu:Timestamp><wsu:Created>2026-01-01T00:00:00Z</wsu:Created></wsu:Timestamp>' : '';
         $stale = $withStaleSignature ? '<ds:Signature><ds:SignatureValue>stale</ds:SignatureValue></ds:Signature>' : '';
         $custom = $withCustom ? '<app:Custom xmlns:app="urn:app">payload</app:Custom>' : '';
+        // A complete foreign signature, the shape a token an issuer already signed arrives in: unlike the
+        // stale one above it carries its own ds:SignedInfo, which is what makes it collide with ours.
+        $foreign = $withForeignSignature
+            ? '<app:Token xmlns:app="urn:app"><ds:Signature><ds:SignedInfo>'
+                .'<ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>'
+                .'<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>'
+                .'</ds:SignedInfo><ds:SignatureValue>Zm9yZWlnbg==</ds:SignatureValue></ds:Signature></app:Token>'
+            : '';
 
         return Document::fromXmlString(
             '<soap:Envelope'
@@ -257,7 +295,7 @@ final class SignerTest extends TestCase
             .' xmlns:wsse="'.self::WSSE.'"'
             .' xmlns:wsu="'.self::WSU.'"'
             .' xmlns:ds="'.self::DS.'">'
-            .'<soap:Header><wsse:Security>'.$timestamp.$stale.'</wsse:Security>'.$custom.'</soap:Header>'
+            .'<soap:Header><wsse:Security>'.$timestamp.$stale.$foreign.'</wsse:Security>'.$custom.'</soap:Header>'
             .'<soap:Body'.$bodyId.'><data>x</data></soap:Body>'
             .'</soap:Envelope>'
         );

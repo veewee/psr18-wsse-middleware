@@ -164,14 +164,21 @@ final class Signer implements XmlSigner
     }
 
     /**
-     * The just-attached ds:SignedInfo, relocated in the reparsed wire. Exactly one exists: this method runs
-     * only after the signer attached it, so expectSingle guards an invariant rather than handling input.
+     * The just-attached ds:SignedInfo, relocated in the reparsed wire.
+     *
+     * It is found as the one whose ds:SignatureValue is still empty, because the message may already carry
+     * signatures that are none of our business: a SAML assertion issued by a security token service arrives
+     * signed by that service, and a document-wide search for ds:SignedInfo finds that one too. The signature
+     * being built is the only one whose value has not been written yet, which stays true whatever else the
+     * message carries and needs no knowledge of what those other signatures belong to.
      */
     private function locateSignedInfo(Document $document): Element
     {
         return Query::elements(
             $document,
-            '//'.Namespaces::Ds->qualify('SignedInfo'),
+            '//'.Namespaces::Ds->qualify('Signature')
+                .'['.Namespaces::Ds->qualify('SignatureValue').'[not(normalize-space())]]'
+                .'/'.Namespaces::Ds->qualify('SignedInfo'),
             prefixes: [Namespaces::Ds->prefix() => Namespaces::Ds->uri()],
         )->expectSingle();
     }

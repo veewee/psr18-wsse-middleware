@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
 use Dom\Element;
-use LogicException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
@@ -22,15 +21,16 @@ use function VeeWee\Xml\Dom\Manipulator\Node\append_external_node;
  * cannot inject content through entity expansion or external references; only parsed nodes are adopted into the
  * envelope, never raw bytes. The assertion is imported verbatim, including any signature it already carries.
  *
- * After __invoke, assertionId() returns the assertion's id (AssertionID for 1.1, ID for 2.0) so a caller can
- * wire a SamlAssertionKeyIdentifier into an Outbound\Signature block for the Holder-of-Key path. The block
- * never mints a fresh wsu:Id; re-minting would break a pre-existing signature over the assertion's id.
+ * The block keeps no per-message state, so it is safe to reuse across messages and under a worker that holds
+ * one middleware for the lifetime of the process. A Holder-of-Key signature needs the assertion's id, and it
+ * reads that off the assertion in the header rather than being handed it here: Outbound\Signature with
+ * KeyRef::SamlAssertion finds what this block left behind, the same way the direct-reference path finds the
+ * binary token it embedded.
+ *
+ * The id the assertion arrived with is never re-minted: a fresh one would break the issuer's signature over it.
  */
 final class SamlAssertion implements OutboundAction
 {
-    /** @var non-empty-string|null */
-    private ?string $assertionId = null;
-
     /**
      * @param non-empty-string $assertionXml the full saml:Assertion element as a well-formed XML string
      */
@@ -43,28 +43,14 @@ final class SamlAssertion implements OutboundAction
     public function __invoke(WsseContext $context): void
     {
         $assertion = $this->parseAssertion();
-        $assertionId = $this->extractId($assertion);
+        // Read for its side effect: an assertion with no usable id is refused here rather than after it has
+        // been written into the header, where a signature would later fail to reference it.
+        $this->extractId($assertion);
 
         $header = SecurityHeader::forContext($context);
         $header->appendChildren(
             static fn (Element $security): Element => assert_element(append_external_node($security, $assertion)),
         );
-
-        $this->assertionId = $assertionId;
-    }
-
-    /**
-     * @return non-empty-string the assertion id, without a '#' prefix
-     *
-     * @throws LogicException when called before __invoke
-     */
-    public function assertionId(): string
-    {
-        if ($this->assertionId === null) {
-            throw new LogicException('SAML assertion not yet imported; call __invoke first.');
-        }
-
-        return $this->assertionId;
     }
 
     /**

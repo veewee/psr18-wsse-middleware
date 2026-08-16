@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use Dom\Element;
-use LogicException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SamlAssertion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SamlVersion;
@@ -43,14 +42,16 @@ final class SamlAssertionTest extends OutboundTestCase
         static::assertSame($security, $assertion->parentNode);
     }
 
-    public function test_it_extracts_the_assertion_id_from_saml_11(): void
+    public function test_it_keeps_the_saml_11_assertion_id_the_issuer_gave_it(): void
     {
+        // The id is never re-minted: the issuer signed the assertion including this attribute, so a fresh one
+        // would invalidate that signature and leave a Holder-of-Key reference pointing at nothing.
         $document = $this->envelope();
 
-        $block = new SamlAssertion($this->saml11('id-saml11-abc'), SamlVersion::Saml11);
-        $block($this->context($document));
+        (new SamlAssertion($this->saml11('id-saml11-abc'), SamlVersion::Saml11))($this->context($document));
 
-        static::assertSame('id-saml11-abc', $block->assertionId());
+        $assertion = $this->only($document, self::SAML11, 'Assertion');
+        static::assertSame('id-saml11-abc', $assertion->getAttribute('AssertionID'));
     }
 
     public function test_saml_11_throws_when_assertion_id_is_missing(): void
@@ -82,14 +83,14 @@ final class SamlAssertionTest extends OutboundTestCase
         static::assertSame($security, $assertion->parentNode);
     }
 
-    public function test_it_extracts_the_assertion_id_from_saml_20(): void
+    public function test_it_keeps_the_saml_20_assertion_id_the_issuer_gave_it(): void
     {
         $document = $this->envelope();
 
-        $block = new SamlAssertion($this->saml20('id-saml20-xyz'), SamlVersion::Saml20);
-        $block($this->context($document));
+        (new SamlAssertion($this->saml20('id-saml20-xyz'), SamlVersion::Saml20))($this->context($document));
 
-        static::assertSame('id-saml20-xyz', $block->assertionId());
+        $assertion = $this->only($document, self::SAML20, 'Assertion');
+        static::assertSame('id-saml20-xyz', $assertion->getAttribute('ID'));
     }
 
     public function test_saml_20_throws_when_id_attribute_is_missing(): void
@@ -166,13 +167,19 @@ final class SamlAssertionTest extends OutboundTestCase
         static::assertSame(self::SAML20, $assertion->namespaceURI);
     }
 
-    public function test_assertion_id_throws_before_invoke(): void
+    public function test_the_block_holds_no_per_message_state(): void
     {
-        $block = new SamlAssertion($this->saml20(), SamlVersion::Saml20);
+        // Reused across two messages, as a long-running worker holding one middleware would. Nothing from the
+        // first run may influence the second, and neither document may learn anything about the other.
+        $block = new SamlAssertion($this->saml20('id-shared'), SamlVersion::Saml20);
 
-        $this->expectException(LogicException::class);
+        $first = $this->envelope();
+        $second = $this->envelope();
+        $block($this->context($first));
+        $block($this->context($second));
 
-        $block->assertionId();
+        static::assertSame('id-shared', $this->only($first, self::SAML20, 'Assertion')->getAttribute('ID'));
+        static::assertSame('id-shared', $this->only($second, self::SAML20, 'Assertion')->getAttribute('ID'));
     }
 
     public function test_it_creates_the_security_header_when_absent(): void

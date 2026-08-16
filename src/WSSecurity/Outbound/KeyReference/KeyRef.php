@@ -10,10 +10,17 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference;
  *   SubjectKeyIdentifier -- inline Subject Key Identifier extension value
  *   IssuerSerial         -- inline ds:X509IssuerSerial
  *   Thumbprint           -- inline ThumbprintSHA1
+ *   SamlAssertion        -- point at the saml:Assertion already in the header (Holder-of-Key)
  *
  * BinarySecurityToken requires a wsse:BinarySecurityToken to be embedded before signing; the inline
  * references derive their content from the certificate alone. The Signature block resolves each case
  * to a concrete KeyIdentifier strategy.
+ *
+ * BinarySecurityToken and SamlAssertion are the two cases whose target is a token in the message rather
+ * than something derived from the certificate: the first embeds that token itself, the second expects an
+ * Outbound\SamlAssertion block to have run earlier in the list and finds what it left behind. Neither can
+ * be expressed as a value built before the message exists, which is why this is an enum the block resolves
+ * per message rather than a key identifier the caller constructs.
  */
 enum KeyRef
 {
@@ -21,4 +28,5 @@ enum KeyRef
     case SubjectKeyIdentifier;
     case IssuerSerial;
     case Thumbprint;
+    case SamlAssertion;
 }

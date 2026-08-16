@@ -9,7 +9,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
  * Distinguishes SAML 1.1 from SAML 2.0 within the WSSE assertion block. The two versions differ in
  * namespace URI and in the attribute that carries the assertion's id: SAML 1.1 uses AssertionID in the
  * urn:oasis:names:tc:SAML:1.0:assertion namespace, SAML 2.0 uses ID in urn:oasis:names:tc:SAML:2.0:assertion.
- * The version is caller-supplied because the assertion root alone has no reliable version discriminant.
+ * The version is caller-supplied on the block rather than read off the assertion, so that an assertion whose
+ * namespace disagrees with what the caller expected is refused instead of silently re-labelled. Where the
+ * assertion is already in the message and there is nothing to check it against, the namespace is the
+ * discriminant: it is this enum's own backing value.
  */
 enum SamlVersion: string
 {
