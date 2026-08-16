@@ -17,9 +17,8 @@ use Throwable;
  *
  * GCM authenticates its own ciphertext; CBC does not, and nothing in this library ties a CBC part to a
  * verified signature: Decrypt and VerifySignature are independent inbound blocks with no ordering or
- * coverage coupling between them. CBC stays in the default inbound allow-list because peers commonly send
- * it; a deployment that wants authenticated encryption guaranteed narrows the accepted data encryption
- * methods to the GCM ciphers.
+ * coverage coupling between them. CBC is therefore refused inbound by default, and a deployment whose peer
+ * only sends it names it in the accepted data encryption methods deliberately.
  *
  * The uniform decrypt failure does not close the padding oracle, and must not be read as doing so. It hides
  * which step failed; an oracle only needs whether the message was accepted, and a caller who can trigger

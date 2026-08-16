@@ -8,9 +8,22 @@ the idea is familiar, but the names, the credential objects and several defaults
 
 ### The XML-Security layer is now part of this package
 
-Signing, encryption, decryption and verification run inside this package on the modern PHP DOM, `ext-openssl`
-(symmetric ciphers, digests and certificates), and the `phpseclib/phpseclib` library (RSA and ECDSA key
-transport and signatures). You no longer need `robrichards/wse-php` or `xmlseclibs` at runtime, and the old
+Signing, encryption, decryption and verification run inside this package on the modern PHP DOM. The cryptography
+underneath is split across three engines, which is worth knowing if you scope a CVE watch or an approved-crypto
+argument by dependency:
+
+| Operation | Performed by |
+|---|---|
+| Symmetric ciphers (AES-GCM, AES-CBC, 3DES) | `phpseclib/phpseclib` |
+| RSA, DSA and ECDSA signing and verification | `phpseclib/phpseclib` |
+| RSA key transport (wrapping and unwrapping the session key) | `phpseclib/phpseclib` |
+| Certificate revocation list parsing | `phpseclib/phpseclib` |
+| Certificate path validation, key and PEM parsing | `ext-openssl` |
+| Digests | `ext-hash` |
+
+So `ext-openssl` is required for the certificate work rather than for the cryptographic operations themselves,
+and phpseclib's correctness and timing properties are on the path of every inbound signature verification and
+every RSA unwrap an unauthenticated peer can drive. You no longer need `robrichards/wse-php` or `xmlseclibs` at runtime, and the old
 encryption-bug patch (the `cweagans/composer-patches` workaround for `wse-php`) is no longer needed. You can
 drop that patch and the dev dependency from your project.
 
@@ -31,6 +44,10 @@ finds. Install `ext-gmp` for native-speed key transport and signatures, or `ext-
 already fast enough for a typical client. With neither extension the math falls back to a pure-PHP path that
 is noticeably slower per message; everything still works, just slower. `ext-bcmath` is commonly enabled by
 default, so most installations need no action.
+
+This is not only about throughput. That same math runs the RSA unwrap on the inbound path, which an
+unauthenticated peer can drive by sending an encrypted response, so the backend is on a path that is reachable
+rather than merely internal.
 
 ### Secure defaults changed on the wire
 
@@ -142,7 +159,28 @@ outbound side:
 - `Inbound\ValidateTimestamp` checks the response is fresh within a clock-skew window. This is also new.
 
 A response that fails an inbound check throws a single, uniform security error. It does not reveal which step
-failed, so the middleware cannot be used as an oracle.
+failed, which denies a peer the step-identifying detail a forgery or validation oracle needs.
+
+One exposure it does not close, and must not be read as closing: if you opt into an AES-CBC data-encryption
+method, the CBC padding oracle stays open. A uniform fault hides which step failed, but an oracle only needs to
+know whether the message was accepted at all, and a caller who can trigger requests observes that from the
+difference between a returned response and a thrown one. CBC is refused by default for this reason. Narrow the
+accepted data-encryption methods to the GCM ciphers, or accept the exposure knowingly. See
+[the security profile reference](docs/security-profile.md) for the opt-in and what it costs.
+
+### Locator and preset classes were removed with no replacement
+
+These were public but internal in intent, and the engine that replaced them addresses XML differently. If you
+used one directly, there is no like-for-like substitute:
+
+| Removed | What to do instead |
+|---|---|
+| `WSSecurity\Xml\Locator\SecurityLocator` | `WSSecurity\Xml\Builder\SecurityHeader::locate()` returns the header addressed to this receiver |
+| `WSSecurity\Xml\Locator\SignatureLocator` | Internal to verification now; `Inbound\VerifySignature` is the supported entry point |
+| `WSSecurity\Xml\Locator\BinaryTokenLocator` | `WSSecurity\Xml\Locator\BinaryToken` locates a token by its content within a given header |
+| `WSSecurity\Xml\Locator\EncryptedKeyLocator` | Internal to decryption now; `Inbound\Decrypt` is the supported entry point |
+| `WSSecurity\Xml\Legacy\LegacyInterop` | The `wse-php` bridge it existed for is gone |
+| `WSSecurity\Xml\Xpath\WssePreset` | Each query now declares the prefixes it uses, so no shared preset exists |
 
 ### Credentials are value objects under `KeyStore`
 
@@ -265,14 +303,18 @@ constructing an object, and the certificate it describes is derived from the cre
 |. | `KeyRef::Thumbprint` (new) |
 
 `KeyRef` selects the reference for `Outbound\Signature`; `EncKeyRef` offers the same four cases for
-`Outbound\Encryption`. Both live under `WSSecurity\Outbound\KeyReference\`:
+`Outbound\Encryption` (encryption has no Holder-of-Key equivalent). Both live under
+`WSSecurity\Outbound\KeyReference\`:
 
 ```php
 new Outbound\Signature($clientCertificate, KeyRef::SubjectKeyIdentifier);
 new Outbound\Encryption($recipientCertificate, EncKeyRef::IssuerSerial);
 ```
 
-`SamlKeyIdentifier` is now `SamlAssertionKeyIdentifier` and requires a `SamlVersion` as its second argument:
+`SamlKeyIdentifier` is now `SamlAssertionKeyIdentifier` and requires a `SamlVersion` as its second argument.
+For the ordinary Holder-of-Key flow you no longer construct it yourself: pass `KeyRef::SamlAssertion` and the
+block reads the assertion out of the header. Build it by hand only if you are driving the engine directly, and
+hand it over with `Outbound\Signature::withKeyIdentifier()`:
 
 ```php
 // before
@@ -287,9 +329,23 @@ shape. A reference to a SAML 2.0 assertion needs the 1.1-profile `#SAMLID` value
 of `#SAMLV2.0`, which the old form could not express. So if you were referencing a 2.0 assertion, the reference
 your peer received described a 1.1 one. Pass `SamlVersion::Saml11` to keep exactly the previous wire format.
 
+`KeyRef` also gained a fifth case, `SamlAssertion`, for the Holder-of-Key flow: the signature points at the
+`saml:Assertion` an `Outbound\SamlAssertion` block placed in the header earlier in the list. See
+[the outbound block reference](docs/outbound-blocks.md) for the composition and the part list it needs.
+
 `CustomKeyIdentifier` still exists for a value type this package does not model, under
-`WSSecurity\Outbound\KeyReference\` with the rest. `ReferencingKeyIdentifier` was removed: every reference the
-package emits is now either one of the four `KeyRef` cases or a `CustomKeyIdentifier`.
+`WSSecurity\Outbound\KeyReference\` with the rest. Reach it with
+`Outbound\Signature::withKeyIdentifier($keyIdentifier)`, which overrides the `keyRef` passed at construction.
+`ReferencingKeyIdentifier` was removed: every reference the package emits is now either one of the five `KeyRef`
+cases or a key identifier you supplied yourself.
+
+### `SamlAssertion::assertionId()` was removed
+
+The block no longer keeps the id of the last assertion it imported, because holding per-message state on a block
+that a long-running worker reuses is a cross-request hazard. Nothing needs it any more: a Holder-of-Key
+signature reads the assertion straight out of the header via `KeyRef::SamlAssertion`. If you called
+`assertionId()` for logging, read the `ID` (2.0) or `AssertionID` (1.1) attribute off your own assertion XML,
+which you already hold.
 
 ### The SAML assertion block takes XML as a string
 
@@ -343,8 +399,10 @@ XML-Security layer be driven by a `CryptoPolicy` alone, without the SOAP profile
 - **RSA-OAEP-SHA256 key transport.** The default is RSA-OAEP with a SHA-1 label hash, which is what interop
   peers expect. To move a block to SHA-256, pass
   `Outbound\Encryption::withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256())`. The named constructors
-  are `oaepSha1()`, `oaepSha256()`, `legacyMgf1p()` and `rsa1_5()`. There is no `withOaepHash()` setter; use
-  `withKeyTransportAlgorithm()`. Inbound, both SHA-1 and SHA-256 are accepted by default.
+  are `oaepSha1()`, `oaepSha256()`, `legacyMgf1p()` and `rsa1_5()`. There is no `withOaepHash()` setter on the
+  block; to move every block at once, set `oaepHash` on the profile's `CryptoPolicy` instead. Inbound, both
+  SHA-1 and SHA-256 are accepted by default, and an `xenc11:MGF` child the peer omits is read as the spec
+  default MGF1-SHA1 rather than as a declared SHA-1 that has to match the label.
 - **AES-GCM data encryption.** `AES128_GCM`, `AES192_GCM` and `AES256_GCM` were already available; GCM is now
   the default. The CBC variants remain selectable for a peer that requires them.
 - **Pinned namespace prefixes.** `Outbound\Signature::withInclusivePrefixes()` makes an exclusive

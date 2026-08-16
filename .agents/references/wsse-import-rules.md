@@ -47,9 +47,16 @@ Outbound, in the order they must run:
 | `Encryption` | XML-Enc ciphertext for the named parts, under a fresh session key |
 | `SamlAssertion` | A SAML 1.1 or 2.0 assertion obtained elsewhere, imported verbatim |
 
-Inbound, in the order they must run: `Decrypt`, then `VerifySignature`, then `ValidateTimestamp`.
+Inbound, the order mirrors the order the peer applied its protections, so read it off the policy rather than
+applying one shape to everything:
 
-Order is behaviour, not style. Sign before you encrypt outbound; decrypt before you verify inbound.
+| The peer signs then encrypts (the common case, and `sp:SignBeforeEncrypting`) | `Decrypt`, then `VerifySignature`, then `ValidateTimestamp` |
+|---|---|
+| The peer encrypts then signs (`sp:EncryptBeforeSigning`) | `VerifySignature`, then `Decrypt`, then `ValidateTimestamp` |
+
+Order is behaviour, not style. Inbound has to undo the peer's outermost protection first: where the signature
+was made over ciphertext, decrypting first replaces the very nodes the signature covers and a valid response
+then fails to verify.
 
 The defaults worth knowing before you write anything, because matching one means writing nothing:
 

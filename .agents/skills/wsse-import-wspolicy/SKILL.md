@@ -1,6 +1,6 @@
 ---
 name: wsse-import-wspolicy
-description: Use when turning a WS-SecurityPolicy into php-soap/http-wsse-middleware wiring. Triggers on sp: assertions such as sp:AsymmetricBinding, sp:SymmetricBinding, sp:TransportBinding, sp:SignedParts, sp:EncryptedParts, sp:AlgorithmSuite, sp:X509Token, sp:Wss10 or sp:Wss11, on a wsp:Policy or wsp:PolicyReference in a WSDL, on a WebSphere policy set's policy.xml, and on requests like "here is their WSDL, what security do we need" or "port this security policy to PHP".
+description: Use when turning a WS-SecurityPolicy into php-soap/psr18-wsse-middleware wiring. Triggers on sp: assertions such as sp:AsymmetricBinding, sp:SymmetricBinding, sp:TransportBinding, sp:SignedParts, sp:EncryptedParts, sp:AlgorithmSuite, sp:X509Token, sp:Wss10 or sp:Wss11, on a wsp:Policy or wsp:PolicyReference in a WSDL, on a WebSphere policy set's policy.xml, and on requests like "here is their WSDL, what security do we need" or "port this security policy to PHP".
 ---
 
 # Importing a WS-SecurityPolicy

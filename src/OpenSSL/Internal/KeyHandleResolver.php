@@ -9,9 +9,13 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 
 /**
- * Turns the HiddenString-backed KeyStore PEM value objects into live openssl key handles. This is the only
- * place an asymmetric handle is produced for the crypto primitives, so a raw OpenSSLAsymmetricKey is created,
- * used and discarded entirely within the OpenSSL\ module and never escapes it.
+ * Turns the HiddenString-backed KeyStore PEM value objects into live openssl key handles, for the parsing that
+ * reads a key's own properties. A raw OpenSSLAsymmetricKey is created, used and discarded entirely within the
+ * OpenSSL\ module and never escapes it.
+ *
+ * It is not the boundary the crypto primitives go through. Signing, verification and RSA key transport load
+ * their keys with phpseclib instead, so an audit of where unwrapped key material is handled has to read those
+ * classes as well as this one.
  *
  * @internal
  */

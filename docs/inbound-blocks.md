@@ -74,6 +74,10 @@ new Inbound\VerifySignature(
   `Part::securityHeaderContents()` requires every token in the Security header to have been signed, and
   `Part::soapHeaders()` requires every other SOAP header block to have been signed.
 
+  **An empty list is not the default.** `signed: []` replaces the body floor with no requirement at all, so any
+  message carrying a signature from any trusted certificate passes, whatever that signature actually covers.
+  Pass `null` (or omit the argument) if you want the default; pass a list only when you mean every part in it.
+
 The accepted signature, digest and canonicalization algorithms come from the profile's allow-lists. By default
 the signature allow-list covers RSA and ECDSA at SHA-256/384/512, and only the exclusive C14N variants are
 accepted; to accept an inclusive variant, add it to the profile's `acceptedCanonicalizations` (see
@@ -94,6 +98,12 @@ opt-in [revocation checking](trust.md#revocation-checking-opt-in).
 Rejects a stale or future-dated response before your application sees it. It locates the single `wsu:Timestamp`
 in the Security header and asserts the message is not expired, not older than the maximum age, and not stamped
 in the future, each within the configured clock skew.
+
+Both `wsu:Created` and `wsu:Expires` are required. The OASIS utility schema makes each optional, so a peer that
+stamps only `wsu:Created` and leaves the receiver's own `timestampTtl` to bound the window is spec-legal and
+will be refused here. That is deliberate, because a timestamp with no stated expiry gives the block nothing to
+assert against, but it is a real interop refusal: if you meet such a peer, the fix is on their side or the block
+comes out of your inbound list.
 
 This is not replay detection. There is no nonce cache, so a captured response replayed inside the freshness
 window is accepted; what the block does is bound how long that window stays open. Narrow `timestampTtl` and

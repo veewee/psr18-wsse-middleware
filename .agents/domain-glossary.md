@@ -1,4 +1,4 @@
-# php-soap/http-wsse-middleware domain glossary
+# php-soap/psr18-wsse-middleware domain glossary
 
 Canonical terms for this domain. Every document, code comment, class name, and README section uses the
 **Term** column verbatim; the Avoid column is banned in new writing. WS-Security / XML-DSig / XML-Enc /
@@ -140,7 +140,7 @@ WS-Addressing wire element names are spec-given and used exactly as the specs sp
 | **Oracle** | A response difference that lets a peer distinguish failure causes (padding oracle, forgery oracle); the design exists to expose none | The threat the uniform-fault design defends against | "oracle" (`docs/inbound-blocks.md`) | leak, side channel (as synonyms) |
 | **SecurityFault** | The single uniform inbound failure that reveals nothing about which step failed (the real cause is chained for logs only) | Every inbound failure collapses to this; outbound failures use distinct exceptions | `SecurityFault` (`src/WSSecurity/Exception/SecurityFault.php:9`) | security error, generic error |
 | **DOCTYPE rejection** | Rejecting any DOCTYPE before any block parses the document, as XXE defense | Applies to every parse, including SAML assertions parsed in isolation | `disallow_doctype()` (`src/WsseMiddleware.php:18`) | doctype block, XXE guard |
-| **XSW (XML Signature Wrapping)** | The attack class of moving or duplicating signed content so a signature validates over the wrong element; drives id-resolution and covered-part hardening | | "XSW" (comments in `src/WSSecurity/Xml/Locator/`) | wrapping attack (bare), signature wrapping |
+| **XSW (XML Signature Wrapping)** | The attack class of moving or duplicating signed content so a signature validates over the wrong element; drives id-resolution and covered-part hardening | `SignatureLocator` (`src/XmlSecurity/Verification/SignedInfo/SignatureLocator.php`), `RequiredPartsValidator` (`src/WSSecurity/Validator/RequiredPartsValidator.php`) | wrapping attack (bare), signature wrapping |
 
 ## Flagged ambiguities
 _None open — the two coined-term forks (Block vs Action; key-transport naming) were resolved by the user

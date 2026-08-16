@@ -1,6 +1,6 @@
 ---
 name: wsse-import-soapui
-description: Use when turning a SoapUI or ReadyAPI WS-Security setup into php-soap/http-wsse-middleware wiring. Triggers on a *-soapui-project.xml file, a con:wssContainer or con:outgoing block, an outgoingWss reference, a screenshot or description of the SoapUI WS-Security panel, and on requests like "we have this working in SoapUI, do the same in PHP" or "port my SoapUI security config".
+description: Use when turning a SoapUI or ReadyAPI WS-Security setup into php-soap/psr18-wsse-middleware wiring. Triggers on a *-soapui-project.xml file, a con:wssContainer or con:outgoing block, an outgoingWss reference, a screenshot or description of the SoapUI WS-Security panel, and on requests like "we have this working in SoapUI, do the same in PHP" or "port my SoapUI security config".
 ---
 
 # Importing a SoapUI WS-Security configuration

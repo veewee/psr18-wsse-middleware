@@ -1,6 +1,6 @@
 ---
 name: wsse-import-ibm
-description: Use when turning an IBM WebSphere WS-Security configuration into php-soap/http-wsse-middleware wiring. Triggers on a ws-security.xml file, an ibm-webservicesclient-ext.xmi / ibm-webservicesclient-bnd.xmi / ibm-webservices-ext.xmi / ibm-webservices-bnd.xmi descriptor, a WebSphere policy set with policy.xml and bindings.xml, element names like signingInfo, encryptionInfo, keyLocators, trustAnchors, tokenGenerator or tokenConsumer, and on requests like "the client sent us their WebSphere config, what blocks do we need".
+description: Use when turning an IBM WebSphere WS-Security configuration into php-soap/psr18-wsse-middleware wiring. Triggers on a ws-security.xml file, an ibm-webservicesclient-ext.xmi / ibm-webservicesclient-bnd.xmi / ibm-webservices-ext.xmi / ibm-webservices-bnd.xmi descriptor, a WebSphere policy set with policy.xml and bindings.xml, element names like signingInfo, encryptionInfo, keyLocators, trustAnchors, tokenGenerator or tokenConsumer, and on requests like "the client sent us their WebSphere config, what blocks do we need".
 ---
 
 # Importing an IBM WebSphere WS-Security configuration

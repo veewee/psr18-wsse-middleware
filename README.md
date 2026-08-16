@@ -3,9 +3,11 @@
 This package adds WSSE (WS-Security), and WSA (WS-Addressing) to your PSR-18 based SOAP transport.
 
 From this major version on, the XML-Security layer lives inside this package. It signs, encrypts, decrypts and
-verifies on top of `ext-openssl` and the modern PHP DOM, so you no longer pull in `robrichards/wse-php` or
-`robrichards/xmlseclibs` at runtime. Because the timestamp parser uses the ICU date formatter, the requirements now also
-include `ext-intl`.
+verifies on the modern PHP DOM, so you no longer pull in `robrichards/wse-php` or `robrichards/xmlseclibs` at
+runtime. The cryptography underneath is split: `phpseclib/phpseclib` performs the symmetric ciphers, the RSA and
+ECDSA signatures and the RSA key transport, `ext-openssl` performs certificate path validation and key parsing,
+and digests run on `ext-hash`. Because the timestamp parser uses the ICU date formatter, the requirements now
+also include `ext-intl`.
 
 # Want to help out? 💚
 

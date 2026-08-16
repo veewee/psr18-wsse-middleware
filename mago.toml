@@ -64,10 +64,12 @@ permit = [
 namespace = "Soap\\Psr18WsseMiddleware\\OpenSSL"
 permit = ["@layer:base", "@layer:crypto"]
 
-# Layer 3 — the standalone XML-DSig/XML-Enc core.
+# Layer 3 - the standalone XML-DSig/XML-Enc core. No @layer:crypto: it orchestrates XML and delegates every
+# primitive to OpenSSL\, so a phpseclib or HiddenString import appearing here is a misplaced class rather than
+# a rule that needs widening. Granting it would let that break the unwrapped-key boundary silently.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\XmlSecurity"
-permit = ["@layer:base", "@layer:xml", "@layer:crypto"]
+permit = ["@layer:base", "@layer:xml"]
 
 # Layer 4 — the SOAP profile. It sees every layer below it (via `layering`) but NOT the sibling Wsa above it.
 [[guard.perimeter.rules]]

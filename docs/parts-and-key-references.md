@@ -25,7 +25,10 @@ A few value objects let you say which parts to protect and how a token is refere
       new QualifiedName('urn:my-service', 'Order'),
   );
   ```
-- `Part::byId(string $id)`: an element by its `wsu:Id`.
+- `Part::byId(string $id)`: an element by its `wsu:Id`. Inbound this names an element but not a **position**: a
+  signed element carrying that id satisfies the requirement wherever it now sits in the document, including
+  somewhere your application never reads. Where that matters, use `Part::path()` instead, which binds the
+  element to where a reader will look for it. `Part::body()` is a path for exactly this reason.
 - `Part::usernameToken()` / `Part::binarySecurityToken()`. Shortcuts for the `wsse:UsernameToken` and
   `wsse:BinarySecurityToken` in the Security header (equivalent to `Part::element()` with the WS-Security namespace).
 
@@ -52,10 +55,30 @@ every such element to have been signed.
 - `Part::soapHeaders()`: every SOAP header block **except** the `wsse:Security` header itself (for example
   WS-Addressing headers). Opt in with `withParts([Part::body(), Part::securityHeaderContents(), Part::soapHeaders()])`.
 
+  It expands against the message **as it is when the signature is built**, so a header added afterwards is not
+  covered. If you use it to sign WS-Addressing headers, `WsaMiddleware` has to run before `WsseMiddleware`, and
+  in a `PluginClient` the request passes through the plugins in array order:
+
+  ```php
+  new PluginClient($client, [
+      new WsaMiddleware(),      // adds wsa:To, wsa:Action, ... first
+      new WsseMiddleware(...),  // then signs them
+  ]);
+  ```
+
+  Listed the other way round the signature is built before the addressing headers exist, `Part::soapHeaders()`
+  expands to nothing for them, and the message looks fully protected while `wsa:To` and `wsa:Action` are not
+  covered at all.
+
 `KeyRef` (for signing), and `EncKeyRef` (for encryption) choose how your certificate is referenced:
 
 - `Outbound\KeyReference\KeyRef`: `BinarySecurityToken` (embed the token and point at it; the X.509 interop default for
-  signing), `SubjectKeyIdentifier`, `IssuerSerial`, `Thumbprint`.
+  signing), `SubjectKeyIdentifier`, `IssuerSerial`, `Thumbprint`, `SamlAssertion` (point at the assertion an
+  `Outbound\SamlAssertion` block placed in the header, for Holder-of-Key; see
+  [the outbound blocks](outbound-blocks.md)).
+
+  For a reference this package does not model, build the `KeyIdentifier` yourself and pass it with
+  `Outbound\Signature::withKeyIdentifier()`, which overrides `keyRef`.
 - `Outbound\KeyReference\EncKeyRef`: `SubjectKeyIdentifier` (the default for encryption), `IssuerSerial`, `Thumbprint`,
   `BinarySecurityToken`.
 
