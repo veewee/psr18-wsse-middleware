@@ -5,6 +5,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification;
 
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
@@ -49,6 +50,7 @@ final class RevocationFaultUniformityTest extends TestCase
         yield 'revoked' => CertificateTrustException::revoked();
         yield 'no list covers the issuer' => CertificateTrustException::revocationUnknown();
         yield 'the list is stale' => CertificateTrustException::revocationListStale();
+        yield 'the list is not yet current' => CertificateTrustException::revocationListNotYetCurrent();
         yield 'the list is not signed by an anchor' => CertificateTrustException::revocationListUntrusted();
         yield 'the list is unreadable' => CertificateTrustException::revocationListUnreadable();
         yield 'the certificate is simply untrusted' => CertificateTrustException::notTrusted();
@@ -77,6 +79,23 @@ final class RevocationFaultUniformityTest extends TestCase
         static::assertCount(1, array_unique($codes), 'every trust failure must share one code');
     }
 
+    public function test_a_trust_resolver_raising_its_own_type_is_not_distinguishable(): void
+    {
+        // The trust resolver is a replaceable seam, and the documented reason to replace it is to reach a
+        // corporate PKI or OCSP service. Such a resolver raises its own types: a lookup miss, a timeout, a
+        // transport error. Caught narrowly, each reaches a peer as a distinguishable exception carrying
+        // service detail, which is the oracle the uniform failure exists to deny.
+        $foreign = $this->failureFrom(new RuntimeException('pki-service: no record for CN=peer.example.com'));
+
+        static::assertInstanceOf(SignatureVerificationFailed::class, $foreign);
+        static::assertSame(
+            $this->failureFrom(CertificateTrustException::notTrusted())->getMessage(),
+            $foreign->getMessage(),
+        );
+        static::assertStringNotContainsString('peer.example.com', $foreign->getMessage());
+        static::assertStringNotContainsString('pki-service', $foreign->getMessage());
+    }
+
     public function test_the_underlying_reason_stays_available_for_operator_logs(): void
     {
         // Uniform to a peer, diagnosable locally. If the distinct reason vanished entirely, an operator could not
@@ -88,7 +107,7 @@ final class RevocationFaultUniformityTest extends TestCase
         );
     }
 
-    private function failureFrom(CertificateTrustException $cause): Throwable
+    private function failureFrom(Throwable $cause): Throwable
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
@@ -125,7 +144,7 @@ final class RevocationFaultUniformityTest extends TestCase
 final class ThrowingTrustResolver implements TrustResolver
 {
     public function __construct(
-        private readonly CertificateTrustException $cause,
+        private readonly Throwable $cause,
     ) {
     }
 

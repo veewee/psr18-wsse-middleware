@@ -53,29 +53,36 @@ final class RevocationCheck
             throw CertificateTrustException::unreadable();
         }
 
-        $covering = $this->listCovering($issuerSerial->issuer, $trust);
-
-        $this->assertCurrent($covering, $now);
-        $this->assertRevokesNot($covering, $issuerSerial->serialNumber);
+        foreach ($this->currentListsCovering($issuerSerial->issuer, $trust, $now) as $covering) {
+            $this->assertRevokesNot($covering, $issuerSerial->serialNumber);
+        }
     }
 
     /**
-     * The one list issued by the signer's own issuer, verified against an anchor before it is read for anything
-     * else. A list issued by anyone else is not a weaker answer, it is no answer: it says nothing about this
-     * issuer's certificates.
+     * Every list issued by the signer's own issuer that is trusted and current, not merely the first one found.
+     * A list issued by anyone else is not a weaker answer, it is no answer: it says nothing about this issuer's
+     * certificates.
+     *
+     * All of them are read rather than one being chosen, because a rollover legitimately leaves two lists inside
+     * their nextUpdate at once: the superseded one predates the compromise and stays silent while the current one
+     * names the serial. Picking either would let the order an integrator happens to pass them in decide whether a
+     * revoked signer is accepted. A serial named by any current list is revoked.
+     *
+     * @return non-empty-list<X509>
      *
      * @throws CertificateTrustException
      */
-    private function listCovering(DistinguishedName $issuer, TrustStore $trust): X509
+    private function currentListsCovering(DistinguishedName $issuer, TrustStore $trust, Timestamp $now): array
     {
-        $anchorsPem = $trust->toPem()->toString();
+        $anchors = $trust->anchors();
+        $current = [];
         $refusal = null;
 
         foreach ($trust->revocationLists() as $revocationList) {
             // One unusable entry must not end the search: a later entry may be the one that covers this issuer.
             // Nothing is loosened by continuing, because a signer no list covers is still refused below.
             try {
-                $parsed = $this->parse($revocationList, $anchorsPem);
+                $parsed = $this->parse($revocationList, $anchors);
                 $covers = $this->issuerOf($parsed)->equals($issuer);
             } catch (CertificateTrustException $exception) {
                 $refusal ??= $exception;
@@ -97,19 +104,41 @@ final class RevocationCheck
                 continue;
             }
 
-            return $parsed;
+            // A list outside its own validity is set aside rather than refused outright: an expired one left in
+            // the store beside its replacement is ordinary operational housekeeping, and it is only when no
+            // current list survives that the staleness becomes the refusal.
+            try {
+                $this->assertCurrent($parsed, $now);
+            } catch (CertificateTrustException $exception) {
+                $refusal ??= $exception;
+
+                continue;
+            }
+
+            $current[] = $parsed;
         }
 
-        throw $refusal ?? CertificateTrustException::revocationUnknown();
+        if ($current === []) {
+            throw $refusal ?? CertificateTrustException::revocationUnknown();
+        }
+
+        return $current;
     }
 
     /**
+     * @param list<Certificate> $anchors
+     *
      * @throws CertificateTrustException
      */
-    private function parse(CertificateRevocationList $revocationList, string $anchorsPem): X509
+    private function parse(CertificateRevocationList $revocationList, array $anchors): X509
     {
         $reader = new X509();
-        $reader->loadCA($anchorsPem);
+        // One anchor per call: loadCA reads a single certificate, so handing it a concatenated bundle registers
+        // whichever one comes first and silently discards the rest. Every list would then have to be issued by
+        // that one anchor, and a two-partner store would refuse every message from the second partner.
+        foreach ($anchors as $anchor) {
+            $reader->loadCA($anchor->contents());
+        }
 
         try {
             if ($reader->loadCRL($revocationList->contents()) === false) {
@@ -140,8 +169,11 @@ final class RevocationCheck
     }
 
     /**
-     * A list with no nextUpdate states no expiry and so can never be shown to be current; it is refused rather
-     * than treated as valid forever.
+     * A list is current between the instant it states it was issued and the one it states it expires. A list with
+     * no nextUpdate states no expiry and so can never be shown to be current; it is refused rather than treated
+     * as valid forever. A thisUpdate still in the future is equally not evidence about now: it is a list from a
+     * misconfigured clock or a fabricated one, and reading it would let a future-dated empty list stand in for
+     * the one currently naming a compromised serial.
      *
      * @throws CertificateTrustException
      */
@@ -154,15 +186,14 @@ final class RevocationCheck
             throw CertificateTrustException::revocationListUnreadable();
         }
 
-        $stated = $this->statedNextUpdate($parsed);
-
-        if ($stated === null) {
-            throw CertificateTrustException::revocationListStale();
+        $issuedAt = $this->statedTime($parsed, 'thisUpdate');
+        if ($issuedAt !== null && $now->getSeconds() < $issuedAt) {
+            throw CertificateTrustException::revocationListNotYetCurrent();
         }
 
-        $expiresAt = strtotime($stated);
-        if ($expiresAt === false) {
-            throw CertificateTrustException::revocationListUnreadable();
+        $expiresAt = $this->statedTime($parsed, 'nextUpdate');
+        if ($expiresAt === null) {
+            throw CertificateTrustException::revocationListStale();
         }
 
         if ($now->getSeconds() >= $expiresAt) {
@@ -189,26 +220,37 @@ final class RevocationCheck
     }
 
     /**
-     * The nextUpdate a CRL states, in whichever ASN.1 time form it used, or null when it states none.
+     * One of the instants a CRL states, in whichever ASN.1 time form it used, as an epoch second: or null when
+     * it states none. The decoded string carries its own UTC offset, so the epoch it resolves to does not depend
+     * on the server's configured timezone.
      *
      * @param array<array-key, mixed> $parsed
+     *
+     * @throws CertificateTrustException when the field is present but cannot be read as an instant
      */
-    private function statedNextUpdate(array $parsed): ?string
+    private function statedTime(array $parsed, string $field): ?int
     {
         $tbs = $parsed['tbsCertList'] ?? null;
         if (!is_array($tbs)) {
             return null;
         }
 
-        $nextUpdate = $tbs['nextUpdate'] ?? null;
-        if (!is_array($nextUpdate)) {
+        $stated = $tbs[$field] ?? null;
+        if (!is_array($stated)) {
             return null;
         }
 
         foreach (['utcTime', 'generalTime'] as $form) {
-            if (isset($nextUpdate[$form]) && is_string($nextUpdate[$form]) && $nextUpdate[$form] !== '') {
-                return $nextUpdate[$form];
+            if (!isset($stated[$form]) || !is_string($stated[$form]) || $stated[$form] === '') {
+                continue;
             }
+
+            $instant = strtotime($stated[$form]);
+            if ($instant === false) {
+                throw CertificateTrustException::revocationListUnreadable();
+            }
+
+            return $instant;
         }
 
         return null;

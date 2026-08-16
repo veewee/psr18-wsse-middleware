@@ -78,7 +78,24 @@ trusted, current, and issued by that signer's own issuer says nothing about it:
 | The list names the certificate | Rejected |
 | No supplied list was issued by the signer's issuer | Rejected. An unrelated CA's list says nothing about this signer |
 | The covering list is past its `nextUpdate` | Rejected. A stalled refresh must not silently disable the check |
+| The covering list states a `thisUpdate` in the future | Rejected. A list issued later than now is not evidence about now |
 | The covering list's signature does not verify against an anchor | Rejected. A forged empty list would otherwise un-revoke everything |
+
+Supply as many lists as you like: **every** current list issued by the signer's issuer is read, and the
+certificate is rejected if any of them names it. That matters during a rollover, when the superseded list and
+its replacement are both still inside their `nextUpdate` and only the newer one names the compromised serial;
+consulting whichever happened to be passed first would let array order decide whether a revoked signer is
+accepted. An expired list left in the store beside its replacement is ignored rather than fatal, but if no
+current list covers the issuer, the staleness becomes the rejection.
+
+Two limits are worth knowing before you rely on this:
+
+- **Only the end-entity certificate is checked.** A revoked intermediate CA in the presented chain is not
+  detected, because the check asks for a list issued by the leaf's own issuer. If you anchor a root and your
+  peers chain through intermediates, revoking an intermediate will not stop messages signed under it.
+- **The list must be signed by a configured anchor.** A CRL issued by an intermediate that is itself only
+  peer-supplied cannot be believed, so in a root-plus-intermediate PKI you need the intermediate anchored in
+  the trust store for its CRLs to be usable.
 
 That last rule is why the lists live on the trust store rather than beside it: a CRL is believed only once its
 own signature verifies against one of the same anchors. Note the third row in particular: enabling revocation

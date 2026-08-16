@@ -5,6 +5,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 
 use phpseclib3\Crypt\RSA;
 use phpseclib3\File\X509;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psl\DateTime\Timestamp;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
@@ -161,6 +162,77 @@ final class RevocationCheckTest extends TestCase
 
         $this->assertRejectedBecause(
             'past its nextUpdate',
+            fn (): mixed => (new CertificateTrust())->verify(
+                CertificateChain::fromCertificates($this->certificate('leaf.crt')),
+                TrustStore::fromCertificates($this->certificate('ca.crt'))
+                    ->withRevocationLists(new CertificateRevocationList($minted)),
+            ),
+        );
+    }
+
+    /**
+     * @return iterable<string, list<string>>
+     */
+    public static function rolloverOrderings(): iterable
+    {
+        yield 'the superseded list first' => [['crl-empty.pem', 'crl-revoked.pem']];
+        yield 'the current list first' => [['crl-revoked.pem', 'crl-empty.pem']];
+    }
+
+    /**
+     * @param list<string> $lists
+     */
+    #[DataProvider('rolloverOrderings')]
+    public function test_a_revoked_signer_stays_revoked_across_a_rollover_window(array $lists): void
+    {
+        // During an ordinary rollover both lists are inside their nextUpdate: the superseded one predates the
+        // compromise and says nothing, the current one names the serial. Consulting whichever happens to come
+        // first would make array position decide whether a revoked signer is accepted, so every current list
+        // covering the issuer is read and any one of them naming the serial refuses.
+        $this->assertRejectedBecause(
+            'listed as revoked',
+            fn (): mixed => (new CertificateTrust())->verify(
+                CertificateChain::fromCertificates($this->certificate('leaf.crt')),
+                TrustStore::fromCertificates($this->certificate('ca.crt'))->withRevocationLists(
+                    ...array_map($this->revocationList(...), $lists),
+                ),
+            ),
+        );
+    }
+
+    public function test_a_list_is_believed_when_its_issuer_is_not_the_first_anchor(): void
+    {
+        // Every anchor vouches for a list, not only whichever one the store happens to hold first. A two-partner
+        // store is the ordinary shape, and deciding trust by array position would make revocation work for one
+        // partner and refuse every message from the other, with a log blaming the list.
+        $signer = (new CertificateTrust())->verify(
+            CertificateChain::fromCertificates($this->certificate('leaf.crt')),
+            TrustStore::fromCertificates($this->certificate('other-ca.crt'), $this->certificate('ca.crt'))
+                ->withRevocationLists($this->revocationList('crl-empty.pem')),
+        );
+
+        static::assertStringContainsString('WSSE Revocation Leaf', $signer->subjectDistinguishedName()->toString());
+    }
+
+    public function test_a_list_stating_a_future_this_update_is_refused(): void
+    {
+        // A list issued later than now is not evidence about now. Reading it anyway would let a future-dated
+        // empty list stand in for the one currently naming a compromised serial, which is the same un-revoking
+        // the anchor-signature rule exists to stop, reached through the clock instead of the key. Openssl dates
+        // a CRL at generation time and offers no way to postdate one, so it is minted here.
+        $issuer = new X509();
+        $issuer->loadX509(file_get_contents(FIXTURE_DIR.'/certificates/revocation/ca.crt'));
+        $issuer->setPrivateKey(
+            RSA::load(file_get_contents(FIXTURE_DIR.'/certificates/revocation/ca.key')),
+        );
+
+        $writer = new X509();
+        $writer->setStartDate('+30 days');
+        $writer->setEndDate('+60 days');
+        $minted = $writer->saveCRL($writer->signCRL($issuer, $writer));
+
+        $this->assertRejectedBecause(
+            'thisUpdate in the future',
             fn (): mixed => (new CertificateTrust())->verify(
                 CertificateChain::fromCertificates($this->certificate('leaf.crt')),
                 TrustStore::fromCertificates($this->certificate('ca.crt'))

@@ -27,10 +27,12 @@ final class CertificateTrust
     private Clock $clock;
     private readonly RevocationCheck $revocationCheck;
 
-    public function __construct(Clock $clock = new SystemClock())
-    {
+    public function __construct(
+        Clock $clock = new SystemClock(),
+        RevocationCheck $revocationCheck = new RevocationCheck(),
+    ) {
         $this->clock = $clock;
-        $this->revocationCheck = new RevocationCheck();
+        $this->revocationCheck = $revocationCheck;
     }
 
     public function withClock(Clock $clock): self

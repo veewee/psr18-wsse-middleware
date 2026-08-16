@@ -54,6 +54,11 @@ final class CertificateTrustException extends RuntimeException
         return new self('The revocation list covering this issuer is past its nextUpdate.');
     }
 
+    public static function revocationListNotYetCurrent(): self
+    {
+        return new self('The revocation list covering this issuer states a thisUpdate in the future.');
+    }
+
     public static function revocationListUntrusted(): self
     {
         return new self('The revocation list is not signed by a configured trust anchor.');
