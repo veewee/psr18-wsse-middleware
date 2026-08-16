@@ -54,10 +54,18 @@ final class SecurityHeader
     }
 
     /**
+     * The header written into is the one addressed to this sender's own target, resolved by the same rule the
+     * receiving side uses. A message may legally carry a header per recipient, so an existing header for
+     * another hop belongs to that hop: writing our tokens into it would deliver a credential, a signature or a
+     * session key to a node that was never the recipient. When none is addressed to us, one is created
+     * alongside. For the same reason the targeting attribute is stamped only on a header we created: stamping
+     * it on an existing one would re-address every token already inside it.
+     *
      * @param string|null $actorOrRole the target for the header: soap:actor (SOAP 1.1) or soap:role
      *                                  (SOAP 1.2); null omits the attribute (targets the ultimate receiver)
      *
-     * @throws WsseHeaderException when the document is not a usable SOAP envelope
+     * @throws WsseHeaderException when the document is not a usable SOAP envelope, or already carries more
+     *                             than one header addressed to this target
      */
     public static function locateOrCreate(
         Document $document,
@@ -65,10 +73,11 @@ final class SecurityHeader
         bool $mustUnderstand = true,
         ?string $actorOrRole = null,
     ): self {
-        $header = self::locateOrCreateSoapHeader($document);
-        $security = self::locateOrCreateSecurity($document, $header);
-
         $envelopeNamespace = $soapVersion->envelopeNamespace();
+
+        $existing = self::locate($document, $soapVersion, $actorOrRole);
+        $security = $existing ?? self::createSecurity(self::locateOrCreateSoapHeader($document));
+
         // Reuse the envelope's existing prefix for the SOAP-namespaced attributes. A fresh prefix would
         // redeclare the envelope namespace on wsse:Security, a redundant declaration that is dropped on
         // serialisation: inclusive C14N folds it into every descendant digest, so the signed bytes would no
@@ -80,7 +89,7 @@ final class SecurityHeader
             namespaced_attribute($envelopeNamespace, $envelopePrefix.':mustUnderstand', '1')($security);
         }
 
-        if ($actorOrRole !== null) {
+        if ($existing === null && $actorOrRole !== null) {
             namespaced_attribute(
                 $envelopeNamespace,
                 $envelopePrefix.':'.$soapVersion->actorOrRoleName(),
@@ -183,19 +192,8 @@ final class SecurityHeader
         return $created;
     }
 
-    private static function locateOrCreateSecurity(Document $document, Element $header): Element
+    private static function createSecurity(Element $header): Element
     {
-        $existing = Query::elements(
-            $document,
-            './'.WsseNamespaces::Wsse->qualify('Security'),
-            $header,
-            [WsseNamespaces::Wsse->prefix() => WsseNamespaces::Wsse->uri()],
-        )->first();
-
-        if ($existing !== null) {
-            return $existing;
-        }
-
         $security = namespaced_element(WsseNamespaces::Wsse->value, WsseNamespaces::Wsse->qualify('Security'))($header);
         append($security)($header);
 

@@ -13,6 +13,7 @@ use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\InboundAction;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\OutboundAction;
@@ -180,6 +181,49 @@ final class WsseMiddlewareTest extends TestCase
         )->wait();
 
         static::assertSame(SoapVersion::Soap12, $version);
+    }
+
+    public function test_a_response_that_is_not_a_soap_envelope_fails_uniformly(): void
+    {
+        // The envelope namespace is response-supplied, and it is read before any block runs. Left alone it
+        // reaches the caller as its own exception type carrying the namespace verbatim, which tells a peer that
+        // this one rejection was the version check rather than any of the others.
+        $middleware = new WsseMiddleware(new SecurityProfile(), [], [$this->versionCapturingBlock($ignored)]);
+        $response = new Response(200, [], '<env:Envelope xmlns:env="urn:not-soap"><env:Body/></env:Envelope>');
+
+        try {
+            $middleware->handleRequest(
+                $this->soapRequest(self::SOAP12_NS),
+                $this->next($sentRequest, $response),
+                $this->first(),
+            )->wait();
+        } catch (SecurityFault $fault) {
+            static::assertSame('The inbound security header could not be processed.', $fault->getMessage());
+            static::assertStringNotContainsString('urn:not-soap', $fault->getMessage());
+            // The reason stays available to the operator and never to the peer.
+            static::assertInstanceOf(WsseHeaderException::class, $fault->getPrevious());
+
+            return;
+        }
+
+        static::fail('Expected a SecurityFault for a response that is not a SOAP envelope.');
+    }
+
+    public function test_a_request_that_is_not_a_soap_envelope_still_reports_the_reason(): void
+    {
+        // The other half: outbound the envelope is the caller's own, so collapsing the reason would only hide
+        // a configuration mistake from the one person able to fix it.
+        $middleware = new WsseMiddleware(new SecurityProfile(), [$this->versionCapturingBlock($ignored)]);
+        $request = new Request(
+            'POST',
+            'https://example.org/service',
+            ['SOAPAction' => 'urn:action'],
+            '<env:Envelope xmlns:env="urn:not-soap"><env:Body/></env:Envelope>',
+        );
+
+        $this->expectException(WsseHeaderException::class);
+        $this->expectExceptionMessage('urn:not-soap');
+        $middleware->handleRequest($request, $this->next($sentRequest), $this->first())->wait();
     }
 
     public function test_an_inbound_block_failure_propagates(): void

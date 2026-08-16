@@ -44,9 +44,13 @@ $profile = new SecurityProfile(
 - `?string $actorOrRole = null`: which hop this exchange belongs to, spelled `soap:actor` in SOAP 1.1 and
   `soap:role` in SOAP 1.2. `null` (default) means the ultimate receiver, whose header carries no such attribute.
 
-  One value does both jobs, because both answer the same question. Outbound it targets the header the blocks
-  write into; inbound it selects the header they read, so a signature or timestamp in a header addressed to a
-  different hop is not treated as yours. Set it only if your deployment is addressed as a named intermediary:
+  One value does both jobs, because both answer the same question, and both resolve the header the same way.
+  Outbound it targets the header the blocks write into: an existing header addressed to a different hop is left
+  alone and a new one is created for your target, so your tokens are never appended into another node's header
+  and an existing header is never silently re-addressed. Inbound it selects the header the blocks read, so a
+  signature or timestamp in a header addressed to a different hop is not treated as yours. In both directions a
+  message carrying two headers addressed to you is refused rather than one being picked. Set it only if your
+  deployment is addressed as a named intermediary:
 
   ```php
   $profile = new SecurityProfile(actorOrRole: 'urn:my-gateway');
@@ -58,6 +62,9 @@ $profile = new SecurityProfile(
 and can be used to drive the signing/encryption layer without the SOAP profile:
 
 - `SignatureMethod $signatureMethod = SignatureMethod::RSA_SHA256`: the outbound signature algorithm.
+- `OaepHash $oaepHash = OaepHash::Sha1`: the OAEP label hash every outbound `Encryption` block uses unless it
+  overrides the whole key transport itself. Set it here to move every block to SHA-256 at once, rather than
+  repeating `withKeyTransportAlgorithm()` on each and having a block added later fall back to SHA-1.
 - `DigestMethod $digestMethod = DigestMethod::SHA256`: the outbound per-reference digest.
 - `SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N`: the outbound
   canonicalization method.
@@ -125,10 +132,14 @@ algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMeth
 - **Signatures:** RSA-SHA256/384/512 and ECDSA-SHA256/384/512. RSA-SHA1 is rejected by default. ECDSA needs an
   EC certificate and key.
 - **Digests:** SHA-256/384/512. SHA-1 is rejected by default.
-- **Key transport:** RSA-OAEP-SHA1 (the default, byte-identical to previous releases), RSA-OAEP-SHA256,
+- **Key transport:** RSA-OAEP-SHA1 (the default), RSA-OAEP-SHA256,
   RSA-OAEP-MGF1P and RSA-1_5 (rejected by default). Select a non-default with
   `Outbound\Encryption::withKeyTransportAlgorithm(...)`.
 - **Bulk encryption:** AES-GCM at 128/192/256 bits. AES-CBC and 3DES are rejected by default.
+- **Signer key sizes:** `minimumRsaKeyBits` (1024) and `minimumEcKeyBits` (224) floor the signer's public key,
+  which no chain validation checks for you. The floor is fail-closed: a key whose family or size cannot be read
+  is refused rather than waved through, because the verdict comes from `ext-openssl` while the signature is
+  verified with phpseclib, and a key one cannot read is not thereby a key the other cannot use.
 - **Canonicalization:** exclusive C14N (`EXC_C14N`, `EXC_C14N_COMMENTS`) is the default and the only form
   accepted inbound unless you opt in. Inclusive Canonical XML 1.0 (`C14N`, `C14N_COMMENTS`) is supported as an
   opt-in. Canonical XML 1.1 is **not** supported: the underlying platform does not provide it.

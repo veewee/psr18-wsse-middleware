@@ -334,6 +334,63 @@ final class SecurityHeaderTest extends TestCase
         SecurityHeader::locate($document, SoapVersion::Soap12);
     }
 
+    public function test_it_does_not_write_into_a_header_addressed_to_another_role(): void
+    {
+        // An envelope crossing an intermediary already carries that hop's header. Writing our tokens into it
+        // would hand our credentials, signature or session key to a node that was never the recipient, so a
+        // header for us is created alongside rather than the foreign one being reused.
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'"><soap:Header>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'" soap:role="urn:gateway"/>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        $ours = SecurityHeader::locateOrCreate($document, SoapVersion::Soap12)->element();
+
+        static::assertNull($ours->getAttributeNS(self::SOAP12, 'role'));
+        static::assertNotNull(SecurityHeader::locate($document, SoapVersion::Soap12));
+        static::assertSame(
+            'urn:gateway',
+            $document->xpath()->query('//*[local-name()="Security"]')->item(0)->getAttributeNS(self::SOAP12, 'role'),
+        );
+    }
+
+    public function test_it_does_not_readdress_an_existing_ultimate_receiver_header(): void
+    {
+        // The mirror case: stamping our role onto a header that carries none would re-address every token
+        // already inside it, and the ultimate receiver would then find no header of its own.
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'"><soap:Header>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'"><wsse:UsernameToken/></wsse:Security>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        $ours = SecurityHeader::locateOrCreate($document, SoapVersion::Soap12, actorOrRole: 'urn:gateway')->element();
+
+        static::assertSame('urn:gateway', $ours->getAttributeNS(self::SOAP12, 'role'));
+        static::assertCount(0, iterator_to_array($ours->childNodes));
+
+        // The receiver's own header is still addressed to it, and still carries its token.
+        $untouched = SecurityHeader::locate($document, SoapVersion::Soap12);
+        static::assertNotNull($untouched);
+        static::assertSame('UsernameToken', $untouched->firstElementChild?->localName);
+    }
+
+    public function test_it_refuses_two_headers_addressed_to_the_same_target_when_writing(): void
+    {
+        // The outbound side refuses an ambiguous envelope for the same reason the inbound side does: picking
+        // one of two headers addressed to us means the choice decides what a peer sees, silently.
+        $document = Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP12.'"><soap:Header>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'"/>'
+            .'<wsse:Security xmlns:wsse="'.self::WSSE.'"/>'
+            .'</soap:Header><soap:Body/></soap:Envelope>'
+        );
+
+        $this->expectException(WsseHeaderException::class);
+        SecurityHeader::locateOrCreate($document, SoapVersion::Soap12);
+    }
+
     public function test_append_children_attaches_and_reorders_nodes(): void
     {
         $document = $this->envelope(self::SOAP12, withHeader: true);
