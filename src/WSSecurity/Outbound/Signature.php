@@ -11,12 +11,14 @@ use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\SamlAssertionKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SigningPartResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\SamlToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
@@ -27,7 +29,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
  * Adds a detached, multi-reference ds:Signature to the outbound Security header. Configuration:
  *   - which key to sign with plus the advertised certificate, via ClientCertificate
  *   - which key-reference type to put in ds:KeyInfo, via KeyRef
- *   - which parts to sign (default: Body + Timestamp; override via withParts)
+ *   - which parts to sign (default: Body + the Security header contents; override via withParts)
  *   - algorithms (default: the profile carried on the context; override per block)
  *
  * For the direct-reference path (KeyRef::BinarySecurityToken), the block embeds a
@@ -48,6 +50,7 @@ final class Signature implements OutboundAction
     private ?SignatureCanonicalization $canonicalization = null;
     private bool $inclusivePrefixes = false;
     private ?CertificateChain $certificateChain = null;
+    private ?KeyIdentifier $keyIdentifier = null;
 
     private XmlSigner $signer;
     private readonly SigningPartResolver $partResolver;
@@ -73,12 +76,38 @@ final class Signature implements OutboundAction
     }
 
     /**
-     * @param non-empty-list<Part> $parts
+     * An empty list is refused rather than read as "the default": a signature covering nothing verifies against
+     * any trusted key while protecting no part of the message, which is worse than no signature because it
+     * reads as one.
+     *
+     * Declared as a plain list rather than a non-empty one on purpose: a static constraint is not a guard, and
+     * the list a caller passes is routinely built from configuration a type checker never sees.
+     *
+     * @param list<Part> $parts
+     *
+     * @throws InvalidArgumentException when the list is empty
      */
     public function withParts(array $parts): self
     {
+        if ($parts === []) {
+            throw new InvalidArgumentException('A signature needs at least one part to sign.');
+        }
+
         $clone = clone $this;
         $clone->parts = $parts;
+
+        return $clone;
+    }
+
+    /**
+     * Overrides the key reference with one built by the caller, for a ValueType this package does not model.
+     * This takes a reference that is fully known before the message exists, which is what separates it from the
+     * KeyRef cases: those resolve against the message in flight. It wins over the keyRef passed at construction.
+     */
+    public function withKeyIdentifier(KeyIdentifier $keyIdentifier): self
+    {
+        $clone = clone $this;
+        $clone->keyIdentifier = $keyIdentifier;
 
         return $clone;
     }
@@ -190,12 +219,35 @@ final class Signature implements OutboundAction
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier
     {
+        if ($this->keyIdentifier !== null) {
+            return $this->keyIdentifier;
+        }
+
         return match ($this->keyRef) {
             KeyRef::BinarySecurityToken => $this->binarySecurityToken()->embedAsDirectReference($context),
             KeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(),
             KeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(),
             KeyRef::Thumbprint => new ThumbprintKeyIdentifier(),
+            KeyRef::SamlAssertion => $this->samlAssertionReference($context),
         };
+    }
+
+    /**
+     * The Holder-of-Key reference: the signature names the assertion that vouches for the signing key, so the
+     * receiver resolves the key through the assertion rather than from a certificate the message carries.
+     *
+     * The assertion is found in the Security header, the same way the direct-reference path finds the token it
+     * embedded. Nothing is carried between the two blocks: an Outbound\SamlAssertion earlier in the list has
+     * already put the assertion there, and its id and version are read off the element itself.
+     *
+     * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException when the header carries no
+     *                                                                            assertion, or more than one
+     */
+    private function samlAssertionReference(WsseContext $context): SamlAssertionKeyIdentifier
+    {
+        $assertion = (new SamlToken())->locate(SecurityHeader::forContext($context)->element());
+
+        return new SamlAssertionKeyIdentifier($assertion->id, $assertion->version);
     }
 
     private function binarySecurityToken(): BinarySecurityToken

@@ -187,6 +187,18 @@ final class SignatureTest extends OutboundTestCase
         $block->withCertificatePath(CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate));
     }
 
+    public function test_it_refuses_an_empty_part_list(): void
+    {
+        // An empty list is not "the default": it would emit a ds:Signature covering nothing, which verifies
+        // against any trusted key and protects none of the message. A list narrowed to nothing by
+        // configuration must fail where it is configured rather than ship an authentic-looking envelope.
+        $block = new Signature($this->clientCertificate());
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('at least one part');
+        $block->withParts([]);
+    }
+
     public function test_it_refuses_a_certificate_path_without_the_binary_security_token_reference(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();

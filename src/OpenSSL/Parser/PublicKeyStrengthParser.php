@@ -13,9 +13,9 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Internal\OpenSslCall;
  * openssl call and only mean anything together, so they are parsed as one value: 256 bits is a strong
  * elliptic-curve key and a broken RSA one.
  *
- * A key that cannot be read yields null rather than an exception. Nothing downstream can verify a signature
- * with such a key either, so refusing here would only move the same refusal earlier and cost the caller the
- * more specific reason.
+ * A key that cannot be read yields null rather than an exception, so a caller decides what an unmeasurable key
+ * means for it. The verifier refuses one: this parser reads through ext-openssl while signatures are verified
+ * through phpseclib, so a key unreadable here is not thereby unusable there.
  */
 final class PublicKeyStrengthParser
 {

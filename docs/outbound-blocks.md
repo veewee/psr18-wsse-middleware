@@ -127,11 +127,13 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   A `.p12` already contains the chain, which is where it usually comes from; a PEM signing identity has none to
   offer. The chain must start with the certificate you sign with, and `keyRef` must be
   `KeyRef::BinarySecurityToken`, or the call throws.
-- `withParts(non-empty-list<Part> $parts): self`: which parts to sign. Default is `[Part::body(),
+- `withParts(list<Part> $parts): self`: which parts to sign. Default is `[Part::body(),
   Part::securityHeaderContents()]`: the Body plus every element currently in the Security header (the Timestamp,
   any tokens), resolved at send time. Because it signs whatever is present, the default never fails when a part
   is absent. Must be a non-empty list of `Part` descriptors. See
-  [Choosing parts and key references](parts-and-key-references.md) for the dynamic parts and shortcuts.
+  [Choosing parts and key references](parts-and-key-references.md) for the dynamic parts and shortcuts. An
+  empty list throws: it is not read as "the default", because a signature covering nothing verifies against any
+  trusted key while protecting no part of the message.
 - `withSignatureMethod(SignatureMethod $method): self`: the signature algorithm. Default: the profile's
   `signatureMethod()` (RSA-SHA256). RSA and ECDSA are both supported. Pick an ECDSA method when your signing
   identity is an EC certificate and key:
@@ -201,7 +203,10 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
 - `encKeyRef: EncKeyRef $encKeyRef = EncKeyRef::SubjectKeyIdentifier`: how the recipient's certificate is
   referenced inside the `xenc:EncryptedKey`, so it knows which private key unwraps the session key. Default
   `EncKeyRef::SubjectKeyIdentifier`. The other cases are `IssuerSerial`, `Thumbprint` and `BinarySecurityToken`.
-- `withParts(non-empty-list<Part> $parts): self`: which parts to encrypt. Default is `[Part::body()]`.
+- `withParts(list<Part> $parts): self`: which parts to encrypt. Default is `[Part::body()]`. An empty list
+  throws: it is not read as "the default". Encrypting nothing still wraps a session key and appends an
+  `xenc:EncryptedKey`, so the Body would leave in cleartext under a message that reads as encrypted in every
+  log and packet capture of it.
 - `withDataEncryptionMethod(DataEncryptionMethod $method): self`: the bulk-data cipher. Default: the profile's
   `dataEncryptionMethod()` (AES-256-GCM).
 - `withKeyEncryptionMethod(KeyEncryptionMethod $method): self`: the key-transport method that wraps the
@@ -210,8 +215,10 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
   `withKeyTransportAlgorithm` instead.
 - `withKeyTransportAlgorithm(KeyTransportAlgorithm $algorithm): self`: the whole key-transport choice (method
   plus OAEP hash) in one atomic value, so an invalid method/hash pairing cannot be expressed. This override wins
-  over both `withKeyEncryptionMethod` and the profile. The default key transport is RSA-OAEP with SHA-1
-  (byte-identical on the wire to the previous releases). Select RSA-OAEP-SHA256 when the server expects it:
+  over both `withKeyEncryptionMethod` and the profile. The default key transport is RSA-OAEP with SHA-1. The
+  label hash is what the previous releases used, but the `Algorithm` URI is not: the default moved from
+  `xmlenc#rsa-oaep-mgf1p` to `xenc11#rsa-oaep`. A peer that pins the old URI needs
+  `KeyTransportAlgorithm::legacyMgf1p()`. Select RSA-OAEP-SHA256 when the server expects it:
   ```php
   use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 
@@ -242,17 +249,43 @@ new Outbound\SamlAssertion(
   expected namespace and the id attribute (`AssertionID` for 1.1, `ID` for 2.0). The assertion root alone has no
   reliable version discriminant, so you state it.
 
-After it runs, `assertionId()` returns the assertion's id, which advanced Holder-of-Key flows can wire into a
-signature through `SamlAssertionKeyIdentifier`:
+The block keeps no per-message state, so one instance is safe to reuse across messages and under a worker that
+holds the middleware for the life of the process.
+
+### Signing with the key the assertion vouches for (Holder-of-Key)
+
+Put the assertion in the header, then sign with `KeyRef::SamlAssertion`. The signature's `ds:KeyInfo` then names
+the assertion instead of a certificate, so the receiver resolves the verifying key through it:
 
 ```php
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\SamlAssertionKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
+use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 
-new SamlAssertionKeyIdentifier($assertionId, SamlVersion::Saml20);
+new WsseMiddleware($profile, outbound: [
+    new Outbound\Timestamp(),
+    new Outbound\SamlAssertion($assertionXml, Outbound\SamlVersion::Saml20),
+    (new Outbound\Signature($clientCertificate, keyRef: KeyRef::SamlAssertion))
+        ->withParts([Part::body(), Part::timestamp()]),
+]);
 ```
 
-The version is required here too, and for the same reason it is on the block: the SAML Token Profile references
-the two versions differently. A SAML 2.0 assertion is named by the 1.1-profile `#SAMLID` value type and the
-reference must carry a `wsse11:TokenType` of `#SAMLV2.0`, while a 1.1 assertion keeps the 1.0-profile
-`#SAMLAssertionID`. A version-blind reference can only describe a 1.1 assertion.
+Order matters: the `SamlAssertion` block has to run first, because the signature finds the assertion in the
+header rather than being handed its id. Its version and id are read from the assertion element itself, so the
+reference can never describe a different version than the assertion it points at. The header must carry exactly
+one assertion; two would leave no single answer to which key the signature claims, and that is refused.
+
+**Name the parts explicitly.** The default `Part::securityHeaderContents()` expands to every element in the
+Security header, which here includes the assertion. Signing it stamps a `wsu:Id` on it, and that attribute is
+inside what the issuer's own signature covers, so stamping it invalidates the assertion the reference depends
+on. Sign the Body and the Timestamp instead, as above.
+
+This is outbound only. Verifying a Holder-of-Key message that a peer sent you needs inbound SAML consumption,
+which this major does not implement.
+
+The version is required on the block because the SAML Token Profile references the two versions differently. A
+SAML 2.0 assertion is named by the 1.1-profile `#SAMLID` value type and the reference must carry a
+`wsse11:TokenType` of `#SAMLV2.0`, while a 1.1 assertion keeps the 1.0-profile `#SAMLAssertionID`. A
+version-blind reference can only describe a 1.1 assertion. You state it rather than have it inferred so that an
+assertion whose namespace disagrees with what you expected is refused instead of silently re-labelled.
 

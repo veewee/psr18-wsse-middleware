@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use Dom\Element;
+use InvalidArgumentException;
 use LogicException;
 use OpenSSLAsymmetricKey;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -154,6 +155,17 @@ final class EncryptionTest extends OutboundTestCase
         (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope(), $profile));
 
         static::assertSame(DataEncryptionMethod::AES256_CBC, $encryptor->lastRequest()->dataEncryptionMethod);
+    }
+
+    public function test_an_empty_part_list_is_refused(): void
+    {
+        // An empty list is not "the default": it would encrypt nothing while still wrapping a session key, so
+        // the message leaves with a plaintext Body under a well-formed EncryptedKey and every capture of it
+        // reads as encrypted. A list narrowed to nothing by configuration must fail loudly instead.
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('at least one part');
+
+        (new Encryption($this->recipientCertificate()))->withParts([]);
     }
 
     public function test_with_methods_are_immutable(): void

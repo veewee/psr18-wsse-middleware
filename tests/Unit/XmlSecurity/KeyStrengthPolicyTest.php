@@ -5,6 +5,8 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity;
 
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\PublicKeyFamily;
+use Soap\Psr18WsseMiddleware\KeyStore\Metadata\PublicKeyStrength;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
@@ -21,6 +23,21 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 #[RequiresPhp('>= 8.4.21')]
 final class KeyStrengthPolicyTest extends TestCase
 {
+    public function test_a_key_family_that_cannot_be_classified_is_refused(): void
+    {
+        // The floor is the only check that stops a trusted-CA-issued but undersized signer, and it is stated
+        // through ext-openssl while the signature itself is verified through phpseclib. The two have different
+        // acceptance sets, so a key openssl cannot classify is not thereby a key nothing can verify with: an
+        // RSASSA-PSS SubjectPublicKeyInfo is the obvious candidate, and phpseclib loads it as RSA. Waving that
+        // family through would leave a 512-bit signer under a trusted CA with no floor applied at all.
+        static::assertFalse(
+            CryptoPolicy::default()->acceptsPublicKeyStrength(
+                new PublicKeyStrength(PublicKeyFamily::Other, 4096),
+            ),
+            'an unclassifiable family has no floor to be measured against, so it cannot be known safe',
+        );
+    }
+
     public function test_a_signer_below_the_default_rsa_floor_is_refused(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeafWithRsaBits(512);

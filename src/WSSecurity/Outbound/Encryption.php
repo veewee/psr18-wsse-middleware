@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 
+use InvalidArgumentException;
 use LogicException;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
@@ -69,10 +70,23 @@ final class Encryption implements OutboundAction
     }
 
     /**
-     * @param non-empty-list<Part> $parts
+     * An empty list is refused rather than read as "the default": encrypting nothing still wraps a session key
+     * and appends an xenc:EncryptedKey, so the Body would leave in cleartext under a message that reads as
+     * encrypted everywhere it is logged or captured.
+     *
+     * Declared as a plain list rather than a non-empty one on purpose: a static constraint is not a guard, and
+     * the list a caller passes is routinely built from configuration a type checker never sees.
+     *
+     * @param list<Part> $parts
+     *
+     * @throws InvalidArgumentException when the list is empty
      */
     public function withParts(array $parts): self
     {
+        if ($parts === []) {
+            throw new InvalidArgumentException('Encryption needs at least one part to encrypt.');
+        }
+
         $clone = clone $this;
         $clone->parts = $parts;
 

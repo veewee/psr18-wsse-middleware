@@ -209,7 +209,12 @@ final class CryptoPolicy
         return match ($strength->family) {
             PublicKeyFamily::Rsa, PublicKeyFamily::Dsa => $this->acceptsRsaKeyBits($strength->bits),
             PublicKeyFamily::Ec => $this->acceptsEcKeyBits($strength->bits),
-            PublicKeyFamily::Other => true,
+            // A family this package cannot classify has no floor to be measured against, so there is no size
+            // at which it is known to be safe. It is refused rather than admitted: the signature check runs on
+            // a different key parser than the one that produced this verdict, so "nothing could verify with it
+            // anyway" is not something this decision may assume. Every algorithm the profile accepts resolves
+            // to RSA, DSA or EC, so refusing here costs no supported signer.
+            PublicKeyFamily::Other => false,
         };
     }
 }
