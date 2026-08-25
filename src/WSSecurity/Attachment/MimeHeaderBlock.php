@@ -98,6 +98,10 @@ final readonly class MimeHeaderBlock
     /**
      * Splits octets at the first blank line into the headers they carry and the bytes after them.
      *
+     * Read here rather than through a general MIME reader, because two of the rules are the point: a line
+     * carrying no colon is refused rather than skipped, and a folded one is left folded, since a peer
+     * restores what it split rather than what it could make sense of. The caps bound the scan.
+     *
      * @throws MalformedAttachmentHeaders
      */
     public function decode(string $octets): DecodedPart
@@ -193,6 +197,10 @@ final readonly class MimeHeaderBlock
      * A value with parameters is rewritten: the part before the first semicolon lowercased, the parameter
      * names lowercased and sorted, and every value quoted. A value without parameters is left as it stands,
      * which is why a media type only loses its case when it carries one.
+     *
+     * The splitting is deliberately naive, and a correct parser here would be a bug. A peer splits this on
+     * every semicolon, including one inside a quoted filename, and the digest both sides have to arrive at
+     * is the one taken over what the peer produced. Parsing it properly yields a form no peer computes.
      *
      * @throws UnsupportedAttachmentHeaderForm
      */
