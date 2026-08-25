@@ -14,6 +14,8 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyInfoResolver;
@@ -23,6 +25,8 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\X509DataKeyInfoRes
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\AlgorithmPolicyEnforcer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\DigestVerifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ReferenceResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedExternalReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedReferences;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedVerificationReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureValidator;
@@ -91,7 +95,7 @@ final class Verifier implements XmlSignatureVerifier
     public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature
     {
         $signature = $this->signatureLocator->locate($scope);
-        $signedInfo = $this->signedInfoParser->parse($signature);
+        $signedInfo = $this->signedInfoParser->parse($signature, $policy->externalParts?->transform);
 
         $this->policyEnforcer->enforce($policy, $signedInfo);
 
@@ -104,6 +108,7 @@ final class Verifier implements XmlSignatureVerifier
             $signedInfo->referenceElements,
             $signedInfo->references,
             $signature,
+            $policy->externalParts,
         );
 
         $this->verifyDigests($resolved);
@@ -120,14 +125,22 @@ final class Verifier implements XmlSignatureVerifier
 
         $elements = array_map(
             static fn (ResolvedVerificationReference $reference): Element => $reference->element,
-            $resolved,
+            $resolved->elements,
         );
         $ids = array_map(
             static fn (ResolvedVerificationReference $reference): string => $reference->id,
-            $resolved,
+            $resolved->elements,
+        );
+        $externalParts = array_map(
+            static fn (ResolvedExternalReference $reference): ExternalPart => $reference->part,
+            $resolved->external,
         );
 
-        return new VerifiedSignature(new VerifiedReferences($elements, $ids), $signer);
+        return new VerifiedSignature(
+            new VerifiedReferences($elements, $ids),
+            $signer,
+            ExternalPartList::of(...$externalParts),
+        );
     }
 
     /**
@@ -175,12 +188,19 @@ final class Verifier implements XmlSignatureVerifier
     }
 
     /**
-     * @param non-empty-list<ResolvedVerificationReference> $resolved
+     * Both kinds, with the same verdict on failure: which reference failed and whether it named an element or
+     * an attachment are exactly the details a forgery oracle would want.
      */
-    private function verifyDigests(array $resolved): void
+    private function verifyDigests(ResolvedReferences $resolved): void
     {
-        foreach ($resolved as $reference) {
+        foreach ($resolved->elements as $reference) {
             if (!$this->digestVerifier->verify($reference)) {
+                throw SignatureVerificationFailed::withReason('A reference digest did not match.');
+            }
+        }
+
+        foreach ($resolved->external as $reference) {
+            if (!$this->digestVerifier->verifyExternalPart($reference)) {
                 throw SignatureVerificationFailed::withReason('A reference digest did not match.');
             }
         }

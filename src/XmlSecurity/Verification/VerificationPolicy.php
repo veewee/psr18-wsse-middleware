@@ -17,9 +17,14 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
  */
 final readonly class VerificationPolicy
 {
+    /**
+     * @param ?ExternalPartVerification $externalParts the parts a cid: reference may resolve to, and the
+     *        transform it must declare. Absent means every non-fragment reference URI stays refused
+     */
     public function __construct(
         public TrustStore $trustStore,
         public CryptoPolicy $crypto,
+        public ?ExternalPartVerification $externalParts = null,
     ) {
     }
 }

@@ -12,7 +12,9 @@ use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ExternalPartVerification;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -22,7 +24,11 @@ use VeeWee\Xml\Dom\Document;
  * declares an absurd number of references would otherwise amplify canonicalization and digest work far beyond
  * its own size, and a document-size limit cannot bound that because the message itself is small.
  *
- * For each reference it refuses any non-same-document URI, requires a declared ds:Transforms to hold exactly
+ * A cid: reference is the one narrow exception to the non-same-document refusal, and only when the caller
+ * supplied the parts: the reference must name one of them, its digest is computed over that part's octets, and
+ * the URI is never dereferenced. Without those parts every non-fragment URI stays refused.
+ *
+ * For each in-document reference it refuses any non-same-document URI, requires a declared ds:Transforms to hold exactly
  * one known c14n transform and nothing else (which canonicalizations are actually accepted is decided
  * upstream by the policy enforcer, and an absent ds:Transforms is left to the parser, which digests under
  * inclusive c14n), resolves the bare id through the injected IdLookup (hardened to refuse a duplicate id and
@@ -55,32 +61,42 @@ final class ReferenceResolver
      * @param non-empty-list<ParsedReference> $parsedReferences the values parsed from those same references,
      *        in the same order
      *
-     * @return non-empty-list<ResolvedVerificationReference>
-     *
      * @throws SignatureVerificationFailed on a reference count over MAX_REFERENCES, or on any structural
      *         violation (missing or external URI, unknown transform, reference to ds:Signature itself,
-     *         missing element, duplicate id)
+     *         missing element, duplicate id, or an external reference naming a part that was not supplied)
      */
     public function resolve(
         Document $document,
         array $referenceElements,
         array $parsedReferences,
         Element $signatureElement,
-    ): array {
+        ?ExternalPartVerification $external = null,
+    ): ResolvedReferences {
         if (count($referenceElements) > self::MAX_REFERENCES) {
             throw SignatureVerificationFailed::withReason('The signature declares too many references.');
         }
 
-        $resolved = [];
+        $elements = [];
+        $externalReferences = [];
         foreach ($referenceElements as $index => $referenceElement) {
             $parsed = $parsedReferences[$index];
+
+            if ($parsed->isExternal()) {
+                $externalReferences[] = new ResolvedExternalReference(
+                    $parsed,
+                    $this->locateExternalPart($referenceElement, $external),
+                );
+
+                continue;
+            }
+
             $this->assertSingleKnownC14nTransform($referenceElement);
 
             $id = $this->referenceId($referenceElement);
             $element = $this->locate($document, $id);
             $this->assertNotSignatureInfrastructure($element, $signatureElement);
 
-            $resolved[] = new ResolvedVerificationReference(
+            $elements[] = new ResolvedVerificationReference(
                 $parsed,
                 $element,
                 $id,
@@ -90,7 +106,32 @@ final class ReferenceResolver
             );
         }
 
-        return $resolved;
+        return new ResolvedReferences($elements, $externalReferences);
+    }
+
+    /**
+     * The caller-supplied part a reference URI names, matched verbatim.
+     *
+     * Never dereferenced and never searched for anywhere else: a URI that matches no supplied part is refused
+     * outright. That is what keeps this a lookup in a list the caller controls rather than a fetch a signature
+     * can aim wherever it likes.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function locateExternalPart(
+        Element $referenceElement,
+        ?ExternalPartVerification $external,
+    ): ExternalPart {
+        if ($external === null) {
+            // Unreachable through the parser, which only produces an external reference when it was given a
+            // transform to expect. Kept so this method is safe in its own right rather than by that argument.
+            throw SignatureVerificationFailed::withReason('A referenced element could not be resolved.');
+        }
+
+        $uri = (string) $referenceElement->getAttribute('URI');
+
+        return $external->parts->byReference($uri)
+            ?? throw SignatureVerificationFailed::withReason('A referenced element could not be resolved.');
     }
 
     /**

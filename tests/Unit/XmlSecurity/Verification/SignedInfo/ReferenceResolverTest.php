@@ -28,8 +28,8 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertCount(1, $resolved);
-        static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
+        static::assertCount(1, $resolved->elements);
+        static::assertSame($this->byId($document, 'Body'), $resolved->elements[0]->element);
     }
 
     public function test_it_rejects_a_duplicate_wsu_id(): void
@@ -48,7 +48,7 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
+        static::assertSame($this->byId($document, 'Body'), $resolved->elements[0]->element);
     }
 
     public function test_the_parser_and_the_resolver_agree_on_an_absent_transforms(): void
@@ -68,7 +68,7 @@ final class ReferenceResolverTest extends TestCase
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))
             ->resolve($document, $parsed->referenceElements, $parsed->references, $signature);
 
-        static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
+        static::assertSame($this->byId($document, 'Body'), $resolved->elements[0]->element);
     }
 
     public function test_it_rejects_an_xslt_transform(): void
@@ -89,10 +89,10 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertCount(1, $resolved);
-        static::assertSame($this->byId($document, 'Assertion'), $resolved[0]->element);
+        static::assertCount(1, $resolved->elements);
+        static::assertSame($this->byId($document, 'Assertion'), $resolved->elements[0]->element);
         // The signature to strip is carried forward by identity, so the digest excludes that exact subtree.
-        static::assertSame($this->signature($document), $resolved[0]->envelopedSignature);
+        static::assertSame($this->signature($document), $resolved->elements[0]->envelopedSignature);
     }
 
     public function test_it_accepts_an_enveloped_signature_transform_on_its_own(): void
@@ -104,7 +104,7 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertSame($this->signature($document), $resolved[0]->envelopedSignature);
+        static::assertSame($this->signature($document), $resolved->elements[0]->envelopedSignature);
     }
 
     public function test_it_refuses_a_second_signature_inside_the_digested_element(): void
@@ -150,7 +150,7 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertNull($resolved[0]->envelopedSignature);
+        static::assertNull($resolved->elements[0]->envelopedSignature);
     }
 
     public function test_it_rejects_an_unknown_transform(): void

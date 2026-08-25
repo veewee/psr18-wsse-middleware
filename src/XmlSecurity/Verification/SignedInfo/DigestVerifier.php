@@ -41,11 +41,39 @@ final class DigestVerifier
         // being verified, so nothing here has to decide which node may be dropped.
         $canonical = $this->canonicalizer->canonicalize(
             $reference->element,
-            $parsed->canonicalization,
+            // Non-null for an in-document reference: the resolver routes an external one elsewhere.
+            $parsed->canonicalization ?? throw SignatureVerificationFailed::withReason(
+                'A reference declares no canonicalization.',
+            ),
             $parsed->inclusivePrefixes === [] ? null : $parsed->inclusivePrefixes,
             $reference->envelopedSignature,
         );
         $actual = $this->digest->hash($canonical, $parsed->digestMethod);
+
+        return $this->digest->equals($expected, $actual);
+    }
+
+    /**
+     * Digests an external part's octets exactly as they are and compares in constant time. No
+     * canonicalization: the content transform selects the bytes and normalizes nothing, so anything applied
+     * here would be a step the signer never took.
+     *
+     * The stream is rewound first, because the same part may already have been read on this message: the
+     * decryption block ran before this one and replaced these bytes.
+     *
+     * @throws SignatureVerificationFailed when the expected digest value is not valid base64
+     */
+    public function verifyExternalPart(ResolvedExternalReference $reference): bool
+    {
+        $expected = base64_decode($reference->parsed->expectedDigestValueBase64, true);
+        if ($expected === false) {
+            throw SignatureVerificationFailed::withReason('The digest value is not valid base64.');
+        }
+
+        $actual = $this->digest->hash(
+            $reference->part->content->rewind()->getContents(),
+            $reference->parsed->digestMethod,
+        );
 
         return $this->digest->equals($expected, $actual);
     }
