@@ -54,16 +54,8 @@
         "php-cs-fixer/shim": "~3.88",
         "php-standard-library/psalm-plugin": "^2.4",
         "carthage-software/mago": "^1.43",
-        "php-soap/psr18-attachments-middleware": "dev-feature/attachment-headers as 0.12.0"
+        "php-soap/psr18-attachments-middleware": "^0.12"
     },
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/php-soap/psr18-attachments-middleware"
-        }
-    ],
-    "minimum-stability": "dev",
-    "prefer-stable": true,
     "config": {
         "allow-plugins": {
             "php-http/discovery": true
