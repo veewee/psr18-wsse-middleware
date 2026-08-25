@@ -133,8 +133,8 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
       ->withAttachments(AttachmentParts::request($attachmentStorage));
   ```
   Adds coverage rather than replacing it: an attachment reference sits alongside whatever `withParts()` asks
-  for. Signing a `text/*` attachment is refused, because the profile canonicalizes line endings in text
-  content before digesting and that is not implemented.
+  for. Signing a `text/*` or XML attachment is refused, because the profile canonicalizes those before
+  digesting and that is not implemented; see [Attachment security](attachments.md).
 - `withCertificatePath(CertificateChain $path): self`: send your whole certificate chain in the token (a
   `#X509PKIPathv1` `wsse:BinarySecurityToken`) instead of the leaf certificate alone. Off by default. Turn it on
   for a server that will not complete the chain from its own store and needs the intermediates handed to it:

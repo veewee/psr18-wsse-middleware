@@ -72,17 +72,24 @@ final class DigestCalculator
      *
      * @param non-empty-string $transform
      *
-     * @throws SigningFailed when the part is text, whose content canonicalization is not implemented
+     * @throws SigningFailed when the part's media type is one the content transform canonicalizes, which is
+     *         not implemented
      */
     public function forExternalPart(
         ExternalPart $part,
         DigestMethod $digestMethod,
         string $transform,
     ): SignedReference {
-        // The content transform normalizes line endings for a text media type before digesting. Digesting the
-        // octets as they are would produce a value a peer that applies that rule rejects, so refuse instead of
-        // emitting a signature only we can verify. Binary parts are the identity case and need nothing.
-        if (str_starts_with(strtolower($part->mimeType), 'text/')) {
+        // The content transform canonicalizes two families before digesting: XML content with exclusive C14N,
+        // and any other text media type by normalizing its line endings. Neither is implemented, and digesting
+        // the octets as they are would produce a value a peer that applies the rule rejects, so refuse instead
+        // of emitting a signature only we can verify. Binary parts are the identity case and need nothing.
+        $mimeType = strtolower($part->mimeType);
+        if (self::isXml($mimeType)) {
+            throw SigningFailed::xmlExternalPart($part->reference, $part->mimeType);
+        }
+
+        if (str_starts_with($mimeType, 'text/')) {
             throw SigningFailed::textExternalPart($part->reference, $part->mimeType);
         }
 
@@ -96,5 +103,14 @@ final class DigestCalculator
             $digestMethod,
             [new SignedTransform($transform)],
         );
+    }
+
+    /**
+     * XML content by the profile's reckoning: the two named types plus the "+xml" structured-syntax suffix,
+     * each allowed to carry media-type parameters.
+     */
+    private static function isXml(string $mimeType): bool
+    {
+        return (bool) preg_match('#^(text/xml|application/xml|(application|image)/[^;]*\+xml)(;|$)#', $mimeType);
     }
 }

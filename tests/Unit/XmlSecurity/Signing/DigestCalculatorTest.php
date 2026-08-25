@@ -7,6 +7,7 @@ use Dom\Element;
 use Dom\Node;
 use Phpro\ResourceStream\Factory\MemoryStream;
 use Phpro\ResourceStream\ResourceStream;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
@@ -150,6 +151,48 @@ final class DigestCalculatorTest extends TestCase
         $this->expectException(SigningFailed::class);
         (new DigestCalculator(new DomCanonicalizer(), new Digest()))
             ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
+    }
+
+    #[DataProvider('xmlMediaTypes')]
+    public function test_it_refuses_an_xml_external_part(string $mimeType): void
+    {
+        // The profile canonicalizes XML content with exclusive C14N before digesting, and this cut does not.
+        // Digesting the octets instead would produce a signature the peer computing the canonical form
+        // rejects, with a digest mismatch as the only clue.
+        $part = new ExternalPart('cid:doc@example.com', $mimeType, $this->stream('<a  b="1"/>'));
+
+        $this->expectException(SigningFailed::class);
+        $this->expectExceptionMessage(
+            'Unable to sign the external part "cid:doc@example.com": signing a '.$mimeType.' part needs '
+            .'XML canonicalization, which is not supported.'
+        );
+
+        (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+            ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
+    }
+
+    /**
+     * The media types the SwA profile canonicalizes as XML rather than passing through.
+     *
+     * @return iterable<string, array{0: string}>
+     */
+    public static function xmlMediaTypes(): iterable
+    {
+        yield 'application/xml' => ['application/xml'];
+        yield 'a soap 1.2 part' => ['application/soap+xml'];
+        yield 'svg' => ['image/svg+xml'];
+        yield 'parameters carried along' => ['application/xml; charset=utf-8'];
+    }
+
+    public function test_it_digests_a_binary_part_whose_type_merely_mentions_xml(): void
+    {
+        // "+xml" is a structured-syntax suffix, so a subtype that only contains the letters is not XML.
+        $part = new ExternalPart('cid:doc@example.com', 'application/xmlish', $this->stream('raw'));
+
+        $result = (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+            ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
+
+        static::assertSame(base64_encode(hash('sha256', 'raw', true)), $result->digestValueBase64);
     }
 
     /**
