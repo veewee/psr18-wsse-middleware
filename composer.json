@@ -41,7 +41,8 @@
     },
     "suggest": {
         "ext-gmp": "For native-speed RSA and ECDSA (key transport and signatures); phpseclib uses it when present",
-        "ext-bcmath": "Faster RSA and ECDSA than the pure-PHP fallback when ext-gmp is absent (already quick on PHP 8.4)"
+        "ext-bcmath": "Faster RSA and ECDSA than the pure-PHP fallback when ext-gmp is absent (already quick on PHP 8.4)",
+        "php-soap/psr18-attachments-middleware": "To sign or encrypt SOAP attachments as external parts, through WSSecurity\\AttachmentParts (0.11.0 or later)"
     },
     "require-dev": {
         "nyholm/psr7": "^1.5",
@@ -51,7 +52,8 @@
         "vimeo/psalm": "~6.13",
         "php-cs-fixer/shim": "~3.88",
         "php-standard-library/psalm-plugin": "^2.4",
-        "carthage-software/mago": "^1.43"
+        "carthage-software/mago": "^1.43",
+        "php-soap/psr18-attachments-middleware": "^0.11"
     },
     "config": {
         "allow-plugins": {

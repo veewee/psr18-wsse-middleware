@@ -67,14 +67,32 @@ permit = ["@layer:base", "@layer:crypto"]
 # Layer 3 - the standalone XML-DSig/XML-Enc core. No @layer:crypto: it orchestrates XML and delegates every
 # primitive to OpenSSL\, so a phpseclib or HiddenString import appearing here is a misplaced class rather than
 # a rule that needs widening. Granting it would let that break the unwrapped-key boundary silently.
+#
+# phpro/resource-stream is how an external part carries bytes that are not in the document, the same way
+# KeyStore\Pem streams key material. It is a stream handle rather than a crypto primitive, so it breaches
+# nothing the paragraph above protects.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\XmlSecurity"
-permit = ["@layer:base", "@layer:xml"]
+permit = ["@layer:base", "@layer:xml", "Phpro\\ResourceStream\\**"]
 
 # Layer 4 — the SOAP profile. It sees every layer below it (via `layering`) but NOT the sibling Wsa above it.
+#
+# The attachments middleware is reachable from here and nowhere else, and by design exactly one class uses it:
+# AttachmentParts, which adapts that package's storage to the XmlSecurity\ExternalParts seam so the engine
+# below never names an attachment. The guard cannot scope a permit to a single class, so this rule is wider
+# than the intent: a second WSSecurity class importing that namespace is a design error the guard will not
+# catch. Composer\InstalledVersions is read only to name the installed version in the "too old" message.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\WSSecurity"
-permit = ["@layer:base", "@layer:xml", "@layer:crypto", "@layer:http"]
+permit = [
+    "@layer:base",
+    "@layer:xml",
+    "@layer:crypto",
+    "@layer:http",
+    "Phpro\\ResourceStream\\**",
+    "Soap\\Psr18AttachmentsMiddleware\\**",
+    "Composer\\InstalledVersions",
+]
 
 # WS-Addressing — an independent top layer; needs no WS-Security.
 [[guard.perimeter.rules]]
