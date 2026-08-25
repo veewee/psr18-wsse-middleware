@@ -14,8 +14,8 @@ FROM php:8.4-cli
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        libicu-dev libgmp-dev libxml2-dev libzip-dev git unzip \
-    && docker-php-ext-install -j"$(nproc)" intl gmp bcmath soap zip \
+        libicu-dev libgmp-dev libxml2-dev libxslt1-dev libzip-dev git unzip \
+    && docker-php-ext-install -j"$(nproc)" intl gmp bcmath soap xsl zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
