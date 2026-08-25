@@ -15,17 +15,18 @@ use function VeeWee\Xml\Dom\Builder\value;
 
 /**
  * Assembles a ds:SignedInfo element with ds:CanonicalizationMethod, ds:SignatureMethod, and one ds:Reference
- * per DigestResult. The returned element is detached; the caller attaches it as a child of ds:Signature.
+ * per SignedReference. The returned element is detached; the caller attaches it as a child of ds:Signature.
  *
- * Each ds:Reference declares the C14N transform it was digested with, so a verifier canonicalizes the
- * referenced element the same way before checking the digest. The same canonicalization drives both the
- * SignedInfo method and every reference transform.
+ * It emits each reference exactly as given and derives nothing: the URI and the transform chain are the
+ * reference's own, because an attachment reference points somewhere that is not a fragment and declares a
+ * transform that is not a canonicalization. The canonicalization argument is ds:SignedInfo's own, which is a
+ * separate fact from what any reference was digested under.
  */
 final class SignedInfoBuilder
 {
     /**
-     * @param non-empty-list<DigestResult> $references
-     * @param list<string>                 $inclusivePrefixes the PrefixList ds:SignedInfo itself is canonicalized under
+     * @param non-empty-list<SignedReference> $references
+     * @param list<string>                    $inclusivePrefixes the PrefixList ds:SignedInfo itself is canonicalized under
      */
     public function build(
         Document $document,
@@ -35,7 +36,7 @@ final class SignedInfoBuilder
         array $inclusivePrefixes = [],
     ): Element {
         $referenceBuilders = array_map(
-            fn (DigestResult $result): callable => $this->reference($result, $canonicalization),
+            fn (SignedReference $reference): callable => $this->reference($reference),
             $references,
         );
 
@@ -47,7 +48,7 @@ final class SignedInfoBuilder
                     Namespaces::Ds->value,
                     Namespaces::Ds->qualify('CanonicalizationMethod'),
                     attribute('Algorithm', $canonicalization->value),
-                    ...$this->inclusiveNamespaces($canonicalization, $inclusivePrefixes),
+                    ...$this->inclusiveNamespaces($inclusivePrefixes),
                 ),
                 namespaced_element(
                     Namespaces::Ds->value,
@@ -62,49 +63,55 @@ final class SignedInfoBuilder
     /**
      * @return callable(Element): Element
      */
-    private function reference(DigestResult $result, SignatureCanonicalization $canonicalization): callable
+    private function reference(SignedReference $reference): callable
     {
+        $transforms = array_map(
+            fn (SignedTransform $transform): callable => namespaced_element(
+                Namespaces::Ds->value,
+                Namespaces::Ds->qualify('Transform'),
+                attribute('Algorithm', $transform->algorithm),
+                ...$this->inclusiveNamespaces($transform->inclusivePrefixes),
+            ),
+            $reference->transforms,
+        );
+
         return namespaced_element(
             Namespaces::Ds->value,
             Namespaces::Ds->qualify('Reference'),
-            attribute('URI', '#'.$result->id),
+            attribute('URI', $reference->uri),
             children(
                 namespaced_element(
                     Namespaces::Ds->value,
                     Namespaces::Ds->qualify('Transforms'),
-                    children(namespaced_element(
-                        Namespaces::Ds->value,
-                        Namespaces::Ds->qualify('Transform'),
-                        attribute('Algorithm', $canonicalization->value),
-                        ...$this->inclusiveNamespaces($canonicalization, $result->inclusivePrefixes),
-                    )),
+                    children(...$transforms),
                 ),
                 namespaced_element(
                     Namespaces::Ds->value,
                     Namespaces::Ds->qualify('DigestMethod'),
-                    attribute('Algorithm', $result->digestMethod->value),
+                    attribute('Algorithm', $reference->digestMethod->value),
                 ),
                 namespaced_element(
                     Namespaces::Ds->value,
                     Namespaces::Ds->qualify('DigestValue'),
-                    value($result->digestValueBase64),
+                    value($reference->digestValueBase64),
                 ),
             ),
         );
     }
 
     /**
-     * The ec:InclusiveNamespaces child pinning a PrefixList, or nothing at all. A PrefixList parameterizes
-     * exclusive C14N only (inclusive C14N already emits every declaration in scope), and an empty list is
-     * indistinguishable from declaring none, so neither case emits an element.
+     * The ec:InclusiveNamespaces child pinning a PrefixList, or nothing at all. An empty list is
+     * indistinguishable from declaring none, so it emits no element. Whether the algorithm is one a
+     * PrefixList even parameterizes is decided where the transform is built, since only there is the
+     * canonicalization known.
      *
      * @param list<string> $prefixes
      *
      * @return list<callable>
      */
-    private function inclusiveNamespaces(SignatureCanonicalization $canonicalization, array $prefixes): array
+    private function inclusiveNamespaces(array $prefixes): array
     {
-        if (!$canonicalization->isExclusive() || $prefixes === []) {
+        if ($prefixes === []) {
             return [];
         }
 

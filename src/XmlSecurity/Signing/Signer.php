@@ -89,10 +89,10 @@ final class Signer implements XmlSigner
         // under, which is what keeps a reference's declaration from drifting from its own digest.
         $pinPrefixes = $request->inclusivePrefixes && $request->canonicalization->isExclusive();
         $digests = array_map(
-            function (ResolvedReference $reference) use ($wire, $request, $pinPrefixes): DigestResult {
+            function (ResolvedReference $reference) use ($wire, $request, $pinPrefixes): SignedReference {
                 $element = $this->idLookup->lookup($wire, $reference->id);
 
-                return $this->digestCalculator->calculate(
+                return $this->digestCalculator->forElement(
                     new ResolvedReference($element, $reference->id),
                     $request->canonicalization,
                     $request->digestMethod,

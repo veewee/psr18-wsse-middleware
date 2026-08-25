@@ -27,11 +27,31 @@ final class DigestCalculatorTest extends TestCase
         $reference = $this->reference();
         $calculator = new DigestCalculator(new DomCanonicalizer(), new Digest());
 
-        $result = $calculator->calculate($reference, SignatureCanonicalization::EXC_C14N, DigestMethod::SHA256);
+        $result = $calculator->forElement($reference, SignatureCanonicalization::EXC_C14N, DigestMethod::SHA256);
 
         $expected = base64_encode(hash('sha256', $reference->element->C14N(true, false), true));
         static::assertSame($expected, $result->digestValueBase64);
-        static::assertSame('Body-1', $result->id);
+        static::assertSame('#Body-1', $result->uri);
+    }
+
+    public function test_an_element_reference_declares_the_canonicalization_it_was_digested_under(): void
+    {
+        $result = (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+            ->forElement($this->reference(), SignatureCanonicalization::EXC_C14N, DigestMethod::SHA256, ['soap']);
+
+        static::assertCount(1, $result->transforms);
+        static::assertSame(SignatureCanonicalization::EXC_C14N->value, $result->transforms[0]->algorithm);
+        static::assertSame(['soap'], $result->transforms[0]->inclusivePrefixes);
+    }
+
+    public function test_an_inclusive_canonicalization_pins_no_prefixes(): void
+    {
+        // A PrefixList parameterizes exclusive C14N only. Inclusive C14N already emits every declaration in
+        // scope, so a reference declaring one would describe a canonicalization that never ran.
+        $result = (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+            ->forElement($this->reference(), SignatureCanonicalization::C14N, DigestMethod::SHA256, ['soap']);
+
+        static::assertSame([], $result->transforms[0]->inclusivePrefixes);
     }
 
     public function test_it_propagates_a_canonicalization_failure(): void
@@ -45,7 +65,7 @@ final class DigestCalculatorTest extends TestCase
 
         $this->expectException(CanonicalizationFailed::class);
         (new DigestCalculator($canonicalizer, new Digest()))
-            ->calculate($this->reference(), SignatureCanonicalization::EXC_C14N, DigestMethod::SHA256);
+            ->forElement($this->reference(), SignatureCanonicalization::EXC_C14N, DigestMethod::SHA256);
     }
 
     public function test_it_carries_the_requested_digest_method(): void
@@ -58,7 +78,7 @@ final class DigestCalculatorTest extends TestCase
         };
 
         $result = (new DigestCalculator($canonicalizer, new Digest()))
-            ->calculate($this->reference(), SignatureCanonicalization::EXC_C14N, DigestMethod::SHA512);
+            ->forElement($this->reference(), SignatureCanonicalization::EXC_C14N, DigestMethod::SHA512);
 
         static::assertSame(DigestMethod::SHA512, $result->digestMethod);
     }
