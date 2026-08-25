@@ -5,7 +5,10 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use InvalidArgumentException;
 use OpenSSLAsymmetricKey;
+use Phpro\ResourceStream\Factory\MemoryStream;
 use PHPUnit\Framework\Attributes\RequiresPhp;
+use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
+use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
@@ -14,6 +17,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\PkiPath;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
@@ -24,6 +28,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
@@ -37,6 +42,64 @@ final class SignatureTest extends OutboundTestCase
 {
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
     private const X509_PKI_PATH = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509PKIPathv1';
+    private const SWA_CONTENT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
+
+    public function test_it_lowers_registered_attachments_into_the_signing_request(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))($this->signableContext());
+
+        $external = $signer->lastRequest()->externalParts;
+        static::assertNotNull($external);
+        static::assertSame(self::SWA_CONTENT_TRANSFORM, $external->transform);
+        static::assertCount(1, $external->parts);
+        static::assertNotNull($external->parts->byReference('cid:invoice@example.com'));
+    }
+
+    public function test_it_signs_no_external_parts_when_none_are_registered(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
+
+        static::assertNull($signer->lastRequest()->externalParts);
+    }
+
+    public function test_it_still_signs_the_default_parts_alongside_attachments(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))($this->signableContext());
+
+        // Registering attachments adds coverage; it never replaces the in-document defaults.
+        static::assertNotSame([], $signer->lastRequest()->targets);
+    }
+
+    public function test_it_refuses_to_sign_a_text_attachment(): void
+    {
+        // Refused by the engine rather than the block, because the reason is that the digest would be wrong.
+        $this->expectException(SigningFailed::class);
+        $this->expectExceptionMessage('content line-ending canonicalization, which is not supported');
+
+        (new Signature($this->clientCertificate()))
+            ->withAttachments($this->attachments('note@example.com', 'text/plain'))($this->signableContext());
+    }
+
+    private function attachments(string $uri, string $mimeType): AttachmentParts
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<'.$uri.'>',
+            'file',
+            'file.bin',
+            $mimeType,
+            MemoryStream::create()->write('the bytes')->rewind(),
+        ));
+
+        return AttachmentParts::request($storage);
+    }
 
     public function test_it_uses_profile_algorithms_by_default(): void
     {

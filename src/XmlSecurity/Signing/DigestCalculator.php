@@ -8,6 +8,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use function Psl\Type\non_empty_string;
 
@@ -70,12 +71,21 @@ final class DigestCalculator
      * is then a digest mismatch rather than a silent substitution.
      *
      * @param non-empty-string $transform
+     *
+     * @throws SigningFailed when the part is text, whose content canonicalization is not implemented
      */
     public function forExternalPart(
         ExternalPart $part,
         DigestMethod $digestMethod,
         string $transform,
     ): SignedReference {
+        // The content transform normalizes line endings for a text media type before digesting. Digesting the
+        // octets as they are would produce a value a peer that applies that rule rejects, so refuse instead of
+        // emitting a signature only we can verify. Binary parts are the identity case and need nothing.
+        if (str_starts_with(strtolower($part->mimeType), 'text/')) {
+            throw SigningFailed::textExternalPart($part->reference, $part->mimeType);
+        }
+
         $digest = non_empty_string()->coerce(
             base64_encode($this->digest->hash($part->content->rewind()->getContents(), $digestMethod)),
         );

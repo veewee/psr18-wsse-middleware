@@ -20,7 +20,9 @@ use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\SamlToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ExternalPartSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
@@ -42,6 +44,12 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
  */
 final class Signature implements OutboundAction
 {
+    /**
+     * Selects an attachment's content and none of its MIME headers. Its Attachment-Complete counterpart, which
+     * also covers the headers, needs RFC 2822 header canonicalization and is not supported.
+     */
+    private const SWA_CONTENT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
+
     /** @var non-empty-list<Part>|null */
     private ?array $parts = null;
 
@@ -51,6 +59,7 @@ final class Signature implements OutboundAction
     private bool $inclusivePrefixes = false;
     private ?CertificateChain $certificateChain = null;
     private ?KeyIdentifier $keyIdentifier = null;
+    private ?ExternalParts $attachments = null;
 
     private XmlSigner $signer;
     private readonly SigningPartResolver $partResolver;
@@ -185,6 +194,24 @@ final class Signature implements OutboundAction
     }
 
     /**
+     * Covers the message's attachments as well as its in-document parts, in the same ds:Signature.
+     *
+     * The parts are read when the message is signed, not now, because they belong to the call in flight.
+     * Registering them adds coverage and never replaces what withParts() asks for: an attachment reference
+     * sits alongside the Body's, which is the shape a peer's sp:SignedParts policy is checked against.
+     *
+     * Pass AttachmentParts::request() for the outbound side. Only this block and its inbound twin know that
+     * these are attachments at all: the engine is handed the profile's transform URI and a list of parts.
+     */
+    public function withAttachments(ExternalParts $attachments): self
+    {
+        $clone = clone $this;
+        $clone->attachments = $attachments;
+
+        return $clone;
+    }
+
+    /**
      * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException when the header cannot be created
      * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\IdStampFailed when a signed part cannot carry a wsu:Id
      * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed when signing fails
@@ -209,12 +236,30 @@ final class Signature implements OutboundAction
             digestMethod: $this->digestMethod ?? $profile->crypto()->digestMethod(),
             canonicalization: $this->canonicalization ?? $profile->crypto()->canonicalization(),
             inclusivePrefixes: $this->inclusivePrefixes,
+            externalParts: $this->externalPartSignature(),
         );
 
         $this->signer->sign($document, $request);
 
         // The engine appends the signature; which order this header must be in is the profile's rule.
         $security->sort();
+    }
+
+    /**
+     * The SwA content transform is this block's to declare, exactly as it owns lowering a Part into a Target.
+     * The engine is told which transform a reference declares and never learns that it names an attachment.
+     *
+     * The parts are collected here rather than at wiring time because the storage holds the message in
+     * flight. Sign-then-encrypt collects the same message twice, once here and once in the encryption block,
+     * which is why the seam promises rewound streams.
+     */
+    private function externalPartSignature(): ?ExternalPartSignature
+    {
+        if ($this->attachments === null) {
+            return null;
+        }
+
+        return new ExternalPartSignature($this->attachments->collect(), self::SWA_CONTENT_TRANSFORM);
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier

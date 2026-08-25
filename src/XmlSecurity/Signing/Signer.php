@@ -14,6 +14,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\InclusivePrefixes;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
@@ -71,7 +72,7 @@ final class Signer implements XmlSigner
     ) {
     }
 
-    public function sign(Document $document, SigningRequest $request): void
+    public function sign(Document $document, SigningRequest $request): SignedExternalParts
     {
         $container = $request->container;
 
@@ -102,6 +103,22 @@ final class Signer implements XmlSigner
             $references,
         );
 
+        // External parts join the same ds:SignedInfo as the in-document references. One signature covering
+        // body and attachments together is what a far-side sp:SignedParts policy is checked against; the
+        // profile permits several signatures in one header and we do not use that freedom.
+        $external = $request->externalParts;
+        $covered = ExternalPartList::of();
+        if ($external !== null) {
+            $covered = $external->parts;
+            foreach ($covered as $part) {
+                $digests[] = $this->digestCalculator->forExternalPart(
+                    $part,
+                    $request->digestMethod,
+                    $external->transform,
+                );
+            }
+        }
+
         $signedInfoPrefixes = $pinPrefixes ? InclusivePrefixes::forContainer($request->container) : [];
 
         $signedInfo = $this->signedInfoBuilder->build(
@@ -120,6 +137,8 @@ final class Signer implements XmlSigner
         append($signature)($container);
 
         $this->signInto($signatureValue, $request, $document, $signedInfoPrefixes);
+
+        return new SignedExternalParts($covered);
     }
 
     /**

@@ -37,6 +37,7 @@ final readonly class SigningRequest
         public DigestMethod $digestMethod,
         public SignatureCanonicalization $canonicalization,
         public bool $inclusivePrefixes = false,
+        public ?ExternalPartSignature $externalParts = null,
     ) {
     }
 }
