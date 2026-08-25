@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Attachment;
 
 use Composer\InstalledVersions;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;

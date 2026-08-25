@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity;
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Attachment;
 
 use Phpro\ResourceStream\Factory\MemoryStream;
 use Phpro\ResourceStream\ResourceStream;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
-use Soap\Psr18WsseMiddleware\WSSecurity\AttachmentParts;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;

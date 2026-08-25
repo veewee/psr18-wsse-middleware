@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Attachment;
 
 /**
  * Which of the storage's two collections an AttachmentParts adapter speaks for. The storage keeps the
