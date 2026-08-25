@@ -142,9 +142,36 @@ WS-Addressing wire element names are spec-given and used exactly as the specs sp
 | **DOCTYPE rejection** | Rejecting any DOCTYPE before any block parses the document, as XXE defense | Applies to every parse, including SAML assertions parsed in isolation | `disallow_doctype()` (`src/WsseMiddleware.php:18`) | doctype block, XXE guard |
 | **XSW (XML Signature Wrapping)** | The attack class of moving or duplicating signed content so a signature validates over the wrong element; drives id-resolution and covered-part hardening | `SignatureLocator` (`src/XmlSecurity/Verification/SignedInfo/SignatureLocator.php`), `RequiredPartsValidator` (`src/WSSecurity/Validator/RequiredPartsValidator.php`) | wrapping attack (bare), signature wrapping |
 
+## External parts and attachments
+_Terms settled in `BLUEPRINT-attachment-security` and not yet implemented; the naming is fixed so it
+stops being re-litigated. Source column cites the blueprint until the code exists._
+
+| Term | Definition | Boundary | Source name(s) | Avoid |
+|---|---|---|---|---|
+| **External part** | A part of the message whose bytes live outside the XML document and are addressed by URI rather than by id | The counterpart of a Part: a Part names a region *of* the document, an external part names bytes the document only points at. Both encryptable and signable | `ExternalPart` (blueprint) | detached part (see Avoid note below), MIME part, attachment (when the engine is meant), external reference |
+| **ExternalPartList** | The collection of external parts for one message, in which no two parts share a reference | Holds the uniqueness rule; NOT the seam that supplies it | `ExternalPartList` (blueprint) | parts array, external parts (as its name) |
+| **ExternalParts** | The seam a block reads external parts from and writes the transformed ones back to, so the engine names nothing outside this package | The supply-and-return contract; NOT the collection it moves. `collect()` reads, `replace()` fully replaces the parts it is handed and touches nothing else | `ExternalParts` (blueprint) | store, port, provider, repository, apply (as the write method) |
+| **Reference (external)** | The URI an external part is addressed by, used verbatim as the `xenc:CipherReference` URI and as the lookup key | For an attachment it is the `cid:` form of the Content-ID; the engine never parses or builds it | `ExternalPart::$reference` (blueprint) | href, cid (bare), id |
+| **Sealed part** | An external part after encryption: same reference, ciphertext for content, opaque media type | Outbound result; the inbound twin is an Opened part | "sealed part" (blueprint) | encrypted part, cipher part |
+| **Opened part** | An external part after decryption: same reference, plaintext for content, original media type restored | Inbound result; the outbound twin is a Sealed part | "opened part" (blueprint) | decrypted part, plain part |
+| **Attachment** | One file carried beside the SOAP envelope as its own MIME part, identified by a Content-ID that never changes while its bytes and media type may be replaced | The file, not the pointer to it; owned by the attachments middleware, not by this package. An attachment presented to the engine becomes an External part | `Attachment` (php-soap/psr18-attachments-middleware) | file, payload, part (bare) |
+| **AttachmentParts** | The shipped implementation of ExternalParts over the attachments middleware's storage, one instance per direction | The only place in this package that names the attachments middleware; deliberately not named after SwA, because the mechanism is identical under MTOM | `AttachmentParts` (blueprint) | SwaAttachments, attachment store, adapter (as its name) |
+| **SwA** | The packaging where attachments are separate MIME parts that the XML never contains, referenced by `cid:` | Distinct from MTOM only in packaging labels; identical from this package's point of view | "SwA" (WSS SwA Profile 1.1) | SOAP with attachments (in code), swa (lowercase) |
+| **MTOM / XOP** | The packaging where an element's own value is carried in a MIME part, with an `xop:Include` standing in its place inside the XML | The element's value lives elsewhere but still *belongs* to the element; encrypting the element that holds the include covers only the pointer, which is why that is refused | "MTOM", "XOP" (`xop:Include`) | optimization (bare), inline attachment |
+| **Attachment-Content-Only** | The encryption mode covering an attachment's content while its MIME headers stay readable | The only mode supported; Attachment-Complete, which also covers the headers, is refused | `Attachment-Content-Only` (WSS SwA Profile 1.1) | content mode, partial encryption |
+| **Ciphertext transform** | The transform declared inside a `xenc:CipherReference` telling a receiver the referenced part holds ciphertext | Declared, never applied by us; one per reference | `Attachment-Ciphertext-Transform` (WSS SwA Profile 1.1) | cipher transform, decode transform |
+| **Content transform** | The signature transform declaring that a reference's digest covers an attachment's content and none of its MIME headers | The signing twin of the Ciphertext transform. Its Complete counterpart, which also covers the headers, is refused | `Attachment-Content-Signature-Transform` (WSS SwA Profile 1.1) | attachment transform, body transform |
+| **Signed reference** | One `ds:Reference` ready to emit, carrying its own URI, digest, digest method and transform chain instead of having them derived from an element id | Replaces the element-only DigestResult, so an element reference and an external one are the same kind of thing to the SignedInfo builder | `SignedReference` (blueprint) | digest result, reference (bare) |
+
 ## Flagged ambiguities
-_None open — the two coined-term forks (Block vs Action; key-transport naming) were resolved by the user
-on 2026-07-07 and are recorded in the tables above._
+_None open. Three coined-term forks were resolved by the user and are recorded in the tables above: Block vs
+Action and key-transport naming (2026-07-07), and the external-part naming (2026-08-25)._
+
+**Why "detached" is banned for an external part.** It already carries two unrelated meanings in this project:
+an element not attached to the document tree, and a signature that neither envelops nor is enveloped by what
+it signs. A third meaning would make the word useless. **Why not "MIME part":** the concept lives in the
+SOAP-free engine layer, which holds no transport vocabulary, and the URI a part is addressed by need not be a
+`cid:` at all.
 
 ## Notes (contradictions to fix in the code/docs, not glossary forks)
 _None open — the SecurityProfile "Optional vs required" docblock contradiction was resolved when SecurityProfile
