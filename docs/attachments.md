@@ -215,17 +215,22 @@ attachment path is no more of an oracle than the body's. Outbound failures are `
 ```php
 interface ExternalParts
 {
+    public function coverage(): ExternalPartCoverage;
     public function collect(): ExternalPartList;
     public function replace(ExternalPartList $parts): void;
 }
 ```
 
-Implement it if your attachments live somewhere else. Two contract points matter:
+Implement it if your attachments live somewhere else. Three contract points matter:
 
-- **`collect()` may be called more than once per message, and must return streams positioned at the start every
-  time.** Sign-then-encrypt collects twice: the signature digests the plaintext, then encryption seals the same
-  plaintext. A `ResourceStream` is single-use, so rewind on every collect. An adapter that hands out a spent
-  stream trips the zero-byte refusal instead of silently sealing nothing.
+- **`coverage()` says how much of a part your compositions cover.** Return `ExternalPartCoverage::Content`:
+  it is the only coverage this release implements, and no block reads the value yet. The method is on the
+  seam so that adding `Complete` later is a change to implementations rather than to the interface, which
+  would break every one of them at once.
+- **`collect()` may be called more than once per message, so rewind on every collect.** Sign-then-encrypt
+  collects twice: the signature digests the plaintext, then encryption seals the same plaintext. The engine
+  rewinds each part before reading it as well, so a spent stream is recovered rather than sealed empty, but do
+  not lean on that: it is defence in depth, and a stream that cannot rewind reads as zero bytes and is refused.
 - **`replace()` fully replaces the parts it is handed, matched by reference, and touches nothing else.**
   Inbound it receives only the parts an `xenc:EncryptedData` actually named, so an attachment that arrived in
   the clear is absent from the list and must be left as it is rather than dropped.

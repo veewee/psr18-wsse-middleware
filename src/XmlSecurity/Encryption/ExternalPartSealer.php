@@ -66,10 +66,9 @@ final readonly class ExternalPartSealer
     ): array {
         $plaintext = $part->content->rewind()->getContents();
         if ($plaintext === '') {
-            // A stream already consumed elsewhere looks exactly like this. Encrypting it would produce a
-            // ciphertext that decrypts to nothing and still passes every structural check, so the caller would
-            // ship an empty file believing it was protected. Sign-then-encrypt reads each part twice, which is
-            // how a non-rewinding adapter arrives here.
+            // Encrypting nothing produces a ciphertext that decrypts to nothing and still passes every
+            // structural check, so the caller would ship an empty file believing it was protected. A part
+            // whose stream cannot rewind reads this way too.
             throw EncryptionFailed::withReason('An external part read zero bytes.');
         }
 

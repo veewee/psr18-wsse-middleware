@@ -24,12 +24,12 @@ interface ExternalParts
     public function coverage(): ExternalPartCoverage;
 
     /**
-     * May be called more than once for the same message, and must return streams positioned at the start
+     * May be called more than once for the same message, and should return streams positioned at the start
      * every time.
      *
-     * Sign-then-encrypt collects twice: the signature digests the plaintext, then encryption replaces it. A
-     * stream is single-use, so an implementation that does not rewind hands the second caller nothing, which
-     * the engine's zero-byte guard turns into a refusal rather than an empty part that looks encrypted.
+     * Sign-then-encrypt collects twice: the signature digests the plaintext, then encryption replaces it. The
+     * engine rewinds every part before reading it, so this is the second of two guards rather than the only
+     * one, and an implementation whose streams cannot rewind is the case it covers.
      */
     public function collect(): ExternalPartList;
 
