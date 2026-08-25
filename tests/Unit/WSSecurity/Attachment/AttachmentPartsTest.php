@@ -225,6 +225,23 @@ final class AttachmentPartsTest extends TestCase
         static::assertSame('%PDF-1.7', $part->content->getContents());
     }
 
+    public function test_it_hands_a_cipher_the_part_s_own_octets_under_either_coverage(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(
+            Attachment::cid('invoice@example.com', 'invoice', 'invoice.pdf', $this->stream('%PDF-1.7'))
+        );
+
+        // A CipherReference addresses the MIME part, so what sits there is the part's own bytes whatever the
+        // coverage says about the plaintext inside it. Composing here would seal the wrong octets.
+        $part = AttachmentParts::request($storage, ExternalPartCoverage::Complete)
+            ->collectSealed()
+            ->byReference('cid:invoice@example.com');
+
+        static::assertNotNull($part);
+        static::assertSame('%PDF-1.7', $part->content->getContents());
+    }
+
     public function test_it_refuses_to_compose_a_header_it_cannot_canonicalize(): void
     {
         $storage = new AttachmentStorage();

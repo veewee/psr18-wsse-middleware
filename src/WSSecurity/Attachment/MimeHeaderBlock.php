@@ -172,7 +172,7 @@ final readonly class MimeHeaderBlock
     private function refuseComment(string $name, string $value): void
     {
         $quoted = false;
-        foreach (str_split($value === '' ? ' ' : $value) as $character) {
+        foreach (str_split($value) as $character) {
             if ($character === '"') {
                 $quoted = !$quoted;
 
@@ -239,8 +239,8 @@ final readonly class MimeHeaderBlock
 
     private function quote(string $value): string
     {
-        $starts = str_starts_with($value, '"');
-        $ends = strlen($value) > 1 && str_ends_with($value, '"');
+        $starts = $value[0] === '"';
+        $ends = $value[strlen($value) - 1] === '"';
 
         return match (true) {
             $starts && $ends => $value,
