@@ -20,6 +20,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\SamlToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ExternalPartSignature;
@@ -45,10 +46,16 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
 final class Signature implements OutboundAction
 {
     /**
-     * Selects an attachment's content and none of its MIME headers. Its Attachment-Complete counterpart, which
-     * also covers the headers, needs RFC 2822 header canonicalization and is not supported.
+     * Selects an attachment's content and none of its MIME headers, which is what a peer whose policy carries
+     * sp13:ContentSignatureTransform requires.
      */
     private const SWA_CONTENT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
+
+    /**
+     * Selects an attachment's canonicalized MIME headers as well as its content, which is what a bare
+     * sp:Attachments means: content-only is the opt-in, not the default.
+     */
+    private const SWA_COMPLETE_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Complete-Signature-Transform';
 
     /** @var non-empty-list<Part>|null */
     private ?array $parts = null;
@@ -255,11 +262,15 @@ final class Signature implements OutboundAction
      */
     private function externalPartSignature(): ?ExternalPartSignature
     {
-        if ($this->attachments === null) {
+        $attachments = $this->attachments;
+        if ($attachments === null) {
             return null;
         }
 
-        return new ExternalPartSignature($this->attachments->collect(), self::SWA_CONTENT_TRANSFORM);
+        return new ExternalPartSignature($attachments->collect(), match ($attachments->coverage()) {
+            ExternalPartCoverage::Content => self::SWA_CONTENT_TRANSFORM,
+            ExternalPartCoverage::Complete => self::SWA_COMPLETE_TRANSFORM,
+        });
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier

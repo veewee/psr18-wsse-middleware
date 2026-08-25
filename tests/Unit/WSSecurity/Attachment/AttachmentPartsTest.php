@@ -6,10 +6,12 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Attachment;
 use Phpro\ResourceStream\Factory\MemoryStream;
 use Phpro\ResourceStream\ResourceStream;
 use PHPUnit\Framework\TestCase;
+use Psl\MIME\Headers;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentHeaderForm;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
@@ -171,6 +173,113 @@ final class AttachmentPartsTest extends TestCase
         AttachmentParts::request($storage)->replace(ExternalPartList::of(
             new ExternalPart('cid:stranger@example.com', 'application/pdf', $this->stream('x'))
         ));
+    }
+
+    public function test_it_covers_a_part_s_metadata_as_well_when_asked_to(): void
+    {
+        $storage = new AttachmentStorage();
+
+        static::assertSame(
+            ExternalPartCoverage::Complete,
+            AttachmentParts::request($storage, ExternalPartCoverage::Complete)->coverage()
+        );
+        static::assertSame(
+            ExternalPartCoverage::Complete,
+            AttachmentParts::response($storage, ExternalPartCoverage::Complete)->coverage()
+        );
+    }
+
+    public function test_it_composes_the_canonical_header_block_ahead_of_the_bytes(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(
+            Attachment::cid('invoice@example.com', 'invoice', 'invoice.pdf', $this->stream('%PDF-1.7'))
+        );
+
+        $part = AttachmentParts::request($storage, ExternalPartCoverage::Complete)
+            ->collect()
+            ->byReference('cid:invoice@example.com');
+
+        static::assertNotNull($part);
+        static::assertSame(
+            "Content-Disposition:attachment;filename=\"invoice.pdf\";name=\"invoice\"\r\n"
+            ."Content-ID:<invoice@example.com>\r\n"
+            ."Content-Type:application/pdf\r\n"
+            .'%PDF-1.7',
+            $part->content->getContents()
+        );
+    }
+
+    public function test_it_composes_nothing_ahead_of_the_bytes_when_covering_content_only(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(
+            Attachment::cid('invoice@example.com', 'invoice', 'invoice.pdf', $this->stream('%PDF-1.7'))
+        );
+
+        $part = AttachmentParts::request($storage)->collect()->byReference('cid:invoice@example.com');
+
+        static::assertNotNull($part);
+        static::assertSame('%PDF-1.7', $part->content->getContents());
+    }
+
+    public function test_it_refuses_to_compose_a_header_it_cannot_canonicalize(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(Attachment::fromHeaders(
+            Headers::fromPairs([
+                ['Content-ID', '<invoice@example.com>'],
+                ['Content-Type', 'application/pdf (the invoice)'],
+            ]),
+            $this->stream('%PDF-1.7')
+        ));
+
+        $this->expectException(UnsupportedAttachmentHeaderForm::class);
+        $this->expectExceptionMessage('"Content-Type" carries a comment');
+
+        AttachmentParts::request($storage, ExternalPartCoverage::Complete)->collect();
+    }
+
+    public function test_it_carries_the_whole_content_type_header_as_the_part_s_media_type(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(Attachment::fromHeaders(
+            Headers::fromPairs([
+                ['Content-ID', '<report@example.com>'],
+                ['Content-Type', 'application/pdf; charset=UTF-8'],
+            ]),
+            $this->stream('%PDF-1.7')
+        ));
+
+        $part = AttachmentParts::request($storage)->collect()->byReference('cid:report@example.com');
+
+        static::assertNotNull($part);
+        static::assertSame('application/pdf; charset=UTF-8', $part->mimeType);
+    }
+
+    public function test_it_restores_a_media_type_by_replacing_the_content_type_header(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->responseAttachments()->add(Attachment::fromHeaders(
+            Headers::fromPairs([
+                ['Content-ID', '<invoice@example.com>'],
+                ['Content-Type', 'application/octet-stream'],
+                ['Content-Disposition', 'attachment; name="invoice"; filename="invoice.xml"'],
+                ['Content-Location', 'http://example.com/invoice.xml'],
+            ]),
+            $this->stream('ciphertext')
+        ));
+
+        AttachmentParts::response($storage)->replace(ExternalPartList::of(
+            new ExternalPart('cid:invoice@example.com', 'text/xml; charset=UTF-8', $this->stream('<invoice/>'))
+        ));
+
+        $attachment = $storage->responseAttachments()->findById('<invoice@example.com>');
+        static::assertSame('text/xml; charset=UTF-8', $attachment->headers->get('Content-Type'));
+        static::assertSame('text/xml', $attachment->mimeType);
+        static::assertSame('http://example.com/invoice.xml', $attachment->headers->get('Content-Location'));
+        static::assertSame('invoice', $attachment->name);
+        static::assertSame('<invoice/>', $attachment->content->getContents());
     }
 
     /**

@@ -7,6 +7,7 @@ use Phpro\ResourceStream\Factory\MemoryStream;
 use Phpro\ResourceStream\ResourceStream;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
+use Psl\MIME\Headers;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorageInterface;
@@ -18,6 +19,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ExternalPartSignature;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
@@ -34,6 +36,7 @@ use VeeWee\Xml\Dom\Document;
 final class VerifyAttachmentSignatureRoundTripTest extends TestCase
 {
     private const SWA_CONTENT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
+    private const SWA_COMPLETE_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Complete-Signature-Transform';
     private const CID = 'invoice@example.com';
 
     public function test_it_verifies_an_attachment_the_signature_covers(): void
@@ -152,13 +155,93 @@ final class VerifyAttachmentSignatureRoundTripTest extends TestCase
         $this->verify($fixture, $document, $storage);
     }
 
-    private function signWith(WsseSignatureFixture $fixture, AttachmentStorageInterface $storage): Document
+    public function test_it_verifies_an_attachment_whose_headers_the_signature_covers_too(): void
     {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->storage('%PDF-1.7 invoice bytes');
+        $document = $this->signWith($fixture, $storage, ExternalPartCoverage::Complete);
+
+        $this->verify($fixture, $document, $storage, ExternalPartCoverage::Complete);
+
+        static::assertStringContainsString(self::SWA_COMPLETE_TRANSFORM, $document->toXmlString());
+    }
+
+    public function test_a_header_changed_after_signing_is_refused_under_a_complete_coverage(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->storage('%PDF-1.7 invoice bytes');
+        $document = $this->signWith($fixture, $storage, ExternalPartCoverage::Complete);
+
+        // Not a byte of the file changes; only the name it travelled under does. A content-only coverage
+        // would not notice.
+        $storage->responseAttachments()->replace(
+            $storage->responseAttachments()->findById('<'.self::CID.'>')
+                ->withHeaders(Headers::fromPairs([
+                    ['Content-ID', '<'.self::CID.'>'],
+                    ['Content-Type', 'application/pdf'],
+                    ['Content-Disposition', 'attachment; name="file"; filename="paid.pdf"'],
+                ])),
+        );
+
+        $this->expectException(SecurityFault::class);
+        $this->verify($fixture, $document, $storage, ExternalPartCoverage::Complete);
+    }
+
+    public function test_a_content_only_reference_is_refused_by_a_complete_adapter(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->storage('%PDF-1.7 invoice bytes');
+        $document = $this->signWith($fixture, $storage);
+
+        // The coverage a peer declares is a requirement rather than a hint, which is what the Java side
+        // does to us in the other direction. Asserting the reason rather than the type: every inbound
+        // failure is the same type, so a digest mismatch would satisfy the type alone.
+        $this->assertRefusedBecause(
+            'A reference declares an unsupported transform.',
+            fn (): mixed => $this->verify($fixture, $document, $storage, ExternalPartCoverage::Complete),
+        );
+    }
+
+    public function test_a_complete_reference_is_refused_by_a_content_only_adapter(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->storage('%PDF-1.7 invoice bytes');
+        $document = $this->signWith($fixture, $storage, ExternalPartCoverage::Complete);
+
+        $this->assertRefusedBecause(
+            'A reference declares an unsupported transform.',
+            fn (): mixed => $this->verify($fixture, $document, $storage),
+        );
+    }
+
+    /**
+     * @param callable(): mixed $verification
+     */
+    private function assertRefusedBecause(string $reason, callable $verification): void
+    {
+        try {
+            $verification();
+        } catch (SecurityFault $fault) {
+            static::assertSame($reason, $fault->getPrevious()?->getMessage());
+
+            return;
+        }
+
+        static::fail('The message was accepted.');
+    }
+
+    private function signWith(
+        WsseSignatureFixture $fixture,
+        AttachmentStorageInterface $storage,
+        ExternalPartCoverage $coverage = ExternalPartCoverage::Content,
+    ): Document {
         return $fixture->sign(
             [WsseSignatureFixture::bodyTarget()],
             externalParts: new ExternalPartSignature(
-                AttachmentParts::response($storage)->collect(),
-                self::SWA_CONTENT_TRANSFORM,
+                AttachmentParts::response($storage, $coverage)->collect(),
+                $coverage === ExternalPartCoverage::Complete
+                    ? self::SWA_COMPLETE_TRANSFORM
+                    : self::SWA_CONTENT_TRANSFORM,
             ),
         );
     }
@@ -167,9 +250,10 @@ final class VerifyAttachmentSignatureRoundTripTest extends TestCase
         WsseSignatureFixture $fixture,
         Document $document,
         AttachmentStorageInterface $storage,
+        ExternalPartCoverage $coverage = ExternalPartCoverage::Content,
     ): void {
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))
-            ->withAttachments(AttachmentParts::response($storage))(
+            ->withAttachments(AttachmentParts::response($storage, $coverage))(
                 new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
             );
     }

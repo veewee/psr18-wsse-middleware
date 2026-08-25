@@ -20,6 +20,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentCoverage;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
@@ -46,6 +47,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalEncryptedDataBuilder
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalEncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartSealer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
@@ -199,6 +201,27 @@ final class EncryptionTest extends OutboundTestCase
 
         static::assertSame([], $encryptor->lastRequest()->targets);
         static::assertNotNull($encryptor->lastRequest()->externalParts);
+    }
+
+    public function test_it_refuses_an_adapter_that_covers_a_part_s_metadata(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<invoice@example.com>',
+            'file',
+            'invoice.pdf',
+            'application/pdf',
+            MemoryStream::create()->write('bytes')->rewind(),
+        ));
+
+        $this->expectException(UnsupportedAttachmentCoverage::class);
+        $this->expectExceptionMessage('encrypts an attachment\'s content only');
+
+        (new Encryption($this->recipientCertificate()))
+            ->withEncryptor(new RecordingEncryptor())
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Complete))(
+                $this->context($this->envelope())
+            );
     }
 
     public function test_with_methods_are_immutable(): void

@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentCoverage;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
@@ -25,6 +26,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartEncryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlEncryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
@@ -52,9 +54,10 @@ use VeeWee\Xml\Dom\Document;
 final class Encryption implements OutboundAction
 {
     /**
-     * The only encryption mode this package implements: an attachment's content is encrypted while its MIME
-     * headers stay readable. Attachment-Complete also covers the headers, which needs RFC 2822 header
-     * canonicalization, and is not supported in either direction.
+     * The only encryption mode this package emits: an attachment's content is encrypted while its MIME
+     * headers stay readable. Attachment-Complete also encrypts the headers, and no policy can require it,
+     * since a peer validates the coverage of a signature and never of an encryption. Inbound is another
+     * matter, and Decrypt accepts both.
      */
     private const SWA_CONTENT_ONLY_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Only';
 
@@ -241,6 +244,10 @@ final class Encryption implements OutboundAction
     {
         if ($this->attachments === null) {
             return null;
+        }
+
+        if ($this->attachments->coverage() !== ExternalPartCoverage::Content) {
+            throw UnsupportedAttachmentCoverage::outboundEncryption();
         }
 
         return new ExternalPartEncryption(

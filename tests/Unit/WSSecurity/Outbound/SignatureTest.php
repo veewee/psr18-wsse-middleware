@@ -29,6 +29,7 @@ use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
@@ -43,6 +44,7 @@ final class SignatureTest extends OutboundTestCase
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
     private const X509_PKI_PATH = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509PKIPathv1';
     private const SWA_CONTENT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
+    private const SWA_COMPLETE_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Complete-Signature-Transform';
 
     public function test_it_lowers_registered_attachments_into_the_signing_request(): void
     {
@@ -87,8 +89,27 @@ final class SignatureTest extends OutboundTestCase
             ->withAttachments($this->attachments('note@example.com', 'text/plain'))($this->signableContext());
     }
 
-    private function attachments(string $uri, string $mimeType): AttachmentParts
+    public function test_it_declares_the_complete_transform_for_a_complete_adapter(): void
     {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments(
+                'invoice@example.com',
+                'application/pdf',
+                ExternalPartCoverage::Complete
+            ))($this->signableContext());
+
+        $external = $signer->lastRequest()->externalParts;
+        static::assertNotNull($external);
+        static::assertSame(self::SWA_COMPLETE_TRANSFORM, $external->transform);
+    }
+
+    private function attachments(
+        string $uri,
+        string $mimeType,
+        ExternalPartCoverage $coverage = ExternalPartCoverage::Content,
+    ): AttachmentParts {
         $storage = new AttachmentStorage();
         $storage->requestAttachments()->add(new Attachment(
             '<'.$uri.'>',
@@ -98,7 +119,7 @@ final class SignatureTest extends OutboundTestCase
             MemoryStream::create()->write('the bytes')->rewind(),
         ));
 
-        return AttachmentParts::request($storage);
+        return AttachmentParts::request($storage, $coverage);
     }
 
     public function test_it_uses_profile_algorithms_by_default(): void
