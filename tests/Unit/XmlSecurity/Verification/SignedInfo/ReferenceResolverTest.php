@@ -4,11 +4,15 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification\SignedInfo;
 
 use Dom\Element;
+use Phpro\ResourceStream\Factory\MemoryStream;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ExternalPartVerification;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ParsedReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ReferenceResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParser;
@@ -18,6 +22,7 @@ use VeeWee\Xml\Dom\Document;
 final class ReferenceResolverTest extends TestCase
 {
     private const EXC_C14N = 'http://www.w3.org/2001/10/xml-exc-c14n#';
+    private const SWA_CONTENT = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
     private const XSLT = 'http://www.w3.org/TR/1999/REC-xslt-19991116';
     private const ENVELOPED_SIGNATURE = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature';
 
@@ -319,6 +324,64 @@ final class ReferenceResolverTest extends TestCase
         static::assertInstanceOf(Element::class, $signature);
 
         return $signature;
+    }
+
+    public function test_an_external_reference_resolves_to_the_part_its_uri_names(): void
+    {
+        $document = $this->document([self::reference('cid:b@example.com', self::SWA_CONTENT)]);
+        [$elements, $parsed] = $this->parsedExternal($document);
+
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve(
+            $document,
+            $elements,
+            $parsed,
+            $this->signature($document),
+            new ExternalPartVerification(
+                ExternalPartList::of($this->part('cid:a@example.com'), $wanted = $this->part('cid:b@example.com')),
+                self::SWA_CONTENT,
+            ),
+        );
+
+        static::assertSame([], $resolved->elements);
+        static::assertCount(1, $resolved->external);
+        // The part its URI names, not merely some part that was supplied: picking any other one would let a
+        // signature over one attachment be checked against a different file.
+        static::assertSame($wanted, $resolved->external[0]->part);
+    }
+
+    public function test_an_external_reference_naming_no_supplied_part_is_refused(): void
+    {
+        $document = $this->document([self::reference('cid:stranger@example.com', self::SWA_CONTENT)]);
+        [$elements, $parsed] = $this->parsedExternal($document);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('A referenced element could not be resolved.');
+
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve(
+            $document,
+            $elements,
+            $parsed,
+            $this->signature($document),
+            new ExternalPartVerification(
+                ExternalPartList::of($this->part('cid:a@example.com')),
+                self::SWA_CONTENT,
+            ),
+        );
+    }
+
+    /**
+     * @return array{0: non-empty-list<Element>, 1: non-empty-list<ParsedReference>}
+     */
+    private function parsedExternal(Document $document): array
+    {
+        $parsed = (new SignedInfoParser())->parse($this->signature($document), self::SWA_CONTENT);
+
+        return [$parsed->referenceElements, $parsed->references];
+    }
+
+    private function part(string $reference): ExternalPart
+    {
+        return new ExternalPart($reference, 'application/pdf', MemoryStream::create());
     }
 
     private function byId(Document $document, string $id): Element

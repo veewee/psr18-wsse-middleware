@@ -95,6 +95,33 @@ final class VerifyAttachmentSignatureRoundTripTest extends TestCase
         $this->verify($fixture, $document, $this->storage('other', 'stranger@example.com'));
     }
 
+    public function test_the_same_bytes_under_another_cid_do_not_satisfy_the_reference(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $bytes = '%PDF-1.7 invoice bytes';
+        $document = $this->signWith($fixture, $this->storage($bytes));
+
+        // Byte-identical content under a different Content-ID. A digest check alone cannot tell these apart,
+        // so only binding the reference to one specific cid refuses the substitution.
+        $this->expectException(SecurityFault::class);
+        $this->verify($fixture, $document, $this->storage($bytes, 'substitute@example.com'));
+    }
+
+    public function test_it_verifies_a_part_whose_stream_was_already_read(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->storage('%PDF-1.7 invoice bytes');
+        $document = $this->signWith($fixture, $storage);
+
+        // Signing consumed the stream, and inbound the decryption block would have read it too. Verifying has
+        // to start from the beginning or the digest is taken over nothing.
+        $storage->responseAttachments()->findById('<'.self::CID.'>')->content->getContents();
+
+        $this->verify($fixture, $document, $storage);
+
+        static::assertStringContainsString('cid:'.self::CID, $document->toXmlString());
+    }
+
     public function test_a_cid_reference_is_refused_when_no_attachments_are_registered(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
