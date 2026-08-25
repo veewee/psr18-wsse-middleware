@@ -11,10 +11,19 @@ use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 
 final class AttachmentPartsTest extends TestCase
 {
+    public function test_it_covers_a_part_s_content_and_nothing_else(): void
+    {
+        $storage = new AttachmentStorage();
+
+        static::assertSame(ExternalPartCoverage::Content, AttachmentParts::request($storage)->coverage());
+        static::assertSame(ExternalPartCoverage::Content, AttachmentParts::response($storage)->coverage());
+    }
+
     public function test_it_collects_request_attachments_as_external_parts(): void
     {
         $storage = new AttachmentStorage();

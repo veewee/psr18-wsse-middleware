@@ -16,6 +16,12 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 interface ExternalParts
 {
     /**
+     * How much of each part the compositions this adapter hands out and takes back cover, which is what a
+     * block reads to decide the transform it declares.
+     */
+    public function coverage(): ExternalPartCoverage;
+
+    /**
      * May be called more than once for the same message, and must return streams positioned at the start
      * every time.
      *

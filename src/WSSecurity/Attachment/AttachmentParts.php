@@ -11,6 +11,7 @@ use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorageInterface;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentsVersion;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 
@@ -49,6 +50,11 @@ final readonly class AttachmentParts implements ExternalParts
         self::assertSupported();
 
         return new self($storage, AttachmentSide::Response);
+    }
+
+    public function coverage(): ExternalPartCoverage
+    {
+        return ExternalPartCoverage::Content;
     }
 
     public function collect(): ExternalPartList
