@@ -471,56 +471,19 @@ plus two properties that could not be sent at all before: `from` and `faultTo`. 
 which keeps the previous behaviour: `action` from the request's `SOAPAction`, `to` from the request URI, and
 `From`/`FaultTo` omitted. `wsa:MessageID` is still generated per message and is deliberately not configurable.
 
-### The signer engine seam changed shape
+### Send or receive secured SOAP attachments
 
-Only relevant if you passed your own signer to `Outbound\Signature::withSigner()`. The built-in signer is
-unaffected and needs no action.
+New capability, so there is nothing to migrate. Do this only if your service protects attachments.
 
-Signing can now cover parts of the message whose bytes are not in the document, which the previous return
-type had no way to report:
+Require `php-soap/psr18-attachments-middleware` 0.11.0 or newer, which is the release that carries the
+external-part model this package adapts:
 
-```php
-// before
-public function sign(Document $document, SigningRequest $request): void;
-
-// after
-public function sign(Document $document, SigningRequest $request): SignedExternalParts;
+```bash
+composer require "php-soap/psr18-attachments-middleware:^0.11"
 ```
 
-Return `new SignedExternalParts(ExternalPartList::of())` if your signer covers no such parts. It is not a
-formality: `Inbound\VerifySignature` uses the equivalent report to refuse a message whose attachments a peer
-left unsigned, so a signer that under-reports makes the far side reject valid messages.
-
-`SigningRequest` gained a trailing `?ExternalPartSignature $externalParts = null` parameter. Constructing it
-with named arguments, which the previous guide already recommended, needs no change.
-
-`DigestResult` was replaced by `SignedReference`, and `DigestCalculator::calculate()` was renamed to
-`forElement()`. The old value object could only describe an element: it carried a bare id, and
-`SignedInfoBuilder` derived the reference URI as `'#'.$id` and the transform from the canonicalization.
-Neither holds for a part addressed by URI, so both became fields:
-
-```php
-// before
-new DigestResult('Body-1', $digestBase64, DigestMethod::SHA256, ['soap']);
-
-// after
-new SignedReference('#Body-1', $digestBase64, DigestMethod::SHA256, [
-    new SignedTransform(SignatureCanonicalization::EXC_C14N->value, ['soap']),
-]);
-```
-
-If you built `DigestResult` values yourself, note the `'#'` is now yours to write, and that a `PrefixList` is
-only emitted for a transform that carries one, so pass it on the `SignedTransform` rather than relying on the
-builder to attach it.
-
-### Signing and verifying SOAP attachments
-
-New capability, no action needed unless you want it. `Outbound\Signature` and `Inbound\VerifySignature` gained
-`withAttachments()`, which covers the message's attachments in the same `ds:Signature` as its in-document
-parts, and `Outbound\Encryption` and `Inbound\Decrypt` gained the same method for encryption. See
-[docs/attachments.md](docs/attachments.md) for the wire format, the ordering rules and the full list of what is
-refused. Hand each block an `ExternalParts` implementation; this package ships `AttachmentParts` over
-`php-soap/psr18-attachments-middleware` 0.11.0 or later, so a caller writes no glue:
+List `WsseMiddleware` before `AttachmentsMiddleware`. The first plugin in a `PluginClient` is the outermost,
+and WSSE has to see plain XML on the way out and a split multipart on the way back:
 
 ```php
 new WsseMiddleware(
@@ -537,51 +500,11 @@ new WsseMiddleware(
 new AttachmentsMiddleware($attachments, AttachmentType::Swa),
 ```
 
-`WsseMiddleware` must be listed before `AttachmentsMiddleware`: it has to see plain XML on the way out and a
-split multipart on the way back.
+Register the parts on every block that should cover them. `Outbound\Signature`, `Inbound\VerifySignature`,
+`Outbound\Encryption` and `Inbound\Decrypt` each take `withAttachments()`, and a block without it protects the
+document alone. Registering parts on an inbound block is the *requirement* that they be protected, so a peer
+that omits one is refused rather than silently accepted.
 
-Worth knowing before you turn it on: registering parts on the inbound block is the *requirement* that they be
-signed, so a peer that omits an attachment reference is refused rather than silently accepted. Signing a
-`text/*` attachment is refused too, because the profile canonicalizes line endings in text content before
-digesting and this release does not implement that.
+Read [docs/attachments.md](docs/attachments.md) before turning it on. It carries the wire format, the ordering
+rules, and the list of what is refused, including the media types this release will not sign.
 
-### The encryption engine seams changed shape
-
-Only relevant if you passed your own engine service to `Outbound\Encryption::withEncryptor()` or
-`Inbound\Decrypt::withDecryptor()`. The built-in ones are unaffected and need no action.
-
-Encryption can now cover parts of the message whose bytes are not in the document. Those cannot be replaced in
-place, so their ciphertext comes back on a result object instead:
-
-```php
-// before
-public function encrypt(Document $document, EncryptionRequest $request): void;
-public function decrypt(Document $document, DecryptionRequest $request): void;
-
-// after
-public function encrypt(Document $document, EncryptionRequest $request): EncryptionResult;
-public function decrypt(Document $document, DecryptionRequest $request): DecryptionResult;
-```
-
-Return `new EncryptionResult(ExternalPartList::of())` or `new DecryptionResult(ExternalPartList::of())` if your
-service handles no such parts.
-
-`EncryptionRequest` gained a trailing `?ExternalPartEncryption $externalParts = null`, and `DecryptionRequest` a
-trailing `?ExternalPartDecryption $externalParts = null`. Constructing either with named arguments, which the
-previous guide already recommended, needs no change.
-
-`EncryptionRequest::$targets` widened from `non-empty-list<EncryptionTarget>` to `list<EncryptionTarget>`,
-because encrypting only the attachments is a legitimate configuration. A request naming no parts at all is
-still refused, now by the `Encryptor` rather than by the type.
-
-`Encryptor` and `Decryptor` each take one more constructor argument, an `ExternalEncryptedDataBuilder` and an
-`ExternalEncryptedDataReader` respectively. This affects you only if you construct them directly rather than
-through `Encryptor::create()` / `Decryptor::create()`.
-
-### `Outbound\Encryption::withParts([])` is no longer always an error
-
-It still throws when nothing else is registered, for the same reason as before: encrypting nothing wraps a
-session key and appends an `xenc:EncryptedKey`, so the message reads as encrypted while the Body leaves in
-cleartext. It is now allowed when `withAttachments()` has already been applied, because encrypting only the
-attachments is a real configuration. Register the attachments first: the check runs when `withParts()` is
-called.

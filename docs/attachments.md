@@ -104,6 +104,16 @@ builder fills the storage with the ciphertext parts, this package decrypts them,
 the include to the decrypted attachment. Decoding happens after the transport, and therefore after this
 middleware, which is why nothing has to move.
 
+**Measured, not argued.** The interop suite runs all four directions twice, once packaged as SwA and once as
+MTOM, against a WSS4J peer: each side signs and the other verifies, each side encrypts and the other decrypts.
+The MTOM encryption case also reads the part as it crossed the wire and asserts it was ciphertext there, which
+is what would fail if the peer resolved the `xop:Include` before its security interceptor ran.
+
+**MTOM here means SOAP 1.2.** The attachments middleware writes `start-info="application/soap+xml"` into an
+MTOM `Content-Type` whatever the envelope says, and a SOAP 1.1 XOP package is one whose `start-info` is
+`text/xml`, so a peer reading a SOAP 1.1 envelope out of an MTOM package refuses it before any security
+processing happens. Pair `AttachmentType::Mtom` with a SOAP 1.2 envelope.
+
 **One guard runs the other way.** Encrypting an *element* that contains an `xop:Include` is refused. The
 ciphertext would cover the pointer while the file itself travelled in the clear in its own part, and the
 message would still satisfy a policy check for that element being encrypted. Encrypting the *part* an include
@@ -173,6 +183,7 @@ rather than a substitution nobody notices.
 | Case | Behaviour |
 |---|---|
 | Signing a `text/*` attachment | Refused. The profile normalizes line endings in text content before digesting, which is not implemented, so the signature would be one only this package can verify |
+| Signing an XML attachment (`text/xml`, `application/xml`, any `+xml` subtype) | Refused, for the same reason in its other form: the profile canonicalizes XML content with exclusive C14N before digesting |
 | An attachment whose stream reads zero bytes | Refused. A stream consumed elsewhere looks exactly like this, and encrypting it ships an empty file that passes every check on the far side |
 | Encrypting an element that is or contains an `xop:Include` | Refused. See the MTOM section above |
 | A registered attachment that no `ds:Reference` covers | Refused. Registering parts on `VerifySignature` is the requirement that they be signed |
