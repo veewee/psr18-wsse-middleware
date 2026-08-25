@@ -16,8 +16,10 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 interface ExternalParts
 {
     /**
-     * How much of each part the compositions this adapter hands out and takes back cover, which is what a
-     * block reads to decide the transform it declares.
+     * How much of each part the compositions this adapter hands out and takes back cover.
+     *
+     * No block reads it yet: each one names the content-only transform and type directly. The seam takes it
+     * now because adding a method to an interface breaks every implementation of it, and nothing has tagged.
      */
     public function coverage(): ExternalPartCoverage;
 

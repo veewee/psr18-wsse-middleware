@@ -6,11 +6,13 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 /**
  * How much of an external part a protection covers.
  *
- * A property of the adapter rather than a parameter threaded through the seam, so that a block derives the
- * transform it declares from the same value the adapter composes its parts under. A composition that disagrees
- * with the declared transform is then unrepresentable rather than merely unlikely.
+ * A property of the adapter rather than a parameter threaded through the seam. There is then one place a
+ * coverage is written, so a block that derived its transform from it could not be paired with an adapter
+ * composing parts under a different one.
  *
- * The engine never reads this. It lives here because ExternalParts does and the seam has to be typed.
+ * Nothing derives anything from it yet: this cut composes content only, and every block names that transform
+ * directly. The engine never reads it either. It lives here because ExternalParts does and the seam has to be
+ * typed.
  */
 enum ExternalPartCoverage
 {

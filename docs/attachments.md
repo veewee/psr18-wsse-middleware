@@ -183,7 +183,7 @@ rather than a substitution nobody notices.
 | Case | Behaviour |
 |---|---|
 | Signing a `text/*` attachment | Refused. The profile normalizes line endings in text content before digesting, which is not implemented, so the signature would be one only this package can verify |
-| Signing an XML attachment (`text/xml`, `application/xml`, any `+xml` subtype) | Refused, for the same reason in its other form: the profile canonicalizes XML content with exclusive C14N before digesting |
+| Signing an XML attachment (`text/xml`, `application/xml`, or a `+xml` subtype of `application` or `image`) | Refused, for the same reason in its other form: the profile canonicalizes XML content with exclusive C14N before digesting. The set matches what a peer treats as XML, so a `+xml` subtype under any other top-level type is digested as opaque bytes by both sides |
 | An attachment whose stream reads zero bytes | Refused. A stream consumed elsewhere looks exactly like this, and encrypting it ships an empty file that passes every check on the far side |
 | Encrypting an element that is or contains an `xop:Include` | Refused. See the MTOM section above |
 | A registered attachment that no `ds:Reference` covers | Refused. Registering parts on `VerifySignature` is the requirement that they be signed |

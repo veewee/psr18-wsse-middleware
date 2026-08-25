@@ -106,8 +106,8 @@ final class DigestCalculator
     }
 
     /**
-     * XML content by the profile's reckoning: the two named types plus the "+xml" structured-syntax suffix,
-     * each allowed to carry media-type parameters.
+     * XML content as the peers reckon it: text/xml, application/xml, and the "+xml" structured-syntax suffix
+     * under application and image alone. Each may carry media-type parameters.
      */
     private static function isXml(string $mimeType): bool
     {
