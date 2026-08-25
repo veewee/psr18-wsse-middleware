@@ -43,7 +43,7 @@
     "suggest": {
         "ext-gmp": "For native-speed RSA and ECDSA (key transport and signatures); phpseclib uses it when present",
         "ext-bcmath": "Faster RSA and ECDSA than the pure-PHP fallback when ext-gmp is absent (already quick on PHP 8.4)",
-        "php-soap/psr18-attachments-middleware": "To sign or encrypt SOAP attachments as external parts, through WSSecurity\\AttachmentParts (0.11.0 or later)"
+        "php-soap/psr18-attachments-middleware": "To sign or encrypt SOAP attachments as external parts, through WSSecurity\\AttachmentParts (0.12.0 or later)"
     },
     "require-dev": {
         "nyholm/psr7": "^1.5",
@@ -54,8 +54,16 @@
         "php-cs-fixer/shim": "~3.88",
         "php-standard-library/psalm-plugin": "^2.4",
         "carthage-software/mago": "^1.43",
-        "php-soap/psr18-attachments-middleware": "^0.11"
+        "php-soap/psr18-attachments-middleware": "dev-feature/attachment-headers as 0.12.0"
     },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/php-soap/psr18-attachments-middleware"
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "config": {
         "allow-plugins": {
             "php-http/discovery": true
