@@ -517,7 +517,9 @@ builder to attach it.
 
 New capability, no action needed unless you want it. `Outbound\Signature` and `Inbound\VerifySignature` gained
 `withAttachments()`, which covers the message's attachments in the same `ds:Signature` as its in-document
-parts. Hand each block an `ExternalParts` implementation; this package ships `AttachmentParts` over
+parts, and `Outbound\Encryption` and `Inbound\Decrypt` gained the same method for encryption. See
+[docs/attachments.md](docs/attachments.md) for the wire format, the ordering rules and the full list of what is
+refused. Hand each block an `ExternalParts` implementation; this package ships `AttachmentParts` over
 `php-soap/psr18-attachments-middleware` 0.11.0 or later, so a caller writes no glue:
 
 ```php
@@ -542,3 +544,44 @@ Worth knowing before you turn it on: registering parts on the inbound block is t
 signed, so a peer that omits an attachment reference is refused rather than silently accepted. Signing a
 `text/*` attachment is refused too, because the profile canonicalizes line endings in text content before
 digesting and this release does not implement that.
+
+### The encryption engine seams changed shape
+
+Only relevant if you passed your own engine service to `Outbound\Encryption::withEncryptor()` or
+`Inbound\Decrypt::withDecryptor()`. The built-in ones are unaffected and need no action.
+
+Encryption can now cover parts of the message whose bytes are not in the document. Those cannot be replaced in
+place, so their ciphertext comes back on a result object instead:
+
+```php
+// before
+public function encrypt(Document $document, EncryptionRequest $request): void;
+public function decrypt(Document $document, DecryptionRequest $request): void;
+
+// after
+public function encrypt(Document $document, EncryptionRequest $request): EncryptionResult;
+public function decrypt(Document $document, DecryptionRequest $request): DecryptionResult;
+```
+
+Return `new EncryptionResult(ExternalPartList::of())` or `new DecryptionResult(ExternalPartList::of())` if your
+service handles no such parts.
+
+`EncryptionRequest` gained a trailing `?ExternalPartEncryption $externalParts = null`, and `DecryptionRequest` a
+trailing `?ExternalPartDecryption $externalParts = null`. Constructing either with named arguments, which the
+previous guide already recommended, needs no change.
+
+`EncryptionRequest::$targets` widened from `non-empty-list<EncryptionTarget>` to `list<EncryptionTarget>`,
+because encrypting only the attachments is a legitimate configuration. A request naming no parts at all is
+still refused, now by the `Encryptor` rather than by the type.
+
+`Encryptor` and `Decryptor` each take one more constructor argument, an `ExternalEncryptedDataBuilder` and an
+`ExternalEncryptedDataReader` respectively. This affects you only if you construct them directly rather than
+through `Encryptor::create()` / `Decryptor::create()`.
+
+### `Outbound\Encryption::withParts([])` is no longer always an error
+
+It still throws when nothing else is registered, for the same reason as before: encrypting nothing wraps a
+session key and appends an `xenc:EncryptedKey`, so the message reads as encrypted while the Body leaves in
+cleartext. It is now allowed when `withAttachments()` has already been applied, because encrypting only the
+attachments is a real configuration. Register the attachments first: the check runs when `withParts()` is
+called.

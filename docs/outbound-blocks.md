@@ -123,6 +123,18 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   `wsse:BinarySecurityToken` is embedded and the signature points at it by `wsu:Id`. The other cases
   (`SubjectKeyIdentifier`, `IssuerSerial`, `Thumbprint`) put an inline reference derived from the certificate and
   embed no token. See [Choosing parts and key references](parts-and-key-references.md).
+- `withAttachments(ExternalParts $attachments): self`: also cover the message's attachments, in the same
+  `ds:Signature` as the in-document parts. Off by default. Pass
+  `AttachmentParts::request($attachmentStorage)`; see [Attachment security](attachments.md).
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+
+  (new Outbound\Signature($clientCertificate))
+      ->withAttachments(AttachmentParts::request($attachmentStorage));
+  ```
+  Adds coverage rather than replacing it: an attachment reference sits alongside whatever `withParts()` asks
+  for. Signing a `text/*` attachment is refused, because the profile canonicalizes line endings in text
+  content before digesting and that is not implemented.
 - `withCertificatePath(CertificateChain $path): self`: send your whole certificate chain in the token (a
   `#X509PKIPathv1` `wsse:BinarySecurityToken`) instead of the leaf certificate alone. Off by default. Turn it on
   for a server that will not complete the chain from its own store and needs the intermediates handed to it:
@@ -214,9 +226,24 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
   referenced inside the `xenc:EncryptedKey`, so it knows which private key unwraps the session key. Default
   `EncKeyRef::SubjectKeyIdentifier`. The other cases are `IssuerSerial`, `Thumbprint` and `BinarySecurityToken`.
 - `withParts(list<Part> $parts): self`: which parts to encrypt. Default is `[Part::body()]`. An empty list
-  throws: it is not read as "the default". Encrypting nothing still wraps a session key and appends an
-  `xenc:EncryptedKey`, so the Body would leave in cleartext under a message that reads as encrypted in every
-  log and packet capture of it.
+  throws unless attachments are registered: it is not read as "the default". Encrypting nothing still wraps a
+  session key and appends an `xenc:EncryptedKey`, so the Body would leave in cleartext under a message that
+  reads as encrypted in every log and packet capture of it. With `withAttachments()` already applied an empty
+  list is allowed, because encrypting only the attachments is a real configuration; register them first, since
+  the check runs when `withParts()` is called.
+- `withAttachments(ExternalParts $attachments): self`: also encrypt the message's attachments, under the same
+  session key and in the same `xenc:EncryptedKey`. Off by default. Pass
+  `AttachmentParts::request($attachmentStorage)`; see [Attachment security](attachments.md).
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+
+  (new Outbound\Encryption($recipient))
+      ->withAttachments(AttachmentParts::request($attachmentStorage));
+  ```
+  Each sealed part's `Content-Type` becomes `application/octet-stream` and its original media type is recorded
+  on the `xenc:EncryptedData`, so the far side can restore it. An element whose content is or contains an
+  `xop:Include` cannot be encrypted at all: that would protect the pointer while the bytes travel in the clear.
+  Encrypt the attachment instead.
 - `withDataEncryptionMethod(DataEncryptionMethod $method): self`: the bulk-data cipher. Default: the profile's
   `dataEncryptionMethod()` (AES-256-GCM).
 - `withKeyEncryptionMethod(KeyEncryptionMethod $method): self`: the key-transport method that wraps the

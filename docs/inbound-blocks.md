@@ -25,6 +25,19 @@ new Inbound\Decrypt($privateKey);
 ```
 
 - `Key $privateKey`: your recipient private key as a `KeyStore\Key`. Required.
+- `withAttachments(ExternalParts $attachments): self`: also decrypt the response's encrypted attachments. Off
+  by default. Pass `AttachmentParts::response($attachmentStorage)`; see
+  [Attachment security](attachments.md).
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+
+  (new Inbound\Decrypt($privateKey))
+      ->withAttachments(AttachmentParts::response($attachmentStorage));
+  ```
+  Register these whenever the peer may encrypt an attachment. Unlike the in-document parts, an encrypted
+  attachment is **not** quietly left alone when none are registered: a message naming one is refused, because
+  otherwise it would read as fully decrypted while your code holds a file that is still ciphertext. Each opened
+  part gets the media type the sender recorded before encrypting. A part that arrived unencrypted is untouched.
 
 The wrapped session key is read from the `wsse:Security` header addressed to you. The header the profile's
 `actorOrRole` selects, the same one the signature verifier reads. A response carrying no header for you is
@@ -77,6 +90,20 @@ new Inbound\VerifySignature(
   **An empty list is not the default.** `signed: []` replaces the body floor with no requirement at all, so any
   message carrying a signature from any trusted certificate passes, whatever that signature actually covers.
   Pass `null` (or omit the argument) if you want the default; pass a list only when you mean every part in it.
+- `withAttachments(ExternalParts $attachments): self`: require the response's attachments to be covered by the
+  verified signature. Off by default. Pass `AttachmentParts::response($attachmentStorage)`; see
+  [Attachment security](attachments.md).
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+
+  (new Inbound\VerifySignature($trustStore, signed: [Part::body()]))
+      ->withAttachments(AttachmentParts::response($attachmentStorage));
+  ```
+  **Registering parts is the requirement that they be signed.** Every attachment present must be covered, so a
+  peer that simply omits an attachment reference is refused rather than silently accepted: "the signature said
+  nothing about this file" and "the file is signed" must not look the same to your code. Put this after
+  `Inbound\Decrypt` when the attachments arrive encrypted, so the digest is checked against the plaintext the
+  far side signed.
 
 The accepted signature, digest and canonicalization algorithms come from the profile's allow-lists. By default
 the signature allow-list covers RSA and ECDSA at SHA-256/384/512, and only the exclusive C14N variants are

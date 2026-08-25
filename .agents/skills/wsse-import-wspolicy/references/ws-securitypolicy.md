@@ -208,7 +208,16 @@ key reference. Use them only to widen what you are prepared to see inbound. `sp:
 | An empty `sp:SignedParts` / `sp:EncryptedParts` | Nothing is required by that assertion; do not invent parts |
 | `sp:SignedElements` / `sp:EncryptedElements` with `sp:XPath` | `Part::path(...)` when the expression is a chain of single elements from the document element down, `Part::element()` when a qualified name anywhere will do. Anything else is unmapped: ask which element is meant. |
 | `sp:RequiredElements` with `sp:XPath` | A presence requirement, not a protection requirement. Nothing to configure. |
-| `sp:Attachments`, `sp:AttachmentComplete` | Unmapped. Attachment security is not in this package. |
+| `sp:Attachments` under `sp:SignedParts` | `withAttachments(AttachmentParts::request($storage))` on `Outbound\Signature`, plus `withAttachments(AttachmentParts::response($storage))` on `Inbound\VerifySignature`. See [Attachment security](../../../../docs/attachments.md) |
+| `sp:Attachments` under `sp:EncryptedParts` | `withAttachments(AttachmentParts::request($storage))` on `Outbound\Encryption`, plus `withAttachments(AttachmentParts::response($storage))` on `Inbound\Decrypt` |
+| `sp13:ContentSignatureTransform` inside `sp:Attachments` | Already what we emit; nothing extra to configure |
+| `sp13:AttachmentCompleteSignatureTransform` inside `sp:Attachments` | **Unmapped.** Covering the MIME headers needs RFC 2822 header canonicalization, which this package does not implement. Report it rather than dropping it: a policy requiring it cannot be satisfied |
+| `sp:AttachmentComplete` | **Unmapped**, for the same reason. Report it |
+
+`sp:Attachments` requires `php-soap/psr18-attachments-middleware` 0.11.0 or later and an `AttachmentStorage`
+shared with `AttachmentsMiddleware`, so importing one means adding a dependency and a second middleware, not
+just a `with*()` call. Say so when you report the mapping. Note also that a policy pairing `sp:Attachments`
+under `sp:SignedParts` with a `text/*` attachment cannot be satisfied: signing those is refused.
 
 The signing default is `[Part::body(), Part::securityHeaderContents()]` and the encryption default is
 `[Part::body()]`. A policy asking for exactly the Body plus the timestamp and tokens is already the default, so
