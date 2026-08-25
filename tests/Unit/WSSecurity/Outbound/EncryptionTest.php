@@ -7,7 +7,10 @@ use Dom\Element;
 use InvalidArgumentException;
 use LogicException;
 use OpenSSLAsymmetricKey;
+use Phpro\ResourceStream\Factory\MemoryStream;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
+use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
@@ -16,6 +19,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
@@ -167,7 +171,33 @@ final class EncryptionTest extends OutboundTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('at least one part');
 
-        (new Encryption($this->recipientCertificate()))->withParts([]);
+        // Refused when the block runs rather than when the list is set, so withParts() and withAttachments()
+        // can be chained in either order. Registering attachments makes an empty list legitimate.
+        (new Encryption($this->recipientCertificate()))
+            ->withEncryptor(new RecordingEncryptor())
+            ->withParts([])($this->context($this->envelope()));
+    }
+
+    public function test_an_empty_part_list_is_allowed_once_attachments_are_registered(): void
+    {
+        $encryptor = new RecordingEncryptor();
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<invoice@example.com>',
+            'file',
+            'invoice.pdf',
+            'application/pdf',
+            MemoryStream::create()->write('bytes')->rewind(),
+        ));
+
+        // Either order works, which is the point of checking this when the block runs.
+        (new Encryption($this->recipientCertificate()))
+            ->withEncryptor($encryptor)
+            ->withParts([])
+            ->withAttachments(AttachmentParts::request($storage))($this->context($this->envelope()));
+
+        static::assertSame([], $encryptor->lastRequest()->targets);
+        static::assertNotNull($encryptor->lastRequest()->externalParts);
     }
 
     public function test_with_methods_are_immutable(): void

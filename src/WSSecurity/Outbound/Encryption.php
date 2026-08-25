@@ -109,19 +109,12 @@ final class Encryption implements OutboundAction
      * the list a caller passes is routinely built from configuration a type checker never sees.
      *
      * @param list<Part> $parts
-     *
-     * @throws InvalidArgumentException when the list is empty
      */
     public function withParts(array $parts): self
     {
-        if ($parts === [] && $this->attachments === null) {
-            // The rule is that this block must encrypt something, not that it must encrypt something in the
-            // document. Attachments only is a legitimate configuration, so the refusal is conditional on
-            // there being no attachments registered rather than on the list alone. Order matters for a caller
-            // chaining these: register the attachments first.
-            throw new InvalidArgumentException('Encryption needs at least one part to encrypt.');
-        }
-
+        // Checked when the block runs, not here: the rule is that this block must encrypt something, and
+        // whether it does also depends on withAttachments(), which the caller may not have chained yet.
+        // Refusing here would make the two methods order-dependent, which is a trap no documentation fixes.
         $clone = clone $this;
         $clone->parts = $parts;
 
@@ -203,6 +196,12 @@ final class Encryption implements OutboundAction
         $parts = $this->parts ?? [Part::body()];
         $soapVersion = $context->soapVersion();
         $external = $this->externalPartEncryption();
+
+        if ($parts === [] && $external === null) {
+            // Encrypting nothing still wraps a session key and appends an xenc:EncryptedKey, so the message
+            // would leave with a plaintext Body while reading as encrypted in every log and capture of it.
+            throw new InvalidArgumentException('Encryption needs at least one part to encrypt.');
+        }
         $request = new EncryptionRequest(
             container: $security->element(),
             targets: array_map(
