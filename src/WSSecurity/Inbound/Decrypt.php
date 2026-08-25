@@ -25,6 +25,11 @@ use Throwable;
  * message carrying no header for us is refused rather than decrypted against an xenc:EncryptedKey found
  * elsewhere in the envelope, which nothing marks as intended for this recipient.
  *
+ * The header itself is left as the sender wrote it. The xenc:EncryptedKey and its xenc:ReferenceList stay in
+ * place, so the DataReference entries end up naming ids this pass just removed. Pruning them would mutate a
+ * header a signature may still cover, and the reference URI is a plain anyURI nothing resolves a second time,
+ * so the dangling entry costs nothing while the removal risks a verification.
+ *
  * Every decryption failure, whatever its cause, collapses to one SecurityFault with a non-identifying
  * message. The underlying reason is chained for operator logs only and is never forwarded to a remote peer.
  * The part-count cap and the uniform internal failure live in the decryptor, so this block adds no second
