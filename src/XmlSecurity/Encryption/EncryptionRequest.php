@@ -18,7 +18,9 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 final readonly class EncryptionRequest
 {
     /**
-     * @param non-empty-list<EncryptionTarget> $targets
+     * @param list<EncryptionTarget> $targets may be empty when external parts are supplied: encrypting only
+     *        attachments is a legitimate configuration. The Encryptor refuses a request that would encrypt
+     *        nothing at all
      */
     public function __construct(
         public Element $container,
@@ -27,6 +29,7 @@ final readonly class EncryptionRequest
         public KeyIdentifier $keyIdentifier,
         public DataEncryptionMethod $dataEncryptionMethod,
         public KeyTransportAlgorithm $keyTransportAlgorithm,
+        public ?ExternalPartEncryption $externalParts = null,
     ) {
     }
 }

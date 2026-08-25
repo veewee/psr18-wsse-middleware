@@ -25,6 +25,7 @@ final readonly class DecryptionRequest
         public Element $container,
         public Key $privateKey,
         ?CryptoPolicy $policy = null,
+        public ?ExternalPartDecryption $externalParts = null,
     ) {
         $this->policy = $policy ?? CryptoPolicy::default();
     }

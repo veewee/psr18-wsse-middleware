@@ -11,8 +11,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartDecryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Throwable;
 
 /**
@@ -37,7 +39,21 @@ use Throwable;
  */
 final class Decrypt implements InboundAction
 {
+    /**
+     * The only encryption mode this package accepts for a part whose bytes are not in the document: the
+     * content is encrypted while the MIME headers stay readable. Attachment-Complete also covers the headers,
+     * which needs RFC 2822 header canonicalization, and is refused.
+     */
+    private const SWA_CONTENT_ONLY_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Only';
+
+    /**
+     * Required inside every CipherReference, so a part claiming to hold the original bytes is not decrypted as
+     * though it held ciphertext.
+     */
+    private const SWA_CIPHERTEXT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Ciphertext-Transform';
+
     private XmlDecryptor $decryptor;
+    private ?ExternalParts $attachments = null;
 
     public function __construct(
         private readonly Key $privateKey,
@@ -48,12 +64,47 @@ final class Decrypt implements InboundAction
         $this->decryptor = Decryptor::create((new WsuIdConvention())->lookup());
     }
 
+    /**
+     * Decrypts the message's encrypted attachments as well as its in-document parts.
+     *
+     * Register these whenever the peer may encrypt an attachment: an xenc:EncryptedData naming a part is
+     * refused when none were supplied, rather than skipped, so an encrypted attachment never reaches the
+     * caller still encrypted while the message reads as successfully decrypted.
+     *
+     * Pass AttachmentParts::response() for the inbound side. Put this block before Inbound\VerifySignature so
+     * the signature is checked against the plaintext, which is what the far side digested.
+     */
+    public function withAttachments(ExternalParts $attachments): self
+    {
+        $clone = clone $this;
+        $clone->attachments = $attachments;
+
+        return $clone;
+    }
+
     public function withDecryptor(XmlDecryptor $decryptor): self
     {
         $clone = clone $this;
         $clone->decryptor = $decryptor;
 
         return $clone;
+    }
+
+    /**
+     * The two SwA URIs are this block's to require, exactly as the outbound twin owns emitting them. The
+     * engine is told what to demand and never learns these are attachments.
+     */
+    private function externalPartDecryption(): ?ExternalPartDecryption
+    {
+        if ($this->attachments === null) {
+            return null;
+        }
+
+        return new ExternalPartDecryption(
+            $this->attachments->collect(),
+            self::SWA_CONTENT_ONLY_TYPE,
+            self::SWA_CIPHERTEXT_TRANSFORM,
+        );
     }
 
     /**
@@ -67,10 +118,19 @@ final class Decrypt implements InboundAction
             $container = SecurityHeader::locate($document, $context->soapVersion(), $context->profile()->actorOrRole())
                 ?? throw DecryptionFailed::withReason('The message carries no Security header for this receiver.');
 
-            $this->decryptor->decrypt(
+            $result = $this->decryptor->decrypt(
                 $document,
-                new DecryptionRequest($container, $this->privateKey, $context->profile()->crypto()),
+                new DecryptionRequest(
+                    $container,
+                    $this->privateKey,
+                    $context->profile()->crypto(),
+                    $this->externalPartDecryption(),
+                ),
             );
+
+            // Only the parts an xenc:EncryptedData actually named come back, so an attachment that arrived in
+            // the clear is absent here and is left exactly as it was rather than dropped.
+            $this->attachments?->replace($result->openedParts);
         } catch (DecryptionFailed | WsseHeaderException $exception) {
             throw SecurityFault::inboundFailure($exception);
         } catch (Throwable $foreign) {

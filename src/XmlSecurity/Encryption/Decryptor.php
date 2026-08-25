@@ -7,6 +7,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -45,6 +46,7 @@ final class Decryptor implements XmlDecryptor
             new EncryptedKeyReader(new KeyTransport()),
             new EncryptedDataReader(new Cipher()),
             new EncryptedDataLocator($idLookup ?? AttributeIdConvention::xmlId()->lookup()),
+            new ExternalEncryptedDataReader(new Cipher()),
         );
     }
 
@@ -52,10 +54,11 @@ final class Decryptor implements XmlDecryptor
         private readonly EncryptedKeyReader $encryptedKeyReader,
         private readonly EncryptedDataReader $encryptedDataReader,
         private readonly EncryptedDataLocator $encryptedData,
+        private readonly ExternalEncryptedDataReader $externalEncryptedDataReader,
     ) {
     }
 
-    public function decrypt(Document $document, DecryptionRequest $request): void
+    public function decrypt(Document $document, DecryptionRequest $request): DecryptionResult
     {
         try {
             $references = $this->encryptedKeyReader->dataReferences($document, $request->container);
@@ -71,10 +74,32 @@ final class Decryptor implements XmlDecryptor
                 $request->policy,
             );
 
+            $opened = [];
             foreach ($references as $id) {
                 $element = $this->encryptedData->resolve($document, $id);
-                $this->encryptedDataReader->read($document, $element, $sessionKey, $request->policy);
+
+                // Which path a part takes is decided by the element, not by configuration: one carrying a
+                // CipherReference has its bytes elsewhere and cannot be replaced in place. An encrypted
+                // attachment is therefore never silently skipped, because a message naming one when no parts
+                // were supplied is refused rather than ignored.
+                if (!$this->externalEncryptedDataReader->supports($element)) {
+                    $this->encryptedDataReader->read($document, $element, $sessionKey, $request->policy);
+
+                    continue;
+                }
+
+                $external = $request->externalParts
+                    ?? throw DecryptionFailed::withReason('The message encrypts a part that was not supplied.');
+
+                $opened[] = $this->externalEncryptedDataReader->read(
+                    $element,
+                    $external,
+                    $sessionKey,
+                    $request->policy,
+                );
             }
+
+            return new DecryptionResult(ExternalPartList::of(...$opened));
         } catch (Throwable $exception) {
             // Every cause collapses to one message so the inbound path is never a padding or validation oracle.
             throw DecryptionFailed::withReason('Unable to decrypt the message.', $exception);

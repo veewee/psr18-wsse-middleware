@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionResult;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
@@ -17,7 +18,7 @@ final class ThrowingDecryptor implements XmlDecryptor
     {
     }
 
-    public function decrypt(Document $document, DecryptionRequest $request): void
+    public function decrypt(Document $document, DecryptionRequest $request): DecryptionResult
     {
         throw $this->failure;
     }

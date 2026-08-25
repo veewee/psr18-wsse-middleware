@@ -17,11 +17,19 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
+use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartEncryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlEncryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
+use VeeWee\Xml\Dom\Document;
 
 /**
  * Encrypts the requested parts of the outbound message via XML-Enc. Configuration:
@@ -43,14 +51,33 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
  */
 final class Encryption implements OutboundAction
 {
-    /** @var non-empty-list<Part>|null */
+    /**
+     * The only encryption mode this package implements: an attachment's content is encrypted while its MIME
+     * headers stay readable. Attachment-Complete also covers the headers, which needs RFC 2822 header
+     * canonicalization, and is not supported in either direction.
+     */
+    private const SWA_CONTENT_ONLY_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Only';
+
+    /**
+     * Declared inside the CipherReference so a receiver knows the referenced part holds ciphertext rather than
+     * the original bytes.
+     */
+    private const SWA_CIPHERTEXT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Ciphertext-Transform';
+
+    private const OPAQUE_MEDIA_TYPE = 'application/octet-stream';
+
+    private const XOP_NAMESPACE = 'http://www.w3.org/2004/08/xop/include';
+
+    /** @var list<Part>|null */
     private ?array $parts = null;
 
     private ?DataEncryptionMethod $dataEncryptionMethod = null;
     private ?KeyEncryptionMethod $keyEncryptionMethod = null;
     private ?KeyTransportAlgorithm $keyTransportAlgorithm = null;
+    private ?ExternalParts $attachments = null;
 
     private XmlEncryptor $encryptor;
+    private readonly TargetLocator $targetLocator;
 
     public function __construct(
         private readonly Certificate $recipientCertificate,
@@ -58,7 +85,11 @@ final class Encryption implements OutboundAction
     ) {
         // The WS-Security profile mandates wsu:Id on the xenc:EncryptedData, so the block injects the wsu:Id
         // convention on both sides. The engine's own default (xml:id) would break the WSSE wire format.
-        $this->encryptor = Encryptor::create(new WsuIdConvention());
+        $convention = new WsuIdConvention();
+        $this->encryptor = Encryptor::create($convention);
+        // Only the read half, and only for the XOP guard: this block resolves a target to inspect it, never
+        // to stamp anything. The engine resolves them again for the encryption itself.
+        $this->targetLocator = new TargetLocator($convention->lookup());
     }
 
     public function withEncryptor(XmlEncryptor $encryptor): self
@@ -83,12 +114,37 @@ final class Encryption implements OutboundAction
      */
     public function withParts(array $parts): self
     {
-        if ($parts === []) {
+        if ($parts === [] && $this->attachments === null) {
+            // The rule is that this block must encrypt something, not that it must encrypt something in the
+            // document. Attachments only is a legitimate configuration, so the refusal is conditional on
+            // there being no attachments registered rather than on the list alone. Order matters for a caller
+            // chaining these: register the attachments first.
             throw new InvalidArgumentException('Encryption needs at least one part to encrypt.');
         }
 
         $clone = clone $this;
         $clone->parts = $parts;
+
+        return $clone;
+    }
+
+    /**
+     * Encrypts the message's attachments alongside its in-document parts, under the same session key.
+     *
+     * Under the same key and in the same operation, not as a second block: the profile wants one
+     * xenc:EncryptedKey whose single ReferenceList names the in-document parts and the attachment parts
+     * together, and a receiver refuses a second key in the header.
+     *
+     * The sealed parts are written back with an opaque media type, since their bytes are no longer of the type
+     * they claimed. The original type is recorded on the xenc:EncryptedData so the far side can restore it.
+     *
+     * Pass AttachmentParts::request() for the outbound side. To also sign them, put Outbound\Signature first
+     * with the same registration: it digests the plaintext, and this block then replaces it with ciphertext.
+     */
+    public function withAttachments(ExternalParts $attachments): self
+    {
+        $clone = clone $this;
+        $clone->attachments = $attachments;
 
         return $clone;
     }
@@ -146,6 +202,7 @@ final class Encryption implements OutboundAction
 
         $parts = $this->parts ?? [Part::body()];
         $soapVersion = $context->soapVersion();
+        $external = $this->externalPartEncryption();
         $request = new EncryptionRequest(
             container: $security->element(),
             targets: array_map(
@@ -162,12 +219,91 @@ final class Encryption implements OutboundAction
             keyIdentifier: $keyIdentifier,
             dataEncryptionMethod: $this->dataEncryptionMethod ?? $profile->crypto()->dataEncryptionMethod(),
             keyTransportAlgorithm: $keyTransportAlgorithm,
+            externalParts: $external,
         );
 
-        $this->encryptor->encrypt($document, $request);
+        $this->assertNoOptimizedContent($document, $request);
+
+        $result = $this->encryptor->encrypt($document, $request);
+
+        if ($this->attachments !== null) {
+            $this->attachments->replace($this->opaque($result->sealedParts));
+        }
 
         // The engine appends the encrypted key; which order this header must be in is the profile's rule.
         $security->sort();
+    }
+
+    /**
+     * The SwA type and transform are this block's to declare, exactly as it owns lowering a Part into an
+     * EncryptionTarget. The engine is handed two URIs and a list of parts and never learns they are
+     * attachments.
+     *
+     * Collected here rather than at wiring time because the storage holds the message in flight.
+     */
+    private function externalPartEncryption(): ?ExternalPartEncryption
+    {
+        if ($this->attachments === null) {
+            return null;
+        }
+
+        return new ExternalPartEncryption(
+            $this->attachments->collect(),
+            self::SWA_CONTENT_ONLY_TYPE,
+            self::SWA_CIPHERTEXT_TRANSFORM,
+        );
+    }
+
+    /**
+     * Ciphertext is not of the media type the plaintext was, and saying otherwise invites a reader to parse
+     * it. The type the far side needs in order to restore the part travels on the xenc:EncryptedData instead.
+     */
+    private function opaque(ExternalPartList $sealed): ExternalPartList
+    {
+        $opaque = [];
+        foreach ($sealed as $part) {
+            $opaque[] = $part->withContent($part->content, self::OPAQUE_MEDIA_TYPE);
+        }
+
+        return ExternalPartList::of(...$opaque);
+    }
+
+    /**
+     * Refuses to encrypt an element whose content is, or contains, an xop:Include.
+     *
+     * A disclosure guard rather than a convenience check. The include is only a pointer: encrypting the
+     * element that holds it produces ciphertext over the pointer while the bytes themselves travel in the
+     * clear in their own MIME part, and the message still satisfies a policy check for "that element is
+     * encrypted". Encrypting the part an include points at is the supported path and is what
+     * withAttachments() does.
+     *
+     * @throws EncryptionFailed
+     */
+    private function assertNoOptimizedContent(Document $document, EncryptionRequest $request): void
+    {
+        foreach ($request->targets as $target) {
+            try {
+                $element = $this->targetLocator->locate($document, $target->target);
+            } catch (IdReferenceException) {
+                // Not this guard's verdict to give. The engine resolves every target itself and refuses the
+                // whole operation when one is missing, so nothing gets encrypted either way.
+                continue;
+            }
+
+            $includes = Query::elements(
+                $document,
+                './/xop:Include | self::xop:Include',
+                $element,
+                ['xop' => self::XOP_NAMESPACE],
+            );
+
+            if (count($includes) > 0) {
+                throw EncryptionFailed::withReason(
+                    'An element carrying an xop:Include cannot be encrypted: that would protect the reference '
+                    .'while the referenced bytes travel in the clear. Encrypt the attachment instead.',
+                );
+            }
+        }
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier
