@@ -476,7 +476,7 @@ which keeps the previous behaviour: `action` from the request's `SOAPAction`, `t
 New capability, so there is nothing to migrate. Do this only if your service protects attachments.
 
 Require `php-soap/psr18-attachments-middleware` 0.12.0 or newer, which is the release where an attachment
-carries the MIME header set it travels with:
+describes itself in the MIME headers it travels with:
 
 ```bash
 composer require "php-soap/psr18-attachments-middleware:^0.12"

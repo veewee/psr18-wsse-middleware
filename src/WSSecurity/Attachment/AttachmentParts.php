@@ -10,6 +10,7 @@ use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Attachment\AttachmentsCollection;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Cid;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorageInterface;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\MalformedAttachmentHeaders;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentsVersion;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
@@ -70,7 +71,7 @@ final readonly class AttachmentParts implements ExternalParts
         return $this->collectEach(
             fn (Attachment $attachment, ResourceStream $content): ResourceStream => $this->coverage === ExternalPartCoverage::Complete
                 ? MemoryStream::create()
-                    ->write($this->headerBlock->canonicalize($attachment->headers).$content->getContents())
+                    ->write($this->headerBlock->canonicalize($attachment->headers()).$content->getContents())
                     ->rewind()
                 : $content,
         );
@@ -121,12 +122,18 @@ final readonly class AttachmentParts implements ExternalParts
      * A part whose metadata was covered carries its header set inside its own octets, so the bytes after the
      * blank line are the file and the headers before it are what it travelled as.
      *
-     * A set naming another attachment is refused by the attachment itself. The Content-ID is how a reference
-     * bound this part to what was covered, so letting the octets rewrite it would undo that binding.
+     * A set naming another attachment is refused here rather than quietly ignored. The Content-ID is how a
+     * reference bound this part to what was covered, so a peer trying to rewrite it from inside the
+     * ciphertext is trying to undo that binding.
      */
     private function restored(Attachment $attachment, ExternalPart $part): Attachment
     {
         $decoded = $this->headerBlock->decode($part->content->rewind()->getContents());
+
+        $addressed = $decoded->headers->get('Content-ID');
+        if ($addressed !== null && $addressed !== $attachment->id) {
+            throw MalformedAttachmentHeaders::addressesAnotherAttachment($addressed, $attachment->id);
+        }
 
         return $attachment
             ->withContent(MemoryStream::create()->write($decoded->content)->rewind(), self::OPAQUE_MEDIA_TYPE)
@@ -142,7 +149,7 @@ final readonly class AttachmentParts implements ExternalParts
     {
         return $attachment
             ->withContent($part->content, $part->mimeType)
-            ->withHeaders($attachment->headers->replace('Content-Type', $part->mimeType));
+            ->withHeaders($attachment->headers()->replace('Content-Type', $part->mimeType));
     }
 
     /**
@@ -155,7 +162,7 @@ final readonly class AttachmentParts implements ExternalParts
      */
     private function declaredMediaType(Attachment $attachment): string
     {
-        $declared = $attachment->headers->get('Content-Type') ?? $attachment->mimeType;
+        $declared = $attachment->headers()->get('Content-Type') ?? $attachment->mimeType;
 
         return '' === $declared ? self::OPAQUE_MEDIA_TYPE : $declared;
     }

@@ -155,6 +155,33 @@ final class MimeHeaderBlockTest extends TestCase
         );
     }
 
+    public function test_it_refuses_a_header_set_carrying_a_duplicate_profile_header(): void
+    {
+        $block = new MimeHeaderBlock();
+
+        $this->expectException(UnsupportedAttachmentHeaderForm::class);
+        $this->expectExceptionMessage('"Content-Type" appears 2 times');
+
+        $block->canonicalize(Headers::fromPairs([
+            ['Content-Type', 'application/pdf'],
+            ['content-type', 'text/plain'],
+        ]));
+    }
+
+    public function test_it_ignores_a_duplicate_of_a_header_it_does_not_consider(): void
+    {
+        $block = new MimeHeaderBlock();
+
+        static::assertSame(
+            "Content-Type:application/pdf\r\n",
+            $block->canonicalize(Headers::fromPairs([
+                ['Content-Type', 'application/pdf'],
+                ['Content-Transfer-Encoding', 'binary'],
+                ['Content-Transfer-Encoding', '8bit'],
+            ]))
+        );
+    }
+
     public function test_it_refuses_a_header_carrying_a_comment(): void
     {
         $block = new MimeHeaderBlock();

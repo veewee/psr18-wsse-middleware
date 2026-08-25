@@ -242,8 +242,13 @@ Only five headers are considered, ascending by name: `Content-Description`, `Con
 `Content-ID`, `Content-Location` and `Content-Type`. `Content-Transfer-Encoding` is not among them, so it is
 neither signed nor encrypted even though the multipart carries it. Values are unfolded, stripped of leading
 whitespace, and a value carrying parameters is rewritten with its essence and parameter names lowercased, its
-parameters sorted, and their values quoted. When the part carries no `Content-Type` at all,
-`text/plain;charset="us-ascii"` is substituted, which is what a peer does with the same absence.
+parameters sorted, and their values quoted. When the header set carries no `Content-Type` at all,
+`text/plain;charset="us-ascii"` is substituted, which is what a peer does with the same absence. An
+`Attachment` always describes its media type, so that substitution is reachable only through a header set
+that came out of a peer's ciphertext or out of an adapter you wrote yourself.
+
+A header set carrying the same profile header twice is refused. Canonicalization has no defined answer for
+it, and a peer's sorted map silently keeps one of the two, so agreeing on a digest would be luck.
 
 This is pinned against Apache WSS4J rather than read off the profile: the interop harness has the oracle
 report the header block it computed and compares it against the one this package composed for the same part.
@@ -279,6 +284,7 @@ never trips them.
 | A `cid:` reference naming a part you did not supply | Refused. Never resolved, never fetched, under any circumstance |
 | Emitting `Attachment-Complete` ciphertext | Refused. No policy can require it, because a peer validates the coverage of a signature and never of an encryption, so content-only always satisfies the far side. Accepting it inbound is supported |
 | A header carrying a comment, an encoded word or a continued parameter, under a complete coverage | Refused rather than canonicalized by guesswork. See the table above |
+| The same profile header twice, under a complete coverage | Refused. Canonicalization has no defined answer, and a peer silently keeps one of the two |
 | Restored headers naming a different `Content-ID` than the part they arrived in | Refused. The `Content-ID` is how a reference bound the digest to this part, so letting the ciphertext rewrite it would undo that binding |
 | Opened octets carrying no blank line, or exceeding the header caps | Refused before the bytes are handed anywhere |
 | A cipher reference declaring no transform, several, or the wrong one | Refused before any decryption |

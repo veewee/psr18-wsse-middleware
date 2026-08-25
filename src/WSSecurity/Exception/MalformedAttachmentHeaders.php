@@ -38,6 +38,19 @@ final class MalformedAttachmentHeaders extends RuntimeException
         ));
     }
 
+    /**
+     * The Content-ID is how a reference bound a digest to this part, so a set arriving from inside the
+     * ciphertext that names another one is trying to undo that binding.
+     */
+    public static function addressesAnotherAttachment(string $found, string $expected): self
+    {
+        return new self(sprintf(
+            'The opened attachment addresses attachment "%s" rather than "%s".',
+            $found,
+            $expected
+        ));
+    }
+
     public static function lineWithoutColon(): self
     {
         return new self('The opened attachment carries a header line that carries no colon.');

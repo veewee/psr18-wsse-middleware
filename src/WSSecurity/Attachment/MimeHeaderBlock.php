@@ -72,12 +72,16 @@ final readonly class MimeHeaderBlock
     {
         $canonical = [];
         foreach (self::PROFILE_HEADERS as $name) {
-            $value = $headers->get($name);
-            if ($value === null) {
+            $values = $headers->all($name);
+            if ($values === []) {
                 continue;
             }
 
-            $canonical[$name] = $this->canonicalValue($name, $value);
+            if (count($values) > 1) {
+                throw UnsupportedAttachmentHeaderForm::duplicate($name, count($values));
+            }
+
+            $canonical[$name] = $this->canonicalValue($name, $values[0]);
         }
 
         // Last in ascending order too, so a substituted one needs no re-sorting.

@@ -230,7 +230,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
 
         $opened = $storage->requestAttachments()->findById('<'.self::CID.'>');
         static::assertSame(self::BYTES, $opened->content->rewind()->getContents());
-        static::assertSame('application/pdf; charset=binary', $opened->headers->get('Content-Type'));
+        static::assertSame('application/pdf; charset=binary', $opened->headers()->get('Content-Type'));
         static::assertSame('invoice.pdf', $opened->filename);
     }
 

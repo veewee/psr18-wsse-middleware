@@ -17,6 +17,19 @@ use RuntimeException;
  */
 final class UnsupportedAttachmentHeaderForm extends RuntimeException
 {
+    /**
+     * Canonicalization has no defined answer for two of the same header, and a peer's sorted map silently
+     * keeps one of them, so agreeing on a digest would be luck rather than correctness.
+     */
+    public static function duplicate(string $header, int $count): self
+    {
+        return new self(sprintf(
+            'The attachment header "%s" appears %d times, and at most one is supported.',
+            $header,
+            $count
+        ));
+    }
+
     public static function comment(string $header): self
     {
         return new self(sprintf('The attachment header "%s" carries a comment, which is not supported.', $header));
