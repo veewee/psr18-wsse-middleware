@@ -27,6 +27,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalEncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartSealer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
@@ -203,7 +204,10 @@ final class DecryptRoundTripTest extends TestCase
             new EncryptedDataBuilder((new WsuIdConvention())->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
-            new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),
+            new ExternalPartSealer(
+                new Cipher(),
+                new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),
+            ),
         );
     }
 

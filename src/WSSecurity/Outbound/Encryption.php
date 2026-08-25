@@ -112,9 +112,6 @@ final class Encryption implements OutboundAction
      */
     public function withParts(array $parts): self
     {
-        // Checked when the block runs, not here: the rule is that this block must encrypt something, and
-        // whether it does also depends on withAttachments(), which the caller may not have chained yet.
-        // Refusing here would make the two methods order-dependent, which is a trap no documentation fixes.
         $clone = clone $this;
         $clone->parts = $parts;
 

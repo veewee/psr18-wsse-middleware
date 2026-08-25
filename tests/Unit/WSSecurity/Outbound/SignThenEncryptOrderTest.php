@@ -31,6 +31,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalEncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalEncryptedDataReader;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartSealer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
@@ -146,7 +147,10 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
             new EncryptedDataBuilder((new WsuIdConvention())->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
-            new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),
+            new ExternalPartSealer(
+                new Cipher(),
+                new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),
+            ),
         );
     }
 

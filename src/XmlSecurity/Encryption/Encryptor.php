@@ -5,15 +5,11 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
 use Dom\Element;
 use Dom\Node;
-use Phpro\ResourceStream\Factory\MemoryStream;
-use Phpro\ResourceStream\ResourceStream;
-use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
@@ -41,15 +37,16 @@ final class Encryptor implements XmlEncryptor
     public static function create(?IdConvention $idConvention = null): self
     {
         $idConvention ??= AttributeIdConvention::xmlId();
+        $cipher = new Cipher();
 
         return new self(
             new TargetLocator($idConvention->lookup()),
             new SessionKeyFactory(),
-            new Cipher(),
+            $cipher,
             new EncryptedDataBuilder($idConvention->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
-            new ExternalEncryptedDataBuilder($idConvention->minter()),
+            new ExternalPartSealer($cipher, new ExternalEncryptedDataBuilder($idConvention->minter())),
         );
     }
 
@@ -60,7 +57,7 @@ final class Encryptor implements XmlEncryptor
         private readonly EncryptedDataBuilder $encryptedDataBuilder,
         private readonly KeyTransport $keyTransport,
         private readonly EncryptedKeyBuilder $encryptedKeyBuilder,
-        private readonly ExternalEncryptedDataBuilder $externalEncryptedDataBuilder,
+        private readonly ExternalPartSealer $externalPartSealer,
     ) {
     }
 
@@ -99,10 +96,16 @@ final class Encryptor implements XmlEncryptor
             // EncryptedKey naming the in-document parts and the attachment parts together, and
             // EncryptedKeyReader refuses a second key in the container, so this cannot be a separate
             // operation alongside the first.
-            $sealed = [];
-            foreach ($externalParts as $part) {
-                $sealed[] = $this->sealExternalPart($document, $part, $request, $sessionKey, $container, $partIds);
-            }
+            $sealed = $request->externalParts === null
+                ? new SealedExternalParts(ExternalPartList::of(), [])
+                : $this->externalPartSealer->seal(
+                    $document,
+                    $container,
+                    $request->externalParts,
+                    $sessionKey,
+                    $request->dataEncryptionMethod,
+                );
+            $partIds = [...$partIds, ...$sealed->ids];
 
             $wrappedKey = $this->keyTransport->wrap(
                 $sessionKey,
@@ -128,73 +131,12 @@ final class Encryptor implements XmlEncryptor
 
             append($encryptedKey)($container);
 
-            return new EncryptionResult(ExternalPartList::of(...$sealed));
+            return new EncryptionResult($sealed->parts);
         } catch (EncryptionFailed $exception) {
             throw $exception;
         } catch (Throwable $exception) {
             throw EncryptionFailed::withReason($exception->getMessage());
         }
-    }
-
-    /**
-     * Encrypts one external part, appends its xenc:EncryptedData to the container, records its id for the
-     * ReferenceList, and returns the sealed part.
-     *
-     * @param list<non-empty-string> $partIds appended to in place, so external ids join the in-document ones
-     *        in the single ReferenceList rather than forming a second one
-     *
-     * @throws EncryptionFailed
-     */
-    private function sealExternalPart(
-        Document $document,
-        ExternalPart $part,
-        EncryptionRequest $request,
-        SessionKey $sessionKey,
-        Element $container,
-        array &$partIds,
-    ): ExternalPart {
-        $external = $request->externalParts;
-        if ($external === null) {
-            throw EncryptionFailed::withReason('An external part was supplied without its profile facts.');
-        }
-
-        $plaintext = $part->content->rewind()->getContents();
-        if ($plaintext === '') {
-            // A stream already consumed elsewhere looks exactly like this. Encrypting it would produce a
-            // ciphertext that decrypts to nothing and still passes every structural check, so the caller would
-            // ship an empty file believing it was protected. Sign-then-encrypt reads each part twice, which is
-            // how a non-rewinding adapter arrives here.
-            throw EncryptionFailed::withReason('An external part read zero bytes.');
-        }
-
-        $cipherText = $this->cipher->encrypt($plaintext, $sessionKey, $request->dataEncryptionMethod);
-
-        [$encryptedData, $id] = $this->externalEncryptedDataBuilder->build(
-            $document,
-            $part,
-            $cipherText,
-            $request->dataEncryptionMethod,
-            $external->type,
-            $external->transform,
-        );
-
-        append($encryptedData)($container);
-        $partIds[] = $id;
-
-        // The same framing EncryptedDataBuilder base64s into a CipherValue, only unencoded: the MIME layer
-        // carries the bytes, so there is nothing to escape them for.
-        return $part->withContent(
-            $this->stream($cipherText->iv.$cipherText->bytes.($cipherText->tag ?? '')),
-            $part->mimeType,
-        );
-    }
-
-    /**
-     * @return ResourceStream<resource>
-     */
-    private function stream(string $bytes): ResourceStream
-    {
-        return MemoryStream::create()->write($bytes)->rewind();
     }
 
     /**
