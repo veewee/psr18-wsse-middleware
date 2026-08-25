@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
+namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External;
 
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 

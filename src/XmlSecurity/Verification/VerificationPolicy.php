@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\External\ExternalPartVerification;
 
 /**
  * The policy a signature is verified against: the trust anchors plus the algorithm policy whose allow-lists

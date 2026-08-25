@@ -7,6 +7,7 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartEncryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 
 /**

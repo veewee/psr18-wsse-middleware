@@ -6,6 +6,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;

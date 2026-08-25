@@ -5,7 +5,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use LogicException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedExternalParts;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\SignedExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
 use VeeWee\Xml\Dom\Document;

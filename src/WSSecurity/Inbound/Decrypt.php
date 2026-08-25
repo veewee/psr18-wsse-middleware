@@ -11,7 +11,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartDecryption;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartDecryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;

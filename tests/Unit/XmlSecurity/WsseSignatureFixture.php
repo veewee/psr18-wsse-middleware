@@ -21,7 +21,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ExternalPartSignature;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\ExternalPartSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;

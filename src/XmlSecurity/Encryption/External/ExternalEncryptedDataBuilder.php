@@ -1,12 +1,13 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
+namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\OpenSSL\CipherText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;

@@ -20,7 +20,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ExternalPartSignature;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\ExternalPartSignature;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 

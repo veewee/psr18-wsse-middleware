@@ -23,7 +23,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ExternalPartSignature;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\ExternalPartSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;

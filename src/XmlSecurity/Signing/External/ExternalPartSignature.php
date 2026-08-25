@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
+namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External;
 
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 
 /**
  * The external parts one signing operation covers, plus the transform every one of their references declares.

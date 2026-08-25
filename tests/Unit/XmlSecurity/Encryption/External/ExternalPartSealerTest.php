@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption;
+namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption\External;
 
 use Dom\Element;
 use Phpro\ResourceStream\Factory\MemoryStream;
@@ -11,9 +11,9 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalEncryptedDataBuilder;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartEncryption;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartSealer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartEncryption;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;

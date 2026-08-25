@@ -17,6 +17,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\SignedExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\children;

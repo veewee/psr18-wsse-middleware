@@ -14,7 +14,7 @@ use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ExternalPartVerification;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\External\ExternalPartVerification;
 use VeeWee\Xml\Dom\Document;
 
 /**

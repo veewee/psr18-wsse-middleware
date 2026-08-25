@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
+namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External;
 
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 

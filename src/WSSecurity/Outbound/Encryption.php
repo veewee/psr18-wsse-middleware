@@ -23,7 +23,7 @@ use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartEncryption;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartEncryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlEncryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption;
+namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Encryption\External;
 
 use Dom\Element;
 use Phpro\ResourceStream\Factory\MemoryStream;
@@ -11,8 +11,8 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalEncryptedDataReader;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartDecryption;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataReader;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartDecryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;

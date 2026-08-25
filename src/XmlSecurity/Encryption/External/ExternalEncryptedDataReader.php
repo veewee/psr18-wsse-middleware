@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
+namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External;
 
 use Dom\Element;
 use Phpro\ResourceStream\Factory\MemoryStream;
@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Throwable;

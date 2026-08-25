@@ -19,7 +19,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\ExternalPartVerification;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\External\ExternalPartVerification;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\Verifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\XmlSignatureVerifier;
