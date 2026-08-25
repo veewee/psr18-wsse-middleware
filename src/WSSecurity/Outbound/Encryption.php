@@ -251,7 +251,7 @@ final class Encryption implements OutboundAction
         }
 
         return new ExternalPartEncryption(
-            $this->attachments->collect(),
+            $this->attachments->collectSealed(),
             self::SWA_CONTENT_ONLY_TYPE,
             self::SWA_CIPHERTEXT_TRANSFORM,
         );

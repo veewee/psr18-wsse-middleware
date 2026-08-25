@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Attachment;
 
 use Composer\InstalledVersions;
 use Phpro\ResourceStream\Factory\MemoryStream;
+use Phpro\ResourceStream\ResourceStream;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Attachment\AttachmentsCollection;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Cid;
@@ -66,20 +67,35 @@ final readonly class AttachmentParts implements ExternalParts
 
     public function collect(): ExternalPartList
     {
+        return $this->collectEach(
+            fn (Attachment $attachment, ResourceStream $content): ResourceStream => $this->coverage === ExternalPartCoverage::Complete
+                ? MemoryStream::create()
+                    ->write($this->headerBlock->canonicalize($attachment->headers).$content->getContents())
+                    ->rewind()
+                : $content,
+        );
+    }
+
+    public function collectSealed(): ExternalPartList
+    {
+        return $this->collectEach(
+            static fn (Attachment $attachment, ResourceStream $content): ResourceStream => $content,
+        );
+    }
+
+    /**
+     * @param callable(Attachment, ResourceStream<resource>): ResourceStream<resource> $octets
+     */
+    private function collectEach(callable $octets): ExternalPartList
+    {
         $parts = [];
         foreach ($this->attachments() as $attachment) {
-            // Rewound because a message may be collected twice: sign-then-encrypt digests the plaintext
-            // and then seals the same plaintext, and a stream is single-use.
-            $content = $attachment->content->rewind();
-
             $parts[] = new ExternalPart(
                 reference: Cid::uriFor($attachment->id),
                 mimeType: $this->declaredMediaType($attachment),
-                content: $this->coverage === ExternalPartCoverage::Complete
-                    ? MemoryStream::create()
-                        ->write($this->headerBlock->canonicalize($attachment->headers).$content->getContents())
-                        ->rewind()
-                    : $content,
+                // Rewound because a message may be collected twice: sign-then-encrypt digests the plaintext
+                // and then seals the same plaintext, and a stream is single-use.
+                content: $octets($attachment, $attachment->content->rewind()),
             );
         }
 
@@ -93,15 +109,40 @@ final readonly class AttachmentParts implements ExternalParts
                 static fn (Attachment $attachment): bool => Cid::uriFor($attachment->id) === $part->reference,
             ) ?? throw UnknownAttachment::forReference($part->reference);
 
-            // Written back as a header rather than as the scalar, so a media type carrying a charset comes
-            // back whole. A part signed under a complete coverage and encrypted under a content-only one is
-            // verified against those headers, and an essence string would not reproduce them.
             $this->attachments()->replace(
-                $attachment
-                    ->withContent($part->content, $part->mimeType)
-                    ->withHeaders($attachment->headers->replace('Content-Type', $part->mimeType))
+                $this->coverage === ExternalPartCoverage::Complete
+                    ? $this->restored($attachment, $part)
+                    : $this->reclothed($attachment, $part)
             );
         }
+    }
+
+    /**
+     * A part whose metadata was covered carries its header set inside its own octets, so the bytes after the
+     * blank line are the file and the headers before it are what it travelled as.
+     *
+     * A set naming another attachment is refused by the attachment itself. The Content-ID is how a reference
+     * bound this part to what was covered, so letting the octets rewrite it would undo that binding.
+     */
+    private function restored(Attachment $attachment, ExternalPart $part): Attachment
+    {
+        $decoded = $this->headerBlock->decode($part->content->rewind()->getContents());
+
+        return $attachment
+            ->withContent(MemoryStream::create()->write($decoded->content)->rewind(), self::OPAQUE_MEDIA_TYPE)
+            ->withHeaders($decoded->headers);
+    }
+
+    /**
+     * The media type is written back as a header rather than as the scalar, so one carrying a charset comes
+     * back whole. A part covered completely by a signature and encrypted content-only is verified against
+     * those headers, and an essence string would not reproduce them.
+     */
+    private function reclothed(Attachment $attachment, ExternalPart $part): Attachment
+    {
+        return $attachment
+            ->withContent($part->content, $part->mimeType)
+            ->withHeaders($attachment->headers->replace('Content-Type', $part->mimeType));
     }
 
     /**

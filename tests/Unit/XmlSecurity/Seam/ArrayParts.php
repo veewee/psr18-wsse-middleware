@@ -39,6 +39,11 @@ final class ArrayParts implements ExternalParts
         return ExternalPartList::of(...$collected);
     }
 
+    public function collectSealed(): ExternalPartList
+    {
+        return $this->collect();
+    }
+
     public function replace(ExternalPartList $parts): void
     {
         foreach ($parts as $replacement) {

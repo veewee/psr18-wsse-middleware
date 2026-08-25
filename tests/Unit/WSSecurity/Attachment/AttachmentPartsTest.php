@@ -8,8 +8,10 @@ use Phpro\ResourceStream\ResourceStream;
 use PHPUnit\Framework\TestCase;
 use Psl\MIME\Headers;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
+use Soap\Psr18AttachmentsMiddleware\Exception\InvalidAttachmentHeadersException;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\MalformedAttachmentHeaders;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentHeaderForm;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
@@ -280,6 +282,68 @@ final class AttachmentPartsTest extends TestCase
         static::assertSame('http://example.com/invoice.xml', $attachment->headers->get('Content-Location'));
         static::assertSame('invoice', $attachment->name);
         static::assertSame('<invoice/>', $attachment->content->getContents());
+    }
+
+    public function test_it_restores_the_header_set_a_complete_part_carries_inside_its_octets(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->responseAttachments()->add(Attachment::fromHeaders(
+            Headers::fromPairs([
+                ['Content-ID', '<invoice@example.com>'],
+                ['Content-Type', 'application/octet-stream'],
+            ]),
+            $this->stream('ciphertext')
+        ));
+
+        AttachmentParts::response($storage, ExternalPartCoverage::Complete)->replace(ExternalPartList::of(
+            new ExternalPart('cid:invoice@example.com', 'application/octet-stream', $this->stream(
+                "Content-ID: <invoice@example.com>\r\n"
+                ."Content-Type: application/pdf; charset=binary\r\n"
+                ."Content-Disposition: attachment; name=\"invoice\"; filename=\"invoice.pdf\"\r\n"
+                ."\r\n"
+                .'%PDF-1.7'
+            ))
+        ));
+
+        $attachment = $storage->responseAttachments()->findById('<invoice@example.com>');
+        static::assertSame('%PDF-1.7', $attachment->content->getContents());
+        static::assertSame('application/pdf; charset=binary', $attachment->headers->get('Content-Type'));
+        static::assertSame('application/pdf', $attachment->mimeType);
+        static::assertSame('invoice.pdf', $attachment->filename);
+        static::assertSame('invoice', $attachment->name);
+    }
+
+    public function test_it_refuses_restored_headers_addressing_another_attachment(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->responseAttachments()->add(
+            Attachment::cid('invoice@example.com', 'file', 'invoice.pdf', $this->stream('ciphertext'))
+        );
+
+        // The Content-ID is how the reference bound a digest to this part, so letting the opened octets
+        // rewrite it would undo that binding.
+        $this->expectException(InvalidAttachmentHeadersException::class);
+        $this->expectExceptionMessage('address attachment "<other@example.com>"');
+
+        AttachmentParts::response($storage, ExternalPartCoverage::Complete)->replace(ExternalPartList::of(
+            new ExternalPart('cid:invoice@example.com', 'application/octet-stream', $this->stream(
+                "Content-ID: <other@example.com>\r\n\r\n%PDF-1.7"
+            ))
+        ));
+    }
+
+    public function test_it_refuses_opened_octets_that_carry_no_header_block(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->responseAttachments()->add(
+            Attachment::cid('invoice@example.com', 'file', 'invoice.pdf', $this->stream('ciphertext'))
+        );
+
+        $this->expectException(MalformedAttachmentHeaders::class);
+
+        AttachmentParts::response($storage, ExternalPartCoverage::Complete)->replace(ExternalPartList::of(
+            new ExternalPart('cid:invoice@example.com', 'application/octet-stream', $this->stream('%PDF-1.7'))
+        ));
     }
 
     /**

@@ -14,6 +14,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ExternalPartDecryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Throwable;
 
@@ -40,11 +41,18 @@ use Throwable;
 final class Decrypt implements InboundAction
 {
     /**
-     * The only encryption mode this package accepts for a part whose bytes are not in the document: the
-     * content is encrypted while the MIME headers stay readable. Attachment-Complete also covers the headers,
-     * which needs RFC 2822 header canonicalization, and is refused.
+     * The part's content is encrypted while its MIME headers stay readable.
      */
     private const SWA_CONTENT_ONLY_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Only';
+
+    /**
+     * The part's MIME headers are encrypted alongside its content and travel inside the ciphertext, which is
+     * what a default-configured Java sender emits.
+     *
+     * The adapter's coverage decides which of the two an element must declare, and the other is refused
+     * before any decryption. A peer may not decide to cover less than it was asked to.
+     */
+    private const SWA_COMPLETE_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Complete';
 
     /**
      * Required inside every CipherReference, so a part claiming to hold the original bytes is not decrypted as
@@ -96,13 +104,17 @@ final class Decrypt implements InboundAction
      */
     private function externalPartDecryption(): ?ExternalPartDecryption
     {
-        if ($this->attachments === null) {
+        $attachments = $this->attachments;
+        if ($attachments === null) {
             return null;
         }
 
         return new ExternalPartDecryption(
-            $this->attachments->collect(),
-            self::SWA_CONTENT_ONLY_TYPE,
+            $attachments->collectSealed(),
+            match ($attachments->coverage()) {
+                ExternalPartCoverage::Content => self::SWA_CONTENT_ONLY_TYPE,
+                ExternalPartCoverage::Complete => self::SWA_COMPLETE_TYPE,
+            },
             self::SWA_CIPHERTEXT_TRANSFORM,
         );
     }

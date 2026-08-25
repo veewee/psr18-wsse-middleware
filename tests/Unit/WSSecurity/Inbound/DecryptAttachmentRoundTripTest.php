@@ -21,6 +21,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
@@ -215,9 +216,85 @@ final class DecryptAttachmentRoundTripTest extends TestCase
         );
     }
 
+    public function test_it_opens_a_part_a_peer_encrypted_with_its_headers_inside(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->peerSealedStorage();
+        $document = $this->encrypt($fixture, $storage);
+        $this->declareCompleteCoverage($document);
+
+        (new Decrypt($fixture->leafKey))
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Complete))(
+                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+            );
+
+        $opened = $storage->requestAttachments()->findById('<'.self::CID.'>');
+        static::assertSame(self::BYTES, $opened->content->rewind()->getContents());
+        static::assertSame('application/pdf; charset=binary', $opened->headers->get('Content-Type'));
+        static::assertSame('invoice.pdf', $opened->filename);
+    }
+
+    public function test_a_content_only_type_is_refused_by_an_adapter_covering_metadata(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->peerSealedStorage();
+        // Left declaring the content-only type, which is a peer covering less than it was asked to.
+        $document = $this->encrypt($fixture, $storage);
+
+        $this->expectException(SecurityFault::class);
+
+        (new Decrypt($fixture->leafKey))
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Complete))(
+                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+            );
+    }
+
+    public function test_a_complete_type_is_refused_by_a_content_only_adapter(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->peerSealedStorage();
+        $document = $this->encrypt($fixture, $storage);
+        $this->declareCompleteCoverage($document);
+
+        $this->expectException(SecurityFault::class);
+
+        $this->decrypt($fixture, $document, $storage);
+    }
+
     /**
-     * @param list<Part>|null $parts
+     * A peer that covers a part's metadata prepends its header block to the file before encrypting, and
+     * leaves no MimeType on the element, since the media type travels inside the ciphertext.
      */
+    private function peerSealedStorage(): AttachmentStorageInterface
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<'.self::CID.'>',
+            'file',
+            'invoice.pdf',
+            'application/octet-stream',
+            $this->stream(
+                'Content-ID: <'.self::CID.">\r\n"
+                ."Content-Type: application/pdf; charset=binary\r\n"
+                ."Content-Disposition: attachment; name=\"file\"; filename=\"invoice.pdf\"\r\n"
+                ."\r\n"
+                .self::BYTES
+            ),
+        ));
+
+        return $storage;
+    }
+
+    private function declareCompleteCoverage(Document $document): void
+    {
+        $element = $this->attachmentEncryptedData($document);
+        $element->setAttribute(
+            'Type',
+            'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Complete'
+        );
+        $element->removeAttribute('MimeType');
+    }
+
     private function encrypt(
         WsseSignatureFixture $fixture,
         AttachmentStorageInterface $storage,
