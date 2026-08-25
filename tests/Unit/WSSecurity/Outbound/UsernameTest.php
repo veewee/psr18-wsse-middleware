@@ -121,6 +121,104 @@ final class UsernameTest extends OutboundTestCase
         (new Username('alice'))->withDigest(true)($this->context($document));
     }
 
+    public function test_text_mode_can_carry_a_nonce_on_request(): void
+    {
+        $document = $this->envelope();
+
+        (new Username('alice', 'secret'))->withNonce(true)($this->context($document));
+
+        $password = $this->maybeOnly($document, self::WSSE, 'Password');
+        static::assertSame(self::TEXT_TYPE, $password?->getAttribute('Type'));
+        static::assertSame('secret', $password?->textContent);
+
+        $nonce = $this->maybeOnly($document, self::WSSE, 'Nonce');
+        static::assertNotNull($nonce);
+        static::assertSame(self::BASE64_BINARY, $nonce->getAttribute('EncodingType'));
+        $raw = base64_decode($nonce->textContent, true);
+        static::assertNotFalse($raw);
+        static::assertSame(16, strlen($raw));
+
+        static::assertCount(0, $this->elements($document, self::WSU, 'Created'));
+    }
+
+    public function test_text_mode_can_carry_a_created_on_request(): void
+    {
+        $document = $this->envelope();
+        $now = Instant::fromParts(1893553445, 678000000);
+
+        (new Username('alice', 'secret'))->withCreated(true)->withClock(new FrozenClock($now))($this->context($document));
+
+        static::assertSame('2030-01-02T03:04:05.678Z', $this->maybeOnly($document, self::WSU, 'Created')?->textContent);
+        static::assertCount(0, $this->elements($document, self::WSSE, 'Nonce'));
+    }
+
+    public function test_a_passwordless_token_can_carry_a_nonce_and_created(): void
+    {
+        $document = $this->envelope();
+
+        (new Username('alice'))->withNonce(true)->withCreated(true)($this->context($document));
+
+        static::assertCount(0, $this->elements($document, self::WSSE, 'Password'));
+        static::assertCount(1, $this->elements($document, self::WSSE, 'Nonce'));
+        static::assertCount(1, $this->elements($document, self::WSU, 'Created'));
+    }
+
+    public function test_each_text_mode_call_produces_a_fresh_nonce(): void
+    {
+        $first = $this->envelope();
+        $second = $this->envelope();
+
+        $block = (new Username('alice', 'secret'))->withNonce(true);
+        $block($this->context($first));
+        $block($this->context($second));
+
+        static::assertNotSame(
+            $this->maybeOnly($first, self::WSSE, 'Nonce')?->textContent,
+            $this->maybeOnly($second, self::WSSE, 'Nonce')?->textContent,
+        );
+    }
+
+    public function test_digest_mode_keeps_the_nonce_and_created_the_withers_declined(): void
+    {
+        $document = $this->envelope();
+
+        (new Username('alice', 'secret'))->withDigest(true)->withNonce(false)->withCreated(false)($this->context($document));
+
+        // A wsse:PasswordDigest a verifier cannot recompute is not expressible: digest mode emits both.
+        $nonce = base64_decode($this->maybeOnly($document, self::WSSE, 'Nonce')?->textContent ?? '', true);
+        static::assertNotFalse($nonce);
+        $created = $this->maybeOnly($document, self::WSU, 'Created')?->textContent ?? '';
+        $expected = base64_encode((new Digest())->hash($nonce.$created.'secret', DigestMethod::SHA1));
+
+        static::assertSame($expected, $this->maybeOnly($document, self::WSSE, 'Password')?->textContent);
+    }
+
+    public function test_the_token_children_keep_the_profile_order(): void
+    {
+        $document = $this->envelope();
+
+        (new Username('alice', 'secret'))->withNonce(true)->withCreated(true)($this->context($document));
+
+        $token = $this->maybeOnly($document, self::WSSE, 'UsernameToken');
+        static::assertNotNull($token);
+        $order = [];
+        foreach ($token->childNodes as $child) {
+            if ($child instanceof Element) {
+                $order[] = $child->localName;
+            }
+        }
+
+        static::assertSame(['Username', 'Password', 'Nonce', 'Created'], $order);
+    }
+
+    public function test_with_nonce_and_with_created_are_immutable(): void
+    {
+        $original = new Username('alice');
+
+        static::assertNotSame($original, $original->withNonce(true));
+        static::assertNotSame($original, $original->withCreated(true));
+    }
+
     public function test_with_password_and_with_digest_are_immutable(): void
     {
         $original = new Username('alice');

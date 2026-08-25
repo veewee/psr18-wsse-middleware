@@ -148,6 +148,26 @@ public function __invoke(DOMDocument $envelope, WSSESoap $wsse): void;
 public function __invoke(WsseContext $context): void;
 ```
 
+### The UsernameToken no longer sends a Nonce and Created unless you ask
+
+The old block delegated to `WSSESoap::addUserToken()`, which always appended a `wsse:Nonce` and a `wsu:Created`,
+whatever the password mode. `Outbound\Username` now emits them only where they carry meaning: digest mode, where
+the digest is computed over both, always does; a `PasswordText` or password-less token sends neither by default.
+
+Peers that require the replay markers on a cleartext token are the reason the withers exist:
+
+```php
+// before: nonce and created were always on the wire
+new Entry\Username('your-user', 'your-password');
+
+// after: ask for them
+(new Outbound\Username('your-user', 'your-password'))
+    ->withNonce(true)
+    ->withCreated(true);
+```
+
+Nothing needs porting for digest tokens.
+
 ### Inbound is now a real, explicit list
 
 Before, the response side only knew how to decrypt. It is now its own list of blocks that mirrors the

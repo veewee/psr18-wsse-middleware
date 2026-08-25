@@ -180,6 +180,7 @@ $transport = Psr18Transport::createForClient(
                 new Outbound\Username('your-user', 'your-password'),
                 // Prefer a digested password if the server accepts it:
                 // (new Outbound\Username('your-user', 'your-password'))->withDigest(true),
+                // (new Outbound\Username('your-user', 'your-password'))->withNonce(true)->withCreated(true),
             ],
         ),
     ])

@@ -47,6 +47,11 @@ new Outbound\Username('your-user', 'your-password', digest: true);
 (new Outbound\Username('your-user'))
     ->withPassword('your-password')
     ->withDigest(true);
+
+// Plaintext password with replay markers, for peers that require them:
+(new Outbound\Username('your-user', 'your-password'))
+    ->withNonce(true)
+    ->withCreated(true);
 ```
 
 - `string $username`: the username sent in `wsse:Username`. Required.
@@ -60,6 +65,11 @@ new Outbound\Username('your-user', 'your-password', digest: true);
   password throws.
 - `withPassword(string $password): self` returns a copy with the password set.
 - `withDigest(bool $digest): self` returns a copy with the digest flag set.
+- `withNonce(bool $nonce): self` returns a copy that emits a fresh `wsse:Nonce`, `false` by default. Use it when
+  a peer wants a replay marker alongside a `PasswordText` (or password-less) token. Digest mode emits the nonce
+  regardless: the digest is computed over it, so a token without it could not be verified.
+- `withCreated(bool $created): self` returns a copy that emits a `wsu:Created`, `false` by default, with the same
+  digest-mode note. It carries the token's creation instant, which lets a receiver age out replays.
 
 ## Outbound: `BinarySecurityToken`
 

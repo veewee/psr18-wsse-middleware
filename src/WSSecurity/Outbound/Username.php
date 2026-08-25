@@ -31,6 +31,11 @@ use function VeeWee\Xml\Dom\Builder\value;
  * travels in the clear and a captured digest cannot be replayed once the timestamp is stale. The nonce
  * is freshly generated for every invocation, and the same Created string feeds both the digest input
  * and the emitted element so a verifier can recompute the hash.
+ *
+ * wsse:Nonce and wsu:Created can also be requested without the digest: peers that accept PasswordText
+ * still use them to reject replays, and the token profile allows either element in any password mode.
+ * Digest mode emits both whatever the withers say, since a digest a verifier cannot recompute is not a
+ * token worth sending.
  */
 final class Username implements OutboundAction
 {
@@ -42,6 +47,8 @@ final class Username implements OutboundAction
     private readonly Digest $digester;
     private Clock $clock;
     private ?HiddenString $password;
+    private bool $nonce = false;
+    private bool $created = false;
 
     public function __construct(
         private readonly string $username,
@@ -71,6 +78,28 @@ final class Username implements OutboundAction
         return $clone;
     }
 
+    /**
+     * Digest mode emits the nonce whatever this says: the digest is computed over it.
+     */
+    public function withNonce(bool $nonce): self
+    {
+        $clone = clone $this;
+        $clone->nonce = $nonce;
+
+        return $clone;
+    }
+
+    /**
+     * Digest mode emits the created instant whatever this says: the digest is computed over it.
+     */
+    public function withCreated(bool $created): self
+    {
+        $clone = clone $this;
+        $clone->created = $created;
+
+        return $clone;
+    }
+
     public function withClock(Clock $clock): self
     {
         $clone = clone $this;
@@ -81,10 +110,6 @@ final class Username implements OutboundAction
 
     public function __invoke(WsseContext $context): void
     {
-        if ($this->digest && $this->password === null) {
-            throw new InvalidArgumentException('Digest mode requires a password.');
-        }
-
         $header = SecurityHeader::forContext($context);
         $header->appendChildren($this->build());
     }
@@ -94,59 +119,73 @@ final class Username implements OutboundAction
      */
     private function build(): callable
     {
-        $children = [
-            namespaced_element(WsseNamespaces::Wsse->value, WsseNamespaces::Wsse->qualify('Username'), value($this->username)),
-        ];
+        $password = $this->password?->getString();
 
-        if ($this->password !== null) {
-            $children = [...$children, ...$this->passwordChildren($this->password->getString())];
+        if ($this->digest && $password === null) {
+            throw new InvalidArgumentException('Digest mode requires a password.');
         }
+
+        // Digest mode hashes both markers, so it emits them even where the withers declined: a
+        // wsse:PasswordDigest a verifier cannot recompute is not a token worth sending.
+        $nonce = $this->nonce || $this->digest ? $this->random->bytes(self::NONCE_LENGTH) : null;
+        $created = $this->created || $this->digest ? $this->createdAt() : null;
 
         return namespaced_element(
             WsseNamespaces::Wsse->value,
             WsseNamespaces::Wsse->qualify('UsernameToken'),
-            children(...$children),
+            // The token profile fixes the order as Username, Password, Nonce, Created.
+            children(
+                $this->child(WsseNamespaces::Wsse, 'Username', value($this->username)),
+                ...$this->passwordChild($password, $nonce, $created),
+                ...($nonce === null ? [] : [$this->child(
+                    WsseNamespaces::Wsse,
+                    'Nonce',
+                    attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
+                    value(base64_encode($nonce)),
+                )]),
+                ...($created === null ? [] : [$this->child(WsseNamespaces::Wsu, 'Created', value($created))]),
+            ),
         );
     }
 
     /**
+     * The one child whose shape depends on the mode. The digest arm names the markers it hashes, which is
+     * also what states their presence: digest mode generates both, so no arm can send a password the
+     * declared Type does not describe.
+     *
      * @return list<callable(Element): Element>
      */
-    private function passwordChildren(#[SensitiveParameter] string $password): array
+    private function passwordChild(#[SensitiveParameter] ?string $password, #[SensitiveParameter] ?string $nonce, ?string $created): array
     {
-        if (!$this->digest) {
-            return [
-                namespaced_element(
-                    WsseNamespaces::Wsse->value,
-                    WsseNamespaces::Wsse->qualify('Password'),
-                    attribute('Type', self::TYPE_TEXT),
-                    value($password),
-                ),
-            ];
-        }
-
-        $nonce = $this->random->bytes(self::NONCE_LENGTH);
-        $created = $this->clock->now()->toRfc3339(SecondsStyle::Milliseconds, useZ: true);
-        $digest = base64_encode($this->digester->hash($nonce.$created.$password, DigestMethod::SHA1));
-
-        return [
-            namespaced_element(
-                WsseNamespaces::Wsse->value,
-                WsseNamespaces::Wsse->qualify('Password'),
+        return match (true) {
+            $password === null => [],
+            !$this->digest => [$this->child(
+                WsseNamespaces::Wsse,
+                'Password',
+                attribute('Type', self::TYPE_TEXT),
+                value($password),
+            )],
+            $nonce !== null && $created !== null => [$this->child(
+                WsseNamespaces::Wsse,
+                'Password',
                 attribute('Type', self::TYPE_DIGEST),
-                value($digest),
-            ),
-            namespaced_element(
-                WsseNamespaces::Wsse->value,
-                WsseNamespaces::Wsse->qualify('Nonce'),
-                attribute('EncodingType', WsSecurityEncodingType::Base64Binary->value),
-                value(base64_encode($nonce)),
-            ),
-            namespaced_element(
-                WsseNamespaces::Wsu->value,
-                WsseNamespaces::Wsu->qualify('Created'),
-                value($created),
-            ),
-        ];
+                value(base64_encode($this->digester->hash($nonce.$created.$password, DigestMethod::SHA1))),
+            )],
+        };
+    }
+
+    private function createdAt(): string
+    {
+        return $this->clock->now()->toRfc3339(SecondsStyle::Milliseconds, useZ: true);
+    }
+
+    /**
+     * @param callable(Element): Element ...$configurators
+     *
+     * @return callable(Element): Element
+     */
+    private function child(WsseNamespaces $namespace, string $localName, callable ...$configurators): callable
+    {
+        return namespaced_element($namespace->value, $namespace->qualify($localName), ...$configurators);
     }
 }
