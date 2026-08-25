@@ -34,6 +34,10 @@ new Inbound\Decrypt($privateKey);
   (new Inbound\Decrypt($privateKey))
       ->withAttachments(AttachmentParts::response($attachmentStorage));
   ```
+  The second argument says which coverage the peer's ciphertext must declare, and it is a requirement rather
+  than a hint: a `Complete` adapter refuses a content-only `@Type` and the other way round. A
+  default-configured CXF sender encrypts `Complete`, so that is usually the one to pass. See
+  [Attachment security](attachments.md#how-much-of-a-part-a-protection-covers).
   Register these whenever the peer may encrypt an attachment. Unlike the in-document parts, an encrypted
   attachment is **not** quietly left alone when none are registered: a message naming one is refused, because
   otherwise it would read as fully decrypted while your code holds a file that is still ciphertext. Each opened
@@ -99,6 +103,9 @@ new Inbound\VerifySignature(
   (new Inbound\VerifySignature($trustStore, signed: [Part::body()]))
       ->withAttachments(AttachmentParts::response($attachmentStorage));
   ```
+  The second argument says which coverage each reference must declare, and it is a requirement rather than a
+  hint: a `Complete` adapter refuses a reference declaring the content transform. See
+  [Attachment security](attachments.md#how-much-of-a-part-a-protection-covers).
   **Registering parts is the requirement that they be signed.** Every attachment present must be covered, so a
   peer that simply omits an attachment reference is refused rather than silently accepted: "the signature said
   nothing about this file" and "the file is signed" must not look the same to your code. Put this after

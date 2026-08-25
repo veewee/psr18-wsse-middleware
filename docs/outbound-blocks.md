@@ -132,6 +132,10 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   (new Outbound\Signature($clientCertificate))
       ->withAttachments(AttachmentParts::request($attachmentStorage));
   ```
+  The second argument says how much of each part the signature covers: `ExternalPartCoverage::Content` by
+  default, `Complete` to cover the canonical MIME header block as well. A bare `<sp:Attachments/>` in the
+  peer's policy means `Complete`, so read the WSDL rather than the default; the
+  [configuration table](attachments.md#how-much-of-a-part-a-protection-covers) is the whole rule.
   Adds coverage rather than replacing it: an attachment reference sits alongside whatever `withParts()` asks
   for. Signing a `text/*` or XML attachment is refused, because the profile canonicalizes those before
   digesting and that is not implemented; see [Attachment security](attachments.md).
@@ -240,6 +244,9 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
   (new Outbound\Encryption($recipient))
       ->withAttachments(AttachmentParts::request($attachmentStorage));
   ```
+  This block emits content-only ciphertext, so an adapter built with `ExternalPartCoverage::Complete` is
+  refused. No policy can require the wider one: a peer validates the coverage of a signature and never of an
+  encryption.
   Each sealed part's `Content-Type` becomes `application/octet-stream` and its original media type is recorded
   on the `xenc:EncryptedData`, so the far side can restore it. An element whose content is or contains an
   `xop:Include` cannot be encrypted at all: that would protect the pointer while the bytes travel in the clear.

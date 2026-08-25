@@ -15,7 +15,7 @@ Attachment handling itself lives in a separate package, so cryptography and MIME
 composer require php-soap/psr18-attachments-middleware
 ```
 
-Version **0.11.0** or later. This package names it under `suggest`, never `require`: nothing about installing
+Version **0.12.0** or later. This package names it under `suggest`, never `require`: nothing about installing
 WS-Security pulls in attachment handling, and nothing about using attachments pulls in cryptography.
 
 ## Wiring
@@ -178,6 +178,94 @@ transfer-encoding step. The profile says so, and the attachments middleware alre
 `cid:` verbatim, which binds each digest to one specific part: swapping two attachments is a digest mismatch
 rather than a substitution nobody notices.
 
+## How much of a part a protection covers
+
+The profile has two coverages, and which one your peer wants is decidable from its WSDL. Read
+`sp:SignedParts` and `sp:EncryptedParts`:
+
+| The peer's WSDL says | Configure |
+|---|---|
+| `<sp:SignedParts><sp:Attachments/></sp:SignedParts>` | `ExternalPartCoverage::Complete` |
+| `<sp:Attachments><sp13:ContentSignatureTransform/></sp:Attachments>` | `ExternalPartCoverage::Content` |
+| `<sp:EncryptedParts><sp:Attachments/></sp:EncryptedParts>` | Either satisfies the policy. Use `Content` outbound, and be ready to accept `Complete` inbound |
+| Nothing about attachments | Neither. Do not register attachment parts on the blocks |
+
+**A bare `<sp:Attachments/>` means `Complete`.** Content-only is the opt-in, not the default:
+`sp13:ContentSignatureTransform` is what asks for it, and the AS4 and eDelivery profiles are the population
+that sets it. CXF picks `Complete` for anything else and enforces it on the way in, so a signature covering
+content only does not satisfy a default policy.
+
+You choose where the adapter is built:
+
+```php
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
+
+// A bare <sp:Attachments/> in the peer's SignedParts.
+(new Outbound\Signature($clientCertificate))
+    ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete));
+
+// EncryptedParts is satisfied by either, so content-only is the cheaper choice.
+(new Outbound\Encryption($recipientCertificate))
+    ->withParts([Part::body()])
+    ->withAttachments(AttachmentParts::request($attachments));
+
+// A default-configured CXF sender encrypts Complete, so accept that on the way in.
+(new Inbound\Decrypt($privateKey))
+    ->withAttachments(AttachmentParts::response($attachments, ExternalPartCoverage::Complete));
+```
+
+The asymmetry is not an oversight: it is what the two policy validators require. Building two adapters is the
+supported way to express it, since they are cheap immutable values.
+
+**The default is `Content` and the recommendation is `Complete`.** The default stays where it is because
+changing the meaning of an existing call is not something a release does quietly. The recommendation is what
+your peer's WSDL most likely means.
+
+**Inbound, the coverage you configure is a requirement rather than a hint.** A `Complete` adapter on
+`VerifySignature` refuses a reference declaring the content transform, and `Decrypt` refuses the wrong
+`@Type` before any decryption. A peer may not decide to cover less than it was asked to. This mirrors what
+`CryptoCoverageUtil.checkAttachmentsCoverage()` does to us in the other direction.
+
+### What a complete coverage digests
+
+The part's canonical MIME header block, followed by its octets. No blank line separates them: the bytes
+follow the last header's CRLF directly.
+
+```
+Content-Disposition:attachment;filename="invoice.pdf";name="invoice"\r\n
+Content-ID:<invoice@example.com>\r\n
+Content-Type:application/pdf\r\n
+<the attachment bytes>
+```
+
+Only five headers are considered, ascending by name: `Content-Description`, `Content-Disposition`,
+`Content-ID`, `Content-Location` and `Content-Type`. `Content-Transfer-Encoding` is not among them, so it is
+neither signed nor encrypted even though the multipart carries it. Values are unfolded, stripped of leading
+whitespace, and a value carrying parameters is rewritten with its essence and parameter names lowercased, its
+parameters sorted, and their values quoted. When the part carries no `Content-Type` at all,
+`text/plain;charset="us-ascii"` is substituted, which is what a peer does with the same absence.
+
+This is pinned against Apache WSS4J rather than read off the profile: the interop harness has the oracle
+report the header block it computed and compares it against the one this package composed for the same part.
+
+### Header forms this package refuses rather than guesses at
+
+| Construct | Detected by |
+|---|---|
+| A comment | an unquoted `(` in one of the five headers |
+| An RFC 2047 encoded word | `=?` in `Content-Description` |
+| An RFC 2184 continued or charset-tagged parameter | a parameter name containing `*` |
+| A parameter with no `=`, or an empty value | the parameter itself |
+
+Each needs a decoder whose output has to agree with the peer byte for byte, and nothing short of a message
+from that peer proves it does. A refusal cannot produce a wrong digest; a guess can, and a wrong digest is
+the failure with no diagnostic attached. Outbound this is a configuration error naming the header. Inbound it
+collapses into the uniform verification failure like anything else.
+
+Opened octets are read back with the same caps a peer applies: at most 100 headers and 1000 characters per
+line before the blank line. They bound a scan over decrypted attacker-supplied bytes, and a legitimate peer
+never trips them.
+
 ## What is refused, and why
 
 | Case | Behaviour |
@@ -189,7 +277,10 @@ rather than a substitution nobody notices.
 | A registered attachment that no `ds:Reference` covers | Refused. Registering parts on `VerifySignature` is the requirement that they be signed |
 | An encrypted attachment when none are registered on `Decrypt` | Refused, never skipped. Otherwise the message reads as decrypted while your code holds ciphertext |
 | A `cid:` reference naming a part you did not supply | Refused. Never resolved, never fetched, under any circumstance |
-| `Attachment-Complete`, in either direction | Refused. Covering the MIME headers needs header canonicalization this release does not implement, so the mode is refused rather than approximated |
+| Emitting `Attachment-Complete` ciphertext | Refused. No policy can require it, because a peer validates the coverage of a signature and never of an encryption, so content-only always satisfies the far side. Accepting it inbound is supported |
+| A header carrying a comment, an encoded word or a continued parameter, under a complete coverage | Refused rather than canonicalized by guesswork. See the table above |
+| Restored headers naming a different `Content-ID` than the part they arrived in | Refused. The `Content-ID` is how a reference bound the digest to this part, so letting the ciphertext rewrite it would undo that binding |
+| Opened octets carrying no blank line, or exceeding the header caps | Refused before the bytes are handed anywhere |
 | A cipher reference declaring no transform, several, or the wrong one | Refused before any decryption |
 | A data-encryption method outside the profile's allow-list | Refused. An external part gets the same allow-list as an in-document one, CBC refusal included |
 | Two attachments sharing a `Content-ID` | Refused. One reference must address one part |
@@ -203,8 +294,13 @@ attachment path is no more of an oracle than the body's. Outbound failures are `
 - **Whole parts are buffered.** The cipher takes and returns strings, so an attachment is held in memory around
   twice at peak. That matches what the attachments middleware already implies by building the multipart body in
   memory. Attachments comfortably smaller than available memory are the supported case.
-- **`Attachment-Complete` is not implemented**, for signing or for encryption. If a peer's policy demands
-  `sp:AttachmentComplete` or `sp13:AttachmentCompleteSignatureTransform`, this package cannot satisfy it today.
+- **Emitting `Attachment-Complete` ciphertext is not implemented.** Signing, verification and decryption all
+  support the complete coverage; outbound encryption does not, and no policy can require it. What it would
+  buy is hiding the filename and media type from an intermediary that terminates TLS, which content-only
+  leaves readable in the MIME headers. Nobody has asked for it.
+- **`text/*` and XML attachments cannot be signed under either coverage.** A peer canonicalizes their content
+  before digesting, so this is a content-level refusal that sits upstream of the coverage. See the refusal
+  table.
 - **WCF and .NET cannot be the peer.** There is no SwA support in WCF, only MTOM. A .NET peer that wants
   attachment security is not a case this feature serves.
 
@@ -217,16 +313,22 @@ interface ExternalParts
 {
     public function coverage(): ExternalPartCoverage;
     public function collect(): ExternalPartList;
+    public function collectSealed(): ExternalPartList;
     public function replace(ExternalPartList $parts): void;
 }
 ```
 
-Implement it if your attachments live somewhere else. Three contract points matter:
+Implement it if your attachments live somewhere else. Four contract points matter:
 
-- **`coverage()` says how much of a part your compositions cover.** Return `ExternalPartCoverage::Content`:
-  it is the only coverage this release implements, and no block reads the value yet. The method is on the
-  seam so that adding `Complete` later is a change to implementations rather than to the interface, which
-  would break every one of them at once.
+- **`coverage()` says how much of a part your compositions cover**, and the blocks read it: it decides both
+  the transform they declare and what they expect from a peer. Return `ExternalPartCoverage::Content` unless
+  you compose the canonical header block yourself.
+- **`collect()` returns the octets a signature covers**, which under a `Complete` coverage is that header
+  block followed by the content, and under a `Content` coverage is the content alone.
+- **`collectSealed()` returns the octets the part itself carries**, which a cipher seals on the way out and
+  opens on the way in. Return `collect()` if you compose nothing. The two differ only under a `Complete`
+  coverage: a `xenc:CipherReference` addresses the MIME part, so what sits there is the sealed form whatever
+  the coverage says about the plaintext inside it.
 - **`collect()` may be called more than once per message, so rewind on every collect.** Sign-then-encrypt
   collects twice: the signature digests the plaintext, then encryption seals the same plaintext. The engine
   rewinds each part before reading it as well, so a spent stream is recovered rather than sealed empty, but do

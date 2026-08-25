@@ -59,8 +59,8 @@ final class ExternalEncryptedDataReader
         CryptoPolicy $policy,
     ): ExternalPart {
         try {
-            // Structure before crypto. A mode this package does not implement, Attachment-Complete included,
-            // is refused before any decryption rather than attempted and reported as a cipher failure.
+            // Structure before crypto. A type other than the one the caller demanded is refused before any
+            // decryption rather than attempted and reported as a cipher failure.
             $this->assertType($encryptedDataElement, $external);
             $cipherReference = $this->cipherReference($encryptedDataElement);
             $this->assertTransform($cipherReference, $external);

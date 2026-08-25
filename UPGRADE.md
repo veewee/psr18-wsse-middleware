@@ -475,11 +475,11 @@ which keeps the previous behaviour: `action` from the request's `SOAPAction`, `t
 
 New capability, so there is nothing to migrate. Do this only if your service protects attachments.
 
-Require `php-soap/psr18-attachments-middleware` 0.11.0 or newer, which is the release that carries the
-external-part model this package adapts:
+Require `php-soap/psr18-attachments-middleware` 0.12.0 or newer, which is the release where an attachment
+carries the MIME header set it travels with:
 
 ```bash
-composer require "php-soap/psr18-attachments-middleware:^0.11"
+composer require "php-soap/psr18-attachments-middleware:^0.12"
 ```
 
 List `WsseMiddleware` before `AttachmentsMiddleware`. The first plugin in a `PluginClient` is the outermost,
@@ -504,6 +504,26 @@ Register the parts on every block that should cover them. `Outbound\Signature`, 
 `Outbound\Encryption` and `Inbound\Decrypt` each take `withAttachments()`, and a block without it protects the
 document alone. Registering parts on an inbound block is the *requirement* that they be protected, so a peer
 that omits one is refused rather than silently accepted.
+
+Choose how much of each part a protection covers, which is decidable from the peer's WSDL:
+
+| The peer's WSDL says | Configure |
+|---|---|
+| `<sp:SignedParts><sp:Attachments/></sp:SignedParts>` | `ExternalPartCoverage::Complete` |
+| `<sp:Attachments><sp13:ContentSignatureTransform/></sp:Attachments>` | `ExternalPartCoverage::Content` |
+| `<sp:EncryptedParts><sp:Attachments/></sp:EncryptedParts>` | Either satisfies the policy. `Content` outbound; be ready to accept `Complete` inbound |
+| Nothing about attachments | Neither. Do not register attachment parts on the blocks |
+
+A bare `<sp:Attachments/>` means `Complete`: content-only is the opt-in. The argument defaults to `Content`,
+so pass it where the adapter is built:
+
+```php
+AttachmentParts::request($attachments, ExternalPartCoverage::Complete)
+```
+
+If you implemented the `ExternalParts` seam yourself rather than using `AttachmentParts`, add
+`collectSealed()` to it. Return `collect()` unless you compose a canonical header block, in which case return
+the part's own octets: a cipher addresses the MIME part, while a signature covers the composition.
 
 Read [docs/attachments.md](docs/attachments.md) before turning it on. It carries the wire format, the ordering
 rules, and the list of what is refused, including the media types this release will not sign.

@@ -121,7 +121,7 @@ default you are about to change, drop one level down:
 | [Trust](docs/trust.md) | Why a verified signature is not an authenticated peer, pinning, and opt-in revocation checking |
 | [Security profile and defaults](docs/security-profile.md) | `SecurityProfile`, `CryptoPolicy`, the inbound allow-lists, and what is rejected by default and why |
 | [The XML-Security layer](docs/xmlsecurity.md) | Swapping an engine service, and signing or encrypting plain XML without SOAP |
-| [Attachment security](docs/attachments.md) | Signing and encrypting SOAP attachments (SwA and MTOM), the wire format, and what is refused |
+| [Attachment security](docs/attachments.md) | Signing and encrypting SOAP attachments (SwA and MTOM), how much of a part a protection covers, the wire format, and what is refused |
 | [Importing a peer's existing configuration](docs/importing-a-peer-configuration.md) | Turning a SoapUI project or an IBM WebSphere descriptor you were handed into these blocks |
 
 ## The building blocks
@@ -133,7 +133,7 @@ Every block is a small, immutable value object you drop into the `outbound` or `
 | [`Timestamp`](docs/outbound-blocks.md#outbound-timestamp) | A `wsu:Timestamp` so the receiver can reject a stale or replayed call |
 | [`Username`](docs/outbound-blocks.md#outbound-username) | A `wsse:UsernameToken`, with a plaintext or digested password |
 | [`BinarySecurityToken`](docs/outbound-blocks.md#outbound-binarysecuritytoken) | Your X.509 certificate as a base64-DER token |
-| [`Signature`](docs/outbound-blocks.md#outbound-signature) | A detached, multi-reference `ds:Signature`, optionally covering attachments |
+| [`Signature`](docs/outbound-blocks.md#outbound-signature) | A detached, multi-reference `ds:Signature`, optionally covering attachments and their MIME headers |
 | [`Encryption`](docs/outbound-blocks.md#outbound-encryption) | XML-Enc ciphertext for the parts you name, and optionally the attachments, under a fresh session key |
 | [`SamlAssertion`](docs/outbound-blocks.md#outbound-samlassertion) | A SAML 1.1 / 2.0 assertion you obtained from an STS |
 

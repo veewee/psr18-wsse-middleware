@@ -10,9 +10,8 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity;
  * coverage is written, so a block that derived its transform from it could not be paired with an adapter
  * composing parts under a different one.
  *
- * Nothing derives anything from it yet: this cut composes content only, and every block names that transform
- * directly. The engine never reads it either. It lives here because ExternalParts does and the seam has to be
- * typed.
+ * The engine never reads it: the blocks do, to pick the transform or type they declare and demand. It lives
+ * here because ExternalParts does and the seam has to be typed.
  */
 enum ExternalPartCoverage
 {
