@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification\SignedInfo;
 
 use Dom\Element;
+use Phpro\ResourceStream\Factory\MemoryStream;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
@@ -13,13 +14,70 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\DigestVerifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ParsedReference;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedExternalReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedVerificationReference;
 use VeeWee\Xml\Dom\Document;
 
 final class DigestVerifierTest extends TestCase
 {
+    private const SWA_CONTENT = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
+
+    public function test_it_accepts_an_external_part_whose_octets_match(): void
+    {
+        $bytes = '%PDF-1.7 raw';
+        $verifier = new DigestVerifier(new DomCanonicalizer(), new Digest());
+
+        static::assertTrue($verifier->verifyExternalPart(
+            $this->externalReference($bytes, base64_encode(hash('sha256', $bytes, true))),
+        ));
+    }
+
+    public function test_it_rejects_an_external_part_whose_octets_differ(): void
+    {
+        $verifier = new DigestVerifier(new DomCanonicalizer(), new Digest());
+
+        static::assertFalse($verifier->verifyExternalPart(
+            $this->externalReference('tampered', base64_encode(hash('sha256', '%PDF-1.7 raw', true))),
+        ));
+    }
+
+    public function test_it_digests_an_external_part_from_the_start_even_when_read_before(): void
+    {
+        $bytes = '%PDF-1.7 raw';
+        $reference = $this->externalReference($bytes, base64_encode(hash('sha256', $bytes, true)));
+
+        // A spent stream must not silently digest as nothing: the same part is read more than once per
+        // message, once while decrypting and again here.
+        $reference->part->content->getContents();
+
+        static::assertTrue((new DigestVerifier(new DomCanonicalizer(), new Digest()))
+            ->verifyExternalPart($reference));
+    }
+
+    public function test_it_refuses_an_external_digest_value_that_is_not_base64(): void
+    {
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('The digest value is not valid base64.');
+
+        (new DigestVerifier(new DomCanonicalizer(), new Digest()))
+            ->verifyExternalPart($this->externalReference('x', 'not!base64'));
+    }
+
+    private function externalReference(string $bytes, string $expectedBase64): ResolvedExternalReference
+    {
+        return new ResolvedExternalReference(
+            new ParsedReference(DigestMethod::SHA256, $expectedBase64, null, [], self::SWA_CONTENT),
+            new ExternalPart(
+                'cid:invoice@example.com',
+                'application/pdf',
+                MemoryStream::create()->write($bytes)->rewind(),
+            ),
+        );
+    }
+
     #[RequiresPhp('>= 8.4.21')]
     public function test_it_accepts_a_matching_digest(): void
     {
