@@ -19,6 +19,20 @@ final class InvalidTrustStore extends RuntimeException
         );
     }
 
+    /**
+     * A trust store holds public certificates only. Key material in a file destined for one means the wrong
+     * file was exported, so it is refused rather than silently ignored, and the message names the class that
+     * does take a combined file: a caller here has usually reached for the wrong one of the two.
+     */
+    public static function withPrivateKey(): self
+    {
+        return new self(
+            'A trust store holds public certificates only, and this PEM data also carries private key '
+            .'material. Use ClientCertificate for a certificate and its private key in one file, or Key for a '
+            .'private key on its own.',
+        );
+    }
+
     public static function withoutRevocationLists(): self
     {
         return new self(

@@ -37,10 +37,17 @@ final class TrustStore
      * bundle is an anchor: unlike a PKCS#12 identity bundle there is no end-entity certificate to skip, so a
      * bundle of thirty anchors yields thirty. A store with zero anchors is unusable and is rejected.
      *
-     * @throws InvalidTrustStore when the bundle carries no certificate
+     * A bundle that also carries a private key is refused. Pem reads such a file happily, because PEM is only
+     * a container, but a key in a file destined for a trust store means the wrong file was exported.
+     *
+     * @throws InvalidTrustStore when the bundle carries a private key, or no certificate
      */
     public static function fromPem(Pem $bundle): self
     {
+        if ($bundle->privateKey() !== null) {
+            throw InvalidTrustStore::withPrivateKey();
+        }
+
         $anchors = $bundle->certificates();
         if ($anchors === []) {
             throw InvalidTrustStore::withoutAnchors();

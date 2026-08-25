@@ -27,6 +27,9 @@ $certificate = $bundle->publicCertificate();  // returns a KeyStore\Certificate
 - `Certificate::fromFile(string $file): Certificate`.
 - `ClientCertificate::fromFile(string $file): ClientCertificate` then `->withPassphrase(string)`; it exposes
   `->privateKey(): Key` and `->publicCertificate(): Certificate`.
+- `->publicCertificate()` returns the end-entity certificate wherever the file lists it. A combined file that
+  puts its CA ahead of your own certificate is read correctly: the end-entity is derived from issuer linkage,
+  not from position.
 
 Got a `.p12` / `.pfx` file? Load it directly, no conversion needed. The passphrase decrypts the file; the
 extracted private key is returned ready to use, so no `->withPassphrase(...)` follows.
@@ -69,18 +72,42 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 $trustStore = TrustStore::fromPem(Pem::fromFile('anchors.pem'));
 ```
 
-- `Pem::fromFile(string $file): Pem` reads the bundle from disk, `Pem::fromString(string $contents): Pem` from
+- `Pem::fromFile(string $file): Pem` reads the file from disk, `Pem::fromString(string $contents): Pem` from
   raw bytes, and `->certificates(): list<Certificate>` returns the individual certificates.
-- Anything outside the `-----BEGIN CERTIFICATE-----` armor is ignored, so the `Bag Attributes`, `subject=` and
-  `issuer=` lines `openssl pkcs12 -nokeys` writes ahead of each certificate need no cleaning up first.
-- A file with no certificate in it throws an `InvalidPemBundle`, and so does a bundle whose last certificate is
-  cut off: a truncated file is refused rather than loaded as the anchors that happened to survive.
-- `Pem` is the certificates-only role, not a general PEM reader. PEM is just a container, so a file may hold key
-  material too, but a private key in a trust store file means the wrong file was exported and is refused. For a
-  certificate and its private key in one file use `ClientCertificate`, and for a private key on its own use
-  `Key`.
+- Anything outside the armor is ignored, so the `Bag Attributes`, `subject=` and `issuer=` lines
+  `openssl pkcs12 -nokeys` writes ahead of each certificate need no cleaning up first.
+- A file with no certificate in it throws an `InvalidPemBundle`, and so does a file whose last certificate or
+  private key is cut off: a truncated file is refused rather than loaded as the anchors that happened to survive.
+  A certificate block with another PEM block nested inside it is refused for the same reason.
+- `Pem::certificatesIn(string $contents): list<Certificate>` reads the certificates on their own, without
+  looking at any key material alongside them. Use it when the certificates are all you want, so a problem with
+  the key cannot surface as a failure to read a certificate.
 - `TrustStore::fromPem()` throws an `InvalidTrustStore` when the bundle carries no certificate, because a store
   with zero anchors accepts nothing.
+
+### A PEM file that also carries a private key
+
+PEM is only a container, so a file may hold a private key next to its certificates. `Pem` reads such a file and
+hands the key back through `->privateKey(): ?Key`, which is `null` when the file held certificates alone.
+
+Deciding whether a key belongs in the file is the caller's job, not the reader's:
+
+- `TrustStore::fromPem()` refuses it. A trust store holds public certificates only, so a key there means the
+  wrong file was exported — usually a client bundle where a trusted-CA file was meant.
+- `ClientCertificate` is the class for a certificate and its private key in one file, and `Key` for a private
+  key on its own.
+
+```php
+$pem = Pem::fromFile('client.pem');
+
+$pem->certificates();   // list<Certificate>
+$pem->privateKey();     // ?Key, and ->withPassphrase('xxx') on it if the key is encrypted
+
+TrustStore::fromPem($pem);   // throws InvalidTrustStore: this file carries key material
+```
+
+A file carrying two private keys is refused outright: nothing states which identity is yours, and taking the
+first would let the file's layout decide what your messages get signed with.
 
 ## Converting a Java keystore
 

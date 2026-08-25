@@ -79,29 +79,115 @@ final class PemTest extends TestCase
     }
 
     #[DataProvider('privateKeyArmor')]
-    public function test_it_rejects_a_bundle_carrying_private_key_material(string $armor): void
+    public function test_it_reads_the_private_key_out_of_a_combined_bundle(string $armor): void
     {
         $bundle = self::armored('anchor')."-----BEGIN {$armor}-----\nc2VjcmV0\n-----END {$armor}-----\n";
 
+        $pem = Pem::fromString($bundle);
+
+        static::assertCount(1, $pem->certificates());
+        static::assertStringContainsString('c2VjcmV0', (string) $pem->privateKey()?->contents());
+    }
+
+    public function test_a_bundle_of_certificates_alone_carries_no_private_key(): void
+    {
+        static::assertNull(Pem::fromString(self::armored('anchor-a').self::armored('anchor-b'))->privateKey());
+    }
+
+    /**
+     * The reason the bundle string stays safe to hand to openssl's path-based APIs: it is rebuilt from the
+     * certificates alone, so a combined file's key never reaches the temp file toResource() writes.
+     */
+    public function test_it_keeps_key_material_out_of_the_bundle_string(): void
+    {
+        $pem = Pem::fromString(
+            self::armored('anchor')."-----BEGIN PRIVATE KEY-----\nc2VjcmV0\n-----END PRIVATE KEY-----\n",
+        );
+
+        // Held in a variable: the temp file is unlinked once the stream goes out of scope.
+        $resource = $pem->toResource();
+
+        static::assertStringNotContainsString('c2VjcmV0', $pem->toString());
+        static::assertStringNotContainsString('PRIVATE KEY', $pem->toString());
+        static::assertStringNotContainsString('c2VjcmV0', (string) file_get_contents((string) $resource->uri()));
+    }
+
+    /**
+     * Two keys in one file leave nothing to say which identity is yours, and picking the first would let the
+     * file's layout decide what a message is signed with.
+     */
+    public function test_it_refuses_a_bundle_carrying_more_than_one_private_key(): void
+    {
+        $bundle = self::armored('anchor')
+            ."-----BEGIN PRIVATE KEY-----\nZmlyc3Q=\n-----END PRIVATE KEY-----\n"
+            ."-----BEGIN PRIVATE KEY-----\nc2Vjb25k\n-----END PRIVATE KEY-----\n";
+
         $this->expectException(InvalidPemBundle::class);
-        $this->expectExceptionMessage('public certificates only');
+        $this->expectExceptionMessage('more than one private key');
 
         Pem::fromString($bundle);
     }
 
     /**
-     * Refusing the file is only half the job: a caller who lands here reached for the wrong class, so the
-     * message has to say which one takes a combined certificate-and-key file.
+     * The same argument as an unclosed certificate: a half-transferred file must not load as the part that
+     * survived, which here would be an identity bundle quietly missing its key.
      */
-    public function test_it_points_a_rejected_key_bearing_bundle_at_the_right_class(): void
+    public function test_it_refuses_a_bundle_whose_private_key_is_unclosed(): void
     {
-        try {
-            Pem::fromString(self::armored('anchor')."-----BEGIN PRIVATE KEY-----\nc2VjcmV0\n-----END PRIVATE KEY-----\n");
-            static::fail('a bundle carrying private key material should not load');
-        } catch (InvalidPemBundle $e) {
-            static::assertStringContainsString('ClientCertificate', $e->getMessage());
-            static::assertStringContainsString('Key', $e->getMessage());
-        }
+        $bundle = self::armored('anchor')."-----BEGIN PRIVATE KEY-----\nY3V0LW9mZg==";
+
+        $this->expectException(InvalidPemBundle::class);
+        $this->expectExceptionMessage('truncated');
+
+        Pem::fromString($bundle);
+    }
+
+    /**
+     * A key block sitting inside certificate armor is not a certificate. The certificate pattern ends at the
+     * first closing line, so reading the outer block whole would fold the key into the bundle string, and from
+     * there into the temp file toResource() writes.
+     */
+    public function test_it_refuses_a_certificate_block_with_armor_nested_inside_it(): void
+    {
+        $bundle = "-----BEGIN CERTIFICATE-----\n".base64_encode('cert')."\n"
+            ."-----BEGIN PRIVATE KEY-----\nc2VjcmV0\n-----END PRIVATE KEY-----\n"
+            ."-----END CERTIFICATE-----\n";
+
+        $this->expectException(InvalidPemBundle::class);
+        $this->expectExceptionMessage('nested');
+
+        Pem::fromString($bundle);
+    }
+
+    /**
+     * The mirror of the certificate case, and it must be refused for the same reason: the key pattern also
+     * stops at the first matching close, so a certificate wrapped in key armor would be handed back as part
+     * of the key. The opening counts agree here, so the truncation check cannot catch this one.
+     */
+    public function test_it_refuses_a_private_key_block_with_armor_nested_inside_it(): void
+    {
+        $bundle = "-----BEGIN PRIVATE KEY-----\n".base64_encode('key')."\n"
+            .self::armored('smuggled')
+            ."-----END PRIVATE KEY-----\n";
+
+        $this->expectException(InvalidPemBundle::class);
+        $this->expectExceptionMessage('nested');
+
+        Pem::fromString($bundle);
+    }
+
+    /**
+     * An opening and a closing line that name different key types are not a block. Reading to the end of the
+     * mismatched pair would take in whatever sat between them.
+     */
+    public function test_it_refuses_a_private_key_whose_armor_lines_disagree(): void
+    {
+        $bundle = self::armored('anchor')."-----BEGIN PRIVATE KEY-----\nc2VjcmV0\n-----END RSA PRIVATE KEY-----\n";
+
+        $this->expectException(InvalidPemBundle::class);
+        $this->expectExceptionMessage('truncated');
+
+        Pem::fromString($bundle);
     }
 
     /**
@@ -158,6 +244,19 @@ final class PemTest extends TestCase
 
         static::assertSame($once->toString(), $twice->toString());
         static::assertCount(2, $twice->certificates());
+    }
+
+    /**
+     * Reading the certificates is a separate question from whether the key material alongside them makes
+     * sense, and a caller that only wants the certificates must not be handed a failure about the key.
+     */
+    public function test_it_reads_the_certificates_without_judging_the_key_material(): void
+    {
+        $bundle = self::armored('anchor')
+            ."-----BEGIN PRIVATE KEY-----\nZmlyc3Q=\n-----END PRIVATE KEY-----\n"
+            ."-----BEGIN PRIVATE KEY-----\nc2Vjb25k\n-----END PRIVATE KEY-----\n";
+
+        static::assertCount(1, Pem::certificatesIn($bundle));
     }
 
     private static function armored(string $body): string

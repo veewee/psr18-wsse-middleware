@@ -26,16 +26,31 @@ final class InvalidPemBundle extends RuntimeException
     }
 
     /**
-     * A bundle holds public certificates only. Key material in a file destined for a trust store means the
-     * wrong file was exported, so it is refused rather than silently ignored, and the message names the class
-     * that does take a combined file: a caller here has usually reached for the wrong one of the two.
+     * Armor inside armor is not a nesting the format has: the inner block's opening means the outer one's
+     * close is missing, so the outer block's content belongs to something else. It is refused rather than
+     * read whole, which is what would fold a private key into a certificate, or a certificate into a key.
      */
-    public static function containsPrivateKey(): self
+    public static function nestedArmor(): self
     {
-        return new self(
-            'A PEM bundle holds public certificates only, and this data also carries private key material. '
-            .'Use ClientCertificate for a certificate and its private key in one file, or Key for a private '
-            .'key on its own.',
-        );
+        return new self('A block in the PEM data has another PEM block nested inside it.');
+    }
+
+    /**
+     * The same argument as a truncated certificate: a key block that is not properly closed is refused rather
+     * than skipped, so a half-transferred file cannot load as an identity quietly missing its key. Covers both
+     * an opening with no close at all and a pair whose labels disagree, hence the wording.
+     */
+    public static function truncatedPrivateKey(): self
+    {
+        return new self('A private key block in the PEM data is not properly closed, so the data is truncated.');
+    }
+
+    /**
+     * With two keys in the file nothing states which identity is yours, and taking the first would let the
+     * file's layout decide what a message gets signed with.
+     */
+    public static function withMultiplePrivateKeys(): self
+    {
+        return new self('The PEM data carries more than one private key, so which identity it holds is undecided.');
     }
 }

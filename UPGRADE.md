@@ -234,8 +234,8 @@ $recipient = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secr
 $trustStore = TrustStore::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
 ```
 
-A trusted-CA file (several certificates concatenated into one PEM file, no private key) loads through
-`KeyStore\Pem`, which now reads a bundle as well as writing one:
+A PEM file loads through `KeyStore\Pem`, which now reads a file as well as writing one. A trusted-CA file
+(several certificates concatenated, no private key) is the usual case:
 
 ```php
 use Soap\Psr18WsseMiddleware\KeyStore\Pem;
@@ -244,12 +244,19 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 $trustStore = TrustStore::fromPem(Pem::fromFile('anchors.pem'));   // or Pem::fromString($bytes)
 ```
 
-- `Pem::fromString()`, `Pem::fromFile()` and `Pem::certificates()` are new.
+- `Pem::fromString()`, `Pem::fromFile()`, `Pem::certificates()`, `Pem::privateKey()` and
+  `Pem::certificatesIn()` are new.
 - `TrustStore::fromPem()` is new, and makes **every** certificate in the bundle an anchor. This is the path for a
   trusted-CA file or a converted Java truststore; `TrustStore::fromPkcs12()` is for an identity bundle and skips
   entry 0 as the leaf certificate, so do not use it for a truststore or you lose one anchor.
+- `Pem` reads a file that also carries a private key, and hands it back through `Pem::privateKey()`. Refusing
+  key material is `TrustStore::fromPem()`'s job, because a trust store is what a key has no business in; the
+  message it throws names `ClientCertificate` and `Key` as the two classes that do take one.
+- `ClientCertificate::publicCertificate()` now returns the end-entity certificate wherever the file lists it,
+  derived from issuer linkage rather than from position. If your combined file put its CA certificate ahead of
+  your own, the previous version advertised the CA in the binary security token while signing with your key,
+  and the peer rejected the signature. Nothing to change on your side; such a file now works.
 - Text outside the certificate armor is ignored, so output from `openssl pkcs12 -nokeys` loads as it comes.
-- A bundle carrying private key material is refused: a PEM bundle holds public certificates only.
 
 ### Blocks take credentials, not crypto wiring
 

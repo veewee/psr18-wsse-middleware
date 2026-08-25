@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\KeyStore;
 
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidTrustStore;
 use Soap\Psr18WsseMiddleware\KeyStore\Pem;
@@ -31,6 +32,44 @@ final class TrustStorePemTest extends TestCase
         $this->expectExceptionMessage('at least one trust anchor');
 
         TrustStore::fromPem(Pem::fromCertificates());
+    }
+
+    /**
+     * A trust store holds public certificates only. Key material in a file destined for one means the wrong
+     * file was exported, so it is refused rather than silently ignored. The bundle itself reads a combined
+     * file happily; deciding that a key has no business in a trust store is this method's job, not the
+     * reader's.
+     */
+    #[DataProviderExternal(PemTest::class, 'privateKeyArmor')]
+    public function test_it_rejects_a_bundle_carrying_private_key_material(string $armor): void
+    {
+        $bundle = Pem::fromString(
+            self::armored('anchor')."-----BEGIN {$armor}-----\nc2VjcmV0\n-----END {$armor}-----\n",
+        );
+
+        $this->expectException(InvalidTrustStore::class);
+        $this->expectExceptionMessage('public certificates only');
+
+        TrustStore::fromPem($bundle);
+    }
+
+    /**
+     * Refusing the file is only half the job: a caller who lands here reached for the wrong file, so the
+     * message has to say which class takes a combined certificate-and-key one.
+     */
+    public function test_it_points_a_rejected_key_bearing_bundle_at_the_right_class(): void
+    {
+        $bundle = Pem::fromString(
+            self::armored('anchor')."-----BEGIN PRIVATE KEY-----\nc2VjcmV0\n-----END PRIVATE KEY-----\n",
+        );
+
+        try {
+            TrustStore::fromPem($bundle);
+            static::fail('a bundle carrying private key material should not build a trust store');
+        } catch (InvalidTrustStore $e) {
+            static::assertStringContainsString('ClientCertificate', $e->getMessage());
+            static::assertStringContainsString('Key', $e->getMessage());
+        }
     }
 
     private static function armored(string $body): string

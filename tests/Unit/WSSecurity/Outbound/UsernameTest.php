@@ -219,6 +219,19 @@ final class UsernameTest extends OutboundTestCase
         static::assertNotSame($original, $original->withCreated(true));
     }
 
+    public function test_markers_alone_do_not_turn_a_text_password_into_a_digest(): void
+    {
+        $document = $this->envelope();
+
+        (new Username('alice', 'secret'))->withNonce(true)->withCreated(true)($this->context($document));
+
+        // Asking for both markers reproduces the shape digest mode emits, so only the Type and the value say
+        // which mode built it: the password must still be the caller's, in the clear, under the text Type.
+        $password = $this->maybeOnly($document, self::WSSE, 'Password');
+        static::assertSame(self::TEXT_TYPE, $password?->getAttribute('Type'));
+        static::assertSame('secret', $password?->textContent);
+    }
+
     public function test_with_password_and_with_digest_are_immutable(): void
     {
         $original = new Username('alice');
