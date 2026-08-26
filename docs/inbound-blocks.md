@@ -30,6 +30,7 @@ new Inbound\Decrypt($privateKey);
   [Attachment security](attachments.md).
   ```php
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+  use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
   (new Inbound\Decrypt($privateKey))
       ->withAttachments(AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete));
@@ -99,6 +100,7 @@ new Inbound\VerifySignature(
   [Attachment security](attachments.md).
   ```php
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+  use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
   (new Inbound\VerifySignature($trustStore, signed: [Part::body()]))
       ->withAttachments(AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete));

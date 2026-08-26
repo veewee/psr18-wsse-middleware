@@ -128,13 +128,15 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   `AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Complete)`; see [Attachment security](attachments.md).
   ```php
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+  use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
   (new Outbound\Signature($clientCertificate))
       ->withAttachments(AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Complete));
   ```
-  The second argument says how much of each part the signature covers: `ExternalPartCoverage::Content` by
-  default, `Complete` to cover the canonical MIME header block as well. A bare `<sp:Attachments/>` in the
-  peer's policy means `Complete`, so read the WSDL rather than the default; the
+  The second argument says how much of each part the signature covers: `ExternalPartCoverage::Content` for the
+  content alone, `Complete` to cover the canonical MIME header block as well. It is required, with no default,
+  because the peer's policy decides it and both wrong answers are refused by that peer. A bare
+  `<sp:Attachments/>` means `Complete`; the
   [configuration table](attachments.md#how-much-of-a-part-a-protection-covers) is the whole rule.
   Adds coverage rather than replacing it: an attachment reference sits alongside whatever `withParts()` asks
   for. What gets digested depends on the media type: XML is canonicalized, other text has its line endings
@@ -232,14 +234,15 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
 - `withParts(list<Part> $parts): self`: which parts to encrypt. Default is `[Part::body()]`. An empty list
   throws unless attachments are registered: it is not read as "the default". Encrypting nothing still wraps a
   session key and appends an `xenc:EncryptedKey`, so the Body would leave in cleartext under a message that
-  reads as encrypted in every log and packet capture of it. With `withAttachments()` already applied an empty
-  list is allowed, because encrypting only the attachments is a real configuration; register them first, since
-  the check runs when `withParts()` is called.
+  reads as encrypted in every log and packet capture of it. An empty list is allowed when attachments are
+  registered, because encrypting only the attachments is a real configuration. The check runs when the block
+  runs, not when either method is called, so the order you chain them in does not matter.
 - `withAttachments(ExternalParts $attachments): self`: also encrypt the message's attachments, under the same
   session key and in the same `xenc:EncryptedKey`. Off by default. Pass
   `AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Content)`; see [Attachment security](attachments.md).
   ```php
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+  use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
   (new Outbound\Encryption($recipient))
       ->withAttachments(AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Content));

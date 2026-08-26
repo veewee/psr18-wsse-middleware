@@ -22,6 +22,7 @@ WS-Security pulls in attachment handling, and nothing about using attachments pu
 
 ```php
 use Http\Client\Common\PluginClient;
+use Phpro\ResourceStream\Factory\FileStream;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Middleware\AttachmentsMiddleware;
 use Soap\Psr18AttachmentsMiddleware\Multipart\AttachmentType;
@@ -30,6 +31,7 @@ use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\{Inbound, Outbound, Part, SecurityProfile};
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
 // Keep this somewhere central: it is how you add and read attachments per call.
 $attachments = new AttachmentStorage();
@@ -249,7 +251,7 @@ and a peer never validates an encryption's scope. Everywhere else, read the poli
 The part's canonical MIME header block, followed by its octets. No blank line separates them: the bytes
 follow the last header's CRLF directly.
 
-```
+```text
 Content-Disposition:attachment;filename="invoice.pdf";name="invoice"\r\n
 Content-ID:<invoice@example.com>\r\n
 Content-Type:application/pdf\r\n
