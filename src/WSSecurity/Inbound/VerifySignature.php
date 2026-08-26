@@ -72,6 +72,10 @@ final class VerifySignature implements InboundAction
      *        already did
      * @param list<Part>|null $signed null requires the Body; an explicit list replaces that entirely
      *
+     * @param bool $allowNothing internal, set only by fromEstablishedKeys(). Holding neither is a real
+     *        configuration and not an error; the guard exists so that reaching it by forgetting an argument
+     *        says so, rather than failing later on the first part it cannot open
+     *
      * @throws InvalidArgumentException when neither is offered
      */
     public function __construct(

@@ -59,6 +59,10 @@ final class Decrypt implements InboundAction
      * @param ?PreSharedSessionKey $preSharedKey opens parts encrypted under a secret both sides already hold.
      *        A key this exchange established for itself is never passed: the request that wrote it already did
      *
+     * @param bool $allowNothing internal, set only by fromEstablishedKeys(). Holding neither is a real
+     *        configuration and not an error; the guard exists so that reaching it by forgetting an argument
+     *        says so, rather than failing later on the first part it cannot open
+     *
      * @throws InvalidArgumentException when neither is offered
      */
     public function __construct(
