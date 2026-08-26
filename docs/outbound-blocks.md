@@ -276,6 +276,14 @@ Unlike a wrapped session key this **does** authenticate, and mutually: only the 
 produce a MAC that verifies under it. It is not non-repudiable, because either of them could have produced any
 given message.
 
+**Which value type to agree on depends on the peer.** A WSS4J or CXF one wants the WSS 1.1 `EncryptedKeySHA1`
+URI, because that is the only custom identifier its emitter writes for a shared secret. Nothing here is a digest
+of any cipher bytes and it does not have to be: the URI names the shape of the reference rather than how the
+value was arrived at. Passing that URI also makes the reference carry the `wsse11:TokenType` the profile
+requires alongside it, which a receiver enforcing the Basic Security Profile refuses a reference for lacking.
+Their reader is the tolerant half and takes any type at all, so a peer that is something else is free to agree
+on another.
+
 The inbound blocks need this source handed to them, because no outbound direction established it; see
 [Inbound blocks](inbound-blocks.md).
 

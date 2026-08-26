@@ -7,8 +7,10 @@ use InvalidArgumentException;
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\CustomKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncryptedKeySha1KeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 
 /**
  * A secret both sides already hold, named by an identifier they agreed on out of band. Nothing is written to
@@ -22,6 +24,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
  * name separately would be the same fact written twice, with two places for it to drift and a signature no peer
  * could resolve when it did. A deployment whose peer references a pre-shared key in some other shape can still
  * emit that shape through the signing block's own key-identifier override.
+ *
+ * Which value type to agree on depends on the peer. A WSS4J or CXF one wants the WSS 1.1 EncryptedKeySHA1 URI,
+ * because that is the only custom identifier its emitter writes for a shared secret, even though nothing here
+ * is a digest of any cipher bytes: the URI names the shape of the reference rather than how the value was
+ * arrived at. Its reader is the tolerant half and takes any type at all.
  */
 final class PreSharedSessionKey implements SymmetricKeySource
 {
@@ -61,7 +68,13 @@ final class PreSharedSessionKey implements SymmetricKeySource
             ));
         }
 
-        $reference = new CustomKeyIdentifier($identifier, $valueType, $encodingType);
+        // A reference declaring the WSS 1.1 session-key type has to carry the matching wsse11:TokenType, which
+        // is what the identifier built for that type emits and what a receiver enforcing the Basic Security
+        // Profile refuses a reference for lacking. Every other agreed type is written as it stands, since the
+        // profile names none of them.
+        $reference = $valueType === WsSecurityValueType::EncryptedKeySha1->value
+            ? new EncryptedKeySha1KeyIdentifier($identifier)
+            : new CustomKeyIdentifier($identifier, $valueType, $encodingType);
 
         // The key is a value here rather than per-exchange state, which is the one place this source differs
         // from the others: it holds no key it minted, only the one the deployment configured.

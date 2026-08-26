@@ -149,6 +149,49 @@ final class PreSharedSessionKeyTest extends TestCase
      * The identifier is written verbatim under the encoding the reference declares, so a plain name under the
      * base64 default is a reference saying one thing and carrying another.
      */
+    /**
+     * A reference declaring the WSS 1.1 session-key type has to carry the matching wsse11:TokenType, which a
+     * receiver enforcing the Basic Security Profile refuses a reference for lacking. That type is also the one
+     * a WSS4J peer wants, since it is the only custom identifier its emitter writes for a shared secret.
+     */
+    public function test_the_wss_session_key_type_carries_its_token_type(): void
+    {
+        $document = WsseSignatureFixture::caSignedLeaf()->envelope();
+        $key = new PreSharedSessionKey(
+            SessionKey::fromBytes(str_repeat("\x2a", 32)),
+            self::IDENTIFIER,
+            'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKeySHA1',
+        );
+
+        (new Signature(new SymmetricSigningKey($key)))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
+
+        $reference = $this->only($document, self::WSSE, 'SecurityTokenReference');
+        static::assertSame(
+            'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKey',
+            $reference->getAttributeNS('http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd', 'TokenType'),
+        );
+    }
+
+    /**
+     * Every other agreed type is written as it stands, because the profile names none of them and the two sides
+     * settled it between themselves.
+     */
+    public function test_any_other_agreed_type_is_written_as_it_stands(): void
+    {
+        $document = WsseSignatureFixture::caSignedLeaf()->envelope();
+
+        (new Signature(new SymmetricSigningKey($this->key())))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
+
+        $keyIdentifier = $this->only($document, self::WSSE, 'KeyIdentifier');
+        static::assertSame(self::VALUE_TYPE, $keyIdentifier->getAttribute('ValueType'));
+        static::assertFalse($this->only($document, self::WSSE, 'SecurityTokenReference')
+            ->hasAttributeNS('http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd', 'TokenType'));
+    }
+
     public function test_an_identifier_that_is_not_base64_is_refused_under_the_base64_default(): void
     {
         $this->expectException(InvalidArgumentException::class);
