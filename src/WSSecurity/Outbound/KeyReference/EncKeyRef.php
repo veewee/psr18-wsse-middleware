@@ -13,7 +13,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference;
  *                           for encryption; provided for parity with the signing path)
  *
  * BinarySecurityToken requires a wsse:BinarySecurityToken to be embedded before encrypting; the inline
- * references derive their content from the recipient certificate alone. Keys\WrappedSessionKey resolves
+ * references derive their content from the recipient certificate alone. Keys\GeneratedSessionKey resolves
  * each case to a concrete KeyIdentifier strategy, since it is what writes the element carrying the key.
  */
 enum EncKeyRef

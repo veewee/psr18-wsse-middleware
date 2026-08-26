@@ -8,7 +8,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentSignatureTransform;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricKeySource;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SigningPartResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -25,7 +25,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
 
 /**
  * Adds a detached, multi-reference ds:Signature to the outbound Security header. Configuration:
- *   - how the signature is keyed and referenced, via a SigningKey: a CertificateSigningKey for the X.509 forms,
+ *   - how the signature is keyed and referenced, via a SigningKey: a AsymmetricSigningKey for the X.509 forms,
  *     a SymmetricSigningKey for a MAC keyed off a shared session key
  *   - which parts to sign (default: Body + the Security header contents; override via withParts)
  *   - algorithms (default: the profile carried on the context; override per block)
@@ -55,13 +55,12 @@ final class Signature implements OutboundAction
     private readonly SigningKey $signingKey;
 
     /**
-     * @param SigningKey|SymmetricKeySource $key a symmetric key source is accepted directly, because keying a
-     *        signature from one needs nothing configured: the chosen signature method already says how many
-     *        bytes the MAC wants. Passing the same source to an Encryption block is what makes the two share a
-     *        key
+     * @param SigningKey $key which of the two kinds of signature this is, and what keys it. The choice is
+     *        stated rather than inferred: a MAC and a private-key signature are different operations, and the
+     *        class you pick is what says which one you meant
      */
     public function __construct(
-        SigningKey|SymmetricKeySource $key,
+        SigningKey $key,
     ) {
         // The WS-Security profile mandates wsu:Id on signed parts, so the block hands the engine that
         // convention; the engine's own default (xml:id) would break the WSSE wire format. One convention serves
@@ -69,7 +68,7 @@ final class Signature implements OutboundAction
         $convention = new WsuIdConvention();
         $this->signer = Signer::create($convention);
         $this->partResolver = new SigningPartResolver($convention->minter());
-        $this->signingKey = $key instanceof SymmetricKeySource ? new SymmetricSigningKey($key) : $key;
+        $this->signingKey = $key;
     }
 
     public function withSigner(XmlSigner $signer): self

@@ -282,8 +282,8 @@ new Entry\Encryption($recipientKey, new X509SubjectKeyIdentifier($certificate));
 new Entry\Decryption($privateKey);
 
 // after
-new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate));  // KeyRef::BinarySecurityToken
-new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate));      // EncKeyRef::SubjectKeyIdentifier
+new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate));  // KeyRef::BinarySecurityToken
+new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate));      // EncKeyRef::SubjectKeyIdentifier
 new Inbound\Decrypt($privateKey);
 new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]);
 ```
@@ -291,11 +291,11 @@ new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp(
 The two credentials are the seam that makes a symmetric binding expressible, which is why they are objects
 rather than a certificate and an enum:
 
-- `Outbound\Signature` takes a **`SigningKey`**, which is `Outbound\CertificateSigningKey` for the X.509 forms.
-  Everything certificate-shaped lives on it, including the certification path that used to be
-  `withCertificatePath()`. It also accepts a `SymmetricKeySource` directly, for a MAC keyed by a shared secret:
-  nothing is configured on the way through, so there is nothing to construct.
-- `Outbound\Encryption` takes a **`SymmetricKeySource`**: `Keys\WrappedSessionKey` is definitionally what the
+- `Outbound\Signature` takes a **`Keys\SigningKey`**, which states which of the two kinds of signature it is:
+  `Keys\AsymmetricSigningKey` for the X.509 forms, or `Keys\SymmetricSigningKey` for a MAC keyed by a shared
+  secret. Everything certificate-shaped lives on the first, including the certification path that used to be
+  `withCertificatePath()`.
+- `Outbound\Encryption` takes a **`SymmetricKeySource`**: `Keys\GeneratedSessionKey` is definitionally what the
   old `(Certificate, EncKeyRef)` pair meant, so this is a collapse rather than a second mode. `EncKeyRef` and the
   key-transport choice move onto it, because they say how the *key* reaches its recipient rather than what gets
   encrypted. The other two sources are `Keys\DerivedSessionKey` and `Keys\PreSharedSessionKey`.
@@ -308,7 +308,7 @@ Two `Encryption` modifiers are gone with the collapse: `withKeyEncryptionMethod(
 source on the profile's `keyEncryptionMethod` and `oaepHash`:
 
 ```php
-new Outbound\Encryption(new Keys\WrappedSessionKey(
+new Outbound\Encryption(new Keys\GeneratedSessionKey(
     $recipientCertificate,
     keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha256(),
 ));
@@ -335,7 +335,7 @@ The boolean switches are gone. `withSignAllHeaders()`, `withSignBody()`, `withSi
     ->withSignBody(true);
 
 // after
-(new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
+(new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
     ->withParts([Part::body(), Part::soapHeaders()]);
 ```
 
@@ -367,7 +367,7 @@ alone. Its `withEncryptSignature(bool)` switch is gone with the other booleans: 
 `true`, so the previous version encrypted the signature as well. Name the signature as a part to keep that:
 
 ```php
-(new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate)))
+(new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate)))
     ->withParts([Part::body(), Part::element('http://www.w3.org/2000/09/xmldsig#', 'Signature')]);
 ```
 
@@ -383,13 +383,13 @@ constructing an object, and the certificate it describes is derived from the cre
 |. | `KeyRef::IssuerSerial` (new) |
 |. | `KeyRef::Thumbprint` (new) |
 
-`KeyRef` selects the reference for a `CertificateSigningKey`; `EncKeyRef` offers the same four cases for a
-`WrappedSessionKey` (encryption has no Holder-of-Key equivalent). Both live under
+`KeyRef` selects the reference for a `AsymmetricSigningKey`; `EncKeyRef` offers the same four cases for a
+`GeneratedSessionKey` (encryption has no Holder-of-Key equivalent). Both live under
 `WSSecurity\Outbound\KeyReference\`, and both are now passed to the credential rather than to the block:
 
 ```php
-new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate, KeyRef::SubjectKeyIdentifier));
-new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate, EncKeyRef::IssuerSerial));
+new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::SubjectKeyIdentifier));
+new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate, EncKeyRef::IssuerSerial));
 ```
 
 Two reference types name a symmetric key rather than a certificate, and neither has an enum case because neither
@@ -489,8 +489,8 @@ XML-Security layer be driven by a `CryptoPolicy` alone, without the SOAP profile
   Inbound, the ECDSA methods are in the default accepted signature allow-list.
 - **Keyed-MAC signing.** `SignatureMethod` gained `HMAC_SHA1`, `HMAC_SHA224`, `HMAC_SHA256`, `HMAC_SHA384` and
   `HMAC_SHA512`, which is what a `SymmetricBinding` policy asks for. They are keyed by a shared secret rather
-  than by a certificate, so they take a `SymmetricKeySource` instead of a signing key; pairing one with a
-  certificate throws,
+  than by a certificate, so they need a `Keys\SymmetricSigningKey`; pairing one with an
+  `AsymmetricSigningKey` throws,
   because that would make the "secret" the peer's public key bytes. The SHA-2 sizes are in the default accepted
   allow-list and the SHA-1 one is not, exactly as with RSA. `SignatureMethod::isEcdsa()` is replaced by
   `keyKind()`, returning a `SignatureKeyKind`, so every consumer decides what each kind means rather than

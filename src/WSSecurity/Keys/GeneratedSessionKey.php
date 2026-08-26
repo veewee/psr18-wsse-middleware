@@ -41,7 +41,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
  * than the element carrying it. Naming the element is representable in the format and is not offered here,
  * because an xenc:EncryptedData naming its key that way is one the reference implementation cannot resolve.
  */
-final class WrappedSessionKey implements SymmetricKeySource
+final class GeneratedSessionKey implements SymmetricKeySource
 {
     private readonly SessionKeyFactory $sessionKeyFactory;
     private readonly KeyTransport $keyTransport;

@@ -9,9 +9,10 @@ use PHPUnit\Framework\Attributes\RequiresPhp;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\AsymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\CertificateSigningKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
@@ -41,9 +42,9 @@ final class SymmetricBindingTest extends OutboundTestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->signableEnvelope();
         $context = $this->symmetricContext($document);
-        $key = new WrappedSessionKey($fixture->leafCertificate, EncKeyRef::Thumbprint);
+        $key = new GeneratedSessionKey($fixture->leafCertificate, EncKeyRef::Thumbprint);
 
-        (new Signature($key))
+        (new Signature(new SymmetricSigningKey($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))->withParts([Part::body()])($context);
@@ -62,9 +63,9 @@ final class SymmetricBindingTest extends OutboundTestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->signableEnvelope();
         $context = $this->symmetricContext($document);
-        $key = new WrappedSessionKey($fixture->leafCertificate);
+        $key = new GeneratedSessionKey($fixture->leafCertificate);
 
-        (new Signature($key))
+        (new Signature(new SymmetricSigningKey($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))->withParts([Part::body()])($context);
@@ -84,9 +85,9 @@ final class SymmetricBindingTest extends OutboundTestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->signableEnvelope();
-        $key = new WrappedSessionKey($fixture->leafCertificate);
+        $key = new GeneratedSessionKey($fixture->leafCertificate);
 
-        (new Signature($key))
+        (new Signature(new SymmetricSigningKey($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($document));
 
@@ -112,7 +113,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->signableEnvelope();
 
-        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
+        (new Signature(new SymmetricSigningKey(new GeneratedSessionKey($fixture->leafCertificate))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($document));
 
@@ -131,7 +132,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->signableEnvelope();
 
-        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
+        (new Signature(new SymmetricSigningKey(new GeneratedSessionKey($fixture->leafCertificate))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($document));
 
@@ -148,8 +149,8 @@ final class SymmetricBindingTest extends OutboundTestCase
         // HMAC-SHA1 wants twenty bytes, and nothing else states a width, so twenty is what gets minted. The
         // width is only observable through the refusal below, which is what proves it was not the cipher's.
         $context = $this->symmetricContext($document);
-        $key = new WrappedSessionKey($fixture->leafCertificate);
-        (new Signature($key))
+        $key = new GeneratedSessionKey($fixture->leafCertificate);
+        (new Signature(new SymmetricSigningKey($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA1)
             ->withParts([Part::body()])($context);
 
@@ -165,13 +166,13 @@ final class SymmetricBindingTest extends OutboundTestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->signableEnvelope();
         $context = $this->symmetricContext($document);
-        $key = new WrappedSessionKey(
+        $key = new GeneratedSessionKey(
             $fixture->leafCertificate,
             keyLength: DataEncryptionMethod::AES128_GCM,
         );
 
         // HMAC pads a short key rather than refusing it, so a signature preferring 32 bytes is content with 16.
-        (new Signature($key))
+        (new Signature(new SymmetricSigningKey($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))
@@ -188,7 +189,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('RSA_SHA256 is keyed by private key material');
 
-        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
+        (new Signature(new SymmetricSigningKey(new GeneratedSessionKey($fixture->leafCertificate))))
             ->withSignatureMethod(SignatureMethod::RSA_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($this->signableEnvelope()));
     }
@@ -203,7 +204,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('HMAC_SHA256 is keyed by a shared secret');
 
-        (new Signature(new CertificateSigningKey($identity)))
+        (new Signature(new AsymmetricSigningKey($identity)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($this->signableEnvelope()));
     }

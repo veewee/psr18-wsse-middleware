@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
 use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;

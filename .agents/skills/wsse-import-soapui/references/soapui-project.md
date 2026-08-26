@@ -101,7 +101,7 @@ What this skill has to get right:
 | `signatureAlgorithm` | `SignatureMethod`, via `withSignatureMethod()` or the profile |
 | `signatureCanonicalization` | `SignatureCanonicalization` |
 | `digestAlgorithm` | `DigestMethod` |
-| `useSingleCert` = false | `new Outbound\CertificateSigningKey($clientCertificate, path: $chain)`, which sends the chain as `X509PKIPathv1` |
+| `useSingleCert` = false | `new Keys\AsymmetricSigningKey($clientCertificate, path: $chain)`, which sends the chain as `X509PKIPathv1` |
 | `useSingleCert` = true | The default: the leaf certificate alone |
 | `prependSignature` | No setting. Node order in the Security header is fixed here. |
 | Parts table entries | See Parts below |
@@ -129,10 +129,10 @@ trust. If you have the project open, read the label and use it.
 
 | Field | Ours |
 |---|---|
-| `crypto` plus Alias | The recipient's certificate, wrapped as `new Keys\WrappedSessionKey($recipientCertificate)` and passed to the block |
-| `keyIdentifierType` | The same table, read as `EncKeyRef` instead of `KeyRef`, and passed to the `WrappedSessionKey` rather than to the block |
+| `crypto` plus Alias | The recipient's certificate, wrapped as `new Keys\GeneratedSessionKey($recipientCertificate)` and passed to the block |
+| `keyIdentifierType` | The same table, read as `EncKeyRef` instead of `KeyRef`, and passed to the `GeneratedSessionKey` rather than to the block |
 | `symmetricEncAlgorithm` | `DataEncryptionMethod` |
-| `keyEncryptionAlgorithm` | `KeyEncryptionMethod`, or `KeyTransportAlgorithm` when the OAEP hashes matter. Both go on the `WrappedSessionKey`, which is what wraps the key. |
+| `keyEncryptionAlgorithm` | `KeyEncryptionMethod`, or `KeyTransportAlgorithm` when the OAEP hashes matter. Both go on the `GeneratedSessionKey`, which is what wraps the key. |
 | `embeddedKeyName`, `embeddedKeyPassword` | A key from the keystore rather than a freshly wrapped one: `new Keys\PreSharedSessionKey($secret, $identifier, $valueType)`. SoapUI names the key by its keystore alias, which is **not** the identifier a peer references it by on the wire, so ask what the two sides agreed on; neither the alias nor the password is it. The secret itself has to be exported from the keystore, which this package cannot read. |
 | Parts table entries | See Parts below |
 

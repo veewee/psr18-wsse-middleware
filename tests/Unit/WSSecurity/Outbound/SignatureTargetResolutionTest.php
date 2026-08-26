@@ -6,7 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 use OpenSSLAsymmetricKey;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\CertificateSigningKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\AsymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
@@ -27,7 +27,7 @@ final class SignatureTargetResolutionTest extends OutboundTestCase
         $signer = new RecordingSigner();
         $document = $this->envelopeWithSecurityHeader('<wsu:Timestamp xmlns:wsu="'.self::WSU.'"/>');
 
-        (new Signature(new CertificateSigningKey($this->clientCertificate(), KeyRef::SubjectKeyIdentifier)))
+        (new Signature(new AsymmetricSigningKey($this->clientCertificate(), KeyRef::SubjectKeyIdentifier)))
             ->withSigner($signer)
             ->withParts([Part::securityHeaderContents()])($this->context($document));
 
@@ -44,7 +44,7 @@ final class SignatureTargetResolutionTest extends OutboundTestCase
         $signer = new RecordingSigner();
         $document = $this->envelopeWithSecurityHeader('', '<wsa:To xmlns:wsa="urn:wsa">urn:svc</wsa:To>');
 
-        (new Signature(new CertificateSigningKey($this->clientCertificate(), KeyRef::SubjectKeyIdentifier)))
+        (new Signature(new AsymmetricSigningKey($this->clientCertificate(), KeyRef::SubjectKeyIdentifier)))
             ->withSigner($signer)
             ->withParts([Part::soapHeaders()])($this->context($document));
 
@@ -60,7 +60,7 @@ final class SignatureTargetResolutionTest extends OutboundTestCase
         $document = $this->envelopeWithSecurityHeader('<wsu:Timestamp xmlns:wsu="'.self::WSU.'"/>');
 
         // Default keyRef embeds a BinarySecurityToken, so the Security header carries the timestamp + the BST.
-        (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)($this->context($document));
+        (new Signature(new AsymmetricSigningKey($this->clientCertificate())))->withSigner($signer)($this->context($document));
 
         $targets = $signer->lastRequest()->targets;
         static::assertTrue($targets[0]->equals(self::bodyPath()), 'Body is signed first.');
@@ -75,7 +75,7 @@ final class SignatureTargetResolutionTest extends OutboundTestCase
         $signer = new RecordingSigner();
         $document = $this->envelopeWithSecurityHeader('');
 
-        (new Signature(new CertificateSigningKey($this->clientCertificate(), KeyRef::SubjectKeyIdentifier)))
+        (new Signature(new AsymmetricSigningKey($this->clientCertificate(), KeyRef::SubjectKeyIdentifier)))
             ->withSigner($signer)($this->context($document));
 
         // No timestamp, SKI reference embeds no token: securityHeaderContents adds nothing, Body still signs.
@@ -90,7 +90,7 @@ final class SignatureTargetResolutionTest extends OutboundTestCase
         $document = $this->envelopeWithSecurityHeader('');
 
         $this->expectException(WsseHeaderException::class);
-        (new Signature(new CertificateSigningKey($this->clientCertificate(), KeyRef::SubjectKeyIdentifier)))
+        (new Signature(new AsymmetricSigningKey($this->clientCertificate(), KeyRef::SubjectKeyIdentifier)))
             ->withSigner($signer)
             ->withParts([Part::securityHeaderContents()])($this->context($document));
     }

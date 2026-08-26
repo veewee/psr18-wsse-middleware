@@ -95,27 +95,31 @@ You rarely add this block by hand: the `Signature` block embeds one automaticall
 
 - `BinarySecurityToken::forCertificatePath(CertificateChain $path): self`: a named constructor embedding the
   whole certification path as a `#X509PKIPathv1` token instead of the leaf alone. Signing with a path is
-  configured on the [`CertificateSigningKey`](#signing-keys) you hand the `Signature` block; reach for this
+  configured on the [`AsymmetricSigningKey`](#signing-keys) you hand the `Signature` block; reach for this
   constructor only when the token has to stand on its own.
 
 ## Signing keys
 
-A `Signature` block takes a `SigningKey`, which says how the signature is keyed and how its `ds:KeyInfo` points
-at that key. There are two, because WS-Security defines two kinds of signature.
+A `Signature` block takes a `Keys\SigningKey`, which says **which of the two kinds of signature this is** and
+what keys it. WS-Security defines two, and they are different operations rather than two ways of spelling one:
+an asymmetric signature is made with a private key and identifies its signer, while a symmetric one is a keyed
+MAC that identifies nobody, because both sides hold the key that makes it.
+
+The class you pick is what states the choice. Nothing infers it.
 
 ```php
-use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 
-// Signed with a private key, advertised through a certificate. The ordinary X.509 case.
-new Outbound\CertificateSigningKey($clientCertificate, KeyRef::BinarySecurityToken);
+// Asymmetric: signed with a private key, advertised through a certificate. The ordinary X.509 case.
+new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::BinarySecurityToken));
 
-// Keyed by a symmetric secret: a MAC rather than a signature. See Symmetric key sources below.
-$sessionKeySource;
+// Symmetric: a keyed MAC, over a secret from any of the symmetric key sources.
+new Outbound\Signature(new Keys\SymmetricSigningKey($sessionKey));
 ```
 
-### `CertificateSigningKey`
+### `AsymmetricSigningKey`
 
 - `ClientCertificate $certificate`: the certificate-and-key bundle to sign with. The private key signs; the
   public certificate is advertised in `ds:KeyInfo`. Required.
@@ -132,7 +136,7 @@ $sessionKeySource;
 
   $bundle = Pkcs12Bundle::fromFile('client.p12', 'xxx');
 
-  new Outbound\Signature(new Outbound\CertificateSigningKey(
+  new Outbound\Signature(new Keys\AsymmetricSigningKey(
       ClientCertificate::fromPkcs12($bundle),
       path: $bundle->chain,
   ));
@@ -152,9 +156,9 @@ already says how many bytes the MAC wants. Passing the same source to an `Encryp
 two share one key.
 
 ```php
-$sessionKey = new Keys\WrappedSessionKey($recipient);
+$sessionKey = new Keys\GeneratedSessionKey($recipient);
 
-(new Outbound\Signature($sessionKey))->withSignatureMethod(SignatureMethod::HMAC_SHA256);
+(new Outbound\Signature(new Keys\SymmetricSigningKey($sessionKey)))->withSignatureMethod(SignatureMethod::HMAC_SHA256);
 new Outbound\Encryption($sessionKey);
 ```
 
@@ -168,7 +172,7 @@ source minted for AES-128 and the MAC is keyed with 16 bytes, not the 32 its nam
 and nothing refuses it, because refusing would mean a cipher and a MAC could never share a key at all; it is
 simply worth knowing before you read the method name as a strength. Give each a
 [derived key](#derivedsessionkey) of its own, or state the width you want on the
-[key source](#wrappedsessionkey), when the two disagree and you care.
+[key source](#generatedsessionkey), when the two disagree and you care.
 
 ## Symmetric key sources
 
@@ -188,16 +192,16 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 $recipient = Certificate::fromFile('service.pub');
 
 // A fresh key per exchange, carried to the recipient in an xenc:EncryptedKey.
-new Keys\WrappedSessionKey($recipient, EncKeyRef::Thumbprint);
+new Keys\GeneratedSessionKey($recipient, EncKeyRef::Thumbprint);
 
 // A key derived from another one with P_SHA1, carried as a wsc:DerivedKeyToken.
-new Keys\DerivedSessionKey(new Keys\WrappedSessionKey($recipient));
+new Keys\DerivedSessionKey(new Keys\GeneratedSessionKey($recipient));
 
 // A secret both sides already hold. Nothing is written to the message.
 new Keys\PreSharedSessionKey($secret, 'the-agreed-name', 'urn:example:pre-shared-key');
 ```
 
-### `WrappedSessionKey`
+### `GeneratedSessionKey`
 
 Mints a session key and carries it to the recipient wrapped under its public certificate, as an
 `xenc:EncryptedKey` in the Security header. The ordinary way to key a symmetric binding when the two sides share
@@ -235,7 +239,7 @@ an `xenc:EncryptedData` naming its key that way is one WSS4J cannot resolve, so 
 signature and not for an encryption. Inbound, both forms are accepted, because which one a peer echoes is not
 something a client gets to constrain.
 
-**A request protected only by a `WrappedSessionKey` signature authenticates nobody.** The key was minted here
+**A request protected only by a `GeneratedSessionKey` signature authenticates nobody.** The key was minted here
 and encrypted under the server's public certificate, which anyone holding that certificate can do, so the
 signature proves possession of no credential. Pair it with an
 [endorsing signature](#endorsing-a-signature-with-a-certificate-you-control) over a certificate you control when
@@ -260,11 +264,11 @@ There is no length argument: the consuming block's algorithm defines it, and it 
 each block a derived key of its own, which is also what makes the two derive to different keys:
 
 ```php
-$shared = new Keys\WrappedSessionKey($recipient);
+$shared = new Keys\GeneratedSessionKey($recipient);
 
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),
-    (new Outbound\Signature(new Keys\DerivedSessionKey($shared)))
+    (new Outbound\Signature(new Keys\SymmetricSigningKey(new Keys\DerivedSessionKey($shared))))
         ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
         ->withParts([Part::body(), Part::timestamp()]),
     (new Outbound\Encryption(new Keys\DerivedSessionKey($shared)))
@@ -322,10 +326,10 @@ $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('
 
 // Default: sign the Body and everything in the Security header, reference the key via an embedded
 // BinarySecurityToken.
-new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate));
+new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate));
 
 // Sign only the body, reference by Subject Key Identifier:
-(new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate, KeyRef::SubjectKeyIdentifier)))
+(new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::SubjectKeyIdentifier)))
     ->withParts([Part::body()]);
 ```
 
@@ -341,7 +345,7 @@ new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate));
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
   use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
-  (new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
+  (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
       ->withAttachments(AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Complete));
   ```
   The second argument says how much of each part the signature covers: `ExternalPartCoverage::Content` for the
@@ -372,7 +376,7 @@ Register the attachment with `withAttachments()` and both the pointer and the by
   ```php
   use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 
-  (new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
+  (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
       ->withSignatureMethod(SignatureMethod::ECDSA_SHA256);
   ```
   The ECDSA cases are `ECDSA_SHA256`, `ECDSA_SHA384` and `ECDSA_SHA512` (the xmldsig-more URIs). They require an
@@ -398,7 +402,7 @@ Register the attachment with `withAttachments()` and both the pointer and the by
   ```php
   use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 
-  (new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
+  (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
       ->withCanonicalization(SignatureCanonicalization::C14N);
   ```
   If you sign with an inclusive variant and also verify the response with one, add it to the profile's
@@ -411,7 +415,7 @@ Register the attachment with `withAttachments()` and both the pointer and the by
   need a namespace declaration your message inherits from an ancestor, and exclusive canonicalization does not
   carry those unless they are pinned.
   ```php
-  (new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
+  (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
       ->withInclusivePrefixes();
   ```
   Nothing else changes: the list is worked out per element for you, and the receiver reads it from the signature.
@@ -431,10 +435,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 $recipient = Certificate::fromFile('service.pub');
 
 // Default: encrypt the Body under a fresh session key, reference the recipient by Subject Key Identifier.
-new Outbound\Encryption(new Keys\WrappedSessionKey($recipient));
+new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient));
 
 // Reference the recipient by IssuerSerial:
-new Outbound\Encryption(new Keys\WrappedSessionKey($recipient, EncKeyRef::IssuerSerial));
+new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient, EncKeyRef::IssuerSerial));
 ```
 
 - `SymmetricKeySource $key`: where the session key comes from. Required. See
@@ -468,7 +472,7 @@ does.
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
   use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
-  (new Outbound\Encryption(new Keys\WrappedSessionKey($recipient)))
+  (new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient)))
       ->withAttachments(AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Content));
   ```
   This block emits content-only ciphertext, so an adapter built with `ExternalPartCoverage::Complete` is
@@ -485,7 +489,7 @@ does.
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
   use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
-  (new Outbound\Encryption(new Keys\WrappedSessionKey($recipient)))
+  (new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient)))
       ->withOptimizedCipherBytes(AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Content));
   ```
   This is WSS4J's `storeBytesInAttachment`. It buys the 33% that base64 costs, which is worth having on large
@@ -499,7 +503,7 @@ does.
   ```php
   $carriers = AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Content);
 
-  (new Outbound\Encryption(new Keys\WrappedSessionKey($recipient, optimizedCipherBytes: $carriers)))
+  (new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient, optimizedCipherBytes: $carriers)))
       ->withOptimizedCipherBytes($carriers);
   ```
 
@@ -522,7 +526,7 @@ releases used, but the `Algorithm` URI is not: the default moved from `xmlenc#rs
 ```php
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 
-new Outbound\Encryption(new Keys\WrappedSessionKey(
+new Outbound\Encryption(new Keys\GeneratedSessionKey(
     $recipient,
     keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha256(),
 ));
@@ -535,7 +539,7 @@ The named constructors are `KeyTransportAlgorithm::oaepSha1()` (the default), `o
 ### Endorsing a signature with a certificate you control
 
 An endorsing supporting token is a second `Signature` block covering the whole primary `ds:Signature`. It is
-what makes a request protected by a `WrappedSessionKey` authenticate anybody: the session key proves possession
+what makes a request protected by a `GeneratedSessionKey` authenticate anybody: the session key proves possession
 of nothing, and this is where a certificate you control contributes.
 
 ```php
@@ -545,16 +549,16 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 
-$sessionKey = new Keys\WrappedSessionKey($recipient);
+$sessionKey = new Keys\GeneratedSessionKey($recipient);
 
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),
-    (new Outbound\Signature($sessionKey))
+    (new Outbound\Signature(new Keys\SymmetricSigningKey($sessionKey)))
         ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
         ->withParts([Part::body(), Part::timestamp()]),
     (new Outbound\Encryption($sessionKey))
         ->withParts([Part::body()]),
-    (new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate, KeyRef::Thumbprint)))
+    (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::Thumbprint)))
         ->withParts([Part::primarySignature()]),
 ]);
 ```
@@ -615,7 +619,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),
     new Outbound\SamlAssertion($assertionXml, Outbound\SamlVersion::Saml20),
-    (new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate, KeyRef::SamlAssertion)))
+    (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::SamlAssertion)))
         ->withParts([Part::body(), Part::timestamp()]),
 ]);
 ```

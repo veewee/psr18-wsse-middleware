@@ -16,7 +16,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ResolveOptimizedBytes;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -76,7 +76,7 @@ final class DecryptOptimizedBytesRoundTripTest extends TestCase
     {
         $document = $fixture->envelope(body: '<data>'.self::PLAINTEXT.'</data>');
 
-        (new Encryption(new WrappedSessionKey($fixture->leafCertificate)))(
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate)))(
             new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
         );
 

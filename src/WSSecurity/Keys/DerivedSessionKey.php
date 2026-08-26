@@ -18,7 +18,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
  * asking for sp:RequireDerivedKeys wants: the token both sides share is never used to sign or encrypt directly,
  * and each use gets a key of its own derived from it.
  *
- * The shape falls out of composition rather than configuration. Two of these over one WrappedSessionKey are two
+ * The shape falls out of composition rather than configuration. Two of these over one GeneratedSessionKey are two
  * derived keys off one xenc:EncryptedKey, which is exactly the wire a derived-keys policy describes, and nothing
  * in the wiring says "derive twice".
  *

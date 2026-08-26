@@ -1,13 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
 use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricKeySource;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 
 /**
@@ -16,9 +14,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
  * class only states how many bytes the chosen MAC wants.
  *
  * Passing the same source to an Encryption block is what makes the two share one key.
- *
- * @internal a Signature block takes a SymmetricKeySource itself and adapts it here, since there is nothing to
- *           configure on the way through
  */
 final readonly class SymmetricSigningKey implements SigningKey
 {

@@ -157,17 +157,17 @@ particular is unauthenticated: say so in the comment rather than letting it pass
 
 | Assertion | Ours |
 |---|---|
-| `sp:InitiatorToken` with `sp:X509Token` | Your signing identity: `new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate))` |
-| `sp:RecipientToken` with `sp:X509Token` | The peer's certificate: `new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate))` |
-| `sp:ProtectionToken` with `sp:X509Token` | A symmetric binding's key: `new Keys\WrappedSessionKey($recipientCertificate)`, passed to **both** blocks. See Symmetric bindings below. |
+| `sp:InitiatorToken` with `sp:X509Token` | Your signing identity: `new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate))` |
+| `sp:RecipientToken` with `sp:X509Token` | The peer's certificate: `new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate))` |
+| `sp:ProtectionToken` with `sp:X509Token` | A symmetric binding's key: `new Keys\GeneratedSessionKey($recipientCertificate)`, passed to **both** blocks. See Symmetric bindings below. |
 | `sp:WssX509V3Token10` / `sp:WssX509V3Token11` | An X.509 v3 certificate, which is what this package sends |
-| `sp:WssX509PkiPathV1Token10` | `new Outbound\CertificateSigningKey($clientCertificate, path: $chain)`, which sends the chain as `X509PKIPathv1` |
+| `sp:WssX509PkiPathV1Token10` | `new Keys\AsymmetricSigningKey($clientCertificate, path: $chain)`, which sends the chain as `X509PKIPathv1` |
 | `sp:UsernameToken` with `sp:WssUsernameToken10` | `new Outbound\Username($user, $password)`, `PasswordText` |
 | `sp:HashPassword` | `->withDigest(true)` |
 | `sp:NoPassword` | `new Outbound\Username($user)`, a username-only token |
 | `sp:SupportingTokens`, `sp:SignedSupportingTokens`, `sp:SignedEncryptedSupportingTokens` | The token goes in the header; the wrapper says whether it must also be signed and encrypted. `Signed*` means adding `Part::usernameToken()` to the signed parts, `*Encrypted*` means adding it to the encrypted parts. |
 | `sp:IssuedToken` with `sp:RequestSecurityTokenTemplate` | A SAML assertion from an STS. `new Outbound\SamlAssertion($xml, $version)` imports one you already hold; obtaining it is out of scope. Ask where it comes from. |
-| `sp:EndorsingSupportingTokens`, `sp:SignedEndorsingSupportingTokens` | A second `Signature` block over `Part::primarySignature()`, placed after the block it endorses: `(new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate, KeyRef::Thumbprint)))->withParts([Part::primarySignature()])`. `Signed*` additionally means the endorsing token itself must be covered by the primary signature, so add `Part::binarySecurityToken()` there. Expect one alongside a symmetric binding: without it the request authenticates nobody. |
+| `sp:EndorsingSupportingTokens`, `sp:SignedEndorsingSupportingTokens` | A second `Signature` block over `Part::primarySignature()`, placed after the block it endorses: `(new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::Thumbprint)))->withParts([Part::primarySignature()])`. `Signed*` additionally means the endorsing token itself must be covered by the primary signature, so add `Part::binarySecurityToken()` there. Expect one alongside a symmetric binding: without it the request authenticates nobody. |
 | `sp:KerberosToken`, `sp:SpnegoContextToken`, `sp:SecureConversationToken` | Unmapped. `sp:SecureConversationToken` needs an RST/RSTR handshake with the service, which this package does not perform; the `wsc:DerivedKeyToken` half of WS-SecureConversation is supported and reachable through `sp:RequireDerivedKeys`, the handshake is not. |
 | `sp:Trust13` / `sp:Trust10` | WS-Trust negotiation with an STS, not something this package performs. |
 
@@ -257,26 +257,26 @@ An `sp:SymmetricBinding` keys the signature and the encryption off one symmetric
 
 | Assertion | Ours |
 |---|---|
-| `sp:ProtectionToken` with `sp:X509Token` | `new Keys\WrappedSessionKey($recipientCertificate, EncKeyRef::Thumbprint)` (or whichever `EncKeyRef` the nested `sp:Require*Reference` names). A fresh session key per exchange, carried in an `xenc:EncryptedKey`. |
+| `sp:ProtectionToken` with `sp:X509Token` | `new Keys\GeneratedSessionKey($recipientCertificate, EncKeyRef::Thumbprint)` (or whichever `EncKeyRef` the nested `sp:Require*Reference` names). A fresh session key per exchange, carried in an `xenc:EncryptedKey`. |
 | `sp:ProtectionToken` naming a key agreed out of band | `new Keys\PreSharedSessionKey($secret, $identifier, $valueType)`. Ask where the secret and the agreed identifier come from; neither is in the policy. |
-| `sp:RequireDerivedKeys` | Wrap the source in `new Keys\DerivedSessionKey($source)` **per block**, not once and shared. Each block derives a key of its own length, and two `DerivedSessionKey` objects over one `WrappedSessionKey` are the two `wsc:DerivedKeyToken` off one `xenc:EncryptedKey` the policy describes. |
+| `sp:RequireDerivedKeys` | Wrap the source in `new Keys\DerivedSessionKey($source)` **per block**, not once and shared. Each block derives a key of its own length, and two `DerivedSessionKey` objects over one `GeneratedSessionKey` are the two `wsc:DerivedKeyToken` off one `xenc:EncryptedKey` the policy describes. |
 | `sp:EncryptSignature` | Still unmapped. This package does not encrypt the `ds:Signature`. |
 | `sp:AlgorithmSuite` signature token | `HmacSha1` here, not `RsaSha1`. See the AlgorithmSuite table. |
 
 The signature block takes the source through a `SymmetricSigningKey`:
 
 ```php
-$protection = new Keys\WrappedSessionKey($recipientCertificate, EncKeyRef::Thumbprint);
+$protection = new Keys\GeneratedSessionKey($recipientCertificate, EncKeyRef::Thumbprint);
 
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),
-    (new Outbound\Signature(new Outbound\SymmetricSigningKey(new Keys\DerivedSessionKey($protection))))
+    (new Outbound\Signature(new Keys\SymmetricSigningKey(new Keys\DerivedSessionKey($protection))))
         ->withSignatureMethod(SignatureMethod::HMAC_SHA1)   // sp:Basic128Rsa15 pins this
         ->withParts([Part::body(), Part::timestamp()]),
     (new Outbound\Encryption(new Keys\DerivedSessionKey($protection)))
         ->withDataEncryptionMethod(DataEncryptionMethod::AES128_CBC)
         ->withParts([Part::body()]),
-    (new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate, KeyRef::Thumbprint)))
+    (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::Thumbprint)))
         ->withParts([Part::primarySignature()]),            // sp:EndorsingSupportingTokens
 ]);
 ```
@@ -285,7 +285,7 @@ Three rules to carry into the draft:
 
 - **Block order is not free.** The signature comes before the encryption as usual, and an endorsing signature
   comes after the block it endorses. An endorsing block placed earlier throws rather than signing nothing.
-- **Say what the binding does not authenticate.** A request protected only by a `WrappedSessionKey` signature
+- **Say what the binding does not authenticate.** A request protected only by a `GeneratedSessionKey` signature
   proves possession of nothing: anyone holding the recipient's public certificate can mint a key and wrap it. If
   the policy carries no endorsing supporting token, raise that as a question rather than shipping it silently.
   A `PreSharedSessionKey` does authenticate, mutually.

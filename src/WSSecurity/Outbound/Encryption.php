@@ -27,7 +27,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 
 /**
  * Encrypts the requested parts of the outbound message via XML-Enc. Configuration:
- *   - where the session key comes from, via a SymmetricKeySource: a WrappedSessionKey mints one and carries it
+ *   - where the session key comes from, via a SymmetricKeySource: a GeneratedSessionKey mints one and carries it
  *     to the recipient in an xenc:EncryptedKey, which is what this block used to do on its own
  *   - which parts to encrypt (default: Body only; override via withParts)
  *   - algorithms (default: the profile carried on the context; override per block)

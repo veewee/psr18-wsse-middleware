@@ -17,6 +17,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\PreSharedSessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
@@ -46,7 +47,7 @@ final class PreSharedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature($this->key()))
+        (new Signature(new SymmetricSigningKey($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -64,7 +65,7 @@ final class PreSharedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature($this->key()))
+        (new Signature(new SymmetricSigningKey($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -84,7 +85,7 @@ final class PreSharedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature($this->key()))
+        (new Signature(new SymmetricSigningKey($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -102,7 +103,7 @@ final class PreSharedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature($this->key()))
+        (new Signature(new SymmetricSigningKey($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -162,7 +163,7 @@ final class PreSharedSessionKeyTest extends TestCase
             'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKeySHA1',
         );
 
-        (new Signature($key))
+        (new Signature(new SymmetricSigningKey($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -181,7 +182,7 @@ final class PreSharedSessionKeyTest extends TestCase
     {
         $document = WsseSignatureFixture::caSignedLeaf()->envelope();
 
-        (new Signature($this->key()))
+        (new Signature(new SymmetricSigningKey($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 

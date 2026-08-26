@@ -164,7 +164,7 @@ algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMeth
 - **Digests:** SHA-256/384/512. SHA-1 is rejected by default.
 - **Key transport:** RSA-OAEP-SHA1 (the default), RSA-OAEP-SHA256,
   RSA-OAEP-MGF1P and RSA-1_5 (rejected by default). Select a non-default on the
-  [`WrappedSessionKey`](outbound-blocks.md#symmetric-key-sources) that wraps the key.
+  [`GeneratedSessionKey`](outbound-blocks.md#symmetric-key-sources) that wraps the key.
 - **Key derivation:** P_SHA1, in both WS-SecureConversation dialects. It is the only function either dialect
   defines, so there is nothing to select: a peer computing anything else would derive a different key.
 - **Bulk encryption:** AES-GCM at 128/192/256 bits. AES-CBC and 3DES are rejected by default.
@@ -210,7 +210,7 @@ Three things deliberately **not** gated, so you know where the edges are: `Decry
 have arrived encrypted, chaining to a trust anchor is not the same as authenticating your peer (see
 [Chain validity is not authentication](trust.md#chain-validity-is-not-authentication)), and a signature keyed by
 a wrapped session key authenticates nobody at all (see
-[`WrappedSessionKey`](outbound-blocks.md#symmetric-key-sources)).
+[`GeneratedSessionKey`](outbound-blocks.md#symmetric-key-sources)).
 
 ## Limits on an inbound message
 

@@ -18,7 +18,7 @@ with a `with*()` method:
 - `Inbound\VerifySignature::withVerifier(XmlSignatureVerifier $verifier)`
 
 ```php
-(new Outbound\Signature($signingKey))->withSigner($customSigner);
+(new Outbound\Signature(new Keys\SymmetricSigningKey($signingKey)))->withSigner($customSigner);
 (new Inbound\Decrypt($privateKey))->withDecryptor($customDecryptor);
 ```
 

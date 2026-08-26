@@ -14,7 +14,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\CertificateSigningKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\AsymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
@@ -53,7 +53,7 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         );
 
         (new Timestamp())($context);
-        (new Signature(new CertificateSigningKey($certificate, KeyRef::BinarySecurityToken)))
+        (new Signature(new AsymmetricSigningKey($certificate, KeyRef::BinarySecurityToken)))
             ->withSigner($this->realSigner())($context);
 
         (new VerifySignature(
@@ -82,7 +82,7 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         );
 
         (new Timestamp())($context);
-        (new Signature(new CertificateSigningKey($certificate, KeyRef::BinarySecurityToken)))
+        (new Signature(new AsymmetricSigningKey($certificate, KeyRef::BinarySecurityToken)))
             ->withSigner($this->realSigner())($context);
 
         // The DigestValue the signer emitted must equal what a verifier recomputes from the wire. The signer

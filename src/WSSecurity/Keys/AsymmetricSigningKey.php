@@ -1,13 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
 use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\BinarySecurityToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\SamlAssertionKeyIdentifier;
@@ -27,7 +28,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
  * Security header and the reference points at it by wsu:Id. For the inline reference types (SKI / IssuerSerial /
  * Thumbprint) no token is embedded; the reference derives its content from the certificate alone.
  */
-final readonly class CertificateSigningKey implements SigningKey
+final readonly class AsymmetricSigningKey implements SigningKey
 {
     /**
      * @param ?CertificateChain $path advertises the signer's whole certification path in the embedded token, as

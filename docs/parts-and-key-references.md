@@ -91,7 +91,7 @@ every such element to have been signed.
   For a reference this package does not model, build the `KeyIdentifier` yourself and pass it with
   `Outbound\Signature::withKeyIdentifier()`, which overrides whatever the signing key resolved.
 - `Outbound\KeyReference\EncKeyRef`: `SubjectKeyIdentifier` (the default for encryption), `IssuerSerial`, `Thumbprint`,
-  `BinarySecurityToken`. It is passed to the [`WrappedSessionKey`](outbound-blocks.md#symmetric-key-sources)
+  `BinarySecurityToken`. It is passed to the [`GeneratedSessionKey`](outbound-blocks.md#symmetric-key-sources)
   rather than to the `Encryption` block, because it says how the key's own recipient is named.
 
 Two more reference types exist for a symmetric key, and neither names a certificate:

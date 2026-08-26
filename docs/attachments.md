@@ -44,9 +44,9 @@ $transport = Psr18Transport::createForClient(
             outbound: [
                 new Outbound\Timestamp(),
                 // Sign first, so the digest covers the plaintext attachment.
-                (new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
+                (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
                     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete)),
-                (new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate)))
+                (new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate)))
                     ->withParts([Part::body()])
                     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Content)),
             ],
@@ -264,11 +264,11 @@ You choose where the adapter is built:
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
 // A bare <sp:Attachments/> in the peer's SignedParts.
-(new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
+(new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete));
 
 // EncryptedParts is satisfied by either, so content-only is the cheaper choice.
-(new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate)))
+(new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate)))
     ->withParts([Part::body()])
     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Content));
 

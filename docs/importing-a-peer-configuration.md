@@ -71,7 +71,7 @@ produces is the one in
 Three assertions do most of the work:
 
 - `sp:ProtectionToken` names the token both blocks key off. An `sp:X509Token` there is a
-  `Keys\WrappedSessionKey` over that certificate; something the two sides agreed out of band is a
+  `Keys\GeneratedSessionKey` over that certificate; something the two sides agreed out of band is a
   `Keys\PreSharedSessionKey`.
 - `sp:RequireDerivedKeys` (on the protection token, or its `sp:RequireDerivedKeys` sibling on a supporting
   token) wraps that source in a `Keys\DerivedSessionKey` per block. One per block, not one shared, because each

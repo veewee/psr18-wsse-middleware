@@ -14,7 +14,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\DerivedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
@@ -214,9 +215,9 @@ final class DerivedKeyVerificationTest extends TestCase
         $keys = new ExchangeKeys();
         $document = $fixture->envelope();
 
-        (new Signature(new DerivedSessionKey(
-            new WrappedSessionKey($fixture->leafCertificate),
-        )))
+        (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
+            new GeneratedSessionKey($fixture->leafCertificate),
+        ))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])(new WsseContext(
                 $document,
@@ -241,7 +242,7 @@ final class DerivedKeyVerificationTest extends TestCase
         $document = $fixture->envelope(body: '<data>secret</data>');
         $context = $this->context($document, $keys);
 
-        (new Encryption(new DerivedSessionKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Encryption(new DerivedSessionKey(new GeneratedSessionKey($fixture->leafCertificate))))
             ->withDataEncryptionMethod(DataEncryptionMethod::AES128_GCM)
             ->withParts([Part::body()])($context);
 
@@ -259,9 +260,9 @@ final class DerivedKeyVerificationTest extends TestCase
     {
         $document = $fixture->envelope();
 
-        (new Signature(new DerivedSessionKey(
-            new WrappedSessionKey($fixture->leafCertificate),
-        )))
+        (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
+            new GeneratedSessionKey($fixture->leafCertificate),
+        ))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, $keys));
 

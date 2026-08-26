@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;

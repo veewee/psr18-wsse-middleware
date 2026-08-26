@@ -13,7 +13,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
@@ -141,12 +142,12 @@ final class SymmetricSignatureVerificationTest extends TestCase
         $keys = new ExchangeKeys();
         $document = $fixture->envelope(body: '<data>secret</data>');
         $context = $this->context($document, $keys);
-        $key = new WrappedSessionKey($fixture->leafCertificate);
+        $key = new GeneratedSessionKey($fixture->leafCertificate);
 
         // Signed as well as encrypted, so the key is shared and the reference list stands beside it rather than
         // inside it. That is the shape a correlated response takes: the list and the ciphertext survive the key
         // element being gone, because each xenc:EncryptedData names the key itself.
-        (new Signature($key))
+        (new Signature(new SymmetricSigningKey($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))->withParts([Part::body()])($context);
@@ -169,9 +170,9 @@ final class SymmetricSignatureVerificationTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope(body: '<data>secret</data>');
         $context = $this->context($document, new ExchangeKeys());
-        $key = new WrappedSessionKey($fixture->leafCertificate);
+        $key = new GeneratedSessionKey($fixture->leafCertificate);
 
-        (new Signature($key))
+        (new Signature(new SymmetricSigningKey($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))->withParts([Part::body()])($context);
@@ -190,7 +191,7 @@ final class SymmetricSignatureVerificationTest extends TestCase
     {
         $document = $fixture->envelope();
 
-        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
+        (new Signature(new SymmetricSigningKey(new GeneratedSessionKey($fixture->leafCertificate))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, $keys));
 

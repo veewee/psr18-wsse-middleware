@@ -15,7 +15,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ResolveOptimizedBytes;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -138,7 +138,7 @@ final class EncryptOptimizedBytesTest extends TestCase
         // The Body itself cannot be encrypted while it carries a pointer, which is the standing refusal, so
         // this is the MTOM shape: encrypt the attachment, and let the wrapped key's bytes travel in a part.
         $carriers = AttachmentParts::request($storage, ExternalPartCoverage::Content);
-        (new Encryption(new WrappedSessionKey($fixture->leafCertificate, optimizedCipherBytes: $carriers)))
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate, optimizedCipherBytes: $carriers)))
             ->withParts([])
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))
             ->withOptimizedCipherBytes($carriers)(
@@ -184,7 +184,7 @@ final class EncryptOptimizedBytesTest extends TestCase
         // element, so the wrapped key and the content are separate choices over one set of carriers.
         $carriers = AttachmentParts::request($storage, ExternalPartCoverage::Content);
 
-        (new Encryption(new WrappedSessionKey($fixture->leafCertificate, optimizedCipherBytes: $carriers)))
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate, optimizedCipherBytes: $carriers)))
             ->withOptimizedCipherBytes($carriers)(
                 new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
             );

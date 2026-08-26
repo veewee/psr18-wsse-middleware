@@ -13,8 +13,8 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\CertificateSigningKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\AsymmetricSigningKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
@@ -59,8 +59,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature(new CertificateSigningKey($clientCertificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($context);
-        (new Encryption(new WrappedSessionKey($recipientCertificate)))->withEncryptor($this->realEncryptor())($context);
+        (new Signature(new AsymmetricSigningKey($clientCertificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($context);
+        (new Encryption(new GeneratedSessionKey($recipientCertificate)))->withEncryptor($this->realEncryptor())($context);
 
         $order = [];
         foreach ($this->only($document, self::WSSE, 'Security')->childNodes as $child) {
@@ -93,8 +93,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature(new CertificateSigningKey($clientCertificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($context);
-        (new Encryption(new WrappedSessionKey($recipientCertificate)))->withEncryptor($this->realEncryptor())($context);
+        (new Signature(new AsymmetricSigningKey($clientCertificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($context);
+        (new Encryption(new GeneratedSessionKey($recipientCertificate)))->withEncryptor($this->realEncryptor())($context);
 
         static::assertCount(1, $this->elements($document, self::DS, 'SignatureValue'));
     }
@@ -107,8 +107,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature(new CertificateSigningKey($clientCertificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($context);
-        (new Encryption(new WrappedSessionKey($clientCertificate->publicCertificate(), EncKeyRef::BinarySecurityToken)))->withEncryptor($this->realEncryptor())($context);
+        (new Signature(new AsymmetricSigningKey($clientCertificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($context);
+        (new Encryption(new GeneratedSessionKey($clientCertificate->publicCertificate(), EncKeyRef::BinarySecurityToken)))->withEncryptor($this->realEncryptor())($context);
 
         static::assertCount(1, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
     }
