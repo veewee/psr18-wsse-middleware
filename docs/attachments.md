@@ -378,10 +378,22 @@ about your own outbound message is a secret from you. A refusal about the messag
 - **Whole parts are buffered.** The cipher takes and returns strings, so an attachment is held in memory around
   twice at peak. That matches what the attachments middleware already implies by building the multipart body in
   memory. Attachments comfortably smaller than available memory are the supported case.
+
+  This applies to cipher bytes in MIME parts too, and it bites harder there, because size is the only reason a
+  peer sends that shape at all: the part is read whole, base64-encoded, and put in the document, so peak is
+  nearer three times its size. Streaming it would not help on its own. The whole decryption path is
+  string-based, from the cipher value through `CipherText` to the cipher itself, so the document is not the
+  bottleneck and this is a property of the engine rather than of this feature.
 - **Emitting `Attachment-Complete` ciphertext is not implemented.** Signing, verification and decryption all
   support the complete coverage; outbound encryption does not, and no policy can require it. What it would
   buy is hiding the filename and media type from an intermediary that terminates TLS, which content-only
   leaves readable in the MIME headers. Nobody has asked for it.
+- **Emitting a `wsse:BinarySecurityToken` into a MIME part is not implemented.** WSS4J moves the token's bytes
+  out too when `storeBytesInAttachment` is on, and this package reads that shape but does not produce it. A
+  certificate is around 1.5 KB, so the saving is a few hundred bytes, and it collides with the default signed
+  parts: `Part::securityHeaderContents()` covers the token, and signing an element whose content is a pointer
+  is refused unless the same signature covers those bytes. WSS4J resolves that by always expanding a signed
+  token; matching it would mean an exception to the coverage rule for one element, to save nothing.
 - **An XML attachment must be a well-formed document with no doctype.** Its content is canonicalized before
   digesting, so there has to be something to canonicalize. Both limits match what a peer does with the same
   bytes.
