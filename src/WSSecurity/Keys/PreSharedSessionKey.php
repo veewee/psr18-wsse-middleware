@@ -1,0 +1,72 @@
+<?php
+declare(strict_types=1);
+
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
+
+use InvalidArgumentException;
+use SensitiveParameter;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\CustomKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
+
+/**
+ * A secret both sides already hold, named by an identifier they agreed on out of band. Nothing is written to
+ * the message: there is no key to convey, only a reference saying which of the agreed keys this message used.
+ *
+ * Unlike a wrapped session key, this authenticates, and mutually: only the two holders of the secret can
+ * produce a MAC that verifies under it. It is not non-repudiable, because either of them could have produced any
+ * given message.
+ *
+ * The identifier is stated once and both used and emitted from that one value. Stating the reference and the
+ * name separately would be the same fact written twice, with two places for it to drift and a signature no peer
+ * could resolve when it did. A deployment whose peer references a pre-shared key in some other shape can still
+ * emit that shape through the signing block's own key-identifier override.
+ */
+final class PreSharedSessionKey implements SymmetricKeySource
+{
+    private readonly SymmetricKey $key;
+
+    /**
+     * @param non-empty-string $identifier   the name both sides agreed on, carried verbatim as the
+     *        wsse:KeyIdentifier content and matched verbatim against what an inbound reference names
+     * @param non-empty-string $valueType    the ValueType URI the agreed reference declares
+     * @param non-empty-string $encodingType the encoding the identifier is written in, base64 by default
+     *
+     * @throws InvalidArgumentException when the secret is empty
+     */
+    public function __construct(
+        #[SensitiveParameter] SessionKey $secret,
+        string $identifier,
+        string $valueType,
+        string $encodingType = WsSecurityEncodingType::Base64Binary->value,
+    ) {
+        if ($secret->bytes() === '') {
+            // An empty secret keys a MAC anyone can reproduce, which authenticates nobody.
+            throw new InvalidArgumentException('A pre-shared secret must not be empty.');
+        }
+
+        $reference = new CustomKeyIdentifier($identifier, $valueType, $encodingType);
+
+        // The key is a value here rather than per-exchange state, which is the one place this source differs
+        // from the others: it holds no key it minted, only the one the deployment configured.
+        $this->key = new SymmetricKey($secret, $reference, [$identifier]);
+    }
+
+    public function resolve(WsseContext $context, KeyRequest $for): SymmetricKey
+    {
+        // Established rather than materialized: nothing is minted, and registering the same secret twice under
+        // the same identifier is a no-op, which is what lets every block in both directions hold this source.
+        $context->keys()->establish($this->key->bytes, ...$this->key->wireIdentifiers);
+
+        if ($for->mandatory && $this->key->length() !== $for->bytes) {
+            throw new InvalidArgumentException(sprintf(
+                'The pre-shared secret is %d bytes and this block needs exactly %d.',
+                $this->key->length(),
+                $for->bytes,
+            ));
+        }
+
+        return $this->key;
+    }
+}

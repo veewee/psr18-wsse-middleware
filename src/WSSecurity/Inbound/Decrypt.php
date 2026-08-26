@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentEncryptedDataType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricKeySource;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\PreSharedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\EstablishedSessionKeyResolver;
@@ -53,7 +53,7 @@ final class Decrypt implements InboundAction
     private XmlDecryptor $decryptor;
     private ?ExternalParts $attachments = null;
 
-    private ?SymmetricKeySource $symmetricKey = null;
+    private ?PreSharedSessionKey $preSharedKey = null;
 
     /**
      * @param ?Key $privateKey the key that unwraps an xenc:EncryptedKey. Null for a deployment whose peer
@@ -95,17 +95,17 @@ final class Decrypt implements InboundAction
     }
 
     /**
-     * Registers the source of a secret no outbound direction established, so parts encrypted under it can be
-     * opened. Only a pre-shared key needs this: a wrapped or derived key was established while the request was
-     * written, and the exchange already holds it.
+     * Registers a secret no outbound direction established, so parts encrypted under it can be opened. Only a
+     * pre-shared key needs this: a wrapped or derived key was established while the request was written, and
+     * the exchange already holds it.
      *
      * The secret is registered when the block runs rather than now, because the exchange it belongs to is the
      * one in flight. Registration is idempotent, so both inbound blocks may hold the same source.
      */
-    public function withSymmetricKey(SymmetricKeySource $key): self
+    public function withPreSharedKey(PreSharedSessionKey $key): self
     {
         $clone = clone $this;
-        $clone->symmetricKey = $key;
+        $clone->preSharedKey = $key;
 
         return $clone;
     }
@@ -160,7 +160,7 @@ final class Decrypt implements InboundAction
             $container = SecurityHeader::locate($document, $context->soapVersion(), $context->profile()->actorOrRole())
                 ?? throw DecryptionFailed::withReason('The message carries no Security header for this receiver.');
 
-            $this->symmetricKey?->resolve($context, KeyRequest::preferably(1));
+            $this->preSharedKey?->resolve($context, KeyRequest::preferably(1));
 
             $external = $this->externalPartDecryption();
             $result = $this->decryptor->decrypt(

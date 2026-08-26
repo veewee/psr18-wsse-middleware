@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentSignatureTransform;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricKeySource;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\PreSharedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\RequiredPartsValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -48,7 +48,7 @@ final class VerifySignature implements InboundAction
 {
     private ?XmlSignatureVerifier $verifier = null;
     private readonly RequiredPartsValidator $requiredParts;
-    private ?SymmetricKeySource $symmetricKey = null;
+    private ?PreSharedSessionKey $preSharedKey = null;
 
     /** @var (callable(TrustedSigner): void)|null */
     private $signerCheck = null;
@@ -78,17 +78,17 @@ final class VerifySignature implements InboundAction
     }
 
     /**
-     * Registers the source of a secret no outbound direction established, so a symmetric signature keyed by it
-     * can be verified. Only a pre-shared key needs this: a wrapped or derived key was established while the
-     * request was written, and the exchange already holds it.
+     * Registers a secret no outbound direction established, so a symmetric signature keyed by it can be
+     * verified. Only a pre-shared key needs this: a wrapped or derived key was established while the request
+     * was written, and the exchange already holds it.
      *
      * The secret is registered when the block runs rather than now, because the exchange it belongs to is the
      * one in flight.
      */
-    public function withSymmetricKey(SymmetricKeySource $key): self
+    public function withPreSharedKey(PreSharedSessionKey $key): self
     {
         $clone = clone $this;
-        $clone->symmetricKey = $key;
+        $clone->preSharedKey = $key;
 
         return $clone;
     }
@@ -174,7 +174,7 @@ final class VerifySignature implements InboundAction
         try {
             // A pre-shared secret is registered before anything reads a ds:KeyInfo, so the reference naming it
             // resolves. Registration is idempotent, which is what lets both inbound blocks hold one source.
-            $this->symmetricKey?->resolve($context, KeyRequest::preferably(1));
+            $this->preSharedKey?->resolve($context, KeyRequest::preferably(1));
 
             // Collected inside the try, because collecting is itself work over peer-controlled bytes: under a
             // complete coverage it canonicalizes headers a peer chose, and after Decrypt ran those headers

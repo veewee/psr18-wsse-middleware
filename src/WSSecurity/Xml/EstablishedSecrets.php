@@ -55,12 +55,11 @@ final readonly class EstablishedSecrets
             return null;
         }
 
-        if (WsSecurityValueType::tryFrom((string) $keyIdentifier->getAttribute('ValueType'))
-            !== WsSecurityValueType::EncryptedKeySha1
-        ) {
-            return null;
-        }
-
+        // Resolved by the identifier's own content, whatever ValueType it declares. EncryptedKeySHA1 is the one
+        // this package emits for a wrapped key, but a pre-shared key is named by whatever the two sides agreed
+        // on, and there is no list of those to check against. Only an identifier the exchange established
+        // resolves either way, so an identifier naming a certificate simply misses and falls through to the
+        // certificate forms.
         $value = ElementText::trimmed($keyIdentifier);
 
         return $value === '' ? null : $this->keys->resolve($value);
