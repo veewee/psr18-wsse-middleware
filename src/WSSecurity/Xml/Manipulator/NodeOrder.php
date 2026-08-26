@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml\Manipulator;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecureConversationVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseNamespaces;
 use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
@@ -31,6 +32,8 @@ final class NodeOrder
      * precedes the Signature that may reference it, and so does a SignatureConfirmation, which a response
      * signature may cover. Children not in this list keep their relative order after the known ones.
      *
+     * Both WS-SecureConversation dialects are ranked, because a message carries whichever one its peer speaks.
+     *
      * @var list<array{0: non-empty-string, 1: string}>
      */
     private const SEQUENCE = [
@@ -40,6 +43,9 @@ final class NodeOrder
         [self::SAML11_ASSERTION, 'Assertion'],
         [self::SAML20_ASSERTION, 'Assertion'],
         [Namespaces::Xenc->value, 'EncryptedKey'],
+        // A derived key follows the token it derives from and precedes anything keyed by it.
+        [WsSecureConversationVersion::V2005_02->value, 'DerivedKeyToken'],
+        [WsSecureConversationVersion::V2005_12->value, 'DerivedKeyToken'],
         [Namespaces::Xenc->value, 'ReferenceList'],
         [WsseNamespaces::Wsse11->value, 'SignatureConfirmation'],
         [Namespaces::Ds->value, 'Signature'],

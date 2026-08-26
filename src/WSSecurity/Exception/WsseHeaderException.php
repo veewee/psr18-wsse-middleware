@@ -21,6 +21,11 @@ final class WsseHeaderException extends RuntimeException
         return new self('The message carries more than one wsse:Security header for the ultimate receiver.');
     }
 
+    public static function derivingTokenNotReferenceable(): self
+    {
+        return new self('The key a derived key derives from is not referenced by a security token reference.');
+    }
+
     public static function nothingToSign(): self
     {
         return new self('The configured signature parts matched no element to sign.');

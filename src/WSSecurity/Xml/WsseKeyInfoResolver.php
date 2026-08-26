@@ -44,6 +44,7 @@ use VeeWee\Xml\Dom\Document;
 final readonly class WsseKeyInfoResolver implements KeyInfoResolver
 {
     private KeyInfoResolver $plain;
+    private ?EstablishedSecrets $secrets;
 
     /**
      * @param ?ExchangeKeys $keys the symmetric keys of the exchange in flight, when there is one. Null leaves
@@ -52,9 +53,10 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
      */
     public function __construct(
         ?KeyInfoResolver $plain = null,
-        private ?ExchangeKeys $keys = null,
+        ?ExchangeKeys $keys = null,
     ) {
         $this->plain = $plain ?? new X509DataKeyInfoResolver();
+        $this->secrets = $keys === null ? null : new EstablishedSecrets($keys);
     }
 
     public function read(Document $document, Element $signatureElement, IdLookup $idLookup): KeyReference
@@ -67,7 +69,8 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
             return $this->plain->read($document, $signatureElement, $idLookup);
         }
 
-        return $this->fromDirectReference($document, $str, $idLookup)
+        return $this->establishedSecret($document, $str, $idLookup)
+            ?? $this->fromDirectReference($document, $str, $idLookup)
             ?? $this->fromKeyIdentifier($str)
             ?? $this->fromIssuerSerial($str)
             // The reference is present but names the certificate in no way this profile defines. Falling through
@@ -97,13 +100,6 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
             $token = $idLookup->lookup($document, $tokenId);
         } catch (IdReferenceException) {
             throw SignatureVerificationFailed::withReason('The referenced security token was not found.');
-        }
-
-        // A reference to a local xenc:EncryptedKey names the session key that element carries, not a
-        // certificate. The key itself is never read out of the element: only a key this exchange established
-        // under that same reference resolves, so an injected element unlocks nothing.
-        if (ElementName::matches($token, Namespaces::Xenc, 'EncryptedKey')) {
-            return $this->establishedSecret('#'.$tokenId);
         }
 
         if (!ElementName::matches($token, WsseNamespaces::Wsse, 'BinarySecurityToken')) {
@@ -156,14 +152,6 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
             throw SignatureVerificationFailed::withReason('The key identifier is empty.');
         }
 
-        // The one identifier form that names a symmetric key rather than a certificate: the SHA-1 of the
-        // wrapped bytes, which both sides can compute and neither has to reveal the secret to.
-        if (WsSecurityValueType::tryFrom((string) $keyIdentifier->getAttribute('ValueType'))
-            === WsSecurityValueType::EncryptedKeySha1
-        ) {
-            return $this->establishedSecret($reference);
-        }
-
         return CertificateReference::keyIdentifier(
             $this->keyIdentifierKind((string) $keyIdentifier->getAttribute('ValueType')),
             $reference,
@@ -185,25 +173,17 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
     }
 
     /**
-     * The secret this exchange established under the given wire identifier.
+     * The symmetric secret this reference names, when it names one at all.
      *
-     * A reference naming nothing established is refused rather than resolved elsewhere: a secret found by any
-     * other route has no provenance, and there is no second key to fall back to. The refusal is the same one
-     * every unreadable ds:KeyInfo produces, so it distinguishes nothing for a peer.
-     *
-     * @param non-empty-string $wireIdentifier
-     *
-     * @throws SignatureVerificationFailed
+     * Null covers both "this is a certificate reference" and "this names a secret nothing established", which
+     * is deliberate: the caller falls through to the certificate forms and ends at the one refusal every
+     * unreadable ds:KeyInfo produces, so a peer learns nothing from which of the two it hit.
      */
-    private function establishedSecret(string $wireIdentifier): SecretReference
+    private function establishedSecret(Document $document, Element $str, IdLookup $idLookup): ?SecretReference
     {
-        $secret = $this->keys?->resolve($wireIdentifier);
+        $secret = $this->secrets?->forReference($document, $str, $idLookup);
 
-        return $secret === null
-            ? throw SignatureVerificationFailed::withReason(
-                'ds:KeyInfo does not carry the certificate in a supported form.',
-            )
-            : new SecretReference($secret);
+        return $secret === null ? null : new SecretReference($secret);
     }
 
     /**

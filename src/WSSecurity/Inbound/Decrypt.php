@@ -170,7 +170,7 @@ final class Decrypt implements InboundAction
                     $this->privateKey,
                     $context->profile()->crypto(),
                     $external,
-                    new EstablishedSessionKeyResolver($context->keys()),
+                    new EstablishedSessionKeyResolver($context->keys(), (new WsuIdConvention())->lookup()),
                 ),
             );
 
