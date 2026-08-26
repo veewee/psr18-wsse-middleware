@@ -37,6 +37,7 @@ final class DerivedSessionKeyTest extends TestCase
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
     private const WSU = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd';
     private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
+    private const DS = 'http://www.w3.org/2000/09/xmldsig#';
 
     public function test_two_derived_keys_over_one_wrapped_key_write_two_tokens_and_one_encrypted_key(): void
     {
@@ -164,11 +165,33 @@ final class DerivedSessionKeyTest extends TestCase
         );
 
         // The signature names the token, not the key the token derived from.
-        $reference = $this->only($document, 'http://www.w3.org/2000/09/xmldsig#', 'Signature')
+        $reference = $this->only($document, self::DS, 'Signature')
             ->getElementsByTagNameNS(self::WSSE, 'Reference')
             ->item(0);
         static::assertInstanceOf(Element::class, $reference);
         static::assertSame('#'.$token->getAttributeNS(self::WSU, 'Id'), $reference->getAttribute('URI'));
+    }
+
+    /**
+     * A reference to the token declares the token's own type, and it is dialect-specific. A receiver enforcing
+     * the Basic Security Profile classifies a reference by that and refuses one it cannot classify.
+     */
+    public function test_a_reference_to_the_token_declares_its_dialect_specific_type(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->envelope();
+
+        (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
+            new WrappedSessionKey($fixture->leafCertificate),
+        ))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($this->context($document));
+
+        $reference = $this->only($document, self::DS, 'Signature')
+            ->getElementsByTagNameNS(self::WSSE, 'Reference')
+            ->item(0);
+        static::assertInstanceOf(Element::class, $reference);
+        static::assertSame(self::WSC.'/dk', $reference->getAttribute('ValueType'));
     }
 
     public function test_the_children_are_emitted_in_schema_order(): void

@@ -32,6 +32,7 @@ final class SymmetricBindingTest extends OutboundTestCase
 {
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
+    private const WSSE11 = 'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd';
     private const ENCRYPTED_KEY_SHA1
         = 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKeySHA1';
 
@@ -99,6 +100,30 @@ final class SymmetricBindingTest extends OutboundTestCase
         $decoded = base64_decode($keyIdentifier->textContent, true);
         static::assertIsString($decoded);
         static::assertSame(20, strlen($decoded));
+    }
+
+    /**
+     * A receiver enforcing the Basic Security Profile classifies a reference by the type it declares and
+     * refuses one it cannot classify, reporting whatever shape it guessed at rather than what was wrong. So the
+     * session-key reference says what it points at.
+     */
+    public function test_the_key_reference_declares_the_token_type_it_points_at(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $this->signableEnvelope();
+
+        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($this->symmetricContext($document));
+
+        $reference = $this->only($document, self::DS, 'Signature')
+            ->getElementsByTagNameNS(self::WSSE, 'SecurityTokenReference')
+            ->item(0);
+        static::assertInstanceOf(Element::class, $reference);
+        static::assertSame(
+            'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKey',
+            $reference->getAttributeNS(self::WSSE11, 'TokenType'),
+        );
     }
 
     public function test_a_symmetric_signature_needs_no_encryption_to_carry_its_key(): void
