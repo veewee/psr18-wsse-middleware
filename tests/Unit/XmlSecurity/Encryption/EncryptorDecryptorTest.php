@@ -29,6 +29,9 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataReader;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
@@ -271,6 +274,10 @@ final class EncryptorDecryptorTest extends TestCase
             new EncryptedDataBuilder((new WsuIdConvention())->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
+            new ExternalPartSealer(
+                new Cipher(),
+                new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),
+            ),
         );
     }
 
@@ -281,6 +288,7 @@ final class EncryptorDecryptorTest extends TestCase
             new EncryptedDataReader(new Cipher()),
             // The encryptor mints wsu:Id, so the decryptor resolves through the matching convention.
             new EncryptedDataLocator((new WsuIdConvention())->lookup()),
+            new ExternalEncryptedDataReader(new Cipher()),
         );
     }
 

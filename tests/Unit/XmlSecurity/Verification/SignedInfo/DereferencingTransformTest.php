@@ -41,7 +41,7 @@ final class DereferencingTransformTest extends TestCase
     public function test_the_parser_records_the_transform_a_reference_declared(): void
     {
         $parsed = (new SignedInfoParser())
-            ->parse($this->signature($this->document()), new SecurityTokenReferenceTransform());
+            ->parse($this->signature($this->document()), dereferencingTransform: new SecurityTokenReferenceTransform());
 
         static::assertSame(self::STR_TRANSFORM, $parsed->references[0]->dereferencingTransform);
     }
@@ -51,7 +51,7 @@ final class DereferencingTransformTest extends TestCase
         // Holding it here rather than somewhere new is what lets AlgorithmPolicyEnforcer gate it with no
         // change: the transform's inner method is allow-listed exactly like any other reference's.
         $parsed = (new SignedInfoParser())
-            ->parse($this->signature($this->document()), new SecurityTokenReferenceTransform());
+            ->parse($this->signature($this->document()), dereferencingTransform: new SecurityTokenReferenceTransform());
 
         static::assertSame(SignatureCanonicalization::EXC_C14N, $parsed->references[0]->canonicalization);
     }
@@ -69,7 +69,7 @@ final class DereferencingTransformTest extends TestCase
         $document = $this->document(transform: 'urn:some-other-transform');
 
         $this->expectException(SignatureVerificationFailed::class);
-        $parser->parse($this->signature($document), new SecurityTokenReferenceTransform());
+        $parser->parse($this->signature($document), dereferencingTransform: new SecurityTokenReferenceTransform());
     }
 
     public function test_the_allow_list_refuses_an_inclusive_canonicalization_named_inside_the_transform(): void
@@ -78,7 +78,7 @@ final class DereferencingTransformTest extends TestCase
         // per-reference allow-list gates it, so a peer cannot reach inclusive c14n by naming it one level down.
         $parsed = (new SignedInfoParser())->parse(
             $this->signature($this->document(canonicalization: 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315')),
-            new SecurityTokenReferenceTransform(),
+            dereferencingTransform: new SecurityTokenReferenceTransform(),
         );
 
         $this->expectException(SignatureVerificationFailed::class);
@@ -163,7 +163,10 @@ final class DereferencingTransformTest extends TestCase
         ?Element $expectedDigestOf = null,
         ?Element $signature = null,
     ): ResolvedVerificationReference {
-        $parsed = (new SignedInfoParser())->parse($this->signature($document), new SecurityTokenReferenceTransform());
+        $parsed = (new SignedInfoParser())->parse(
+            $this->signature($document),
+            dereferencingTransform: new SecurityTokenReferenceTransform(),
+        );
         $references = $parsed->references;
 
         if ($expectedDigestOf !== null) {
@@ -177,7 +180,7 @@ final class DereferencingTransformTest extends TestCase
             $signature ?? $this->signature($document),
         );
 
-        return $resolved[0];
+        return $resolved->elements[0];
     }
 
     /**
@@ -197,7 +200,7 @@ final class DereferencingTransformTest extends TestCase
             base64_encode((new Digest())->hash($canonical, DigestMethod::SHA256)),
             $reference->canonicalization,
             $reference->inclusivePrefixes,
-            $reference->dereferencingTransform,
+            dereferencingTransform: $reference->dereferencingTransform,
         );
     }
 

@@ -4,11 +4,15 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification\SignedInfo;
 
 use Dom\Element;
+use Phpro\ResourceStream\Factory\MemoryStream;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\External\ExternalPartVerification;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ParsedReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ReferenceResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParser;
@@ -18,6 +22,7 @@ use VeeWee\Xml\Dom\Document;
 final class ReferenceResolverTest extends TestCase
 {
     private const EXC_C14N = 'http://www.w3.org/2001/10/xml-exc-c14n#';
+    private const SWA_CONTENT = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
     private const XSLT = 'http://www.w3.org/TR/1999/REC-xslt-19991116';
     private const ENVELOPED_SIGNATURE = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature';
 
@@ -28,8 +33,8 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertCount(1, $resolved);
-        static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
+        static::assertCount(1, $resolved->elements);
+        static::assertSame($this->byId($document, 'Body'), $resolved->elements[0]->element);
     }
 
     public function test_it_rejects_a_duplicate_wsu_id(): void
@@ -48,7 +53,7 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
+        static::assertSame($this->byId($document, 'Body'), $resolved->elements[0]->element);
     }
 
     public function test_the_parser_and_the_resolver_agree_on_an_absent_transforms(): void
@@ -68,7 +73,7 @@ final class ReferenceResolverTest extends TestCase
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))
             ->resolve($document, $parsed->referenceElements, $parsed->references, $signature);
 
-        static::assertSame($this->byId($document, 'Body'), $resolved[0]->element);
+        static::assertSame($this->byId($document, 'Body'), $resolved->elements[0]->element);
     }
 
     public function test_it_rejects_an_xslt_transform(): void
@@ -89,10 +94,10 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertCount(1, $resolved);
-        static::assertSame($this->byId($document, 'Assertion'), $resolved[0]->element);
+        static::assertCount(1, $resolved->elements);
+        static::assertSame($this->byId($document, 'Assertion'), $resolved->elements[0]->element);
         // The signature to strip is carried forward by identity, so the digest excludes that exact subtree.
-        static::assertSame($this->signature($document), $resolved[0]->envelopedSignature);
+        static::assertSame($this->signature($document), $resolved->elements[0]->envelopedSignature);
     }
 
     public function test_it_accepts_an_enveloped_signature_transform_on_its_own(): void
@@ -104,7 +109,7 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertSame($this->signature($document), $resolved[0]->envelopedSignature);
+        static::assertSame($this->signature($document), $resolved->elements[0]->envelopedSignature);
     }
 
     public function test_it_refuses_a_second_signature_inside_the_digested_element(): void
@@ -150,7 +155,7 @@ final class ReferenceResolverTest extends TestCase
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve($document, $elements, $parsed, $this->signature($document));
 
-        static::assertNull($resolved[0]->envelopedSignature);
+        static::assertNull($resolved->elements[0]->envelopedSignature);
     }
 
     public function test_it_rejects_an_unknown_transform(): void
@@ -319,6 +324,64 @@ final class ReferenceResolverTest extends TestCase
         static::assertInstanceOf(Element::class, $signature);
 
         return $signature;
+    }
+
+    public function test_an_external_reference_resolves_to_the_part_its_uri_names(): void
+    {
+        $document = $this->document([self::reference('cid:b@example.com', self::SWA_CONTENT)]);
+        [$elements, $parsed] = $this->parsedExternal($document);
+
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve(
+            $document,
+            $elements,
+            $parsed,
+            $this->signature($document),
+            new ExternalPartVerification(
+                ExternalPartList::of($this->part('cid:a@example.com'), $wanted = $this->part('cid:b@example.com')),
+                self::SWA_CONTENT,
+            ),
+        );
+
+        static::assertSame([], $resolved->elements);
+        static::assertCount(1, $resolved->external);
+        // The part its URI names, not merely some part that was supplied: picking any other one would let a
+        // signature over one attachment be checked against a different file.
+        static::assertSame($wanted, $resolved->external[0]->part);
+    }
+
+    public function test_an_external_reference_naming_no_supplied_part_is_refused(): void
+    {
+        $document = $this->document([self::reference('cid:stranger@example.com', self::SWA_CONTENT)]);
+        [$elements, $parsed] = $this->parsedExternal($document);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('A referenced element could not be resolved.');
+
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve(
+            $document,
+            $elements,
+            $parsed,
+            $this->signature($document),
+            new ExternalPartVerification(
+                ExternalPartList::of($this->part('cid:a@example.com')),
+                self::SWA_CONTENT,
+            ),
+        );
+    }
+
+    /**
+     * @return array{0: non-empty-list<Element>, 1: non-empty-list<ParsedReference>}
+     */
+    private function parsedExternal(Document $document): array
+    {
+        $parsed = (new SignedInfoParser())->parse($this->signature($document), self::SWA_CONTENT);
+
+        return [$parsed->referenceElements, $parsed->references];
+    }
+
+    private function part(string $reference): ExternalPart
+    {
+        return new ExternalPart($reference, 'application/pdf', MemoryStream::create());
     }
 
     private function byId(Document $document, string $id): Element

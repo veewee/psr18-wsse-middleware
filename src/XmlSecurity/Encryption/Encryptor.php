@@ -9,7 +9,11 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\SealedExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Throwable;
@@ -36,14 +40,16 @@ final class Encryptor implements XmlEncryptor
     public static function create(?IdConvention $idConvention = null): self
     {
         $idConvention ??= AttributeIdConvention::xmlId();
+        $cipher = new Cipher();
 
         return new self(
             new TargetLocator($idConvention->lookup()),
             new SessionKeyFactory(),
-            new Cipher(),
+            $cipher,
             new EncryptedDataBuilder($idConvention->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
+            new ExternalPartSealer($cipher, new ExternalEncryptedDataBuilder($idConvention->minter())),
         );
     }
 
@@ -54,14 +60,23 @@ final class Encryptor implements XmlEncryptor
         private readonly EncryptedDataBuilder $encryptedDataBuilder,
         private readonly KeyTransport $keyTransport,
         private readonly EncryptedKeyBuilder $encryptedKeyBuilder,
+        private readonly ExternalPartSealer $externalPartSealer,
     ) {
     }
 
-    public function encrypt(Document $document, EncryptionRequest $request): void
+    public function encrypt(Document $document, EncryptionRequest $request): EncryptionResult
     {
         $container = $request->container;
 
         $targets = $this->resolveTargets($document, $request);
+        $externalParts = $request->externalParts?->parts ?? ExternalPartList::of();
+
+        // The rule is "encrypt at least one part", not "at least one in-document part". A message with
+        // nothing to encrypt would emit an EncryptedKey whose ReferenceList names nothing, which reads as an
+        // encrypted message while protecting none of it.
+        if ($targets === [] && count($externalParts) === 0) {
+            throw EncryptionFailed::withReason('An encryption request must name at least one part.');
+        }
 
         try {
             $sessionKey = $this->sessionKeyFactory->generate($request->dataEncryptionMethod);
@@ -80,11 +95,33 @@ final class Encryptor implements XmlEncryptor
                 );
             }
 
+            // Under the same session key, contributing to the same ReferenceList. The SwA profile wants one
+            // EncryptedKey naming the in-document parts and the attachment parts together, and
+            // EncryptedKeyReader refuses a second key in the container, so this cannot be a separate
+            // operation alongside the first.
+            $sealed = $request->externalParts === null
+                ? new SealedExternalParts(ExternalPartList::of(), [])
+                : $this->externalPartSealer->seal(
+                    $document,
+                    $container,
+                    $request->externalParts,
+                    $sessionKey,
+                    $request->dataEncryptionMethod,
+                );
+            $partIds = [...$partIds, ...$sealed->ids];
+
             $wrappedKey = $this->keyTransport->wrap(
                 $sessionKey,
                 $request->recipientCertificate,
                 $request->keyTransportAlgorithm,
             );
+
+            if ($partIds === []) {
+                // The ReferenceList invariant, checked rather than assumed: every id in it came from work done
+                // above, so an empty list here would mean an EncryptedKey unlocking nothing. The request guard
+                // makes this unreachable, and a static constraint is not a runtime check.
+                throw EncryptionFailed::withReason('An encryption request must name at least one part.');
+            }
 
             $encryptedKey = $this->encryptedKeyBuilder->build(
                 $document,
@@ -96,6 +133,8 @@ final class Encryptor implements XmlEncryptor
             );
 
             append($encryptedKey)($container);
+
+            return new EncryptionResult($sealed->parts);
         } catch (EncryptionFailed $exception) {
             throw $exception;
         } catch (Throwable $exception) {
@@ -104,7 +143,7 @@ final class Encryptor implements XmlEncryptor
     }
 
     /**
-     * @return non-empty-list<array{0: Element, 1: EncryptionMode}>
+     * @return list<array{0: Element, 1: EncryptionMode}>
      *
      * @throws EncryptionFailed
      */

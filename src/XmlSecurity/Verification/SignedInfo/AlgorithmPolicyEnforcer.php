@@ -39,7 +39,11 @@ final class AlgorithmPolicyEnforcer
                 throw SignatureVerificationFailed::withReason('A digest method is not accepted by the policy.');
             }
 
-            if (!$crypto->acceptsCanonicalization($reference->canonicalization)) {
+            // An external reference declares no canonicalization to gate: its transform selects octets, and
+            // that the transform is exactly the expected one was already established while parsing. Its digest
+            // method is checked above, like every other reference's.
+            if ($reference->canonicalization !== null
+                && !$crypto->acceptsCanonicalization($reference->canonicalization)) {
                 throw SignatureVerificationFailed::withReason('The canonicalization method is not accepted by the policy.');
             }
         }

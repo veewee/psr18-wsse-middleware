@@ -185,3 +185,7 @@ must never reach output or a commit.
 - **`loginMappings`.** Server-side authentication wiring.
 - **Per-port and per-operation scoping.** Ask which port this client speaks to.
 - **Arbitrary XPath part references.** Ask which element is meant.
+- **Attachment security.** These descriptors carry no attachment-security settings at all: the part keywords
+  address the body, the timestamp and named tokens, and nothing addresses a MIME part. A peer needing it says
+  so somewhere other than here, most often in a WS-SecurityPolicy: see
+  [Attachment security](../../../../docs/attachments.md).

@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentSignatureTransform;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
@@ -16,7 +17,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseKeyInfoResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\External\ExternalPartVerification;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\Verifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\XmlSignatureVerifier;
@@ -40,6 +44,8 @@ final class VerifySignature implements InboundAction
 
     /** @var (callable(TrustedSigner): void)|null */
     private $signerCheck = null;
+
+    private ?ExternalParts $attachments = null;
 
     /**
      * A signature must cover the Body unless the caller says otherwise, so the shorter call is not the weaker
@@ -66,6 +72,25 @@ final class VerifySignature implements InboundAction
         // its token through a wsse:SecurityTokenReference needs the profile's vocabulary to be dereferenced.
         $this->verifier = Verifier::create($lookup, new WsseKeyInfoResolver(), new SecurityTokenReferenceTransform());
         $this->requiredParts = new RequiredPartsValidator(new TargetLocator($lookup));
+    }
+
+    /**
+     * Requires the message's attachments to be covered by the verified signature.
+     *
+     * Presence is behaviour here, as everywhere else in this package: registering parts is the requirement
+     * that all of them be signed. A peer that simply omits an attachment reference is refused rather than
+     * quietly accepted, because "the signature said nothing about this file" and "the file is signed" must not
+     * look the same to a caller.
+     *
+     * Pass AttachmentParts::response() for the inbound side. Register the parts this block should insist on,
+     * which for a decrypted message means running it after Inbound\Decrypt: the digest covers the plaintext.
+     */
+    public function withAttachments(ExternalParts $attachments): self
+    {
+        $clone = clone $this;
+        $clone->attachments = $attachments;
+
+        return $clone;
     }
 
     public function withVerifier(XmlSignatureVerifier $verifier): self
@@ -102,9 +127,30 @@ final class VerifySignature implements InboundAction
     public function __invoke(WsseContext $context): void
     {
         $document = $context->document();
-        $policy = new VerificationPolicy($this->trustStore, $context->profile()->crypto());
+
+        $attachments = $this->attachments;
 
         try {
+            // Collected inside the try, because collecting is itself work over peer-controlled bytes: under a
+            // complete coverage it canonicalizes headers a peer chose, and after Decrypt ran those headers
+            // came out of that peer's ciphertext. A refusal there is an inbound failure like any other and
+            // must not reach the caller as a different exception.
+            //
+            // Collected before the verifier runs, and the same list is used to check coverage afterwards, so
+            // the parts the signature was checked against are exactly the parts the requirement is asserted
+            // over.
+            $registeredAttachments = $attachments?->collect();
+            $policy = new VerificationPolicy(
+                $this->trustStore,
+                $context->profile()->crypto(),
+                $attachments !== null && $registeredAttachments !== null
+                    ? new ExternalPartVerification(
+                        $registeredAttachments,
+                        AttachmentSignatureTransform::for($attachments->coverage())->value,
+                    )
+                    : null,
+            );
+
             // The signature is read out of the Security header addressed to this receiver, not searched for
             // across the envelope: a signature in another hop's header covers that hop's requirements, not
             // ours, and one planted elsewhere is not a candidate at all. A message carrying no header for us
@@ -132,11 +178,38 @@ final class VerifySignature implements InboundAction
             $context->profile()->actorOrRole(),
         );
 
+        if ($registeredAttachments !== null) {
+            $this->assertEveryAttachmentSigned($registeredAttachments, $verified->signedExternalParts());
+        }
+
         if ($this->signerCheck !== null) {
             try {
                 ($this->signerCheck)($verified->signer);
             } catch (Throwable $exception) {
                 throw SecurityFault::inboundFailure($exception);
+            }
+        }
+    }
+
+    /**
+     * Every registered part must appear in what the signature covered.
+     *
+     * Matched by reference rather than by object identity, unlike the element check: an external part is not a
+     * node in a document anyone could swap, and the reference is what the digest was bound to. A part missing
+     * from the covered set means the signature said nothing about that file, which is the case this refusal
+     * exists for.
+     *
+     * @throws SecurityFault
+     */
+    private function assertEveryAttachmentSigned(
+        ExternalPartList $registeredAttachments,
+        ExternalPartList $covered,
+    ): void {
+        foreach ($registeredAttachments as $part) {
+            if ($covered->byReference($part->reference) === null) {
+                throw SecurityFault::inboundFailure(SignatureVerificationFailed::withReason(
+                    'A registered attachment is not covered by the signature.',
+                ));
             }
         }
     }

@@ -21,6 +21,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\ExternalPartSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
@@ -154,6 +155,7 @@ final class WsseSignatureFixture
         ?KeyIdentifier $keyIdentifier = null,
         SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N,
         bool $inclusivePrefixes = false,
+        ?ExternalPartSignature $externalParts = null,
     ): Document {
         $document = $this->envelope($withTimestamp);
 
@@ -167,6 +169,7 @@ final class WsseSignatureFixture
             digestMethod: $digestMethod,
             canonicalization: $canonicalization,
             inclusivePrefixes: $inclusivePrefixes,
+            externalParts: $externalParts,
         ));
 
         return $document;

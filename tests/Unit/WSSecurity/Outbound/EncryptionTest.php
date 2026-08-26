@@ -7,7 +7,10 @@ use Dom\Element;
 use InvalidArgumentException;
 use LogicException;
 use OpenSSLAsymmetricKey;
+use Phpro\ResourceStream\Factory\MemoryStream;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
+use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
@@ -16,6 +19,8 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentCoverage;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
@@ -38,7 +43,12 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataReader;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
@@ -51,6 +61,32 @@ use VeeWee\Xml\Dom\Document;
 final class EncryptionTest extends OutboundTestCase
 {
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
+
+    public function test_it_refuses_an_encryption_that_left_a_registered_attachment_unsealed(): void
+    {
+        // The encryptor reports what it sealed rather than the block assuming it. One that returns less than
+        // it was handed would leave the attachment in the storage as plaintext under a message carrying an
+        // xenc:EncryptedKey, which reads as encrypted in every log and packet capture of it.
+        $this->expectException(EncryptionFailed::class);
+        $this->expectExceptionMessage(
+            'The encryption does not cover the external part "cid:invoice@example.com", which was registered.',
+        );
+
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<invoice@example.com>',
+            'file',
+            'invoice.pdf',
+            'application/pdf',
+            MemoryStream::create()->write('%PDF-1.7')->rewind(),
+        ));
+
+        (new Encryption($this->recipientCertificate()))
+            ->withEncryptor(new SealingNothingEncryptor())
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
+                $this->context($this->envelope()),
+            );
+    }
 
     public function test_it_rejects_a_dynamic_signing_only_part(): void
     {
@@ -141,7 +177,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertInstanceOf(Element::class, $method);
         static::assertSame(1, $method->getElementsByTagNameNS('http://www.w3.org/2009/xmlenc11#', 'MGF')->count());
 
-        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup())))
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup()), new ExternalEncryptedDataReader(new Cipher())))
             ->decrypt($document, new DecryptionRequest($this->security($document), $key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
@@ -165,7 +201,54 @@ final class EncryptionTest extends OutboundTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('at least one part');
 
-        (new Encryption($this->recipientCertificate()))->withParts([]);
+        // Refused when the block runs rather than when the list is set, so withParts() and withAttachments()
+        // can be chained in either order. Registering attachments makes an empty list legitimate.
+        (new Encryption($this->recipientCertificate()))
+            ->withEncryptor(new RecordingEncryptor())
+            ->withParts([])($this->context($this->envelope()));
+    }
+
+    public function test_an_empty_part_list_is_allowed_once_attachments_are_registered(): void
+    {
+        $encryptor = new RecordingEncryptor();
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<invoice@example.com>',
+            'file',
+            'invoice.pdf',
+            'application/pdf',
+            MemoryStream::create()->write('bytes')->rewind(),
+        ));
+
+        // Either order works, which is the point of checking this when the block runs.
+        (new Encryption($this->recipientCertificate()))
+            ->withEncryptor($encryptor)
+            ->withParts([])
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))($this->context($this->envelope()));
+
+        static::assertSame([], $encryptor->lastRequest()->targets);
+        static::assertNotNull($encryptor->lastRequest()->externalParts);
+    }
+
+    public function test_it_refuses_an_adapter_that_covers_a_part_s_metadata(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<invoice@example.com>',
+            'file',
+            'invoice.pdf',
+            'application/pdf',
+            MemoryStream::create()->write('bytes')->rewind(),
+        ));
+
+        $this->expectException(UnsupportedAttachmentCoverage::class);
+        $this->expectExceptionMessage('encrypts an attachment\'s content only');
+
+        (new Encryption($this->recipientCertificate()))
+            ->withEncryptor(new RecordingEncryptor())
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Complete))(
+                $this->context($this->envelope())
+            );
     }
 
     public function test_with_methods_are_immutable(): void
@@ -276,7 +359,7 @@ final class EncryptionTest extends OutboundTestCase
         $encryptedData = $this->only($document, self::XENC, 'EncryptedData');
         static::assertSame('http://www.w3.org/2001/04/xmlenc#Content', $encryptedData->getAttribute('Type'));
 
-        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup())))
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup()), new ExternalEncryptedDataReader(new Cipher())))
             ->decrypt($document, new DecryptionRequest($this->security($document), $key));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
@@ -297,7 +380,7 @@ final class EncryptionTest extends OutboundTestCase
         static::assertInstanceOf(Element::class, $method);
         static::assertSame(DataEncryptionMethod::AES256_CBC->value, $method->getAttribute('Algorithm'));
 
-        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup())))
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup()), new ExternalEncryptedDataReader(new Cipher())))
             ->decrypt($document, new DecryptionRequest(
                 $this->security($document),
                 $key,
@@ -329,6 +412,10 @@ final class EncryptionTest extends OutboundTestCase
             new EncryptedDataBuilder((new WsuIdConvention())->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
+            new ExternalPartSealer(
+                new Cipher(),
+                new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),
+            ),
         );
     }
 

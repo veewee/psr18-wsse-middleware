@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\External\ExternalPartVerification;
 
 /**
  * The policy a signature is verified against: the trust anchors plus the algorithm policy whose allow-lists
@@ -17,9 +18,14 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
  */
 final readonly class VerificationPolicy
 {
+    /**
+     * @param ?ExternalPartVerification $externalParts the parts a cid: reference may resolve to, and the
+     *        transform it must declare. Absent means every non-fragment reference URI stays refused
+     */
     public function __construct(
         public TrustStore $trustStore,
         public CryptoPolicy $crypto,
+        public ?ExternalPartVerification $externalParts = null,
     ) {
     }
 }

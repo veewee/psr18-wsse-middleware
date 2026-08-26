@@ -67,14 +67,36 @@ permit = ["@layer:base", "@layer:crypto"]
 # Layer 3 - the standalone XML-DSig/XML-Enc core. No @layer:crypto: it orchestrates XML and delegates every
 # primitive to OpenSSL\, so a phpseclib or HiddenString import appearing here is a misplaced class rather than
 # a rule that needs widening. Granting it would let that break the unwrapped-key boundary silently.
+#
+# phpro/resource-stream is how an external part carries bytes that are not in the document, the same way
+# KeyStore\Pem streams key material. It is a stream handle rather than a crypto primitive, so it breaches
+# nothing the paragraph above protects.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\XmlSecurity"
-permit = ["@layer:base", "@layer:xml"]
+permit = ["@layer:base", "@layer:xml", "Phpro\\ResourceStream\\**"]
 
 # Layer 4 — the SOAP profile. It sees every layer below it (via `layering`) but NOT the sibling Wsa above it.
 [[guard.perimeter.rules]]
 namespace = "Soap\\Psr18WsseMiddleware\\WSSecurity"
 permit = ["@layer:base", "@layer:xml", "@layer:crypto", "@layer:http"]
+
+# The one place the attachments middleware is reachable from. AttachmentParts adapts that package's storage to
+# the XmlSecurity\ExternalParts seam, so the engine below it never names an attachment; this namespace exists
+# to hold that adapter alone, which is what makes "only one class knows about that package" a rule the guard
+# enforces rather than a comment asking politely. A second class needing it belongs here or nowhere.
+# Composer\InstalledVersions is read only to name the installed version in the "too old" message.
+# phpro/resource-stream is how an external part carries its bytes, the same reach XmlSecurity has: composing
+# a part's headers ahead of its content produces octets that have to leave here as a stream.
+[[guard.perimeter.rules]]
+namespace = "Soap\\Psr18WsseMiddleware\\WSSecurity\\Attachment"
+permit = [
+    "@layer:base",
+    "Phpro\\ResourceStream\\**",
+    "Soap\\Psr18AttachmentsMiddleware\\**",
+    "Composer\\InstalledVersions",
+    "Soap\\Psr18WsseMiddleware\\XmlSecurity\\**",
+    "Soap\\Psr18WsseMiddleware\\WSSecurity\\Exception\\**",
+]
 
 # WS-Addressing — an independent top layer; needs no WS-Security.
 [[guard.perimeter.rules]]

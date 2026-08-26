@@ -165,3 +165,8 @@ too, say that you read the empty table as Body-only and that a captured message 
 A long Parts table listing each header individually is usually better expressed as
 `Part::securityHeaderContents()` or `Part::soapHeaders()`, which resolve against the live message. Say when you
 make that substitution, since it can cover more than the original list.
+
+**The table is element-oriented and cannot express an attachment.** Its columns address XML by name, namespace
+or id, and SoapUI's WS-Security UI offers no attachment option, so a project you are handed will never ask for
+attachment signing or encryption. If the peer needs it, that requirement came from somewhere other than this
+file: see [Attachment security](../../../../docs/attachments.md).

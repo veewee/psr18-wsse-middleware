@@ -208,7 +208,16 @@ key reference. Use them only to widen what you are prepared to see inbound. `sp:
 | An empty `sp:SignedParts` / `sp:EncryptedParts` | Nothing is required by that assertion; do not invent parts |
 | `sp:SignedElements` / `sp:EncryptedElements` with `sp:XPath` | `Part::path(...)` when the expression is a chain of single elements from the document element down, `Part::element()` when a qualified name anywhere will do. Anything else is unmapped: ask which element is meant. |
 | `sp:RequiredElements` with `sp:XPath` | A presence requirement, not a protection requirement. Nothing to configure. |
-| `sp:Attachments`, `sp:AttachmentComplete` | Unmapped. Attachment security is not in this package. |
+| `sp:Attachments` under `sp:SignedParts`, with no child | `withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Complete))` on `Outbound\Signature`, plus the same on `Inbound\VerifySignature` with `::response()`. **The absence of `sp13:ContentSignatureTransform` means the complete coverage**, so reading a bare `sp:Attachments` as content-only generates a configuration that cannot work against the WSDL it came from. See [Attachment security](../../../../docs/attachments.md) |
+| `sp13:ContentSignatureTransform` inside `sp:Attachments` | The content coverage: `AttachmentParts::request($storage, ExternalPartCoverage::Content)`. This is what AS4 and eDelivery peers set |
+| `sp13:AttachmentCompleteSignatureTransform` inside `sp:Attachments` | `ExternalPartCoverage::Complete`, the same as a bare `sp:Attachments`. Spelling it out changes nothing |
+| `sp:Attachments` under `sp:EncryptedParts` | `withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))` on `Outbound\Encryption`, plus `withAttachments(AttachmentParts::response($storage, ExternalPartCoverage::Complete))` on `Inbound\Decrypt`. **The element takes no children here**, unlike under `sp:SignedParts`, so the policy language has no way to ask for one coverage over the other and content-only always conforms. Emit the content one and accept the complete one: a default-configured CXF sender emits it |
+
+`sp:Attachments` requires `php-soap/psr18-attachments-middleware` 0.12.0 or later and an `AttachmentStorage`
+shared with `AttachmentsMiddleware`, so importing one means adding a dependency and a second middleware, not
+just a `with*()` call. Say so when you report the mapping. A `text/*` attachment is signed over a transformed form of its
+content, XML with exclusive C14N and any other text with its line endings normalized, so the only such policy
+that cannot be satisfied is one whose XML attachment is not a well-formed document or carries a doctype.
 
 The signing default is `[Part::body(), Part::securityHeaderContents()]` and the encryption default is
 `[Part::body()]`. A policy asking for exactly the Body plus the timestamp and tokens is already the default, so

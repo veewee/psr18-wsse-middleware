@@ -8,6 +8,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\ApexDefaultNamespace;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartContent;
 
 /**
  * Re-canonicalizes one resolved element with the same method the signature declared, digests the canonical
@@ -45,7 +46,10 @@ final class DigestVerifier
         // reports it, and this reads that rather than the element the reference URI named.
         $canonical = $this->canonicalizer->canonicalize(
             $reference->digested(),
-            $parsed->canonicalization,
+            // Non-null for an in-document reference: the resolver routes an external one elsewhere.
+            $parsed->canonicalization ?? throw SignatureVerificationFailed::withReason(
+                'A reference declares no canonicalization.',
+            ),
             $parsed->inclusivePrefixes === [] ? null : $parsed->inclusivePrefixes,
             $reference->envelopedSignature,
         );
@@ -56,6 +60,48 @@ final class DigestVerifier
         }
 
         $actual = $this->digest->hash($canonical, $parsed->digestMethod);
+
+        return $this->digest->equals($expected, $actual);
+    }
+
+    /**
+     * Digests an external part's content under the same rule the signer applied to it and compares in
+     * constant time: XML canonicalized, other text with its line endings normalized, anything else exactly as
+     * it travels.
+     *
+     * XML content is canonicalized with exclusive C14N first, the same as the signer did, so a part whose
+     * octets are not a readable document has no node-set to compare and is refused rather than guessed at.
+     *
+     * The stream is rewound first, because the same part may already have been read on this message: the
+     * decryption block ran before this one and replaced these bytes.
+     *
+     * @throws SignatureVerificationFailed when the expected digest value is not valid base64, or the part is
+     *         one whose canonicalization is not implemented
+     */
+    public function verifyExternalPart(ResolvedExternalReference $reference): bool
+    {
+        $expected = base64_decode($reference->parsed->expectedDigestValueBase64, true);
+        if ($expected === false) {
+            throw SignatureVerificationFailed::withReason('The digest value is not valid base64.');
+        }
+
+        $part = $reference->part;
+        try {
+            // Prepended after the transform, matching what the signer did: the metadata a coverage includes
+            // is written as it stands and the content is written as the transform produced it.
+            $octets = $part->digestPrefix.(new ExternalPartContent($this->canonicalizer))
+                ->canonicalize($part->mimeType, $part->content->rewind()->getContents());
+        } catch (CanonicalizationFailed $exception) {
+            throw SignatureVerificationFailed::withReason(
+                'A referenced part could not be read as the media type it declares.',
+                $exception,
+            );
+        }
+
+        $actual = $this->digest->hash($octets, $reference->parsed->digestMethod);
+        // Left rewound rather than at EOF. This is the caller's own attachment stream, and verifying it is
+        // not supposed to consume it: the next reader is usually the application.
+        $part->content->rewind();
 
         return $this->digest->equals($expected, $actual);
     }

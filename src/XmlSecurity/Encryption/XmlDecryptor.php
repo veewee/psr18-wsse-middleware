@@ -11,5 +11,5 @@ use VeeWee\Xml\Dom\Document;
  */
 interface XmlDecryptor
 {
-    public function decrypt(Document $document, DecryptionRequest $request): void;
+    public function decrypt(Document $document, DecryptionRequest $request): DecryptionResult;
 }

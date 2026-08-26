@@ -5,7 +5,10 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use InvalidArgumentException;
 use OpenSSLAsymmetricKey;
+use Phpro\ResourceStream\Factory\MemoryStream;
 use PHPUnit\Framework\Attributes\RequiresPhp;
+use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
+use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
@@ -14,6 +17,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\PkiPath;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
@@ -24,6 +28,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\Xml\QualifiedName;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
@@ -37,6 +43,127 @@ final class SignatureTest extends OutboundTestCase
 {
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
     private const X509_PKI_PATH = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509PKIPathv1';
+    private const SWA_CONTENT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
+    private const SWA_COMPLETE_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Complete-Signature-Transform';
+
+    public function test_it_lowers_registered_attachments_into_the_signing_request(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))($this->signableContext());
+
+        $external = $signer->lastRequest()->externalParts;
+        static::assertNotNull($external);
+        static::assertSame(self::SWA_CONTENT_TRANSFORM, $external->transform);
+        static::assertCount(1, $external->parts);
+        static::assertNotNull($external->parts->byReference('cid:invoice@example.com'));
+    }
+
+    public function test_it_signs_no_external_parts_when_none_are_registered(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
+
+        static::assertNull($signer->lastRequest()->externalParts);
+    }
+
+    public function test_it_still_signs_the_default_parts_alongside_attachments(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))($this->signableContext());
+
+        // Registering attachments adds coverage; it never replaces the in-document defaults.
+        static::assertNotSame([], $signer->lastRequest()->targets);
+    }
+
+    public function test_it_signs_a_text_attachment(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments('note@example.com', 'text/plain'))($this->signableContext());
+
+        $external = $signer->lastRequest()->externalParts;
+        static::assertNotNull($external);
+        static::assertCount(1, $external->parts);
+        static::assertNotNull($external->parts->byReference('cid:note@example.com'));
+    }
+
+    public function test_it_refuses_an_xml_attachment_that_is_not_a_document(): void
+    {
+        // Refused by the engine rather than the block, because the reason is that there is no node-set to
+        // canonicalize and therefore no digest to compute. The fixture's content is not XML.
+        $this->expectException(SigningFailed::class);
+        $this->expectExceptionMessage('could not be read as a document');
+
+        (new Signature($this->clientCertificate()))
+            ->withAttachments($this->attachments('doc@example.com', 'application/xml'))($this->signableContext());
+    }
+
+    public function test_it_refuses_a_signature_that_left_a_registered_attachment_uncovered(): void
+    {
+        // The signer reports what it covered rather than the block assuming it. A replaceable seam that
+        // returns a signature over less than it was asked for would otherwise ship an attachment the caller
+        // configured as signed, with nothing on this side saying so.
+        $this->expectException(SigningFailed::class);
+        $this->expectExceptionMessage(
+            'The signature does not cover the external part "cid:invoice@example.com", which was registered.',
+        );
+
+        (new Signature($this->clientCertificate()))
+            ->withSigner(new UncoveringSigner())
+            ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))(
+                $this->signableContext(),
+            );
+    }
+
+    public function test_it_accepts_a_signature_that_covered_everything_registered(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))(
+                $this->signableContext(),
+            );
+
+        static::assertNotNull($signer->lastRequest()->externalParts);
+    }
+
+    public function test_it_declares_the_complete_transform_for_a_complete_adapter(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments(
+                'invoice@example.com',
+                'application/pdf',
+                ExternalPartCoverage::Complete
+            ))($this->signableContext());
+
+        $external = $signer->lastRequest()->externalParts;
+        static::assertNotNull($external);
+        static::assertSame(self::SWA_COMPLETE_TRANSFORM, $external->transform);
+    }
+
+    private function attachments(
+        string $uri,
+        string $mimeType,
+        ExternalPartCoverage $coverage = ExternalPartCoverage::Content,
+    ): AttachmentParts {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<'.$uri.'>',
+            'file',
+            'file.bin',
+            $mimeType,
+            MemoryStream::create()->write('the bytes')->rewind(),
+        ));
+
+        return AttachmentParts::request($storage, $coverage);
+    }
 
     public function test_it_uses_profile_algorithms_by_default(): void
     {

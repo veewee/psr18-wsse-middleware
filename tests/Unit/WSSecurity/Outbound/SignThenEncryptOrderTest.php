@@ -29,6 +29,9 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataReader;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
@@ -74,7 +77,7 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         );
 
         // The encrypted body still round-trips after the combined operation.
-        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup())))
+        (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup()), new ExternalEncryptedDataReader(new Cipher())))
             ->decrypt($document, new DecryptionRequest($this->security($document), $recipientKey));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
@@ -144,6 +147,10 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
             new EncryptedDataBuilder((new WsuIdConvention())->minter()),
             new KeyTransport(),
             new EncryptedKeyBuilder(),
+            new ExternalPartSealer(
+                new Cipher(),
+                new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),
+            ),
         );
     }
 

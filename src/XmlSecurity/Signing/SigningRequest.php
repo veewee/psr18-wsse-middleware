@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\ExternalPartSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 
 /**
@@ -37,6 +38,7 @@ final readonly class SigningRequest
         public DigestMethod $digestMethod,
         public SignatureCanonicalization $canonicalization,
         public bool $inclusivePrefixes = false,
+        public ?ExternalPartSignature $externalParts = null,
     ) {
     }
 }

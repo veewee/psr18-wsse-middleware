@@ -470,3 +470,69 @@ The `WSA_ADDRESS_ANONYMOUS` constant is gone; each version's anonymous URI comes
 plus two properties that could not be sent at all before: `from` and `faultTo`. All of them default to `null`,
 which keeps the previous behaviour: `action` from the request's `SOAPAction`, `to` from the request URI, and
 `From`/`FaultTo` omitted. `wsa:MessageID` is still generated per message and is deliberately not configurable.
+
+### Send or receive secured SOAP attachments
+
+New capability, so there is nothing to migrate. Do this only if your service protects attachments.
+
+Require `php-soap/psr18-attachments-middleware` 0.12.0 or newer, which is the release where an attachment
+describes itself in the MIME headers it travels with:
+
+```bash
+composer require "php-soap/psr18-attachments-middleware:^0.12"
+```
+
+List `WsseMiddleware` before `AttachmentsMiddleware`. The first plugin in a `PluginClient` is the outermost,
+and WSSE has to see plain XML on the way out and a split multipart on the way back:
+
+```php
+new WsseMiddleware(
+    new SecurityProfile(),
+    outbound: [
+        (new Outbound\Signature($clientCertificate))
+            ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete)),
+    ],
+    inbound: [
+        (new Inbound\VerifySignature($trustStore))
+            ->withAttachments(AttachmentParts::response($attachments, ExternalPartCoverage::Complete)),
+    ],
+),
+new AttachmentsMiddleware($attachments, AttachmentType::Swa),
+```
+
+Register the parts on every block that should cover them. `Outbound\Signature`, `Inbound\VerifySignature`,
+`Outbound\Encryption` and `Inbound\Decrypt` each take `withAttachments()`, and a block without it protects the
+document alone. Registering parts on an inbound block is the *requirement* that they be protected, so a peer
+that omits one is refused rather than silently accepted.
+
+Choose how much of each part a protection covers, which is decidable from the peer's WSDL:
+
+| The peer's WSDL says | Configure |
+|---|---|
+| `<sp:SignedParts><sp:Attachments/></sp:SignedParts>` | `ExternalPartCoverage::Complete` |
+| `<sp:Attachments><sp13:ContentSignatureTransform/></sp:Attachments>` | `ExternalPartCoverage::Content` |
+| `<sp:EncryptedParts><sp:Attachments/></sp:EncryptedParts>` | Either satisfies the policy. `Content` outbound; be ready to accept `Complete` inbound |
+| Nothing about attachments | Neither. Do not register attachment parts on the blocks |
+
+A bare `<sp:Attachments/>` means `Complete`: content-only is the opt-in. There is no default, so name the
+coverage where the adapter is built:
+
+```php
+AttachmentParts::request($attachments, ExternalPartCoverage::Complete)
+```
+
+If you implement the `ExternalParts` seam yourself rather than using `AttachmentParts`, it has two collects.
+`collect()` is what a signature covers and `collectSealed()` is what a cipher addresses. They return the same
+streams; they differ only in `ExternalPart::$digestPrefix`, which carries the canonical MIME header block
+under a complete coverage and is empty otherwise. Put the header block there rather than concatenating it into
+the content: the engine prepends it after the content transform, which is the order a peer composes them in.
+
+What gets digested depends on the attachment's media type, and none of it is a configuration choice. XML
+(`text/xml`, `application/xml`, or a `+xml` subtype of `application` or `image`) is canonicalized with
+exclusive C14N; any other `text/*` has its line endings normalized to CRLF; everything else is digested
+exactly as it travels. The part itself is never modified. An XML attachment that is not a well-formed
+document, or that carries a doctype, is refused, because there is nothing to canonicalize and a peer refuses
+it too.
+
+Read [docs/attachments.md](docs/attachments.md) before turning it on. It carries the wire format, the ordering
+rules, and the list of what is refused.

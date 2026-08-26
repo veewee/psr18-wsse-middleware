@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentSignatureTransform;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\SamlAssertionKeyIdentifier;
@@ -20,7 +21,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\SamlToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\ExternalPartSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\Signer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SigningRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
@@ -51,6 +56,7 @@ final class Signature implements OutboundAction
     private bool $inclusivePrefixes = false;
     private ?CertificateChain $certificateChain = null;
     private ?KeyIdentifier $keyIdentifier = null;
+    private ?ExternalParts $attachments = null;
 
     private XmlSigner $signer;
     private readonly SigningPartResolver $partResolver;
@@ -185,6 +191,24 @@ final class Signature implements OutboundAction
     }
 
     /**
+     * Covers the message's attachments as well as its in-document parts, in the same ds:Signature.
+     *
+     * The parts are read when the message is signed, not now, because they belong to the call in flight.
+     * Registering them adds coverage and never replaces what withParts() asks for: an attachment reference
+     * sits alongside the Body's, which is the shape a peer's sp:SignedParts policy is checked against.
+     *
+     * Pass AttachmentParts::request() for the outbound side. Only this block and its inbound twin know that
+     * these are attachments at all: the engine is handed the profile's transform URI and a list of parts.
+     */
+    public function withAttachments(ExternalParts $attachments): self
+    {
+        $clone = clone $this;
+        $clone->attachments = $attachments;
+
+        return $clone;
+    }
+
+    /**
      * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException when the header cannot be created
      * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\IdStampFailed when a signed part cannot carry a wsu:Id
      * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed when signing fails
@@ -209,12 +233,56 @@ final class Signature implements OutboundAction
             digestMethod: $this->digestMethod ?? $profile->crypto()->digestMethod(),
             canonicalization: $this->canonicalization ?? $profile->crypto()->canonicalization(),
             inclusivePrefixes: $this->inclusivePrefixes,
+            externalParts: $this->externalPartSignature(),
         );
 
-        $this->signer->sign($document, $request);
+        $signed = $this->signer->sign($document, $request);
+        $this->assertEveryRegisteredPartCovered($request->externalParts?->parts, $signed->covered);
 
         // The engine appends the signature; which order this header must be in is the profile's rule.
         $security->sort();
+    }
+
+    /**
+     * Every part handed to the signer must come back named as covered.
+     *
+     * The signer reports its coverage instead of the block trusting the request it sent, because the signer
+     * is a seam a caller may replace. One that returns a signature over less than it was asked for would
+     * otherwise leave an attachment travelling unsigned while the caller believes the opposite, which is a
+     * failure with nothing on this side to notice it.
+     *
+     * @throws SigningFailed
+     */
+    private function assertEveryRegisteredPartCovered(
+        ?ExternalPartList $registeredAttachments,
+        ExternalPartList $covered,
+    ): void {
+        foreach ($registeredAttachments ?? ExternalPartList::of() as $part) {
+            if ($covered->byReference($part->reference) === null) {
+                throw SigningFailed::uncoveredExternalPart($part->reference);
+            }
+        }
+    }
+
+    /**
+     * The SwA content transform is this block's to declare, exactly as it owns lowering a Part into a Target.
+     * The engine is told which transform a reference declares and never learns that it names an attachment.
+     *
+     * The parts are collected here rather than at wiring time because the storage holds the message in
+     * flight. Sign-then-encrypt collects the same message twice, once here and once in the encryption block,
+     * which is why the seam promises rewound streams.
+     */
+    private function externalPartSignature(): ?ExternalPartSignature
+    {
+        $attachments = $this->attachments;
+        if ($attachments === null) {
+            return null;
+        }
+
+        return new ExternalPartSignature(
+            $attachments->collect(),
+            AttachmentSignatureTransform::for($attachments->coverage())->value,
+        );
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier

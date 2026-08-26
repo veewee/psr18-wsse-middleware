@@ -31,20 +31,29 @@ final class SignedInfoParser
     private const ENVELOPED_SIGNATURE = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature';
 
     /**
-     * @param DereferencingTransform|null $dereferencingTransform the one transform a reference may declare in
-     *        place of a canonicalization, when the caller registered one
+     * @param non-empty-string|null       $externalTransform the one transform an external reference may
+     *        declare, or null when the verification accepts no external reference at all
+     * @param DereferencingTransform|null $dereferencingTransform the one transform an in-document reference may
+     *        declare in place of a canonicalization, when the caller registered one
      *
      * @throws SignatureVerificationFailed
      */
-    public function parse(Element $signature, ?DereferencingTransform $dereferencingTransform = null): ParsedSignedInfo
-    {
+    public function parse(
+        Element $signature,
+        ?string $externalTransform = null,
+        ?DereferencingTransform $dereferencingTransform = null,
+    ): ParsedSignedInfo {
         $signedInfo = $this->requireDsChild($signature, 'SignedInfo');
 
         $canonicalizationMethod = $this->requireDsChild($signedInfo, 'CanonicalizationMethod');
         $canonicalization = $this->canonicalizationAlgorithm($canonicalizationMethod);
         $canonicalizationPrefixes = PrefixList::read($canonicalizationMethod);
         $signatureMethod = $this->signatureMethod($signedInfo);
-        [$referenceElements, $parsedReferences] = $this->parseReferences($signedInfo, $dereferencingTransform);
+        [$referenceElements, $parsedReferences] = $this->parseReferences(
+            $signedInfo,
+            $externalTransform,
+            $dereferencingTransform,
+        );
 
         return new ParsedSignedInfo(
             $canonicalization,
@@ -56,17 +65,22 @@ final class SignedInfoParser
     }
 
     /**
+     * @param non-empty-string|null $externalTransform
+     *
      * @return array{0: non-empty-list<Element>, 1: non-empty-list<ParsedReference>}
      *
      * @throws SignatureVerificationFailed
      */
-    private function parseReferences(Element $signedInfo, ?DereferencingTransform $transform): array
-    {
+    private function parseReferences(
+        Element $signedInfo,
+        ?string $externalTransform,
+        ?DereferencingTransform $transform,
+    ): array {
         $elements = [];
         $parsed = [];
         foreach (ChildElements::named($signedInfo, Namespaces::Ds, 'Reference') as $child) {
             $elements[] = $child;
-            $parsed[] = $this->parseReference($child, $transform);
+            $parsed[] = $this->parseReference($child, $externalTransform, $transform);
         }
 
         if ($elements === [] || $parsed === []) {
@@ -77,13 +91,33 @@ final class SignedInfoParser
     }
 
     /**
+     * @param non-empty-string|null $externalTransform
+     *
      * @throws SignatureVerificationFailed
      */
-    private function parseReference(Element $reference, ?DereferencingTransform $transform): ParsedReference
-    {
+    private function parseReference(
+        Element $reference,
+        ?string $externalTransform,
+        ?DereferencingTransform $transform,
+    ): ParsedReference {
         // The id itself is re-read from the element by the resolver; here it only has to be well-formed.
         if (SameDocumentId::parse((string) $reference->getAttribute('URI')) === null) {
-            throw SignatureVerificationFailed::withReason('A reference URI must be a non-empty same-document id.');
+            // Not a same-document id. It is an external reference only if this verification accepts them and
+            // the reference declares exactly the transform it was told to expect. Otherwise the standing
+            // refusal applies: an external URI is never resolved, and never fetched.
+            if ($externalTransform === null) {
+                throw SignatureVerificationFailed::withReason(
+                    'A reference URI must be a non-empty same-document id.',
+                );
+            }
+
+            return new ParsedReference(
+                $this->digestMethod($reference),
+                ElementText::trimmed($this->requireDsChild($reference, 'DigestValue')),
+                null,
+                [],
+                $this->assertExternalTransform($reference, $externalTransform),
+            );
         }
 
         $digestMethod = $this->digestMethod($reference);
@@ -109,7 +143,7 @@ final class SignedInfoParser
             ElementText::trimmed($digestValue),
             $how->canonicalization,
             $how->inclusivePrefixes,
-            $transform->algorithm(),
+            dereferencingTransform: $transform->algorithm(),
         );
     }
 
@@ -162,6 +196,36 @@ final class SignedInfoParser
         }
 
         return new TransformCanonicalization($algorithm, PrefixList::read($transform));
+    }
+
+    /**
+     * An external reference must declare exactly the one transform the verification expects, and nothing else.
+     * No default applies here and none could: the transform is what says the digest covers a stream of octets
+     * rather than a canonicalized node-set, so an absent or unexpected one leaves the digest undefined.
+     *
+     * @param non-empty-string $required
+     *
+     * @return non-empty-string
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function assertExternalTransform(Element $reference, string $required): string
+    {
+        $transformsMatches = ChildElements::named($reference, Namespaces::Ds, 'Transforms');
+        if (count($transformsMatches) !== 1) {
+            throw SignatureVerificationFailed::withReason('An external reference must declare one transform.');
+        }
+
+        $declared = ChildElements::named($transformsMatches[0], Namespaces::Ds, 'Transform');
+        if (count($declared) !== 1) {
+            throw SignatureVerificationFailed::withReason('An external reference must declare one transform.');
+        }
+
+        if ((string) $declared[0]->getAttribute('Algorithm') !== $required) {
+            throw SignatureVerificationFailed::withReason('A reference declares an unsupported transform.');
+        }
+
+        return $required;
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartDecryption;
 
 /**
  * The inputs to a single decryption operation: the container the xenc:EncryptedKey and xenc:ReferenceList are
@@ -25,6 +26,7 @@ final readonly class DecryptionRequest
         public Element $container,
         public Key $privateKey,
         ?CryptoPolicy $policy = null,
+        public ?ExternalPartDecryption $externalParts = null,
     ) {
         $this->policy = $policy ?? CryptoPolicy::default();
     }
