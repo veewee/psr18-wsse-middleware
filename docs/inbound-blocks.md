@@ -132,3 +132,44 @@ new Inbound\ValidateTimestamp();
 Dates are parsed strictly: only the exact instant formats a conforming peer emits are accepted. Every failure
 collapses to one uniform `SecurityFault`.
 
+
+## When the response is a SOAP fault
+
+The inbound list runs on **every** response, a fault included. A service that answers with an unsigned,
+unencrypted `soap:Fault` therefore fails whatever you registered (`VerifySignature` finds no signature,
+`ValidateTimestamp` finds no timestamp) and you get the same uniform `SecurityFault` as any other refusal.
+That is deliberate: skipping the checks for a fault-shaped body would let anyone who can inject a response
+bypass every one of them by wrapping the payload in a fault.
+
+What it should not cost you is the diagnosis. So when the failing response *is* a fault, the reason the peer
+gave is chained into the refusal as a `PeerReportedFault`:
+
+```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\PeerReportedFault;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
+
+try {
+    $result = $client->call('...');
+} catch (SecurityFault $fault) {
+    $reported = $fault->getPrevious();
+    if ($reported instanceof PeerReportedFault) {
+        // "The peer returned a SOAP fault [soap:Sender]: Invalid security token"
+        $logger->error($reported->getMessage(), ['exception' => $fault]);
+    }
+}
+```
+
+Both SOAP versions are read: `faultcode`/`faultstring` in 1.1, `Code/Value` and `Reason/Text` in 1.2. The
+original cause stays reachable behind the `PeerReportedFault`, so nothing you had before is lost.
+
+**This only fires when a check fails.** A fault reply that passes your inbound list is handed on untouched, and
+`php-soap/encoding` raises its own `SoapFaultException` for it further up, carrying the fault in full including
+the `detail` element. So the rule is: a fault you can act on programmatically arrives as `SoapFaultException`,
+and a fault that arrived alongside a security failure arrives as a log line inside `SecurityFault`. The wording
+of the two messages is deliberately identical, so one search of your logs finds either.
+
+Three things this deliberately does not do. `SecurityFault`'s own message never changes, so the no-oracle
+guarantee is untouched and nothing about which check failed leaks. The fault text is peer-supplied and
+**unverified**, since nobody signed it, so it belongs in your log and nowhere near a decision your code makes;
+it is stripped of control characters and capped in length for exactly that reason. And a fault is still a
+refusal: no response, no configuration to change that.

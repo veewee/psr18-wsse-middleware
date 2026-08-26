@@ -115,7 +115,7 @@ default you are about to change, drop one level down:
 | Take a closer look at | For |
 |---|---|
 | [Outbound blocks](docs/outbound-blocks.md) | Every argument and `with*()` method of `Timestamp`, `Username`, `BinarySecurityToken`, `Signature`, `Encryption`, `SamlAssertion` |
-| [Inbound blocks](docs/inbound-blocks.md) | The same for `Decrypt`, `VerifySignature`, `ValidateTimestamp` |
+| [Inbound blocks](docs/inbound-blocks.md) | The same for `Decrypt`, `VerifySignature`, `ValidateTimestamp`, and what a `soap:Fault` reply gives you |
 | [Choosing parts and key references](docs/parts-and-key-references.md) | `Part`, the dynamic parts, `KeyRef` and `EncKeyRef` |
 | [Key stores](docs/key-stores.md) | Loading certificates, private keys, PEM bundles and `.p12` / `.pfx` files |
 | [Trust](docs/trust.md) | Why a verified signature is not an authenticated peer, pinning, and opt-in revocation checking |
