@@ -53,6 +53,11 @@ $expected = DistinguishedName::fromString('CN=payments.example.com,O=Example,C=B
   `TrustedSigner` carries `subjectDistinguishedName()` and `certificate()`, so you can compare the subject, or
   the certificate's own bytes for a per-message pin.
 
+A signature keyed by a symmetric secret names no signer: one key both produces and checks it, so there is no
+identity for a check to run against. A response like that with a check registered is **refused**, not accepted
+with the check quietly skipped. If your peer signs responses symmetrically, the identity the secret stands for
+is whatever established it, and the place to state that is the key source rather than here.
+
 ## Revocation checking (opt-in)
 
 By default a signer that has been revoked but is still inside its validity window verifies. To check

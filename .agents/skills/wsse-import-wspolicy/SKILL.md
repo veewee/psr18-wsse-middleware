@@ -32,8 +32,9 @@ Two references, both required:
    response (your `inbound`). Do not assume symmetry; check.
 
 4. **Identify the binding first.** `sp:TransportBinding` means TLS does the protecting and you may need nothing
-   but a `Timestamp` and perhaps a `Username`. `sp:AsymmetricBinding` is the case that maps onto signing and
-   encryption blocks. `sp:SymmetricBinding` mostly does not map; see the reference.
+   but a `Timestamp` and perhaps a `Username`. `sp:AsymmetricBinding` maps onto a signing identity and a
+   recipient certificate. `sp:SymmetricBinding` maps onto one key source passed to both blocks, which is a
+   different shape rather than a longer version of the same one; see the reference's Symmetric bindings section.
 
 5. **Expand `sp:AlgorithmSuite` from the table in the reference, never from the name.** The suite names mislead:
    the `Sha256` in `Basic256Sha256` is the digest, not the signature, and every standard suite specifies

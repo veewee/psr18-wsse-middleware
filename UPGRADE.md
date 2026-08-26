@@ -65,6 +65,15 @@ not what the previous version sent. If a peer pins the old algorithms, set them 
 | Encrypted parts | Body **and the signature** (`encryptSignature` defaulted to `true`) | Body only |
 | Encryption key reference | had to be passed explicitly | `EncKeyRef::SubjectKeyIdentifier` |
 | Signature key reference | had to be passed explicitly | `KeyRef::BinarySecurityToken` |
+| `xenc:ReferenceList` position | nested inside the `xenc:EncryptedKey` | a sibling of it, directly in the Security header |
+| `xenc:EncryptedData/ds:KeyInfo` | absent | a `wsse:Reference` naming the local `xenc:EncryptedKey` |
+
+The last two rows are what makes one session key serve both a signature and an encryption. The key is written
+when it is minted, before any block has said what it will cover, so a nested list would have to be appended to an
+element a signature may already have covered. Both shapes are what CXF and WCF emit and what WSS4J reads; the
+inbound reader here already accepted either, so a correlated response is unaffected. Nothing in the WS-Security
+node ordering changes: the profile already ranked a top-level `xenc:ReferenceList` between the key and the
+signature.
 
 SHA-1 signing and digests are still selectable, so a peer that has not moved on keeps working:
 
@@ -260,8 +269,9 @@ $trustStore = TrustStore::fromPem(Pem::fromFile('anchors.pem'));   // or Pem::fr
 
 ### Blocks take credentials, not crypto wiring
 
-`Entry\Signature` and `Entry\Encryption` each took a key plus a `KeyIdentifier` object. The blocks now take the
-credential and an enum case, and build the engine service they need internally with secure defaults:
+`Entry\Signature` and `Entry\Encryption` each took a key plus a `KeyIdentifier` object. The blocks now take a
+**credential object** that answers how they are keyed and how that key is referenced, and build the engine
+service they need internally with secure defaults:
 
 ```php
 // before
@@ -270,11 +280,40 @@ new Entry\Encryption($recipientKey, new X509SubjectKeyIdentifier($certificate));
 new Entry\Decryption($privateKey);
 
 // after
-new Outbound\Signature($clientCertificate);                  // KeyRef::BinarySecurityToken by default
-new Outbound\Encryption($recipientCertificate);              // EncKeyRef::SubjectKeyIdentifier by default
+new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate));  // KeyRef::BinarySecurityToken
+new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate));      // EncKeyRef::SubjectKeyIdentifier
 new Inbound\Decrypt($privateKey);
 new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]);
 ```
+
+The two credentials are the seam that makes a symmetric binding expressible, which is why they are objects
+rather than a certificate and an enum:
+
+- `Outbound\Signature` takes a **`SigningKey`**: `Outbound\CertificateSigningKey` for the X.509 forms, or
+  `Outbound\SymmetricSigningKey` for a MAC keyed by a shared secret. Everything certificate-shaped lives on the
+  first one, including the certification path that used to be `withCertificatePath()`.
+- `Outbound\Encryption` takes a **`SymmetricKeySource`**: `Keys\WrappedSessionKey` is definitionally what the
+  old `(Certificate, EncKeyRef)` pair meant, so this is a collapse rather than a second mode. `EncKeyRef` and the
+  key-transport choice move onto it, because they say how the *key* reaches its recipient rather than what gets
+  encrypted. The other two sources are `Keys\DerivedSessionKey` and `Keys\PreSharedSessionKey`.
+
+Passing the same source to a `Signature` and an `Encryption` block is what makes them share one
+`xenc:EncryptedKey`. See [Symmetric key sources](docs/outbound-blocks.md#symmetric-key-sources).
+
+Two `Encryption` modifiers are gone with the collapse: `withKeyEncryptionMethod()` and
+`withKeyTransportAlgorithm()`. State the transport on the key source instead, or move the default for every
+source on the profile's `keyEncryptionMethod` and `oaepHash`:
+
+```php
+new Outbound\Encryption(new Keys\WrappedSessionKey(
+    $recipientCertificate,
+    keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha256(),
+));
+```
+
+`Inbound\Decrypt`'s private key is now optional, and both inbound blocks gained `withPreSharedKey()`. A
+deployment whose peer encrypts under a key the exchange already established wraps nothing, so there is nothing
+to unwrap; see [Inbound blocks](docs/inbound-blocks.md).
 
 For the rare case where you need a custom engine service, override it with a `with*()` method
 (`Outbound\Signature::withSigner`, `Outbound\Encryption::withEncryptor`, `Inbound\Decrypt::withDecryptor`,
@@ -293,7 +332,7 @@ The boolean switches are gone. `withSignAllHeaders()`, `withSignBody()`, `withSi
     ->withSignBody(true);
 
 // after
-(new Outbound\Signature($clientCertificate))
+(new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
     ->withParts([Part::body(), Part::soapHeaders()]);
 ```
 
@@ -304,23 +343,30 @@ any tokens. The previous default signed the Body and all SOAP headers, so the cl
 
 The available factories are `body()`, `timestamp()`, `usernameToken()`, `binarySecurityToken()`,
 `securityHeaderContents()`, `soapHeaders()` (every SOAP header block except `wsse:Security`. The equivalent of
-`wse-php`'s `signAllHeaders`), `element(namespace, localName)` and `byId(id)`. The two dynamic parts also work
-inbound: pass them to `Inbound\VerifySignature`'s `signed:` list to require every Security-header token (or
-every other SOAP header) was signed.
+`wse-php`'s `signAllHeaders`), `primarySignature()`, `element(namespace, localName)` and `byId(id)`. The three
+dynamic parts also work inbound: pass them to `Inbound\VerifySignature`'s `signed:` list to require every
+Security-header token (or every other SOAP header, or the primary signature) was signed.
+
+`Part::primarySignature()` names the `ds:Signature` the header already carries, which is what an endorsing
+supporting token covers. It is the only way to cover a signature: `securityHeaderContents()` excludes every
+`ds:Signature` in both directions, so the two cannot double-cover one. Unlike the other dynamic parts it refuses
+rather than expanding to what it finds, because nothing to endorse and two things to endorse are both
+configurations that would otherwise protect nothing. See
+[Endorsing a signature](docs/outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control).
 
 `Outbound\Encryption` takes the same `withParts()` list to choose what gets encrypted, and defaults to the Body
 alone. Its `withEncryptSignature(bool)` switch is gone with the other booleans: and it used to default to
 `true`, so the previous version encrypted the signature as well. Name the signature as a part to keep that:
 
 ```php
-(new Outbound\Encryption($recipientCertificate))
+(new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate)))
     ->withParts([Part::body(), Part::element('http://www.w3.org/2000/09/xmldsig#', 'Signature')]);
 ```
 
 ### Key references are now enums
 
 The `WSSecurity\KeyIdentifier\*` classes are gone. You pick a reference style with an enum case instead of
-constructing an object, and the certificate it describes is derived from the credential the block already has:
+constructing an object, and the certificate it describes is derived from the credential that holds it:
 
 | Before | After |
 |---|---|
@@ -329,14 +375,24 @@ constructing an object, and the certificate it describes is derived from the cre
 |. | `KeyRef::IssuerSerial` (new) |
 |. | `KeyRef::Thumbprint` (new) |
 
-`KeyRef` selects the reference for `Outbound\Signature`; `EncKeyRef` offers the same four cases for
-`Outbound\Encryption` (encryption has no Holder-of-Key equivalent). Both live under
-`WSSecurity\Outbound\KeyReference\`:
+`KeyRef` selects the reference for a `CertificateSigningKey`; `EncKeyRef` offers the same four cases for a
+`WrappedSessionKey` (encryption has no Holder-of-Key equivalent). Both live under
+`WSSecurity\Outbound\KeyReference\`, and both are now passed to the credential rather than to the block:
 
 ```php
-new Outbound\Signature($clientCertificate, KeyRef::SubjectKeyIdentifier);
-new Outbound\Encryption($recipientCertificate, EncKeyRef::IssuerSerial);
+new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate, KeyRef::SubjectKeyIdentifier));
+new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate, EncKeyRef::IssuerSerial));
 ```
+
+Two reference types name a symmetric key rather than a certificate, and neither has an enum case because neither
+describes a certificate: `EncryptedKeySha1KeyIdentifier` (the WSS 1.1 form a symmetric signature uses) and
+`LocalTokenKeyIdentifier` (a `wsse:Reference` to an element in the same header, which every
+`xenc:EncryptedData` uses). The `Keys\SymmetricKeyReference` enum on the key source chooses between them for a
+signature. See [Choosing parts and key references](docs/parts-and-key-references.md).
+
+If you implement `XmlSecurity\KeyIdentifier` yourself, `apply()` now takes only the `Document`: a symmetric
+reference has no certificate to be handed one, and every certificate-based strategy takes its certificate at
+construction, where every call site already had it.
 
 `SamlKeyIdentifier` is now `SamlAssertionKeyIdentifier` and requires a `SamlVersion` as its second argument.
 For the ordinary Holder-of-Key flow you no longer construct it yourself: pass `KeyRef::SamlAssertion` and the
@@ -393,9 +449,9 @@ new Outbound\SamlAssertion($assertionXml, SamlVersion::Saml20);
 `SignatureMethod`, `DigestMethod`, `SignatureCanonicalization`, `DataEncryptionMethod` and
 `KeyEncryptionMethod` moved from `Soap\Psr18WsseMiddleware\WSSecurity\` to
 `Soap\Psr18WsseMiddleware\Algorithm\`. They are W3C XML-Security algorithm identifiers, independent of the SOAP
-layer. Update your `use` statements. Two cases went away: `SignatureMethod::HMAC_SHA1` (a symmetric MAC, which
-this package does not implement), and `SignatureMethod::RSA_OAEP` (a key-transport URI that was never a signature
-method). `KeyTransportAlgorithm` and `OaepHash` are new.
+layer. Update your `use` statements. One case went away: `SignatureMethod::RSA_OAEP`, a key-transport URI that
+was never a signature method. `KeyTransportAlgorithm` and `OaepHash` are new, and so are the five HMAC cases
+described below.
 
 Where you set them changed too. `Entry\Signature::withSignatureMethod()` / `withDigestMethod()` and
 `Entry\Encryption::withDataEncryptionMethod()` / `withKeyEncryptionMethod()` still exist on the blocks for a
@@ -423,13 +479,22 @@ XML-Security layer be driven by a `CryptoPolicy` alone, without the SOAP profile
 - **ECDSA signing.** `SignatureMethod` gained `ECDSA_SHA256`, `ECDSA_SHA384` and `ECDSA_SHA512`. Select one with
   `Outbound\Signature::withSignatureMethod(SignatureMethod::ECDSA_SHA256)`; it needs an EC certificate and key.
   Inbound, the ECDSA methods are in the default accepted signature allow-list.
+- **Keyed-MAC signing.** `SignatureMethod` gained `HMAC_SHA1`, `HMAC_SHA224`, `HMAC_SHA256`, `HMAC_SHA384` and
+  `HMAC_SHA512`, which is what a `SymmetricBinding` policy asks for. They are keyed by a shared secret rather
+  than by a certificate, so they need an `Outbound\SymmetricSigningKey`; pairing one with a certificate throws,
+  because that would make the "secret" the peer's public key bytes. The SHA-2 sizes are in the default accepted
+  allow-list and the SHA-1 one is not, exactly as with RSA. `SignatureMethod::isEcdsa()` is replaced by
+  `keyKind()`, returning a `SignatureKeyKind`, so every consumer decides what each kind means rather than
+  defaulting to the RSA route.
+- **`wsc:DerivedKeyToken` derivation.** `Keys\DerivedSessionKey` derives a key per use with P_SHA1, which is what
+  `sp:RequireDerivedKeys` asks for. `SecurityProfile` gained `wsSecureConversation` to choose which of the two
+  dialects is emitted; both are read inbound.
 - **RSA-OAEP-SHA256 key transport.** The default is RSA-OAEP with a SHA-1 label hash, which is what interop
-  peers expect. To move a block to SHA-256, pass
-  `Outbound\Encryption::withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256())`. The named constructors
-  are `oaepSha1()`, `oaepSha256()`, `legacyMgf1p()` and `rsa1_5()`. There is no `withOaepHash()` setter on the
-  block; to move every block at once, set `oaepHash` on the profile's `CryptoPolicy` instead. Inbound, both
-  SHA-1 and SHA-256 are accepted by default, and an `xenc11:MGF` child the peer omits is read as the spec
-  default MGF1-SHA1 rather than as a declared SHA-1 that has to match the label.
+  peers expect. To move one key source to SHA-256, pass
+  `keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha256()` to it. The named constructors are `oaepSha1()`,
+  `oaepSha256()`, `legacyMgf1p()` and `rsa1_5()`. To move every source at once, set `oaepHash` on the profile's
+  `CryptoPolicy` instead. Inbound, both SHA-1 and SHA-256 are accepted by default, and an `xenc11:MGF` child the
+  peer omits is read as the spec default MGF1-SHA1 rather than as a declared SHA-1 that has to match the label.
 - **AES-GCM data encryption.** `AES128_GCM`, `AES192_GCM` and `AES256_GCM` were already available; GCM is now
   the default. The CBC variants remain selectable for a peer that requires them.
 - **Pinned namespace prefixes.** `Outbound\Signature::withInclusivePrefixes()` makes an exclusive

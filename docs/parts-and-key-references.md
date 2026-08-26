@@ -46,7 +46,7 @@ Part::body()->withEncryptionMode(EncryptionMode::Element);
 This only affects encryption. A signature covers the element either way, and the signing-only parts below carry
 no mode at all.
 
-Two **dynamic** parts are expanded against the live message rather than naming one element. They work in both
+Three **dynamic** parts are expanded against the live message rather than naming one element. They work in both
 directions: outbound the Signature block signs every element they expand to; inbound `VerifySignature` requires
 every such element to have been signed.
 
@@ -70,6 +70,16 @@ every such element to have been signed.
   expands to nothing for them, and the message looks fully protected while `wsa:To` and `wsa:Action` are not
   covered at all.
 
+- `Part::primarySignature()`: the one `ds:Signature` the Security header already carries, whole. This is what an
+  endorsing supporting token covers, and it is the **only** way to cover a signature: the two parts above
+  exclude every `ds:Signature` in both directions, because a signature is never one of the parts it covers and
+  outbound it does not yet exist when the parts are resolved.
+
+  Unlike the other two it refuses rather than expanding to what it finds. No signature in the header means the
+  endorsing block was placed before the block it endorses, which would otherwise sign nothing; two mean neither
+  is the primary one, and document order does not get to decide. See
+  [Endorsing a signature](outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control).
+
 `KeyRef` (for signing), and `EncKeyRef` (for encryption) choose how your certificate is referenced:
 
 - `Outbound\KeyReference\KeyRef`: `BinarySecurityToken` (embed the token and point at it; the X.509 interop default for
@@ -78,9 +88,25 @@ every such element to have been signed.
   [the outbound blocks](outbound-blocks.md)).
 
   For a reference this package does not model, build the `KeyIdentifier` yourself and pass it with
-  `Outbound\Signature::withKeyIdentifier()`, which overrides `keyRef`.
+  `Outbound\Signature::withKeyIdentifier()`, which overrides whatever the signing key resolved.
 - `Outbound\KeyReference\EncKeyRef`: `SubjectKeyIdentifier` (the default for encryption), `IssuerSerial`, `Thumbprint`,
-  `BinarySecurityToken`.
+  `BinarySecurityToken`. It is passed to the [`WrappedSessionKey`](outbound-blocks.md#symmetric-key-sources)
+  rather than to the `Encryption` block, because it says how the key's own recipient is named.
+
+Two more reference types exist for a symmetric key, and neither names a certificate:
+
+- `Outbound\KeyReference\EncryptedKeySha1KeyIdentifier`: the WSS 1.1 `EncryptedKeySHA1` form, carrying
+  `base64(SHA-1(wrapped cipher bytes))`. It names the key itself rather than any element, so it stays valid
+  however the key travels and across a correlated response. This is what a symmetric signature uses by default;
+  `Keys\SymmetricKeyReference` on the key source chooses it.
+- `Outbound\KeyReference\LocalTokenKeyIdentifier`: a `wsse:Reference URI="#..."` naming an element this same
+  Security header carries, with no `ValueType`, because the referenced element says what it is. Used for a local
+  `xenc:EncryptedKey` and for a local `wsc:DerivedKeyToken`. Every `xenc:EncryptedData` uses this form, which is
+  what receivers read.
+
+Inbound, both forms resolve against the keys the exchange established and against nothing else. A reference
+naming a key this exchange never saw is refused rather than searched for; see
+[Inbound blocks](inbound-blocks.md).
 
 `KeyStore\TrustStore::fromCertificates(Certificate ...$anchors)` lists the certificates you trust when verifying a
 response. Each entry may be a CA to chain up to, or the peer's own certificate, which is honoured as a direct

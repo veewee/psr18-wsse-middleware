@@ -57,6 +57,17 @@ $profile = new SecurityProfile(
   ```
 - `bool $mustUnderstand = true`: whether the outbound Security header demands the receiver process it or
   fault. Leave it on unless a peer rejects the attribute.
+- `WsSecureConversationVersion $wsSecureConversation = WsSecureConversationVersion::V2005_12`: which
+  WS-SecureConversation dialect an emitted `wsc:DerivedKeyToken` is written in. The default is the OASIS
+  revision a modern peer expects; `V2005_02` is the earlier draft that shipped in older stacks. This governs
+  what is **emitted** only. Both are read on the way in, because which one a peer writes is not something a
+  client gets to constrain.
+
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecureConversationVersion;
+
+  $profile = new SecurityProfile(wsSecureConversation: WsSecureConversationVersion::V2005_02);
+  ```
 
 `CryptoPolicy` (namespace `Soap\Psr18WsseMiddleware\XmlSecurity`) carries the algorithm choices and allow-lists,
 and can be used to drive the signing/encryption layer without the SOAP profile:
@@ -72,7 +83,14 @@ and can be used to drive the signing/encryption layer without the SOAP profile:
 - `KeyEncryptionMethod $keyEncryptionMethod = KeyEncryptionMethod::RSA_OAEP`: the outbound key-transport
   algorithm.
 - `?array $acceptedSignatureMethods = null`: the inbound allow-list for signature algorithms. `null` (default)
-  applies secure defaults: RSA-SHA256/384/512 and ECDSA-SHA256/384/512, rejecting SHA-1 and HMAC methods.
+  applies secure defaults: RSA-SHA256/384/512, ECDSA-SHA256/384/512 and HMAC-SHA256/384/512, rejecting every
+  SHA-1 method and HMAC-SHA224.
+
+  The HMAC methods are keyed by a shared secret. They are accepted by default under the same rule their RSA
+  counterparts follow, and that costs a deployment which establishes no symmetric secret nothing: the verifier
+  refuses an HMAC signature whose `ds:KeyInfo` resolved to a certificate, and a deployment with no established
+  secret has nothing else such a reference could resolve to. See
+  [What is rejected inbound by default](#what-is-rejected-inbound-by-default-and-why).
 - `?array $acceptedDigestMethods = null`: the inbound allow-list for digests. Default: SHA-256/384/512.
 - `?array $acceptedKeyEncryptionMethods = null`: the inbound allow-list for key transport. Default: RSA-OAEP and
   RSA-OAEP-MGF1P, rejecting RSA-1_5.
@@ -127,14 +145,28 @@ algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMeth
 `SignatureCanonicalization`, `DataEncryptionMethod`, `KeyEncryptionMethod`, `KeyTransportAlgorithm` and
 `OaepHash`.
 
+### Two inbound refusals no allow-list can lift
+
+- **`ds:HMACOutputLength` is refused outright.** Truncating a MAC shrinks the value a forgery has to hit: cut to
+  one byte a forgery succeeds once in 256 attempts, and at one bit it is a coin flip. No peer needs truncation,
+  so the element is refused where `ds:SignedInfo` is read, before anything is computed, whatever length it names.
+- **An HMAC signature method must have resolved to a secret, and an asymmetric one to a certificate.** Pairing an
+  HMAC method with a certificate-resolved key is the algorithm-confusion forgery: the "secret" would be the
+  peer's public key bytes, which anyone holding the certificate has. The mirror case is refused too, since an
+  asymmetric method answered with a secret would skip the trust decision entirely. Neither is a configuration
+  mistake to be resolved in the caller's favour.
+
 ## Supported algorithms and limitations
 
-- **Signatures:** RSA-SHA256/384/512 and ECDSA-SHA256/384/512. RSA-SHA1 is rejected by default. ECDSA needs an
-  EC certificate and key.
+- **Signatures:** RSA-SHA256/384/512, ECDSA-SHA256/384/512 and HMAC-SHA256/384/512. RSA-SHA1, HMAC-SHA1 and
+  HMAC-SHA224 are rejected by default. ECDSA needs an EC certificate and key; the HMAC methods need a
+  [symmetric key source](outbound-blocks.md#symmetric-key-sources) rather than a certificate.
 - **Digests:** SHA-256/384/512. SHA-1 is rejected by default.
 - **Key transport:** RSA-OAEP-SHA1 (the default), RSA-OAEP-SHA256,
-  RSA-OAEP-MGF1P and RSA-1_5 (rejected by default). Select a non-default with
-  `Outbound\Encryption::withKeyTransportAlgorithm(...)`.
+  RSA-OAEP-MGF1P and RSA-1_5 (rejected by default). Select a non-default on the
+  [`WrappedSessionKey`](outbound-blocks.md#symmetric-key-sources) that wraps the key.
+- **Key derivation:** P_SHA1, in both WS-SecureConversation dialects. It is the only function either dialect
+  defines, so there is nothing to select: a peer computing anything else would derive a different key.
 - **Bulk encryption:** AES-GCM at 128/192/256 bits. AES-CBC and 3DES are rejected by default.
 - **Signer key sizes:** `minimumRsaKeyBits` (1024) and `minimumEcKeyBits` (224) floor the signer's public key,
   which no chain validation checks for you. The floor is fail-closed: a key whose family or size cannot be read
@@ -168,14 +200,17 @@ allow-list, and the risk column is what you are accepting when you do.
 | **AES-CBC** 128/192/256 | `acceptedDataEncryptionMethods` | CBC carries no integrity of its own, and no block here ties a decrypted part to a region a verified signature covered. A party who can make your client send requests can replay a captured `xenc:EncryptedKey` next to a mangled `CipherValue` and read accept-or-reject from each reply, recovering **your peer's plaintext byte by byte** (CVE-2011-1096). It is a confidentiality break, not merely a missing integrity check. Note this is what .NET/WCF services emit: every standard `SecurityAlgorithmSuite` is CBC and none offer GCM, so a WCF peer leaves you no choice |
 | **3DES-CBC** | `acceptedDataEncryptionMethods` | All of the above, plus a 64-bit block, which makes collisions practical on long-lived keys (Sweet32) |
 | **RSA-1_5** key transport | `acceptedKeyEncryptionMethods` | PKCS#1 v1.5 is Bleichenbacher-attackable. There is no fake-session-key continuation here, so an unwrap failure returns sooner than a success, and a caller who can feed your client chosen ciphertexts can recover the session key and with it one message's plaintext (CVE-2015-0226). Prefer RSA-OAEP; a peer that only wraps with v1.5 is worth pushing back on |
-| **RSA-SHA1**, **DSA-SHA1** signatures | `acceptedSignatureMethods` | SHA-1 collisions are practical, and a signature is exactly the place that matters. DSA additionally only works at 1024 bits here, since the `dsa-sha1` URI fixes the coordinate width at 20 bytes |
+| **RSA-SHA1**, **DSA-SHA1**, **HMAC-SHA1** signatures | `acceptedSignatureMethods` | SHA-1 collisions are practical, and a signature is exactly the place that matters. DSA additionally only works at 1024 bits here, since the `dsa-sha1` URI fixes the coordinate width at 20 bytes. HMAC-SHA1 is what an older `Basic128`-style algorithm suite pins, so a symmetric-binding peer may leave you no choice |
+| **HMAC-SHA224** signatures | `acceptedSignatureMethods` | Nothing is wrong with it; it is simply a size nothing emits, and an algorithm no peer asks for is one fewer shape to accept |
 | **SHA-1**, **RIPEMD160** digests | `acceptedDigestMethods` | The reference digest is what binds a signature to your body. A collision there is a forged message |
 | **Inclusive C14N** (`C14N`, `C14N_COMMENTS`) | `acceptedCanonicalizations` | Not the WS-Security norm, so accepting it only widens what a peer can ask for. Inclusive canonicalization also drags ancestor namespace declarations into the digest, which makes what a signature covers harder to reason about |
 | **RSA/DSA keys under 1024 bits**, **EC under 224** | `minimumRsaKeyBits`, `minimumEcKeyBits` | 512-bit RSA is factorable in hours, so the signature proves nothing. Neither the allow-lists nor OpenSSL's path validation constrain key size, so this floor is the only thing that does |
 
-Two things deliberately **not** gated, so you know where the edges are: `Decrypt` never requires a part to have
-arrived encrypted, and chaining to a trust anchor is not the same as authenticating your peer (see
-[Chain validity is not authentication](trust.md#chain-validity-is-not-authentication)).
+Three things deliberately **not** gated, so you know where the edges are: `Decrypt` never requires a part to
+have arrived encrypted, chaining to a trust anchor is not the same as authenticating your peer (see
+[Chain validity is not authentication](trust.md#chain-validity-is-not-authentication)), and a signature keyed by
+a wrapped session key authenticates nobody at all (see
+[`WrappedSessionKey`](outbound-blocks.md#symmetric-key-sources)).
 
 ## Limits on an inbound message
 

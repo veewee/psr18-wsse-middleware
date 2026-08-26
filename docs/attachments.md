@@ -29,7 +29,7 @@ use Soap\Psr18AttachmentsMiddleware\Multipart\AttachmentType;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
-use Soap\Psr18WsseMiddleware\WSSecurity\{Inbound, Outbound, Part, SecurityProfile};
+use Soap\Psr18WsseMiddleware\WSSecurity\{Inbound, Keys, Outbound, Part, SecurityProfile};
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
@@ -44,9 +44,9 @@ $transport = Psr18Transport::createForClient(
             outbound: [
                 new Outbound\Timestamp(),
                 // Sign first, so the digest covers the plaintext attachment.
-                (new Outbound\Signature($clientCertificate))
+                (new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
                     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete)),
-                (new Outbound\Encryption($recipientCertificate))
+                (new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate)))
                     ->withParts([Part::body()])
                     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Content)),
             ],
@@ -259,11 +259,11 @@ You choose where the adapter is built:
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
 // A bare <sp:Attachments/> in the peer's SignedParts.
-(new Outbound\Signature($clientCertificate))
+(new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate)))
     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete));
 
 // EncryptedParts is satisfied by either, so content-only is the cheaper choice.
-(new Outbound\Encryption($recipientCertificate))
+(new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate)))
     ->withParts([Part::body()])
     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Content));
 

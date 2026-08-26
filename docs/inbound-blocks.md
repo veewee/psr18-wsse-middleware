@@ -71,7 +71,19 @@ $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 new Inbound\Decrypt($privateKey);
 ```
 
-- `Key $privateKey`: your recipient private key as a `KeyStore\Key`. Required.
+- `?Key $privateKey = null`: your recipient private key as a `KeyStore\Key`. `null` for a deployment whose
+  peer encrypts under a key the exchange already established, which wraps nothing and so has nothing to unwrap.
+- `withPreSharedKey(PreSharedSessionKey $key): self`: register a secret no outbound direction established, so
+  parts encrypted under it can be opened. Only a pre-shared key needs this; a wrapped or derived key was
+  established while the request was written and the exchange already holds it. Registering is idempotent, so
+  the same source can be handed to this block and to `VerifySignature`.
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
+
+  $secret = new Keys\PreSharedSessionKey($sessionKey, 'the-agreed-name', 'urn:example:pre-shared-key');
+
+  (new Inbound\Decrypt())->withPreSharedKey($secret);
+  ```
 - `withAttachments(ExternalParts $attachments): self`: also decrypt the response's encrypted attachments. Off
   by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).
@@ -97,6 +109,19 @@ The wrapped session key is read from the `wsse:Security` header addressed to you
 `actorOrRole` selects, the same one the signature verifier reads. A response carrying no header for you is
 refused rather than decrypted against an `xenc:EncryptedKey` found elsewhere in the envelope: your certificate is
 public, so anyone can wrap a key to you, and nothing about a key's position makes it yours.
+
+### A response keyed by the exchange's own secret
+
+A response to a request that established a symmetric key carries no `xenc:EncryptedKey` at all: the key
+travelled with the request, so each `xenc:EncryptedData` only points back at it. Which of the two shapes a
+message uses is decided by the message rather than by configuration, so nothing needs saying here for it: a
+container carrying a wrapped key has that key unwrapped, and a container carrying none has each part's key
+resolved from what the exchange established.
+
+**Established, and nothing else.** A reference naming a key this exchange never saw is refused; there is no
+fallback and no second candidate. The keys of one exchange are scoped to that exchange and shared only between
+its request and its response, because a wider cache would let a response be opened with a key from a different
+exchange, which is replay.
 
 Any decryption failure collapses to one uniform `SecurityFault` that does not reveal which step failed. That
 hides *which* step failed, not *whether* it did: a caller who can trigger requests still sees the difference
@@ -130,7 +155,9 @@ new Inbound\VerifySignature(
 ```
 
 - `TrustStore $trustStore`: the certificates you trust as signers. Build it with
-  `TrustStore::fromCertificates(...)`. Required.
+  `TrustStore::fromCertificates(...)`. Required, and still required for a purely symmetric deployment: the block
+  cannot know in advance which kind of signature will arrive, and one keyed by a certificate must still be
+  checked against something. Pass a store holding the anchors you would accept.
 - `signed: ?list<Part> $signed = null`: the parts that **must** be covered by a trusted signature. Pass it as a
   named argument (`signed:`). `null`, the default, requires `Part::body()`: without that floor, a peer holding
   any trusted certificate could sign one decoy element it minted in its own Security header and leave the body
@@ -144,6 +171,8 @@ new Inbound\VerifySignature(
   **An empty list is not the default.** `signed: []` replaces the body floor with no requirement at all, so any
   message carrying a signature from any trusted certificate passes, whatever that signature actually covers.
   Pass `null` (or omit the argument) if you want the default; pass a list only when you mean every part in it.
+- `withPreSharedKey(PreSharedSessionKey $key): self`: register a secret no outbound direction established, so a
+  symmetric signature keyed by it can be verified. Same source and same reasoning as on `Decrypt`.
 - `withAttachments(ExternalParts $attachments): self`: require the response's attachments to be covered by the
   verified signature. Off by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).

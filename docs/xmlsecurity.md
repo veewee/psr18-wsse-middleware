@@ -18,7 +18,7 @@ with a `with*()` method:
 - `Inbound\VerifySignature::withVerifier(XmlSignatureVerifier $verifier)`
 
 ```php
-(new Outbound\Signature($clientCertificate))->withSigner($customSigner);
+(new Outbound\Signature($signingKey))->withSigner($customSigner);
 (new Inbound\Decrypt($privateKey))->withDecryptor($customDecryptor);
 ```
 
@@ -39,8 +39,22 @@ the element to work against, so it can be driven on any XML document, and the WS
 part of this package that knows what a SOAP envelope is.
 
 - **The container is an input, not something searched for.** `SigningRequest` and `EncryptionRequest` take a
-  `Dom\Element $container` as their first argument: the element the `ds:Signature` / `xenc:EncryptedKey` is
+  `Dom\Element $container` as their first argument: the element the `ds:Signature` / `xenc:ReferenceList` is
   appended to. The blocks pass their `wsse:Security` header.
+- **The key is an input, and either kind of key.** `SigningRequest::$signingKey` is a `Key` or a `SessionKey`,
+  and which one an operation needs follows from its `SignatureMethod` rather than from the shape of what was
+  handed over. `EncryptionRequest::$sessionKey` is the key to encrypt with, ready to use: the engine never wraps
+  one and never learns how the recipient will come by it, which is what lets one key protect a signature and an
+  encryption together. Wrapping is `EncryptedKeyBuilder` plus `OpenSSL\KeyTransport`, composed by whoever needs
+  it; the WS-Security profile composes them in its own key sources.
+- **An `xenc:EncryptedData` may name its key.** `EncryptionRequest::$keyIdentifier` is written as a `ds:KeyInfo`
+  on every element the operation produces, which is what a receiver needs when the `xenc:ReferenceList` stands
+  beside the key rather than inside it. Null emits none.
+- **A message may be encrypted under a key both sides already hold.** `DecryptionRequest::$privateKey` is
+  therefore optional, and `$sessionKeys` is a `SessionKeyResolver` the profile implements: given an
+  `xenc:EncryptedData`, it answers which established key that element names. The engine cannot decide this
+  itself, because which element names a key and how is a profile's vocabulary. What the engine owns is the rule
+  that such a key must already be established, so an unresolvable reference is a refusal rather than a search.
 - **Which `ds:KeyInfo` shapes are understood is an input as well.** Standalone, the layer reads the plain
   XML-DSig form. An inline `ds:X509Certificate`. The WS-Security token forms (a `wsse:BinarySecurityToken`
   reference, a `wsse:KeyIdentifier`, an issuer and serial) come from the profile, so pass its resolver to read
@@ -73,6 +87,27 @@ part of this package that knows what a SOAP envelope is.
   document": which is what lets an element planted elsewhere be mistaken for the real one. Anyone can wrap a
   session key to a public certificate, so on the decryption side this is what distinguishes a key meant for this
   recipient from one an injector supplied.
+
+### Key derivation
+
+`OpenSSL\P_SHA1` is the key-derivation function WS-SecureConversation derives with, and the TLS 1.0
+pseudorandom function over SHA-1: `A(0)` is the seed, `A(i)` is `HMAC-SHA1(secret, A(i-1))`, and the output is
+the concatenation of `HMAC-SHA1(secret, A(i) || seed)` taken from a given offset for a given length.
+
+```php
+use Soap\Psr18WsseMiddleware\OpenSSL\P_SHA1;
+
+$derived = (new P_SHA1())->derive($secret, $label.$nonce, offset: 0, length: 32);
+```
+
+SHA-1 is not a choice: the specification names this function, both dialects derive with it, and its use as a PRF
+does not depend on the collision resistance SHA-1 lost. Everything above it is the profile's:
+`WSSecurity\Keys\DerivedSessionKey` writes the token and `WSSecurity\Xml\DerivedKeyTokenReader` reads one back.
+
+`OpenSSL\Mac` is the keyed MAC beside it, for the HMAC signature methods. It is separate from `OpenSSL\Signer`
+because a MAC is not a signature: one key both produces and checks it, so it identifies no party and there is no
+certificate to load. Its comparison is constant-time and refuses unequal lengths, which is what makes a
+truncated MAC a failure rather than a prefix match.
 
 ```php
 public function sign(Document $document, SigningRequest $request): void;

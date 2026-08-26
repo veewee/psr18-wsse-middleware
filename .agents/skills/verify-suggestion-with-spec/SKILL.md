@@ -112,8 +112,10 @@ Normative text beats intuition. In order of authority here:
 
 1. **The OASIS schemas shipped in `resources/xsd/`** — in-repo and unarguable. If the code refuses a shape the shipped XSD declares `minOccurs="0"`, that is a real interop refusal.
 2. **OASIS WS-Security 1.1** core, plus the X.509 and SAML token profiles — token references, `wsse11:TokenType`, `ValueType`, `EncodingType`.
-3. **W3C XML-Enc 1.1 and XML-DSig** — `xenc11#rsa-oaep` vs the legacy `xmlenc#rsa-oaep-mgf1p`, MGF defaults (an absent `xenc11:MGF` child means MGF1-SHA1), `EncryptedKey`/`ReferenceList` structure, exclusive C14N and `InclusiveNamespaces`.
-4. **RFC 5280** for chains and CRLs (`thisUpdate`/`nextUpdate` semantics, CRL numbers), **RFC 4514/2253** for distinguished-name escaping.
+3. **W3C XML-Enc 1.1 and XML-DSig**: `xenc11#rsa-oaep` vs the legacy `xmlenc#rsa-oaep-mgf1p`, MGF defaults (an absent `xenc11:MGF` child means MGF1-SHA1), `EncryptedKey`/`ReferenceList` structure, exclusive C14N and `InclusiveNamespaces`. XML-DSig also governs `ds:HMACOutputLength`, which this package refuses outright: the spec permits truncation, so a claim that refusing it is non-conformant is *correct on the letter* and still the intended behaviour. Say so rather than reopening it.
+4. **WS-SecureConversation 1.3 / 1.4**: the `wsc:DerivedKeyToken` element (its child sequence is a schema `sequence`, and `wsc:Generation` / `wsc:Offset` are a `choice`), the P_SHA1 derivation, and the two namespace dialects. Neither is reachable from the WS-Security core, so a derived-key claim checked only against WSS 1.1 is unverified.
+5. **OASIS WSS 1.1 SOAP Message Security** for the `EncryptedKeySHA1` `ValueType`, which names a session key rather than a certificate. It is in the 1.1 core rather than in the X.509 token profile, which is where a search for it usually fails.
+6. **RFC 5280** for chains and CRLs (`thisUpdate`/`nextUpdate` semantics, CRL numbers), **RFC 4514/2253** for distinguished-name escaping. **RFC 2104** for HMAC: a key shorter than the digest is padded and a longer one is hashed, so "the key length is wrong" is not a defect on its own.
 
 Distinguish MUST from SHOULD from silence. A receiver refusing a *legal* shape is an interop bug however defensible it feels — that is the difference between "unusual" and "illegal".
 
@@ -140,6 +142,22 @@ For a narrower question ("does WSS4J resolve X", "what is the default for Y") th
 find ~/.m2 -name 'wss4j-*-sources.jar'
 cd "$(mktemp -d)" && unzip -q ~/.m2/repository/org/apache/wss4j/wss4j-ws-security-dom/3.0.4/wss4j-ws-security-dom-3.0.4-sources.jar
 ```
+
+The anchors this package's symmetric-key work established, so they are found once rather than rediscovered:
+
+| Question | Where |
+|---|---|
+| What `EncryptedKeySHA1` is a digest of | `WSSecEncryptedKey.java`, which digests `base64(SHA-1(wrapped cipher bytes))`, not of the plaintext key, and the same value whether or not the bytes went into a MIME part |
+| The P_SHA1 loop | `P_SHA1.java` |
+| Derived-key defaults: label and length | `DerivedKeyUtils.java`, where the default label is `DEFAULT_LABEL` doubled, and the default length is 32 bytes |
+| The two wsc namespaces and their `/dk/p_sha1` URIs | `ConversationConstants.java` |
+| Which key-identifier types a handler accepts | `ConfigurationConstants.java`, with the trap below |
+| What an endorsing supporting token covers | CXF's `AbstractBindingBuilder.java`, which covers the whole primary `ds:Signature` element, not only its `ds:SignatureValue` |
+
+**One trap specific to symmetric signatures.** The WSS4J website's flat key-identifier list presents
+`EncryptedKeySHA1` as valid for signatures, while `ConfigurationConstants.SIG_KEY_ID` does not list it: a
+symmetric signature reaches it through the low-level `setKeyIdentifierType(ENCRYPTED_KEY_SHA1_IDENTIFIER)`,
+which is the path CXF's policy layer uses. A finding resting on either source alone is unverified; check both.
 
 **Read the processors, not `ConfigurationConstants`.** Its javadoc is prose maintained separately from the code and it is wrong in places: `EXPAND_XOP_INCLUDE` documents itself as "true on the inbound side" while `RequestData.expandXopInclude` is an uninitialised `boolean` and `WSHandler` reads it with `false` as the default. A handoff quoting that javadoc sent this package's design in the opposite direction twice. Behaviour lives in `dom/.../processor/*.java` and `dom/.../util/*.java`; a config constant only says a key name.
 

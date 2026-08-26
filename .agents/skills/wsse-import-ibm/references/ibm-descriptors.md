@@ -47,8 +47,8 @@ The `ext` files state what must be secured. A client descriptor looks like this:
 | Their setting | Ours |
 |---|---|
 | `addCreatedTimeStamp flag="true" expires="PT3M"` | `new Outbound\Timestamp()` plus `new SecurityProfile(timestampTtl: 180)`. The value is an ISO 8601 duration; convert to seconds. |
-| `integrity` | `new Outbound\Signature($clientCertificate)`, with `withParts()` only if the parts differ from the default |
-| `confidentiality` | `new Outbound\Encryption($recipientCertificate)`, likewise |
+| `integrity` | `new Outbound\Signature(new Outbound\CertificateSigningKey($clientCertificate))`, with `withParts()` only if the parts differ from the default |
+| `confidentiality` | `new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate))`, likewise |
 | `loginConfig authMethod="BasicAuth"` | `new Outbound\Username($user, $password)`, which sends `PasswordText` |
 | `authMethod="Signature"` | No `Username` block. The identity is the signing certificate. |
 | `authMethod="IDAssertion"` or `LTPA` | Unmapped. Ask which credential is actually expected. |
