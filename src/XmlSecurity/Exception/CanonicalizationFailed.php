@@ -30,6 +30,18 @@ final class CanonicalizationFailed extends RuntimeException
      * A canonical form that is not an element start tag. No canonicalization of an element produces one, so
      * this is a broken primitive rather than a message a peer can send.
      */
+    /**
+     * An external part declaring an XML media type whose octets are not a document this package will read.
+     *
+     * Malformed, or carrying a doctype, which is refused here for the same reason a peer refuses it: a
+     * document type definition is a fetch and an expansion instruction attached to bytes somebody else chose.
+     * Either way there is no node-set to canonicalize, so there is no digest to compute.
+     */
+    public static function unreadableExternalPart(?Throwable $previous = null): self
+    {
+        return new self('An external part declaring an XML media type could not be read as a document.', 0, $previous);
+    }
+
     public static function apexIsNotAnElement(): self
     {
         return new self('A canonical form did not open with an element start tag.');

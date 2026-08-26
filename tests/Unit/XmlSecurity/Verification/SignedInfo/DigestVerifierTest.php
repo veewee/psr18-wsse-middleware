@@ -105,17 +105,23 @@ final class DigestVerifierTest extends TestCase
         ));
     }
 
-    public function test_it_refuses_an_xml_part_rather_than_digesting_its_octets(): void
+    public function test_it_verifies_an_xml_part_against_its_canonical_form(): void
     {
         $verifier = new DigestVerifier(new DomCanonicalizer(), new Digest());
-        $reference = $this->externalReference(
-            '<a  b="1"/>',
-            base64_encode(hash('sha256', '<a  b="1"/>', true)),
-            'application/xml',
-        );
+        $canonical = base64_encode(hash('sha256', '<a b="1"></a>', true));
+
+        static::assertTrue($verifier->verifyExternalPart(
+            $this->externalReference('<a  b="1"/>', $canonical, 'application/xml'),
+        ));
+    }
+
+    public function test_it_refuses_an_xml_part_whose_octets_are_not_a_document(): void
+    {
+        $verifier = new DigestVerifier(new DomCanonicalizer(), new Digest());
+        $reference = $this->externalReference('<a></b>', base64_encode(hash('sha256', '<a></b>', true)), 'text/xml');
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->expectExceptionMessage('A referenced part has an unsupported media type.');
+        $this->expectExceptionMessage('A referenced part could not be read as the media type it declares.');
 
         $verifier->verifyExternalPart($reference);
     }

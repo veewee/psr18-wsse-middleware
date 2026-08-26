@@ -177,11 +177,21 @@ checked against. There is no transfer-encoding step: the attachments middleware 
 `cid:` verbatim, which binds each digest to one specific part: swapping two attachments is a digest mismatch
 rather than a substitution nobody notices.
 
-**A text part is digested over its normalized line endings.** The content transform is the identity for binary
-parts and not for text: a CR, an LF and a CRLF all become a CRLF before the digest is taken. That is what lets
-a text attachment survive an intermediary that rewrites line endings, which MIME permits for text and not for
-binary. The part itself travels unmodified; only the digest is taken over the normalized form. Both directions
-are pinned against a live peer, and removing the normalization makes the peer reject the signature.
+**The digest is over the content transform's output, which is the identity only for binary parts.** The
+transform branches three ways on the media type:
+
+| The part's media type | What is digested |
+|---|---|
+| `text/xml`, `application/xml`, a `+xml` subtype of `application` or `image` | The content canonicalized with exclusive C14N, no prefix list, comments omitted. The whole document node, so a processing instruction outside the root is covered too |
+| Any other `text/*` | The content with a CR, an LF and a CRLF each normalized to a CRLF |
+| Everything else | The octets exactly as they travel |
+
+The part itself always travels unmodified; only the digest is taken over the transformed form. Text is
+normalized because MIME lets an intermediary rewrite line endings in text and not in binary, and XML because
+one tree has more than one spelling.
+
+All three are pinned against a live peer in both directions, with shapes whose transformed form differs from
+their octets. Removing either canonicalization makes the peer reject the signature.
 
 ## How much of a part a protection covers
 
@@ -287,7 +297,7 @@ never trips them.
 
 | Case | Behaviour |
 |---|---|
-| Signing or verifying an XML attachment (`text/xml`, `application/xml`, or a `+xml` subtype of `application` or `image`) | Refused. The profile canonicalizes XML content with exclusive C14N before digesting, which is not implemented, so the digest would be one only this package computes. The set matches what a peer treats as XML, so a `+xml` subtype under any other top-level type is digested as opaque bytes by both sides |
+| An XML attachment whose octets are not a document, or that carries a doctype | Refused. There is no node-set to canonicalize, so there is no digest to compute. A peer refuses a doctype in an attachment too, so this is agreement rather than a restriction invented here |
 | An attachment whose stream reads zero bytes | Refused. Encrypting nothing ships an empty file that passes every structural check on the far side. A stream that cannot rewind reads this way too |
 | Encrypting an element that is or contains an `xop:Include` | Refused. See the MTOM section above |
 | A registered attachment that no `ds:Reference` covers | Refused. Registering parts on `VerifySignature` is the requirement that they be signed |
@@ -315,9 +325,9 @@ attachment path is no more of an oracle than the body's. Outbound failures are `
   support the complete coverage; outbound encryption does not, and no policy can require it. What it would
   buy is hiding the filename and media type from an intermediary that terminates TLS, which content-only
   leaves readable in the MIME headers. Nobody has asked for it.
-- **XML attachments cannot be signed or verified, under either coverage.** A peer canonicalizes their content
-  with exclusive C14N before digesting, so this is a content-level refusal that sits upstream of the coverage.
-  See the refusal table. `text/*` is supported and is described below.
+- **An XML attachment must be a well-formed document with no doctype.** Its content is canonicalized before
+  digesting, so there has to be something to canonicalize. Both limits match what a peer does with the same
+  bytes.
 - **WCF and .NET cannot be the peer.** There is no SwA support in WCF, only MTOM. A .NET peer that wants
   attachment security is not a case this feature serves.
 

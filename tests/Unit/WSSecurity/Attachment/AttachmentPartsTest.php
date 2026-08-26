@@ -119,6 +119,29 @@ final class AttachmentPartsTest extends TestCase
         static::assertSame('ciphertext', $attachment->content->getContents());
     }
 
+    public function test_it_hands_back_a_replacement_stream_the_caller_can_still_read(): void
+    {
+        // The seam that produced the replacement may already have read it, and the documented way to consume
+        // an attachment is copyTo() with no rewind of its own. A spent stream would write an empty file and
+        // look like a successful decryption.
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(
+            Attachment::cid('invoice@example.com', 'file', 'invoice.pdf', $this->stream('%PDF-1.7'))
+        );
+
+        $spent = $this->stream('opened bytes');
+        $spent->getContents();
+
+        AttachmentParts::request($storage, ExternalPartCoverage::Content)->replace(ExternalPartList::of(
+            new ExternalPart('cid:invoice@example.com', 'application/pdf', $spent)
+        ));
+
+        static::assertSame(
+            'opened bytes',
+            $storage->requestAttachments()->findById('<invoice@example.com>')->content->getContents(),
+        );
+    }
+
     public function test_it_leaves_an_attachment_it_was_not_handed_alone(): void
     {
         $storage = new AttachmentStorage();

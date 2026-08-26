@@ -166,6 +166,30 @@ final class DecryptAttachmentRoundTripTest extends TestCase
         );
     }
 
+    public function test_a_registered_attachment_that_arrived_in_the_clear_is_refused(): void
+    {
+        // Registering a part on an inbound block is the requirement that it be protected, so a message whose
+        // EncryptedData named only in-document parts leaves this attachment unencrypted and must not pass.
+        // Accepting it would hand the caller bytes that crossed the network in the clear as if they had not.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->storage(self::BYTES);
+        $document = $this->encrypt($fixture, $storage);
+
+        try {
+            (new Decrypt($fixture->leafKey))
+                ->withDecryptor(new OpeningNothingDecryptor())
+                ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
+                    new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+                );
+            static::fail('Expected the block to refuse an unencrypted registered attachment.');
+        } catch (SecurityFault $fault) {
+            static::assertSame(
+                'A registered attachment was not encrypted.',
+                $fault->getPrevious()?->getMessage(),
+            );
+        }
+    }
+
     public function test_an_attachment_the_receiver_does_not_hold_is_refused(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();

@@ -21,6 +21,8 @@ use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Locator\SamlToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\ExternalPartSignature;
@@ -234,10 +236,32 @@ final class Signature implements OutboundAction
             externalParts: $this->externalPartSignature(),
         );
 
-        $this->signer->sign($document, $request);
+        $signed = $this->signer->sign($document, $request);
+        $this->assertEveryRegisteredPartCovered($request->externalParts?->parts, $signed->covered);
 
         // The engine appends the signature; which order this header must be in is the profile's rule.
         $security->sort();
+    }
+
+    /**
+     * Every part handed to the signer must come back named as covered.
+     *
+     * The signer reports its coverage instead of the block trusting the request it sent, because the signer
+     * is a seam a caller may replace. One that returns a signature over less than it was asked for would
+     * otherwise leave an attachment travelling unsigned while the caller believes the opposite, which is a
+     * failure with nothing on this side to notice it.
+     *
+     * @throws SigningFailed
+     */
+    private function assertEveryRegisteredPartCovered(
+        ?ExternalPartList $registeredAttachments,
+        ExternalPartList $covered,
+    ): void {
+        foreach ($registeredAttachments ?? ExternalPartList::of() as $part) {
+            if ($covered->byReference($part->reference) === null) {
+                throw SigningFailed::uncoveredExternalPart($part->reference);
+            }
+        }
     }
 
     /**

@@ -147,8 +147,10 @@ final readonly class AttachmentParts implements ExternalParts
      */
     private function reclothed(Attachment $attachment, ExternalPart $part): Attachment
     {
+        // Rewound because the seam that produced this part may already have read it, and what lands here is
+        // handed straight to the caller: a spent stream reads as an empty attachment rather than as an error.
         return $attachment
-            ->withContent($part->content, $part->mimeType)
+            ->withContent($part->content->rewind(), $part->mimeType)
             ->withHeaders($attachment->headers()->replace('Content-Type', $part->mimeType));
     }
 

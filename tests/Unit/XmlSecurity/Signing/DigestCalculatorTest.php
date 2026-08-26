@@ -169,19 +169,44 @@ final class DigestCalculatorTest extends TestCase
     }
 
     #[DataProvider('xmlMediaTypes')]
-    public function test_it_refuses_an_xml_external_part(string $mimeType): void
+    public function test_it_digests_an_xml_part_over_its_canonical_form(string $mimeType): void
     {
-        // The profile canonicalizes XML content with exclusive C14N before digesting, and this cut does not.
-        // Digesting the octets instead would produce a signature the peer computing the canonical form
-        // rejects, with a digest mismatch as the only clue.
+        // Exclusive C14N first, so the digest is over the canonical form rather than the octets: whitespace
+        // between attributes and a self-closing tag are two spellings of the same tree, and a peer digests
+        // the one form both sides can compute.
         $part = new ExternalPart('cid:doc@example.com', $mimeType, $this->stream('<a  b="1"/>'));
+
+        $result = (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+            ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
+
+        static::assertSame(
+            base64_encode(hash('sha256', '<a b="1"></a>', true)),
+            $result->digestValueBase64,
+        );
+    }
+
+    public function test_it_refuses_an_xml_part_whose_octets_are_not_a_document(): void
+    {
+        // There is no node-set to canonicalize, so there is no digest to compute. Outbound this names the
+        // part and its media type: nothing about the caller's own message is a secret from them.
+        $part = new ExternalPart('cid:doc@example.com', 'application/xml', $this->stream('<a></b>'));
 
         $this->expectException(SigningFailed::class);
         $this->expectExceptionMessage(
-            'Unable to sign the external part "cid:doc@example.com": signing a '.$mimeType.' part needs '
-            .'XML canonicalization, which is not supported.'
+            'Unable to sign the external part "cid:doc@example.com": its application/xml content could not '
+            .'be read as a document.'
         );
 
+        (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+            ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
+    }
+
+    public function test_it_refuses_an_xml_part_carrying_a_doctype(): void
+    {
+        // A peer refuses a doctype in an attachment too, so refusing is what keeps the two sides agreeing.
+        $part = new ExternalPart('cid:doc@example.com', 'application/xml', $this->stream('<!DOCTYPE a><a/>'));
+
+        $this->expectException(SigningFailed::class);
         (new DigestCalculator(new DomCanonicalizer(), new Digest()))
             ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
     }

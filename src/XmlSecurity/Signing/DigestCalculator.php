@@ -64,32 +64,31 @@ final class DigestCalculator
     }
 
     /**
-     * Digests an external part's content under the transform's own rule for its media type: a text part with
-     * its line endings normalized, anything else exactly as it travels. No transfer-encoding step either way.
+     * Digests an external part's content under the transform's own rule for its media type: XML canonicalized
+     * with exclusive C14N, other text with its line endings normalized, anything else exactly as it travels.
+     * No transfer-encoding step in any of the three.
      *
      * The URI is the part's reference verbatim, so a digest is bound to one specific part. Swapping two parts
      * is then a digest mismatch rather than a silent substitution.
      *
      * @param non-empty-string $transform
      *
-     * @throws SigningFailed when the part is XML, which the transform canonicalizes in a way that is not
-     *         implemented
+     * @throws SigningFailed when the part declares an XML media type and its octets are not a readable
+     *         document
      */
     public function forExternalPart(
         ExternalPart $part,
         DigestMethod $digestMethod,
         string $transform,
     ): SignedReference {
-        // XML content is canonicalized with exclusive C14N before digesting, which is not implemented, so
-        // emitting a digest over the octets as they are would be a signature only this package can verify.
-        if (ExternalPartContent::isXml($part->mimeType)) {
-            throw SigningFailed::xmlExternalPart($part->reference, $part->mimeType);
+        try {
+            $octets = (new ExternalPartContent($this->canonicalizer))
+                ->canonicalize($part->mimeType, $part->content->rewind()->getContents());
+        } catch (CanonicalizationFailed $exception) {
+            throw SigningFailed::unreadableExternalPart($part->reference, $part->mimeType, $exception);
         }
 
-        $digest = non_empty_string()->coerce(base64_encode($this->digest->hash(
-            ExternalPartContent::canonicalize($part->mimeType, $part->content->rewind()->getContents()),
-            $digestMethod,
-        )));
+        $digest = non_empty_string()->coerce(base64_encode($this->digest->hash($octets, $digestMethod)));
 
         return new SignedReference(
             $part->reference,

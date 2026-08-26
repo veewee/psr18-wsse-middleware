@@ -525,11 +525,12 @@ If you implemented the `ExternalParts` seam yourself rather than using `Attachme
 `collectSealed()` to it. Return `collect()` unless you compose a canonical header block, in which case return
 the part's own octets: a cipher addresses the MIME part, while a signature covers the composition.
 
-One media type is refused: an XML attachment (`text/xml`, `application/xml`, or a `+xml` subtype of
-`application` or `image`) cannot be signed or verified, because the profile canonicalizes its content with
-exclusive C14N first and that is not implemented. A `text/*` attachment is supported, and is digested over its
-line endings normalized to CRLF, which is what the transform defines and what a peer computes. Binary parts
-are digested exactly as they travel. Nothing here is a configuration choice: the media type decides it.
+What gets digested depends on the attachment's media type, and none of it is a configuration choice. XML
+(`text/xml`, `application/xml`, or a `+xml` subtype of `application` or `image`) is canonicalized with
+exclusive C14N; any other `text/*` has its line endings normalized to CRLF; everything else is digested
+exactly as it travels. The part itself is never modified. An XML attachment that is not a well-formed
+document, or that carries a doctype, is refused, because there is nothing to canonicalize and a peer refuses
+it too.
 
 Read [docs/attachments.md](docs/attachments.md) before turning it on. It carries the wire format, the ordering
 rules, and the list of what is refused.

@@ -137,9 +137,8 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   peer's policy means `Complete`, so read the WSDL rather than the default; the
   [configuration table](attachments.md#how-much-of-a-part-a-protection-covers) is the whole rule.
   Adds coverage rather than replacing it: an attachment reference sits alongside whatever `withParts()` asks
-  for. A `text/*` attachment is digested over its normalized line endings, which is what the transform
-  defines. An XML attachment is refused, because the profile canonicalizes it with exclusive C14N before
-  digesting and that is not implemented; see [Attachment security](attachments.md).
+  for. What gets digested depends on the media type: XML is canonicalized, other text has its line endings
+  normalized, and everything else is digested as it travels; see [Attachment security](attachments.md).
 - `withCertificatePath(CertificateChain $path): self`: send your whole certificate chain in the token (a
   `#X509PKIPathv1` `wsse:BinarySecurityToken`) instead of the leaf certificate alone. Off by default. Turn it on
   for a server that will not complete the chain from its own store and needs the intermediates handed to it:

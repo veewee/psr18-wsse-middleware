@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Exception;
 
 use RuntimeException;
+use Throwable;
 
 /**
  * Thrown when the signing step cannot complete because of an asymmetric signing failure. Distinct from
@@ -17,17 +18,37 @@ final class SigningFailed extends RuntimeException
     }
 
     /**
-     * An XML external part. The SwA content transform canonicalizes XML content with exclusive C14N before
-     * digesting, which this cut does not implement, so the media type is refused rather than digested in a
-     * form no peer computes.
+     * A part the caller registered that the signature does not name.
+     *
+     * The signer reports what it covered rather than the block assuming it did as asked, so a replaceable
+     * seam cannot quietly return a signature over less than it was handed and leave the caller sending an
+     * attachment they configured as signed.
      */
-    public static function xmlExternalPart(string $reference, string $mimeType): self
+    public static function uncoveredExternalPart(string $reference): self
     {
         return new self(sprintf(
-            'Unable to sign the external part "%s": signing a %s part needs XML canonicalization, which is '
-            .'not supported.',
+            'The signature does not cover the external part "%s", which was registered.',
             $reference,
-            $mimeType,
         ));
+    }
+
+    /**
+     * A part declaring an XML media type whose octets are not a document.
+     *
+     * The transform canonicalizes XML content before digesting, so there has to be a node-set to canonicalize.
+     * Naming the part and its media type, because outbound this is the caller's own attachment and nothing
+     * about their own message is a secret from them.
+     */
+    public static function unreadableExternalPart(string $reference, string $mimeType, ?Throwable $previous = null): self
+    {
+        return new self(
+            sprintf(
+                'Unable to sign the external part "%s": its %s content could not be read as a document.',
+                $reference,
+                $mimeType,
+            ),
+            0,
+            $previous,
+        );
     }
 }

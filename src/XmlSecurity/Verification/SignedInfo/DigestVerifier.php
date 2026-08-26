@@ -66,10 +66,11 @@ final class DigestVerifier
 
     /**
      * Digests an external part's content under the same rule the signer applied to it and compares in
-     * constant time: a text part with its line endings normalized, anything else exactly as it travels.
+     * constant time: XML canonicalized, other text with its line endings normalized, anything else exactly as
+     * it travels.
      *
-     * XML is refused rather than verified. Its canonicalization is not implemented, and digesting the octets
-     * as they are would answer a question nobody asked: whether a signature nobody would emit matches.
+     * XML content is canonicalized with exclusive C14N first, the same as the signer did, so a part whose
+     * octets are not a readable document has no node-set to compare and is refused rather than guessed at.
      *
      * The stream is rewound first, because the same part may already have been read on this message: the
      * decryption block ran before this one and replaced these bytes.
@@ -85,14 +86,20 @@ final class DigestVerifier
         }
 
         $part = $reference->part;
-        if (ExternalPartContent::isXml($part->mimeType)) {
-            throw SignatureVerificationFailed::withReason('A referenced part has an unsupported media type.');
+        try {
+            $octets = (new ExternalPartContent($this->canonicalizer))
+                ->canonicalize($part->mimeType, $part->content->rewind()->getContents());
+        } catch (CanonicalizationFailed $exception) {
+            throw SignatureVerificationFailed::withReason(
+                'A referenced part could not be read as the media type it declares.',
+                $exception,
+            );
         }
 
-        $actual = $this->digest->hash(
-            ExternalPartContent::canonicalize($part->mimeType, $part->content->rewind()->getContents()),
-            $reference->parsed->digestMethod,
-        );
+        $actual = $this->digest->hash($octets, $reference->parsed->digestMethod);
+        // Left rewound rather than at EOF. This is the caller's own attachment stream, and verifying it is
+        // not supposed to consume it: the next reader is usually the application.
+        $part->content->rewind();
 
         return $this->digest->equals($expected, $actual);
     }

@@ -92,14 +92,44 @@ final class SignatureTest extends OutboundTestCase
         static::assertNotNull($external->parts->byReference('cid:note@example.com'));
     }
 
-    public function test_it_refuses_to_sign_an_xml_attachment(): void
+    public function test_it_refuses_an_xml_attachment_that_is_not_a_document(): void
     {
-        // Refused by the engine rather than the block, because the reason is that the digest would be wrong.
+        // Refused by the engine rather than the block, because the reason is that there is no node-set to
+        // canonicalize and therefore no digest to compute. The fixture's content is not XML.
         $this->expectException(SigningFailed::class);
-        $this->expectExceptionMessage('XML canonicalization, which is not supported');
+        $this->expectExceptionMessage('could not be read as a document');
 
         (new Signature($this->clientCertificate()))
             ->withAttachments($this->attachments('doc@example.com', 'application/xml'))($this->signableContext());
+    }
+
+    public function test_it_refuses_a_signature_that_left_a_registered_attachment_uncovered(): void
+    {
+        // The signer reports what it covered rather than the block assuming it. A replaceable seam that
+        // returns a signature over less than it was asked for would otherwise ship an attachment the caller
+        // configured as signed, with nothing on this side saying so.
+        $this->expectException(SigningFailed::class);
+        $this->expectExceptionMessage(
+            'The signature does not cover the external part "cid:invoice@example.com", which was registered.',
+        );
+
+        (new Signature($this->clientCertificate()))
+            ->withSigner(new UncoveringSigner())
+            ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))(
+                $this->signableContext(),
+            );
+    }
+
+    public function test_it_accepts_a_signature_that_covered_everything_registered(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))(
+                $this->signableContext(),
+            );
+
+        static::assertNotNull($signer->lastRequest()->externalParts);
     }
 
     public function test_it_declares_the_complete_transform_for_a_complete_adapter(): void

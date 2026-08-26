@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartDecryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Throwable;
 
@@ -82,6 +83,27 @@ final class Decrypt implements InboundAction
      * The two SwA URIs are this block's to require, exactly as the outbound twin owns emitting them. The
      * engine is told what to demand and never learns these are attachments.
      */
+    /**
+     * Every part registered on this block must come back opened.
+     *
+     * Registering an attachment here is the requirement that it arrive encrypted, the same way registering
+     * one on VerifySignature requires that it arrive signed. A message whose xenc:EncryptedData named only
+     * in-document parts leaves the attachment in the clear, and accepting that would hand the caller bytes
+     * that crossed the network unprotected while their configuration says otherwise.
+     *
+     * @throws DecryptionFailed
+     */
+    private function assertEveryRegisteredPartOpened(
+        ?ExternalPartList $registeredAttachments,
+        ExternalPartList $opened,
+    ): void {
+        foreach ($registeredAttachments ?? ExternalPartList::of() as $part) {
+            if ($opened->byReference($part->reference) === null) {
+                throw DecryptionFailed::withReason('A registered attachment was not encrypted.');
+            }
+        }
+    }
+
     private function externalPartDecryption(): ?ExternalPartDecryption
     {
         $attachments = $this->attachments;
@@ -107,15 +129,18 @@ final class Decrypt implements InboundAction
             $container = SecurityHeader::locate($document, $context->soapVersion(), $context->profile()->actorOrRole())
                 ?? throw DecryptionFailed::withReason('The message carries no Security header for this receiver.');
 
+            $external = $this->externalPartDecryption();
             $result = $this->decryptor->decrypt(
                 $document,
                 new DecryptionRequest(
                     $container,
                     $this->privateKey,
                     $context->profile()->crypto(),
-                    $this->externalPartDecryption(),
+                    $external,
                 ),
             );
+
+            $this->assertEveryRegisteredPartOpened($external?->parts, $result->openedParts);
 
             // Only the parts an xenc:EncryptedData actually named come back, so an attachment that arrived in
             // the clear is absent here and is left exactly as it was rather than dropped.

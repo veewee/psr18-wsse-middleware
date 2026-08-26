@@ -5,6 +5,8 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartContent;
 
 final class ExternalPartContentTest extends TestCase
@@ -50,7 +52,7 @@ final class ExternalPartContentTest extends TestCase
         string $content,
         string $expected,
     ): void {
-        static::assertSame($expected, ExternalPartContent::canonicalize('text/plain', $content));
+        static::assertSame($expected, self::content()->canonicalize('text/plain', $content));
     }
 
     /**
@@ -73,7 +75,48 @@ final class ExternalPartContentTest extends TestCase
 
     public function test_it_normalises_whatever_case_and_parameters_the_media_type_carries(): void
     {
-        static::assertSame("a\r\nb", ExternalPartContent::canonicalize('TEXT/Plain; charset=UTF-8', "a\nb"));
+        static::assertSame("a\r\nb", self::content()->canonicalize('TEXT/Plain; charset=UTF-8', "a\nb"));
+    }
+
+    public function test_it_canonicalises_an_xml_part_as_a_whole_document(): void
+    {
+        // Exclusive C14N over the document node, not the root element: a peer digests the whole node-set, so
+        // a processing instruction outside the root is part of what was signed. Measured against a live peer.
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n".'<?pi target?>'."\n"
+            .'<r:root xmlns:r="urn:r" xmlns:unused="urn:unused" b="2" a="1"><!-- c --><r:child/></r:root>';
+
+        static::assertSame(
+            '<?pi target?>'."\n".'<r:root xmlns:r="urn:r" a="1" b="2"><r:child></r:child></r:root>',
+            self::content()->canonicalize('application/xml', $xml),
+        );
+    }
+
+    public function test_it_refuses_an_xml_part_that_is_not_a_document(): void
+    {
+        $this->expectException(CanonicalizationFailed::class);
+        $this->expectExceptionMessage('could not be read as a document');
+
+        self::content()->canonicalize('text/xml', '<root><unclosed></root>');
+    }
+
+    public function test_it_refuses_an_xml_part_carrying_a_doctype(): void
+    {
+        // A peer refuses one too, so this is not a divergence: such a part is signable by neither side.
+        $this->expectException(CanonicalizationFailed::class);
+
+        self::content()->canonicalize('application/xml', '<!DOCTYPE root><root/>');
+    }
+
+    public function test_it_leaves_an_xml_looking_part_alone_when_its_media_type_is_not_xml(): void
+    {
+        $xml = '<root>  <a/>  </root>';
+
+        static::assertSame($xml, self::content()->canonicalize('application/octet-stream', $xml));
+    }
+
+    private static function content(): ExternalPartContent
+    {
+        return new ExternalPartContent(new DomCanonicalizer());
     }
 
     public function test_it_hands_back_a_binary_part_exactly_as_it_travelled(): void
@@ -82,6 +125,6 @@ final class ExternalPartContentTest extends TestCase
         // never took, and the digest would be one only this package can reproduce.
         $binary = "%PDF-1.7\n\rbinary\r\n\x00\x1a";
 
-        static::assertSame($binary, ExternalPartContent::canonicalize('application/pdf', $binary));
+        static::assertSame($binary, self::content()->canonicalize('application/pdf', $binary));
     }
 }
