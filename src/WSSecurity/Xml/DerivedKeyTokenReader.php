@@ -6,9 +6,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\PSHA1;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\DerivedSessionKey;
 use Soap\Psr18WsseMiddleware\Xml\ElementName;
-use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\OnlyChild;
 use VeeWee\Xml\Dom\Document;
@@ -16,10 +14,9 @@ use VeeWee\Xml\Dom\Document;
 /**
  * Re-derives the key a wsc:DerivedKeyToken describes, from the secret its own reference names.
  *
- * Every derivation parameter is read off the element rather than assumed, because they are the peer's to choose:
- * a token that derived with a different label, at a different offset, or for a different length describes a
- * different key, and deriving with our own defaults would produce one nothing verifies against. Only the
- * function is fixed, because the specification fixes it.
+ * What this decides is which dialect the token speaks, that it derives with the one function this reads, and
+ * which secret it derives from. What the derivation itself says is DerivedKeyParameters', because those values
+ * are the peer's text and every bound on them belongs with the reading of them.
  *
  * Both dialects are read, whichever one the profile emits. A token this cannot read returns null, which is a
  * refusal to whoever asked; nothing here distinguishes one unreadable token from another.
@@ -68,20 +65,11 @@ final readonly class DerivedKeyTokenReader
             return null;
         }
 
-        $offset = $this->offset($token, $version);
-        $length = $this->length($token, $version);
-        if ($offset === null || $length === null || $offset + $length > PSHA1::MAX_GENERATED) {
-            return null;
-        }
+        $parameters = DerivedKeyParameters::readFrom($token, $version);
 
-        $nonce = base64_decode($this->text($token, $version, 'Nonce') ?? '', true);
-        if ($nonce === false || $nonce === '') {
-            return null;
-        }
-
-        $label = $this->text($token, $version, 'Label') ?? DerivedSessionKey::DEFAULT_LABEL;
-
-        return $this->pSha1->derive($deriving, $label.$nonce, $offset, $length);
+        return $parameters === null
+            ? null
+            : $this->pSha1->derive($deriving, $parameters->seed, $parameters->offset, $parameters->length);
     }
 
     /**
@@ -108,73 +96,5 @@ final readonly class DerivedKeyTokenReader
         }
 
         return null;
-    }
-
-    /**
-     * The position the key starts at, from either spelling the schema allows.
-     *
-     * wsc:Generation counts in multiples of the length and wsc:Offset counts in bytes, so the two express the
-     * same position two ways. A token carrying both describes two positions, and picking one would let a sender
-     * decide which a receiver reads.
-     *
-     * @return ?non-negative-int
-     */
-    private function offset(Element $token, WsSecureConversationVersion $version): ?int
-    {
-        $offset = $this->text($token, $version, 'Offset');
-        $generation = $this->text($token, $version, 'Generation');
-
-        if ($offset !== null && $generation !== null) {
-            return null;
-        }
-
-        if ($generation !== null) {
-            $length = $this->length($token, $version);
-            $counted = $this->nonNegativeInt($generation);
-
-            return $length === null || $counted === null ? null : $counted * $length;
-        }
-
-        return $offset === null ? 0 : $this->nonNegativeInt($offset);
-    }
-
-    /**
-     * @return ?positive-int
-     */
-    private function length(Element $token, WsSecureConversationVersion $version): ?int
-    {
-        $declared = $this->text($token, $version, 'Length');
-        // The default both dialects state when the element is absent.
-        $length = $declared === null ? 32 : $this->nonNegativeInt($declared);
-
-        return $length === null || $length < 1 || $length > PSHA1::MAX_GENERATED ? null : $length;
-    }
-
-    /**
-     * @return ?non-negative-int
-     */
-    private function nonNegativeInt(string $text): ?int
-    {
-        if (!preg_match('/^\d{1,10}$/', $text)) {
-            return null;
-        }
-
-        /** @var non-negative-int */
-        return (int) $text;
-    }
-
-    /**
-     * @return ?non-empty-string
-     */
-    private function text(Element $token, WsSecureConversationVersion $version, string $localName): ?string
-    {
-        $child = OnlyChild::named($token, $version, $localName);
-        if ($child === null) {
-            return null;
-        }
-
-        $text = ElementText::trimmed($child);
-
-        return $text === '' ? null : $text;
     }
 }
