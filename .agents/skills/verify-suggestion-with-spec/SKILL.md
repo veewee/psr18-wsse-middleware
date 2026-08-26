@@ -131,7 +131,7 @@ make interop SUITE=wsse       # jar, images, certs, up, test, then always down -
 
 Two traps that have each cost real time:
 
-- `make interop` does **not** rebuild the oracle jar when one exists. After editing anything under `oracle/`, run `make clean` first, or you will exercise the old oracle and draw a confident wrong conclusion.
+- The oracle jar now rebuilds when anything under `oracle/` changes, so `make clean` is no longer needed for that. Before that fix it did not, and the failure mode is worth recognising anyway: a test measuring a stale oracle produces a negative interop result that looks like a peer limitation. **A negative result is only evidence once you have confirmed the oracle it came from was rebuilt.** If you see one, check the jar's mtime against your edit before believing it.
 - Certificates regenerate per run. A failure appearing right after regeneration, against an oracle process still running from before it, is stale state. Rerun once before investigating. For the same reason a byte value pinned from the oracle is true only for that run.
 
 Reach for interop whenever the claim touches signing, verification, encryption, canonicalization or key references. If this package and WSS4J disagree, that is the finding, whichever way the spec reads.
