@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
+use LogicException;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use WeakMap;
 
@@ -79,11 +80,27 @@ final class ExchangeKeys
      * one of them resolves to it. Registering the same identifier twice with the same secret is a no-op, which
      * is what lets both inbound blocks hold one pre-shared source.
      *
+     * Binding an identifier to a *different* secret is refused rather than allowed to win. Identifiers reach
+     * this method from keys minted locally and from configuration, never from a message, so a collision is a
+     * deployment holding two secrets under one name rather than anything a peer can arrange. Silently keeping
+     * the last would make an inbound reference resolve to whichever block happened to register last.
+     *
      * @param non-empty-string ...$wireIdentifiers
+     *
+     * @throws LogicException
      */
     public function establish(SessionKey $key, string ...$wireIdentifiers): void
     {
         foreach ($wireIdentifiers as $identifier) {
+            $bound = $this->established[$identifier] ?? null;
+            if ($bound !== null && !hash_equals($bound->bytes(), $key->bytes())) {
+                throw new LogicException(sprintf(
+                    'The identifier "%s" is already established in this exchange under a different secret. '
+                    .'Give each secret an identifier of its own.',
+                    $identifier,
+                ));
+            }
+
             $this->established[$identifier] = $key;
         }
     }

@@ -90,6 +90,31 @@ final class ExchangeKeysTest extends TestCase
         static::assertSame($secret, $keys->resolve('the-agreed-identifier'));
     }
 
+    public function test_the_same_secret_established_twice_under_one_identifier_stays_that_secret(): void
+    {
+        // Equal bytes rather than the same instance: two sources configured alike are still one secret.
+        $keys = new ExchangeKeys();
+
+        $keys->establish(SessionKey::fromBytes(str_repeat("\x2a", 32)), 'the-agreed-identifier');
+        $keys->establish(SessionKey::fromBytes(str_repeat("\x2a", 32)), 'the-agreed-identifier');
+
+        static::assertSame(
+            str_repeat("\x2a", 32),
+            $keys->resolve('the-agreed-identifier')?->bytes(),
+        );
+    }
+
+    public function test_a_second_secret_under_an_established_identifier_is_refused(): void
+    {
+        $keys = new ExchangeKeys();
+        $keys->establish(SessionKey::fromBytes(str_repeat("\x2a", 32)), 'the-agreed-identifier');
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('the-agreed-identifier');
+
+        $keys->establish(SessionKey::fromBytes(str_repeat("\x2b", 32)), 'the-agreed-identifier');
+    }
+
     private function source(): SymmetricKeySource
     {
         return new class implements SymmetricKeySource {
