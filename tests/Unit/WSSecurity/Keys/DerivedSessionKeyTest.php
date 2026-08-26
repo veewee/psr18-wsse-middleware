@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
-use Soap\Psr18WsseMiddleware\OpenSSL\P_SHA1;
+use Soap\Psr18WsseMiddleware\OpenSSL\PSHA1;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\DerivedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
@@ -329,7 +329,7 @@ final class DerivedSessionKeyTest extends TestCase
 
         new DerivedSessionKey(
             new WrappedSessionKey($fixture->leafCertificate),
-            offset: P_SHA1::MAX_GENERATED,
+            offset: PSHA1::MAX_GENERATED,
         );
     }
 }

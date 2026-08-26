@@ -5,7 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
 use Dom\Element;
 use InvalidArgumentException;
-use Soap\Psr18WsseMiddleware\OpenSSL\P_SHA1;
+use Soap\Psr18WsseMiddleware\OpenSSL\PSHA1;
 use Soap\Psr18WsseMiddleware\OpenSSL\Random;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\LocalTokenKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -45,7 +45,7 @@ final class DerivedSessionKey implements SymmetricKeySource
      */
     private const int NONCE_BYTES = 16;
 
-    private readonly P_SHA1 $pSha1;
+    private readonly PSHA1 $pSha1;
     private readonly Random $random;
 
     /** @var non-negative-int */
@@ -79,16 +79,16 @@ final class DerivedSessionKey implements SymmetricKeySource
             throw new InvalidArgumentException('A derivation offset must not be negative.');
         }
 
-        if ($offset + self::MINIMUM_LENGTH > P_SHA1::MAX_GENERATED) {
+        if ($offset + self::MINIMUM_LENGTH > PSHA1::MAX_GENERATED) {
             throw new InvalidArgumentException(sprintf(
                 'A derivation generates at most %d bytes and an offset of %d leaves no room for a key.',
-                P_SHA1::MAX_GENERATED,
+                PSHA1::MAX_GENERATED,
                 $offset,
             ));
         }
 
         $this->offset = $offset;
-        $this->pSha1 = new P_SHA1();
+        $this->pSha1 = new PSHA1();
         $this->random = new Random();
     }
 

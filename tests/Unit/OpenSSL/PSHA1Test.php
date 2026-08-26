@@ -6,9 +6,9 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
-use Soap\Psr18WsseMiddleware\OpenSSL\P_SHA1;
+use Soap\Psr18WsseMiddleware\OpenSSL\PSHA1;
 
-final class PSha1Test extends TestCase
+final class PSHA1Test extends TestCase
 {
     /**
      * The definition, written out by hand: A(0) is the seed, A(i) is HMAC-SHA1(secret, A(i-1)), and the stream
@@ -31,19 +31,19 @@ final class PSha1Test extends TestCase
         // Sixty bytes spans three HMAC blocks, so a loop that reused A(i) or restarted it would diverge.
         static::assertSame(
             bin2hex(substr($expected, 0, 60)),
-            bin2hex((new P_SHA1())->derive($secret, $seed, 0, 60)->bytes()),
+            bin2hex((new PSHA1())->derive($secret, $seed, 0, 60)->bytes()),
         );
 
         // And the twenty bytes at offset 20 are the second block, not a fresh derivation.
         static::assertSame(
             bin2hex(substr($expected, 20, 20)),
-            bin2hex((new P_SHA1())->derive($secret, $seed, 20, 20)->bytes()),
+            bin2hex((new PSHA1())->derive($secret, $seed, 20, 20)->bytes()),
         );
     }
 
     public function test_it_derives_exactly_the_requested_length(): void
     {
-        $derive = new P_SHA1();
+        $derive = new PSHA1();
         $secret = SessionKey::fromBytes(str_repeat("\x2a", 32));
 
         foreach ([1, 16, 20, 32, 48, 64, 128] as $length) {
@@ -57,7 +57,7 @@ final class PSha1Test extends TestCase
      */
     public function test_the_offset_selects_a_window_of_the_same_stream(): void
     {
-        $derive = new P_SHA1();
+        $derive = new PSHA1();
         $secret = SessionKey::fromBytes(str_repeat("\x2a", 32));
 
         $whole = $derive->derive($secret, 'seed', 0, 40)->bytes();
@@ -69,7 +69,7 @@ final class PSha1Test extends TestCase
 
     public function test_a_different_seed_derives_a_different_key(): void
     {
-        $derive = new P_SHA1();
+        $derive = new PSHA1();
         $secret = SessionKey::fromBytes(str_repeat("\x2a", 32));
 
         static::assertNotSame(
@@ -80,7 +80,7 @@ final class PSha1Test extends TestCase
 
     public function test_a_different_secret_derives_a_different_key(): void
     {
-        $derive = new P_SHA1();
+        $derive = new PSHA1();
 
         static::assertNotSame(
             $derive->derive(SessionKey::fromBytes(str_repeat("\x2a", 32)), 'seed', 0, 32)->bytes(),
@@ -92,14 +92,14 @@ final class PSha1Test extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new P_SHA1())->derive(SessionKey::fromBytes(''), 'seed', 0, 32);
+        (new PSHA1())->derive(SessionKey::fromBytes(''), 'seed', 0, 32);
     }
     public function test_an_offset_below_zero_is_refused_rather_than_silently_shortening_the_key(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('must not be negative');
 
-        (new P_SHA1())->derive(SessionKey::fromBytes(str_repeat("\x2a", 32)), 'seed', -10, 32);
+        (new PSHA1())->derive(SessionKey::fromBytes(str_repeat("\x2a", 32)), 'seed', -10, 32);
     }
 
     public function test_a_stream_longer_than_the_bound_is_refused_rather_than_generated(): void
@@ -107,22 +107,22 @@ final class PSha1Test extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('generates');
 
-        (new P_SHA1())->derive(
+        (new PSHA1())->derive(
             SessionKey::fromBytes(str_repeat("\x2a", 32)),
             'seed',
-            P_SHA1::MAX_GENERATED,
+            PSHA1::MAX_GENERATED,
             32,
         );
     }
 
     public function test_the_bound_counts_the_offset_and_the_length_together(): void
     {
-        $derive = new P_SHA1();
+        $derive = new PSHA1();
         $secret = SessionKey::fromBytes(str_repeat("\x2a", 32));
 
         static::assertSame(
             32,
-            strlen($derive->derive($secret, 'seed', P_SHA1::MAX_GENERATED - 32, 32)->bytes()),
+            strlen($derive->derive($secret, 'seed', PSHA1::MAX_GENERATED - 32, 32)->bytes()),
         );
     }
 }

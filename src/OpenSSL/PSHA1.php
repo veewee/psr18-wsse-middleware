@@ -20,7 +20,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
  * It lives beside the other primitives because it produces key material, and every byte of key material in this
  * package is minted inside this boundary where it can be audited in one place.
  */
-final class P_SHA1
+final class PSHA1
 {
     /**
      * The upper bound on how many bytes one derivation generates, which is Offset + Length rather than either

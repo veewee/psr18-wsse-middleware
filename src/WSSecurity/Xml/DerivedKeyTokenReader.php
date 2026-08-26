@@ -5,7 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
 
 use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
-use Soap\Psr18WsseMiddleware\OpenSSL\P_SHA1;
+use Soap\Psr18WsseMiddleware\OpenSSL\PSHA1;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\DerivedSessionKey;
 use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
@@ -27,7 +27,7 @@ use VeeWee\Xml\Dom\Document;
 final readonly class DerivedKeyTokenReader
 {
     public function __construct(
-        private P_SHA1 $pSha1 = new P_SHA1(),
+        private PSHA1 $pSha1 = new PSHA1(),
     ) {
     }
 
@@ -70,7 +70,7 @@ final readonly class DerivedKeyTokenReader
 
         $offset = $this->offset($token, $version);
         $length = $this->length($token, $version);
-        if ($offset === null || $length === null || $offset + $length > P_SHA1::MAX_GENERATED) {
+        if ($offset === null || $length === null || $offset + $length > PSHA1::MAX_GENERATED) {
             return null;
         }
 
@@ -147,7 +147,7 @@ final readonly class DerivedKeyTokenReader
         // The default both dialects state when the element is absent.
         $length = $declared === null ? 32 : $this->nonNegativeInt($declared);
 
-        return $length === null || $length < 1 || $length > P_SHA1::MAX_GENERATED ? null : $length;
+        return $length === null || $length < 1 || $length > PSHA1::MAX_GENERATED ? null : $length;
     }
 
     /**

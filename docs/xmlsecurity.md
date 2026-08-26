@@ -93,14 +93,14 @@ part of this package that knows what a SOAP envelope is.
 
 ### Key derivation
 
-`OpenSSL\P_SHA1` is the key-derivation function WS-SecureConversation derives with, and the TLS 1.0
+`OpenSSL\PSHA1` is the key-derivation function WS-SecureConversation derives with, and the TLS 1.0
 pseudorandom function over SHA-1: `A(0)` is the seed, `A(i)` is `HMAC-SHA1(secret, A(i-1))`, and the output is
 the concatenation of `HMAC-SHA1(secret, A(i) || seed)` taken from a given offset for a given length.
 
 ```php
-use Soap\Psr18WsseMiddleware\OpenSSL\P_SHA1;
+use Soap\Psr18WsseMiddleware\OpenSSL\PSHA1;
 
-$derived = (new P_SHA1())->derive($secret, $label.$nonce, offset: 0, length: 32);
+$derived = (new PSHA1())->derive($secret, $label.$nonce, offset: 0, length: 32);
 ```
 
 SHA-1 is not a choice: the specification names this function, both dialects derive with it, and its use as a PRF
