@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Inbound;
 
 use Dom\Element;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
@@ -50,6 +51,27 @@ final class SymmetricSignatureVerificationTest extends TestCase
         $this->verifier($fixture)($this->context($document, $keys));
 
         static::assertCount(1, $this->elements($document, self::DS, 'Signature'));
+    }
+
+    public function test_an_exchange_keyed_signature_verifies_with_no_trust_store_at_all(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $this->symmetricallySigned($fixture, $keys);
+
+        // A MAC names no certificate, so a deployment that only ever receives one has no anchors to offer.
+        // Handing it a trust store it never reads would say it accepts something it does not.
+        (VerifySignature::fromEstablishedKeys(signed: [Part::body()]))($this->context($document, $keys));
+
+        static::assertCount(1, $this->elements($document, self::DS, 'Signature'));
+    }
+
+    public function test_verifying_against_nothing_is_refused_where_it_is_written(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('verified against something');
+
+        new VerifySignature();
     }
 
     public function test_a_signature_naming_a_secret_this_exchange_never_established_is_refused(): void

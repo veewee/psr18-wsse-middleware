@@ -71,22 +71,23 @@ $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 new Inbound\Decrypt($privateKey);
 ```
 
-- `Key|PreSharedSessionKey $key`: **what this receiver decrypts with**, in one argument. There are three ways
-  a key reaches an inbound message and each is stated the same way:
-  ```php
-  use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
+- `?Key $privateKey = null`: your recipient private key as a `KeyStore\Key`, which unwraps an
+  `xenc:EncryptedKey` a peer wrapped for you.
+- `?PreSharedSessionKey $preSharedKey = null`: a secret both sides already hold. A wrapped or derived key is
+  never passed here: it was established while the request was written and the exchange already holds it, and
+  neither could be handed to an inbound block anyway, because both *mint* and would write a token into the
+  response.
 
-  // The peer wrapped a key under our certificate: our private key unwraps it.
-  new Inbound\Decrypt($privateKey);
+Same shape as `VerifySignature`, for the same reason: both blocks answer "what key material do I hold?".
+At least one must be given, unless everything is keyed by what this exchange established for itself:
 
-  // A secret both sides already hold, which no outbound direction established.
-  new Inbound\Decrypt(new Keys\PreSharedSessionKey($sessionKey, 'the-agreed-name', 'urn:example:psk'));
+```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
-  // The response is keyed by what our own request conveyed, so there is nothing to hand over.
-  Inbound\Decrypt::fromEstablishedKeys();
-  ```
-  A wrapped or derived key is never passed here: it was established while the request was written, and the
-  exchange already holds it.
+new Inbound\Decrypt($privateKey);                          // a key wrapped under our certificate
+new Inbound\Decrypt(preSharedKey: $secret);                // a secret both sides hold
+Inbound\Decrypt::fromEstablishedKeys();                    // our own request conveyed the key
+```
 - `withAttachments(ExternalParts $attachments): self`: also decrypt the response's encrypted attachments. Off
   by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).
@@ -157,13 +158,12 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 $trustStore = TrustStore::fromCertificates(Certificate::fromFile('service-ca.pub'));
 
-new Inbound\VerifySignature(
-    $trustStore,
+new Inbound\VerifySignature($trustStore,
     signed: [Part::body(), Part::timestamp()],
 );
 ```
 
-- `TrustStore $trustStore`: the certificates you trust as signers. Build it with
+- `?TrustStore $trustStore = null`: the certificates you trust as signers. Build it with
   `TrustStore::fromCertificates(...)`. Required, and still required for a purely symmetric deployment: the block
   cannot know in advance which kind of signature will arrive, and one keyed by a certificate must still be
   checked against something. Pass a store holding the anchors you would accept.
@@ -180,8 +180,30 @@ new Inbound\VerifySignature(
   **An empty list is not the default.** `signed: []` replaces the body floor with no requirement at all, so any
   message carrying a signature from any trusted certificate passes, whatever that signature actually covers.
   Pass `null` (or omit the argument) if you want the default; pass a list only when you mean every part in it.
-- `withPreSharedKey(PreSharedSessionKey $key): self`: register a secret no outbound direction established, so a
-  symmetric signature keyed by it can be verified. Same source and same reasoning as on `Decrypt`.
+  `null` for a deployment that receives no certificate-keyed signature at all. A trust store handed over and
+  never read would say this block accepts something it does not.
+- `?PreSharedSessionKey $preSharedKey = null`: the secret a MAC is verified against, when both sides hold the
+  key. Only a pre-shared key is passed here: a wrapped or derived key was established while the request was
+  written and the exchange already holds it, and neither could be handed to an inbound block anyway, because
+  both *mint* and would write a token into the response.
+
+Both are optional and **at least one must be given**, unless every signature is keyed by what this exchange
+established for itself, which `VerifySignature::fromEstablishedKeys()` states:
+
+```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+
+new Inbound\VerifySignature($trustStore, signed: [Part::body()]);                 // certificates
+new Inbound\VerifySignature(preSharedKey: $secret, signed: [Part::body()]);       // a shared secret
+new Inbound\VerifySignature($trustStore, $secret, signed: [Part::body()]);        // both, one pass
+Inbound\VerifySignature::fromEstablishedKeys(signed: [Part::body()]);             // our request's own key
+```
+
+**Both at once is not unusual here**, unlike on `Decrypt`: one message may carry a MAC over the body and a
+certificate signature endorsing it, which is the shape [the outbound side
+emits](outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control). Each signature is resolved by
+its own `ds:KeyInfo`, so one block verifies them all in a single pass and two blocks would be wrong rather than
+merely redundant.
 
 A response may carry more than one `ds:Signature` directly inside the header addressed to you, and **every one
 of them must verify**. That is what lets a peer endorse its own response signature the way

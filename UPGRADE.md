@@ -314,9 +314,12 @@ new Outbound\Encryption(new Keys\GeneratedSessionKey(
 ));
 ```
 
-`Inbound\Decrypt` now takes **what it decrypts with** as its one argument, a `KeyStore\Key` or a
-`Keys\PreSharedSessionKey`, with `Decrypt::fromEstablishedKeys()` for a response keyed by what the request
-itself conveyed. `Inbound\VerifySignature` gained `withPreSharedKey()`. A
+Both inbound blocks now take **what key material you hold**, in the same shape, because they answer the same
+question. `Inbound\Decrypt` takes `?Key $privateKey` and `?PreSharedSessionKey $preSharedKey`;
+`Inbound\VerifySignature` takes `?TrustStore $trustStore` and `?PreSharedSessionKey $preSharedKey` before its
+`signed:` list, so a deployment receiving only symmetric signatures no longer passes anchors nothing reads. At
+least one must be given, and `::fromEstablishedKeys()` on either states the case where everything is keyed by
+what the request itself conveyed. A
 deployment whose peer encrypts under a key the exchange already established wraps nothing, so there is nothing
 to unwrap; see [Inbound blocks](docs/inbound-blocks.md).
 

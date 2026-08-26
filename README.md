@@ -230,8 +230,7 @@ $transport = Psr18Transport::createForClient(
                 //     ->withParts([Part::body(), Part::securityHeaderContents()]),
             ],
             inbound: [
-                new Inbound\VerifySignature(
-                    $trustStore,
+                new Inbound\VerifySignature($trustStore,
                     signed: [Part::body(), Part::timestamp()],
                 ),
                 new Inbound\ValidateTimestamp(),

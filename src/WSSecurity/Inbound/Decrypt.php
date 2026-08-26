@@ -54,13 +54,26 @@ final class Decrypt implements InboundAction
     private ?ExternalParts $attachments = null;
 
     /**
-     * @param Key|PreSharedSessionKey $key what this receiver decrypts with. A Key unwraps an xenc:EncryptedKey
-     *        a peer wrapped for it; a pre-shared secret opens parts encrypted under a key both sides already
-     *        hold. A key this exchange established for itself needs neither, which fromEstablishedKeys() says
+     * @param ?Key $privateKey unwraps an xenc:EncryptedKey a peer wrapped for this receiver. Null for a
+     *        deployment nobody wraps a key for
+     * @param ?PreSharedSessionKey $preSharedKey opens parts encrypted under a secret both sides already hold.
+     *        A key this exchange established for itself is never passed: the request that wrote it already did
+     *
+     * @throws InvalidArgumentException when neither is offered
      */
     public function __construct(
-        private readonly Key|PreSharedSessionKey|null $key,
+        private readonly ?Key $privateKey = null,
+        private readonly ?PreSharedSessionKey $preSharedKey = null,
+        bool $allowNothing = false,
     ) {
+        if (!$allowNothing && $privateKey === null && $preSharedKey === null) {
+            throw new InvalidArgumentException(
+                'A decryption has to open something: give this block a private key, a pre-shared secret, or '
+                .'both. Use fromEstablishedKeys() when every part is encrypted under what this exchange '
+                .'established for itself.',
+            );
+        }
+
         // The WS-Security profile tags xenc:EncryptedData with wsu:Id, so the decryptor resolves references
         // through the wsu:Id convention (native namespace-less @Id from interop peers is still accepted too).
         // Only the read half is handed over: nothing inbound mints, and a class that holds no minter cannot.
@@ -76,7 +89,7 @@ final class Decrypt implements InboundAction
      */
     public static function fromEstablishedKeys(): self
     {
-        return new self(null);
+        return new self(null, null, allowNothing: true);
     }
 
     /**
@@ -158,16 +171,14 @@ final class Decrypt implements InboundAction
 
             // A pre-shared secret is registered when the block runs rather than at construction, because the
             // exchange it belongs to is the one in flight.
-            if ($this->key instanceof PreSharedSessionKey) {
-                $this->key->resolve($context, KeyRequest::any());
-            }
+            $this->preSharedKey?->resolve($context, KeyRequest::any());
 
             $external = $this->externalPartDecryption();
             $result = $this->decryptor->decrypt(
                 $document,
                 new DecryptionRequest(
                     $container,
-                    $this->key instanceof Key ? $this->key : null,
+                    $this->privateKey,
                     $context->profile()->crypto(),
                     $external,
                     new EstablishedSessionKeyResolver($context->keys(), (new WsuIdConvention())->lookup()),

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
+use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentSignatureTransform;
@@ -48,8 +49,6 @@ final class VerifySignature implements InboundAction
 {
     private ?XmlSignatureVerifier $verifier = null;
     private readonly RequiredPartsValidator $requiredParts;
-    private ?PreSharedSessionKey $preSharedKey = null;
-
     /** @var (callable(TrustedSigner): void)|null */
     private $signerCheck = null;
 
@@ -65,12 +64,30 @@ final class VerifySignature implements InboundAction
      * refuse conformant messages. Name the Timestamp explicitly when the peer signs it, which pairs with
      * ValidateTimestamp.
      *
+     * @param ?TrustStore $trustStore the anchors a certificate-keyed signature is trusted against. Null for a
+     *        deployment that accepts no certificate signature at all, which then refuses one on the
+     *        certificate it presents rather than on anchors it was handed and never read
+     * @param ?PreSharedSessionKey $preSharedKey the secret a MAC is verified against, for a key both sides
+     *        hold. A key this exchange established for itself is never passed: the request that wrote it
+     *        already did
      * @param list<Part>|null $signed null requires the Body; an explicit list replaces that entirely
+     *
+     * @throws InvalidArgumentException when neither is offered
      */
     public function __construct(
-        private readonly TrustStore $trustStore,
+        private readonly ?TrustStore $trustStore = null,
+        private readonly ?PreSharedSessionKey $preSharedKey = null,
         private readonly ?array $signed = null,
+        bool $allowNothing = false,
     ) {
+        if (!$allowNothing && $trustStore === null && $preSharedKey === null) {
+            throw new InvalidArgumentException(
+                'A signature has to be verified against something: give this block a trust store, a '
+                .'pre-shared secret, or both. Use fromEstablishedKeys() when the only signature to verify is '
+                .'keyed by what this exchange established for itself.',
+            );
+        }
+
         // The WS-Security profile references signed parts by wsu:Id, so the required-part locator resolves ids
         // through the wsu:Id convention.
         // Only the read half is handed over: nothing inbound mints, and a class that holds no minter cannot.
@@ -78,20 +95,20 @@ final class VerifySignature implements InboundAction
     }
 
     /**
-     * Registers a secret no outbound direction established, so a symmetric signature keyed by it can be
-     * verified. Only a pre-shared key needs this: a wrapped or derived key was established while the request
-     * was written, and the exchange already holds it.
+     * Verifies against the key this exchange established for itself, and nothing else.
      *
-     * The secret is registered when the block runs rather than now, because the exchange it belongs to is the
-     * one in flight.
+     * A response MACed with the key its own request conveyed needs no material handed over: the request
+     * registered it while it was written. Named rather than expressed by passing nothing, because accepting
+     * neither a certificate nor a shared secret is a decision about the deployment rather than two arguments
+     * left out.
+     *
+     * @param list<Part>|null $signed null requires the Body; an explicit list replaces that entirely
      */
-    public function withPreSharedKey(PreSharedSessionKey $key): self
+    public static function fromEstablishedKeys(?array $signed = null): self
     {
-        $clone = clone $this;
-        $clone->preSharedKey = $key;
-
-        return $clone;
+        return new self(null, null, $signed, allowNothing: true);
     }
+
 
     /**
      * Requires the message's attachments to be covered by the verified signature.
@@ -186,7 +203,9 @@ final class VerifySignature implements InboundAction
             // over.
             $registeredAttachments = $attachments?->collect();
             $policy = new VerificationPolicy(
-                $this->trustStore,
+                // An empty store trusts no anchor, which is exactly what a deployment accepting only symmetric
+                // signatures means: a certificate-keyed one is refused for the certificate it presents.
+                $this->trustStore ?? TrustStore::fromCertificates(),
                 $context->profile()->crypto(),
                 $attachments !== null && $registeredAttachments !== null
                     ? new ExternalPartVerification(

@@ -70,10 +70,11 @@ final class PreSharedSessionKeyTest extends TestCase
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
         // A fresh exchange, as an inbound-only deployment has: the block registers the secret itself.
-        $block = (new VerifySignature(
+        $block = new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
+            $this->key(),
             signed: [Part::body()],
-        ))->withPreSharedKey($this->key());
+        );
 
         $block($this->context($document, new ExchangeKeys()));
 
@@ -89,10 +90,11 @@ final class PreSharedSessionKeyTest extends TestCase
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
-        $block = (new VerifySignature(
+        $block = new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
+            $this->key(str_repeat("\x2b", 32)),
             signed: [Part::body()],
-        ))->withPreSharedKey($this->key(str_repeat("\x2b", 32)));
+        );
 
         $this->expectException(SecurityFault::class);
         $block($this->context($document, new ExchangeKeys()));
@@ -127,7 +129,7 @@ final class PreSharedSessionKeyTest extends TestCase
         static::assertCount(1, $this->elements($document, self::XENC, 'EncryptedData'));
 
         // No private key: there is nothing wrapped to unwrap, in either direction.
-        (new Decrypt($this->key()))($this->context($document, new ExchangeKeys()));
+        (new Decrypt(preSharedKey: $this->key()))($this->context($document, new ExchangeKeys()));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertStringContainsString('<data>secret</data>', $document->toXmlString());
