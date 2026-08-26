@@ -16,7 +16,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -147,7 +146,7 @@ final class SymmetricSignatureVerificationTest extends TestCase
         // Signed as well as encrypted, so the key is shared and the reference list stands beside it rather than
         // inside it. That is the shape a correlated response takes: the list and the ciphertext survive the key
         // element being gone, because each xenc:EncryptedData names the key itself.
-        (new Signature(new SymmetricSigningKey($key)))
+        (new Signature($key))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))->withParts([Part::body()])($context);
@@ -172,7 +171,7 @@ final class SymmetricSignatureVerificationTest extends TestCase
         $context = $this->context($document, new ExchangeKeys());
         $key = new WrappedSessionKey($fixture->leafCertificate);
 
-        (new Signature(new SymmetricSigningKey($key)))
+        (new Signature($key))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))->withParts([Part::body()])($context);
@@ -191,7 +190,7 @@ final class SymmetricSignatureVerificationTest extends TestCase
     {
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, $keys));
 

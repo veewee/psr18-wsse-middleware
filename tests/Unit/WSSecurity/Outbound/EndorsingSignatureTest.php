@@ -20,7 +20,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\CertificateSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -47,7 +46,7 @@ final class EndorsingSignatureTest extends TestCase
         $document = $fixture->envelope();
         $context = $this->context($document);
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
 
@@ -80,7 +79,7 @@ final class EndorsingSignatureTest extends TestCase
         $document = $fixture->envelope();
         $context = $this->context($document);
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
 
@@ -105,7 +104,7 @@ final class EndorsingSignatureTest extends TestCase
         $document = $fixture->envelope();
         $context = $this->context($document, $keys);
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
@@ -131,7 +130,7 @@ final class EndorsingSignatureTest extends TestCase
         $document = $fixture->envelope();
         $context = $this->context($document, $keys);
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
@@ -154,7 +153,7 @@ final class EndorsingSignatureTest extends TestCase
         $keys = new ExchangeKeys();
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, $keys));
 
@@ -176,7 +175,7 @@ final class EndorsingSignatureTest extends TestCase
         $document = $fixture->envelope();
         $context = $this->context($document, $keys);
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
@@ -203,7 +202,7 @@ final class EndorsingSignatureTest extends TestCase
         $document = $fixture->envelope();
         $context = $this->context($document, $keys);
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
@@ -239,7 +238,7 @@ final class EndorsingSignatureTest extends TestCase
         $document = $fixture->envelope();
         $context = $this->context($document);
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
@@ -262,7 +261,7 @@ final class EndorsingSignatureTest extends TestCase
         $document = $fixture->envelope();
         $context = $this->context($document);
 
-        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+        (new Signature(new WrappedSessionKey($fixture->leafCertificate)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         $primary = $this->signatures($document)[0];

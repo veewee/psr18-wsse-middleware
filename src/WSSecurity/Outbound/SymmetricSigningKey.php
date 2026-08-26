@@ -16,6 +16,9 @@ use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
  * class only states how many bytes the chosen MAC wants.
  *
  * Passing the same source to an Encryption block is what makes the two share one key.
+ *
+ * @internal a Signature block takes a SymmetricKeySource itself and adapts it here, since there is nothing to
+ *           configure on the way through
  */
 final readonly class SymmetricSigningKey implements SigningKey
 {

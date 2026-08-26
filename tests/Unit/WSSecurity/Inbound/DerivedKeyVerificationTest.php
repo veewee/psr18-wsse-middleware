@@ -17,7 +17,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -215,9 +214,9 @@ final class DerivedKeyVerificationTest extends TestCase
         $keys = new ExchangeKeys();
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
+        (new Signature(new DerivedSessionKey(
             new WrappedSessionKey($fixture->leafCertificate),
-        ))))
+        )))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])(new WsseContext(
                 $document,
@@ -260,9 +259,9 @@ final class DerivedKeyVerificationTest extends TestCase
     {
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
+        (new Signature(new DerivedSessionKey(
             new WrappedSessionKey($fixture->leafCertificate),
-        ))))
+        )))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, $keys));
 

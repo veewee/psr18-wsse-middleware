@@ -291,9 +291,10 @@ new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp(
 The two credentials are the seam that makes a symmetric binding expressible, which is why they are objects
 rather than a certificate and an enum:
 
-- `Outbound\Signature` takes a **`SigningKey`**: `Outbound\CertificateSigningKey` for the X.509 forms, or
-  `Outbound\SymmetricSigningKey` for a MAC keyed by a shared secret. Everything certificate-shaped lives on the
-  first one, including the certification path that used to be `withCertificatePath()`.
+- `Outbound\Signature` takes a **`SigningKey`**, which is `Outbound\CertificateSigningKey` for the X.509 forms.
+  Everything certificate-shaped lives on it, including the certification path that used to be
+  `withCertificatePath()`. It also accepts a `SymmetricKeySource` directly, for a MAC keyed by a shared secret:
+  nothing is configured on the way through, so there is nothing to construct.
 - `Outbound\Encryption` takes a **`SymmetricKeySource`**: `Keys\WrappedSessionKey` is definitionally what the
   old `(Certificate, EncKeyRef)` pair meant, so this is a collapse rather than a second mode. `EncKeyRef` and the
   key-transport choice move onto it, because they say how the *key* reaches its recipient rather than what gets
@@ -488,7 +489,8 @@ XML-Security layer be driven by a `CryptoPolicy` alone, without the SOAP profile
   Inbound, the ECDSA methods are in the default accepted signature allow-list.
 - **Keyed-MAC signing.** `SignatureMethod` gained `HMAC_SHA1`, `HMAC_SHA224`, `HMAC_SHA256`, `HMAC_SHA384` and
   `HMAC_SHA512`, which is what a `SymmetricBinding` policy asks for. They are keyed by a shared secret rather
-  than by a certificate, so they need an `Outbound\SymmetricSigningKey`; pairing one with a certificate throws,
+  than by a certificate, so they take a `SymmetricKeySource` instead of a signing key; pairing one with a
+  certificate throws,
   because that would make the "secret" the peer's public key bytes. The SHA-2 sizes are in the default accepted
   allow-list and the SHA-1 one is not, exactly as with RSA. `SignatureMethod::isEcdsa()` is replaced by
   `keyKind()`, returning a `SignatureKeyKind`, so every consumer decides what each kind means rather than

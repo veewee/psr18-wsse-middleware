@@ -421,7 +421,7 @@ $transport = Psr18Transport::createForClient(
             new SecurityProfile(),
             outbound: [
                 new Outbound\Timestamp(),
-                (new Outbound\Signature(new Outbound\SymmetricSigningKey($sessionKey)))
+                (new Outbound\Signature($sessionKey))
                     ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
                     ->withParts([Part::body(), Part::timestamp()]),
                 (new Outbound\Encryption($sessionKey))

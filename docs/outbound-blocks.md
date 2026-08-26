@@ -112,7 +112,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 new Outbound\CertificateSigningKey($clientCertificate, KeyRef::BinarySecurityToken);
 
 // Keyed by a symmetric secret: a MAC rather than a signature. See Symmetric key sources below.
-new Outbound\SymmetricSigningKey($sessionKeySource);
+$sessionKeySource;
 ```
 
 ### `CertificateSigningKey`
@@ -144,10 +144,19 @@ new Outbound\SymmetricSigningKey($sessionKeySource);
 Pairing this with an HMAC signature method throws: keying a MAC with a certificate makes the "secret" the peer's
 public key bytes, which anyone holding the certificate has.
 
-### `SymmetricSigningKey`
+### Keying a signature from a symmetric key source
 
-- `SymmetricKeySource $source`: where the secret comes from. Required. Passing the same source to an
-  `Encryption` block is what makes the two share one key.
+Hand the `Signature` block a [symmetric key source](#symmetric-key-sources) instead of a signing key. There is
+nothing to configure on the way through, so there is nothing to construct: the signature method you choose
+already says how many bytes the MAC wants. Passing the same source to an `Encryption` block is what makes the
+two share one key.
+
+```php
+$sessionKey = new Keys\WrappedSessionKey($recipient);
+
+(new Outbound\Signature($sessionKey))->withSignatureMethod(SignatureMethod::HMAC_SHA256);
+new Outbound\Encryption($sessionKey);
+```
 
 The signature method has to be one of the HMAC ones; an asymmetric method throws, because a symmetric secret
 cannot provide private key material. The block asks the source for the digest-length key its method prefers, and
@@ -163,8 +172,8 @@ simply worth knowing before you read the method name as a strength. Give each a
 
 ## Symmetric key sources
 
-An `Encryption` block, and a `SymmetricSigningKey`, take a `SymmetricKeySource`: a recipe saying where a
-symmetric key comes from and how a `ds:KeyInfo` names it. Three of them ship.
+An `Encryption` block takes a `SymmetricKeySource`, and a `Signature` block accepts one in place of a signing
+key: a recipe saying where a symmetric key comes from and how a `ds:KeyInfo` names it. Three of them ship.
 
 A source holds no key. It is constructed once with the middleware and reused for every message, and the key it
 produces lives for exactly one request/response exchange. **Two blocks share one key by being handed the same
@@ -255,7 +264,7 @@ $shared = new Keys\WrappedSessionKey($recipient);
 
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),
-    (new Outbound\Signature(new Outbound\SymmetricSigningKey(new Keys\DerivedSessionKey($shared))))
+    (new Outbound\Signature(new Keys\DerivedSessionKey($shared)))
         ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
         ->withParts([Part::body(), Part::timestamp()]),
     (new Outbound\Encryption(new Keys\DerivedSessionKey($shared)))
@@ -375,7 +384,7 @@ Register the attachment with `withAttachments()` and both the pointer and the by
   to verify one (see [Security profile and defaults](security-profile.md)).
 
   The `HMAC_SHA256`, `HMAC_SHA384` and `HMAC_SHA512` cases are keyed by a symmetric secret rather than by a
-  certificate, and need a [`SymmetricSigningKey`](#signing-keys). They follow the same rule their RSA
+  certificate, and need a [symmetric key source](#symmetric-key-sources). They follow the same rule their RSA
   counterparts do: the SHA-2 sizes are accepted inbound by default and the SHA-1 one (`HMAC_SHA1`, plus
   `HMAC_SHA224`) is named deliberately or not at all.
 - `withDigestMethod(DigestMethod $method): self`: the per-reference digest algorithm. Default: the profile's
@@ -540,7 +549,7 @@ $sessionKey = new Keys\WrappedSessionKey($recipient);
 
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),
-    (new Outbound\Signature(new Outbound\SymmetricSigningKey($sessionKey)))
+    (new Outbound\Signature($sessionKey))
         ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
         ->withParts([Part::body(), Part::timestamp()]),
     (new Outbound\Encryption($sessionKey))
