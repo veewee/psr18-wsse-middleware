@@ -8,6 +8,7 @@ use Dom\Node;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\XopInclude;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
@@ -155,6 +156,17 @@ final class Encryptor implements XmlEncryptor
                 $element = $this->targetLocator->locate($document, $encryptionTarget->target);
             } catch (IdReferenceException $exception) {
                 throw EncryptionFailed::withReason($exception->getMessage());
+            }
+
+            // An element whose content is a pointer cannot be encrypted: the ciphertext would cover the
+            // reference while the bytes it names travel in the clear in their own MIME part, and the message
+            // would still satisfy a policy check for that element being encrypted. Encrypting the part the
+            // pointer names is the supported path, which is what external parts are for.
+            if (XopInclude::hrefsIn($document, $element) !== []) {
+                throw EncryptionFailed::withReason(
+                    'An element carrying an xop:Include cannot be encrypted: that would protect the reference '
+                    .'while the referenced bytes travel in the clear. Encrypt the attachment instead.',
+                );
             }
 
             $resolved[] = [$element, $encryptionTarget->mode];

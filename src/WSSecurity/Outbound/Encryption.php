@@ -19,8 +19,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
-use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\Xml\XopInclude;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
@@ -31,7 +29,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -65,7 +62,6 @@ final class Encryption implements OutboundAction
     private ?ExternalParts $attachments = null;
 
     private XmlEncryptor $encryptor;
-    private readonly TargetLocator $targetLocator;
 
     public function __construct(
         private readonly Certificate $recipientCertificate,
@@ -75,9 +71,6 @@ final class Encryption implements OutboundAction
         // convention on both sides. The engine's own default (xml:id) would break the WSSE wire format.
         $convention = new WsuIdConvention();
         $this->encryptor = Encryptor::create($convention);
-        // Only the read half, and only for the XOP guard: this block resolves a target to inspect it, never
-        // to stamp anything. The engine resolves them again for the encryption itself.
-        $this->targetLocator = new TargetLocator($convention->lookup());
     }
 
     public function withEncryptor(XmlEncryptor $encryptor): self
@@ -206,8 +199,6 @@ final class Encryption implements OutboundAction
             externalParts: $external,
         );
 
-        $this->assertNoOptimizedContent($document, $request);
-
         $result = $this->encryptor->encrypt($document, $request);
         $this->assertEveryRegisteredPartSealed($external?->parts, $result->sealedParts);
 
@@ -279,37 +270,6 @@ final class Encryption implements OutboundAction
         }
 
         return ExternalPartList::of(...$opaque);
-    }
-
-    /**
-     * Refuses to encrypt an element whose content is, or contains, an xop:Include.
-     *
-     * A disclosure guard rather than a convenience check. The include is only a pointer: encrypting the
-     * element that holds it produces ciphertext over the pointer while the bytes themselves travel in the
-     * clear in their own MIME part, and the message still satisfies a policy check for "that element is
-     * encrypted". Encrypting the part an include points at is the supported path and is what
-     * withAttachments() does.
-     *
-     * @throws EncryptionFailed
-     */
-    private function assertNoOptimizedContent(Document $document, EncryptionRequest $request): void
-    {
-        foreach ($request->targets as $target) {
-            try {
-                $element = $this->targetLocator->locate($document, $target->target);
-            } catch (IdReferenceException) {
-                // Not this guard's verdict to give. The engine resolves every target itself and refuses the
-                // whole operation when one is missing, so nothing gets encrypted either way.
-                continue;
-            }
-
-            if (XopInclude::hrefsIn($document, $element) !== []) {
-                throw EncryptionFailed::withReason(
-                    'An element carrying an xop:Include cannot be encrypted: that would protect the reference '
-                    .'while the referenced bytes travel in the clear. Encrypt the attachment instead.',
-                );
-            }
-        }
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier
