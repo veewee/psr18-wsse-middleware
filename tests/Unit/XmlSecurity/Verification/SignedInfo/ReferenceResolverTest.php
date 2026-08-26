@@ -431,15 +431,18 @@ final class ReferenceResolverTest extends TestCase
             ->resolve($document, $elements, $parsed, $this->signature($document));
     }
 
-    public function test_it_accepts_an_element_pointing_at_a_part_that_was_supplied(): void
+    public function test_it_accepts_an_element_pointing_at_a_part_this_signature_also_covers(): void
     {
-        // The supported MTOM shape. The part is supplied, which the block above only ever does when it also
-        // requires that part to have been signed, so the bytes are covered in their own right.
+        // The supported MTOM shape: the element points at a part, and the same ds:SignedInfo carries a
+        // reference digesting that part's octets. Both the pointer and the bytes are covered.
         $document = $this->document(
-            ['Body' => self::reference('#Body', self::EXC_C14N)],
+            [
+                'Body' => self::reference('#Body', self::EXC_C14N),
+                'Part' => self::reference('cid:invoice@example.com', self::SWA_CONTENT),
+            ],
             body: $this->optimizedBody('cid:invoice@example.com'),
         );
-        [$elements, $parsed] = $this->references($document);
+        [$elements, $parsed] = $this->parsedExternal($document);
 
         $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve(
             $document,
@@ -453,6 +456,33 @@ final class ReferenceResolverTest extends TestCase
         );
 
         static::assertSame($this->byId($document, 'Body'), $resolved->elements[0]->element);
+        static::assertCount(1, $resolved->external);
+    }
+
+    public function test_it_refuses_an_element_pointing_at_a_supplied_part_this_signature_does_not_cover(): void
+    {
+        // The gap a membership check leaves open. The part is in the list the caller supplied, so it exists
+        // and it arrived, but no reference in this ds:SignedInfo digests it: the signature says nothing about
+        // those bytes, and an intermediary is free to replace them. Being available is not being covered.
+        $document = $this->document(
+            ['Body' => self::reference('#Body', self::EXC_C14N)],
+            body: $this->optimizedBody('cid:invoice@example.com'),
+        );
+        [$elements, $parsed] = $this->references($document);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage(self::UNCOVERED_POINTER);
+
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve(
+            $document,
+            $elements,
+            $parsed,
+            $this->signature($document),
+            new ExternalPartVerification(
+                ExternalPartList::of($this->part('cid:invoice@example.com')),
+                self::SWA_CONTENT,
+            ),
+        );
     }
 
     public function test_it_leaves_a_pointer_outside_the_signed_element_alone(): void

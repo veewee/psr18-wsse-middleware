@@ -229,9 +229,11 @@ new Inbound\ValidateTimestamp();
 ```
 
 **The same rule applies on the way in.** A signature over an element holding an `xop:Include` is refused
-unless the reference it names is one of the attachments you registered here. A default WSS4J receiver does not
-expand such an element before verifying, so a signature covering only the pointer verifies there while the
-file it stands for travels unprotected. Refusing is deliberate: matching that peer would mean reproducing the
+unless that same signature also carries a `ds:Reference` digesting the bytes the pointer names. Registering
+the attachment here is what makes such a reference checkable, but registration alone is not enough: a part
+being available says it arrived, not that anything vouches for it. A default WSS4J receiver does not expand
+such an element before verifying, so a signature covering only the pointer verifies there while the file it
+stands for travels unprotected. Refusing is deliberate: matching that peer would mean reproducing the
 weakness.
 
 - No required arguments. The freshness window (clock skew and maximum age) comes from the `SecurityProfile` on
