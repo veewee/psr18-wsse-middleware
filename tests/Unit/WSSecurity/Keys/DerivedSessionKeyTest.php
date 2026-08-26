@@ -14,11 +14,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Keys\DerivedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing\Symmetric;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecureConversationVersion;
@@ -47,7 +47,7 @@ final class DerivedSessionKeyTest extends TestCase
         $context = $this->context($document);
         $shared = new GeneratedSessionKey($fixture->leafCertificate);
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey($shared))))
+        (new Signature(new Symmetric(new DerivedSessionKey($shared))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption(new DerivedSessionKey($shared)))
@@ -65,7 +65,7 @@ final class DerivedSessionKeyTest extends TestCase
         $context = $this->context($document);
         $shared = new GeneratedSessionKey($fixture->leafCertificate);
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey($shared))))
+        (new Signature(new Symmetric(new DerivedSessionKey($shared))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption(new DerivedSessionKey($shared)))
@@ -89,7 +89,7 @@ final class DerivedSessionKeyTest extends TestCase
         $context = $this->context($document);
         $shared = new GeneratedSessionKey($fixture->leafCertificate);
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey($shared))))
+        (new Signature(new Symmetric(new DerivedSessionKey($shared))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption(new DerivedSessionKey($shared)))
@@ -116,7 +116,7 @@ final class DerivedSessionKeyTest extends TestCase
         $context = $this->context($document);
         $shared = new GeneratedSessionKey($fixture->leafCertificate);
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey($shared))))
+        (new Signature(new Symmetric(new DerivedSessionKey($shared))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption(new DerivedSessionKey($shared)))
@@ -149,7 +149,7 @@ final class DerivedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
+        (new Signature(new Symmetric(new DerivedSessionKey(
             new GeneratedSessionKey($fixture->leafCertificate),
         ))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
@@ -182,7 +182,7 @@ final class DerivedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
+        (new Signature(new Symmetric(new DerivedSessionKey(
             new GeneratedSessionKey($fixture->leafCertificate),
         ))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
@@ -200,7 +200,7 @@ final class DerivedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
+        (new Signature(new Symmetric(new DerivedSessionKey(
             new GeneratedSessionKey($fixture->leafCertificate),
         ))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
@@ -230,7 +230,7 @@ final class DerivedSessionKeyTest extends TestCase
             new ExchangeKeys()
         );
 
-        (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
+        (new Signature(new Symmetric(new DerivedSessionKey(
             new GeneratedSessionKey($fixture->leafCertificate),
         ))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
@@ -270,7 +270,7 @@ final class DerivedSessionKeyTest extends TestCase
         $context = $this->context($document);
         $derived = new DerivedSessionKey(new GeneratedSessionKey($fixture->leafCertificate));
 
-        (new Signature(new SymmetricSigningKey($derived)))
+        (new Signature(new Symmetric($derived)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
 

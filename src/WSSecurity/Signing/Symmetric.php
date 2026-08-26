@@ -1,11 +1,13 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricKeySource;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 
 /**
@@ -15,7 +17,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
  *
  * Passing the same source to an Encryption block is what makes the two share one key.
  */
-final readonly class SymmetricSigningKey implements SigningKey
+final readonly class Symmetric implements SigningKey
 {
     public function __construct(
         private SymmetricKeySource $source,

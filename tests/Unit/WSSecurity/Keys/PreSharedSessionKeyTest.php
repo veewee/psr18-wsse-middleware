@@ -17,11 +17,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\PreSharedSessionKey;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing\Symmetric;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
@@ -47,7 +47,7 @@ final class PreSharedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey($this->key())))
+        (new Signature(new Symmetric($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -65,7 +65,7 @@ final class PreSharedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey($this->key())))
+        (new Signature(new Symmetric($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -85,7 +85,7 @@ final class PreSharedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey($this->key())))
+        (new Signature(new Symmetric($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -103,7 +103,7 @@ final class PreSharedSessionKeyTest extends TestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope();
 
-        (new Signature(new SymmetricSigningKey($this->key())))
+        (new Signature(new Symmetric($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -127,7 +127,7 @@ final class PreSharedSessionKeyTest extends TestCase
         static::assertCount(1, $this->elements($document, self::XENC, 'EncryptedData'));
 
         // No private key: there is nothing wrapped to unwrap, in either direction.
-        (new Decrypt())->withPreSharedKey($this->key())($this->context($document, new ExchangeKeys()));
+        (Decrypt::fromEstablishedKeys())->withPreSharedKey($this->key())($this->context($document, new ExchangeKeys()));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertStringContainsString('<data>secret</data>', $document->toXmlString());
@@ -163,7 +163,7 @@ final class PreSharedSessionKeyTest extends TestCase
             'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKeySHA1',
         );
 
-        (new Signature(new SymmetricSigningKey($key)))
+        (new Signature(new Symmetric($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 
@@ -182,7 +182,7 @@ final class PreSharedSessionKeyTest extends TestCase
     {
         $document = WsseSignatureFixture::caSignedLeaf()->envelope();
 
-        (new Signature(new SymmetricSigningKey($this->key())))
+        (new Signature(new Symmetric($this->key())))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
 

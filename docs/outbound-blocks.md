@@ -95,12 +95,12 @@ You rarely add this block by hand: the `Signature` block embeds one automaticall
 
 - `BinarySecurityToken::forCertificatePath(CertificateChain $path): self`: a named constructor embedding the
   whole certification path as a `#X509PKIPathv1` token instead of the leaf alone. Signing with a path is
-  configured on the [`AsymmetricSigningKey`](#signing-keys) you hand the `Signature` block; reach for this
+  configured on the [`Signing\Asymmetric`](#signing-keys) you hand the `Signature` block; reach for this
   constructor only when the token has to stand on its own.
 
 ## Signing keys
 
-A `Signature` block takes a `Keys\SigningKey`, which says **which of the two kinds of signature this is** and
+A `Signature` block takes a `Signing\SigningKey`, which says **which of the two kinds of signature this is** and
 what keys it. WS-Security defines two, and they are different operations rather than two ways of spelling one:
 an asymmetric signature is made with a private key and identifies its signer, while a symmetric one is a keyed
 MAC that identifies nobody, because both sides hold the key that makes it.
@@ -108,18 +108,18 @@ MAC that identifies nobody, because both sides hold the key that makes it.
 The class you pick is what states the choice. Nothing infers it.
 
 ```php
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 // Asymmetric: signed with a private key, advertised through a certificate. The ordinary X.509 case.
-new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::BinarySecurityToken));
+new Outbound\Signature(new Signing\Asymmetric($clientCertificate, KeyRef::BinarySecurityToken));
 
 // Symmetric: a keyed MAC, over a secret from any of the symmetric key sources.
-new Outbound\Signature(new Keys\SymmetricSigningKey($sessionKey));
+new Outbound\Signature(new Signing\Symmetric($sessionKey));
 ```
 
-### `AsymmetricSigningKey`
+### `Signing\Asymmetric`
 
 - `ClientCertificate $certificate`: the certificate-and-key bundle to sign with. The private key signs; the
   public certificate is advertised in `ds:KeyInfo`. Required.
@@ -136,7 +136,7 @@ new Outbound\Signature(new Keys\SymmetricSigningKey($sessionKey));
 
   $bundle = Pkcs12Bundle::fromFile('client.p12', 'xxx');
 
-  new Outbound\Signature(new Keys\AsymmetricSigningKey(
+  new Outbound\Signature(new Signing\Asymmetric(
       ClientCertificate::fromPkcs12($bundle),
       path: $bundle->chain,
   ));
@@ -148,17 +148,16 @@ new Outbound\Signature(new Keys\SymmetricSigningKey($sessionKey));
 Pairing this with an HMAC signature method throws: keying a MAC with a certificate makes the "secret" the peer's
 public key bytes, which anyone holding the certificate has.
 
-### Keying a signature from a symmetric key source
+### `Signing\Symmetric`
 
-Hand the `Signature` block a [symmetric key source](#symmetric-key-sources) instead of a signing key. There is
-nothing to configure on the way through, so there is nothing to construct: the signature method you choose
-already says how many bytes the MAC wants. Passing the same source to an `Encryption` block is what makes the
-two share one key.
+- `SymmetricKeySource $source`: where the secret comes from. Required. See
+  [symmetric key sources](#symmetric-key-sources). Passing the same source to an `Encryption` block is what
+  makes the two share one key.
 
 ```php
 $sessionKey = new Keys\GeneratedSessionKey($recipient);
 
-(new Outbound\Signature(new Keys\SymmetricSigningKey($sessionKey)))->withSignatureMethod(SignatureMethod::HMAC_SHA256);
+(new Outbound\Signature(new Signing\Symmetric($sessionKey)))->withSignatureMethod(SignatureMethod::HMAC_SHA256);
 new Outbound\Encryption($sessionKey);
 ```
 
@@ -268,7 +267,7 @@ $shared = new Keys\GeneratedSessionKey($recipient);
 
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),
-    (new Outbound\Signature(new Keys\SymmetricSigningKey(new Keys\DerivedSessionKey($shared))))
+    (new Outbound\Signature(new Signing\Symmetric(new Keys\DerivedSessionKey($shared))))
         ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
         ->withParts([Part::body(), Part::timestamp()]),
     (new Outbound\Encryption(new Keys\DerivedSessionKey($shared)))
@@ -326,10 +325,10 @@ $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('
 
 // Default: sign the Body and everything in the Security header, reference the key via an embedded
 // BinarySecurityToken.
-new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate));
+new Outbound\Signature(new Signing\Asymmetric($clientCertificate));
 
 // Sign only the body, reference by Subject Key Identifier:
-(new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::SubjectKeyIdentifier)))
+(new Outbound\Signature(new Signing\Asymmetric($clientCertificate, KeyRef::SubjectKeyIdentifier)))
     ->withParts([Part::body()]);
 ```
 
@@ -345,7 +344,7 @@ new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate));
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
   use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
-  (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
+  (new Outbound\Signature(new Signing\Asymmetric($clientCertificate)))
       ->withAttachments(AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Complete));
   ```
   The second argument says how much of each part the signature covers: `ExternalPartCoverage::Content` for the
@@ -376,7 +375,7 @@ Register the attachment with `withAttachments()` and both the pointer and the by
   ```php
   use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 
-  (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
+  (new Outbound\Signature(new Signing\Asymmetric($clientCertificate)))
       ->withSignatureMethod(SignatureMethod::ECDSA_SHA256);
   ```
   The ECDSA cases are `ECDSA_SHA256`, `ECDSA_SHA384` and `ECDSA_SHA512` (the xmldsig-more URIs). They require an
@@ -402,7 +401,7 @@ Register the attachment with `withAttachments()` and both the pointer and the by
   ```php
   use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 
-  (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
+  (new Outbound\Signature(new Signing\Asymmetric($clientCertificate)))
       ->withCanonicalization(SignatureCanonicalization::C14N);
   ```
   If you sign with an inclusive variant and also verify the response with one, add it to the profile's
@@ -415,7 +414,7 @@ Register the attachment with `withAttachments()` and both the pointer and the by
   need a namespace declaration your message inherits from an ancestor, and exclusive canonicalization does not
   carry those unless they are pinned.
   ```php
-  (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
+  (new Outbound\Signature(new Signing\Asymmetric($clientCertificate)))
       ->withInclusivePrefixes();
   ```
   Nothing else changes: the list is worked out per element for you, and the receiver reads it from the signature.
@@ -553,12 +552,12 @@ $sessionKey = new Keys\GeneratedSessionKey($recipient);
 
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),
-    (new Outbound\Signature(new Keys\SymmetricSigningKey($sessionKey)))
+    (new Outbound\Signature(new Signing\Symmetric($sessionKey)))
         ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
         ->withParts([Part::body(), Part::timestamp()]),
     (new Outbound\Encryption($sessionKey))
         ->withParts([Part::body()]),
-    (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::Thumbprint)))
+    (new Outbound\Signature(new Signing\Asymmetric($clientCertificate, KeyRef::Thumbprint)))
         ->withParts([Part::primarySignature()]),
 ]);
 ```
@@ -619,7 +618,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),
     new Outbound\SamlAssertion($assertionXml, Outbound\SamlVersion::Saml20),
-    (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::SamlAssertion)))
+    (new Outbound\Signature(new Signing\Asymmetric($clientCertificate, KeyRef::SamlAssertion)))
         ->withParts([Part::body(), Part::timestamp()]),
 ]);
 ```

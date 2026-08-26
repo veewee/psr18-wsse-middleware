@@ -82,7 +82,7 @@ new Inbound\Decrypt($privateKey);
 
   $secret = new Keys\PreSharedSessionKey($sessionKey, 'the-agreed-name', 'urn:example:pre-shared-key');
 
-  (new Inbound\Decrypt())->withPreSharedKey($secret);
+  (Inbound\Decrypt::fromEstablishedKeys())->withPreSharedKey($secret);
   ```
 - `withAttachments(ExternalParts $attachments): self`: also decrypt the response's encrypted attachments. Off
   by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see

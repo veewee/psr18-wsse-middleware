@@ -9,15 +9,15 @@ use PHPUnit\Framework\Attributes\RequiresPhp;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\AsymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing\Asymmetric;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing\Symmetric;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
@@ -44,7 +44,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $context = $this->symmetricContext($document);
         $key = new GeneratedSessionKey($fixture->leafCertificate, EncKeyRef::Thumbprint);
 
-        (new Signature(new SymmetricSigningKey($key)))
+        (new Signature(new Symmetric($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))->withParts([Part::body()])($context);
@@ -65,7 +65,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $context = $this->symmetricContext($document);
         $key = new GeneratedSessionKey($fixture->leafCertificate);
 
-        (new Signature(new SymmetricSigningKey($key)))
+        (new Signature(new Symmetric($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))->withParts([Part::body()])($context);
@@ -87,7 +87,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $key = new GeneratedSessionKey($fixture->leafCertificate);
 
-        (new Signature(new SymmetricSigningKey($key)))
+        (new Signature(new Symmetric($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($document));
 
@@ -113,7 +113,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->signableEnvelope();
 
-        (new Signature(new SymmetricSigningKey(new GeneratedSessionKey($fixture->leafCertificate))))
+        (new Signature(new Symmetric(new GeneratedSessionKey($fixture->leafCertificate))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($document));
 
@@ -132,7 +132,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $this->signableEnvelope();
 
-        (new Signature(new SymmetricSigningKey(new GeneratedSessionKey($fixture->leafCertificate))))
+        (new Signature(new Symmetric(new GeneratedSessionKey($fixture->leafCertificate))))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($document));
 
@@ -150,7 +150,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         // width is only observable through the refusal below, which is what proves it was not the cipher's.
         $context = $this->symmetricContext($document);
         $key = new GeneratedSessionKey($fixture->leafCertificate);
-        (new Signature(new SymmetricSigningKey($key)))
+        (new Signature(new Symmetric($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA1)
             ->withParts([Part::body()])($context);
 
@@ -172,7 +172,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         );
 
         // HMAC pads a short key rather than refusing it, so a signature preferring 32 bytes is content with 16.
-        (new Signature(new SymmetricSigningKey($key)))
+        (new Signature(new Symmetric($key)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($context);
         (new Encryption($key))
@@ -189,7 +189,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('RSA_SHA256 is keyed by private key material');
 
-        (new Signature(new SymmetricSigningKey(new GeneratedSessionKey($fixture->leafCertificate))))
+        (new Signature(new Symmetric(new GeneratedSessionKey($fixture->leafCertificate))))
             ->withSignatureMethod(SignatureMethod::RSA_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($this->signableEnvelope()));
     }
@@ -204,7 +204,7 @@ final class SymmetricBindingTest extends OutboundTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('HMAC_SHA256 is keyed by a shared secret');
 
-        (new Signature(new AsymmetricSigningKey($identity)))
+        (new Signature(new Asymmetric($identity)))
             ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
             ->withParts([Part::body()])($this->symmetricContext($this->signableEnvelope()));
     }

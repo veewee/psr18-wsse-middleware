@@ -101,7 +101,7 @@ What this skill has to get right:
 | `signatureAlgorithm` | `SignatureMethod`, via `withSignatureMethod()` or the profile |
 | `signatureCanonicalization` | `SignatureCanonicalization` |
 | `digestAlgorithm` | `DigestMethod` |
-| `useSingleCert` = false | `new Keys\AsymmetricSigningKey($clientCertificate, path: $chain)`, which sends the chain as `X509PKIPathv1` |
+| `useSingleCert` = false | `new Signing\Asymmetric($clientCertificate, path: $chain)`, which sends the chain as `X509PKIPathv1` |
 | `useSingleCert` = true | The default: the leaf certificate alone |
 | `prependSignature` | No setting. Node order in the Security header is fixed here. |
 | Parts table entries | See Parts below |

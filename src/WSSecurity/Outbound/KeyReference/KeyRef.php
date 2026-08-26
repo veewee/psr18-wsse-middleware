@@ -13,7 +13,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference;
  *   SamlAssertion        -- point at the saml:Assertion already in the header (Holder-of-Key)
  *
  * BinarySecurityToken requires a wsse:BinarySecurityToken to be embedded before signing; the inline
- * references derive their content from the certificate alone. AsymmetricSigningKey resolves each case
+ * references derive their content from the certificate alone. Signing\Asymmetric resolves each case
  * to a concrete KeyIdentifier strategy, since it is what holds everything certificate-shaped about a
  * signature.
  *

@@ -8,8 +8,8 @@ use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentSignatureTransform;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing\SigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\SigningPartResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
@@ -25,8 +25,8 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
 
 /**
  * Adds a detached, multi-reference ds:Signature to the outbound Security header. Configuration:
- *   - how the signature is keyed and referenced, via a SigningKey: a AsymmetricSigningKey for the X.509 forms,
- *     a SymmetricSigningKey for a MAC keyed off a shared session key
+ *   - which of the two kinds of signature this is, via a SigningKey: Signing\Asymmetric for the X.509 forms,
+ *     Signing\Symmetric for a MAC keyed off a shared session key
  *   - which parts to sign (default: Body + the Security header contents; override via withParts)
  *   - algorithms (default: the profile carried on the context; override per block)
  *

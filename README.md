@@ -221,12 +221,12 @@ $transport = Psr18Transport::createForClient(
             new SecurityProfile(),
             outbound: [
                 new Outbound\Timestamp(),
-                new Outbound\Signature(new Keys\AsymmetricSigningKey(
+                new Outbound\Signature(new Signing\Asymmetric(
                     $clientCertificate,
                     Outbound\KeyReference\KeyRef::BinarySecurityToken,
                 )),
                 // The default already signs the Body and the Security-header contents. To be explicit:
-                // (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)))
+                // (new Outbound\Signature(new Signing\Asymmetric($clientCertificate)))
                 //     ->withParts([Part::body(), Part::securityHeaderContents()]),
             ],
             inbound: [
@@ -255,7 +255,7 @@ $bundle = Pkcs12Bundle::fromFile('client.p12', 'secret');
 
 // Your signing identity (certificate + private key):
 $clientCertificate = ClientCertificate::fromPkcs12($bundle);
-new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate));
+new Outbound\Signature(new Signing\Asymmetric($clientCertificate));
 
 // A recipient / BinarySecurityToken certificate from its own .p12:
 $recipient = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
@@ -308,7 +308,7 @@ $stsTransport = Psr18Transport::createForClient(
             new SecurityProfile(),
             outbound: [
                 new Outbound\Timestamp(),
-                new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)),
+                new Outbound\Signature(new Signing\Asymmetric($clientCertificate)),
             ],
         ),
     ])
@@ -329,7 +329,7 @@ $serviceTransport = Psr18Transport::createForClient(
                     $assertionXml,
                     Outbound\SamlVersion::Saml20,
                 ),
-                new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)),
+                new Outbound\Signature(new Signing\Asymmetric($clientCertificate)),
             ],
         ),
     ])
@@ -367,7 +367,7 @@ $transport = Psr18Transport::createForClient(
             outbound: [
                 new Outbound\Timestamp(),
                 // Sign first ...
-                new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate)),
+                new Outbound\Signature(new Signing\Asymmetric($clientCertificate)),
                 // ... Then encrypt:
                 new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient)),
             ],
@@ -421,13 +421,13 @@ $transport = Psr18Transport::createForClient(
             new SecurityProfile(),
             outbound: [
                 new Outbound\Timestamp(),
-                (new Outbound\Signature(new Keys\SymmetricSigningKey($sessionKey)))
+                (new Outbound\Signature(new Signing\Symmetric($sessionKey)))
                     ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
                     ->withParts([Part::body(), Part::timestamp()]),
                 (new Outbound\Encryption($sessionKey))
                     ->withParts([Part::body()]),
                 // The endorsement: a certificate you control, over the signature above.
-                (new Outbound\Signature(new Keys\AsymmetricSigningKey($clientCertificate, KeyRef::Thumbprint)))
+                (new Outbound\Signature(new Signing\Asymmetric($clientCertificate, KeyRef::Thumbprint)))
                     ->withParts([Part::primarySignature()]),
             ],
             inbound: [

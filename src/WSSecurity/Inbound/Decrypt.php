@@ -56,16 +56,28 @@ final class Decrypt implements InboundAction
     private ?PreSharedSessionKey $preSharedKey = null;
 
     /**
-     * @param ?Key $privateKey the key that unwraps an xenc:EncryptedKey. Null for a deployment whose peer
-     *        encrypts under a key the exchange already established, which wraps nothing
+     * @param Key $privateKey the key that unwraps an xenc:EncryptedKey a peer wrapped for this recipient
      */
     public function __construct(
-        private readonly ?Key $privateKey = null,
+        private readonly ?Key $privateKey,
     ) {
         // The WS-Security profile tags xenc:EncryptedData with wsu:Id, so the decryptor resolves references
         // through the wsu:Id convention (native namespace-less @Id from interop peers is still accepted too).
         // Only the read half is handed over: nothing inbound mints, and a class that holds no minter cannot.
         $this->decryptor = Decryptor::create((new WsuIdConvention())->lookup());
+    }
+
+    /**
+     * Decrypts without a private key, for a deployment whose peer encrypts under a key this exchange already
+     * established and so wraps nothing for it to unwrap.
+     *
+     * Named rather than expressed by omitting the key: "this deployment holds no private key" is a decision
+     * about the whole exchange, and a message that turns out to carry an xenc:EncryptedKey after all is
+     * refused here rather than silently left encrypted.
+     */
+    public static function fromEstablishedKeys(): self
+    {
+        return new self(null);
     }
 
     /**

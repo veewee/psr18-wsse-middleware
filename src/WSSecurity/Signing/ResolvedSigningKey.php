@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
+namespace Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 use SensitiveParameter;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
