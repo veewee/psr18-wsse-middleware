@@ -59,6 +59,22 @@ final readonly class SecurityTokenReference
     }
 
     /**
+     * Local-reference variant: points at a token this same Security header carries, by its wsu:Id and nothing
+     * else. No ValueType, because the referenced element says what it is: an xenc:EncryptedKey and a
+     * wsc:DerivedKeyToken are both named this way and neither has a ValueType URI in the token profile.
+     *
+     * @param non-empty-string $uri the wsu:Id of the referenced element, without the '#'
+     */
+    public static function localReference(string $uri): self
+    {
+        return new self(namespaced_element(
+            WsseNamespaces::Wsse->value,
+            WsseNamespaces::Wsse->qualify('Reference'),
+            attribute('URI', '#'.$uri),
+        ));
+    }
+
+    /**
      * KeyIdentifier variant: carries an encoded identifier of the key (SKI, thumbprint, ...).
      *
      * @param non-empty-string $encodedValue the base64-encoded identifier

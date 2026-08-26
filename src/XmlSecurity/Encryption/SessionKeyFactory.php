@@ -3,15 +3,15 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
-use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Random;
 
 /**
- * Generates a fresh random session key of the correct length for the given data-encryption method, drawing
- * every byte from the OpenSSL\ CSPRNG. No IV is generated here: the Cipher class mints the IV itself at
- * encrypt time. Centralizing the key-length derivation guarantees the key handed to the Cipher always matches
- * the declared algorithm.
+ * Generates a fresh random session key of the requested length, drawing every byte from the OpenSSL\ CSPRNG.
+ * No IV is generated here: the Cipher class mints the IV itself at encrypt time.
+ *
+ * The length is the caller's to state, because the algorithm that will consume the key is what defines it.
+ * DataEncryptionMethod::keyLength() and SignatureMethod::hmacKeyLength() are where those lengths live.
  */
 final class SessionKeyFactory
 {
@@ -20,24 +20,11 @@ final class SessionKeyFactory
     ) {
     }
 
-    public function generate(DataEncryptionMethod $method): SessionKey
-    {
-        return SessionKey::fromBytes($this->random->bytes($this->keyLength($method)));
-    }
-
     /**
-     * @return positive-int
+     * @param positive-int $bytes
      */
-    private function keyLength(DataEncryptionMethod $method): int
+    public function generate(int $bytes): SessionKey
     {
-        return match ($method) {
-            DataEncryptionMethod::AES128_CBC,
-            DataEncryptionMethod::AES128_GCM => 16,
-            DataEncryptionMethod::AES192_CBC,
-            DataEncryptionMethod::AES192_GCM,
-            DataEncryptionMethod::TRIPLEDES_CBC => 24,
-            DataEncryptionMethod::AES256_CBC,
-            DataEncryptionMethod::AES256_GCM => 32,
-        };
+        return SessionKey::fromBytes($this->random->bytes($bytes));
     }
 }

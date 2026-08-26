@@ -276,7 +276,7 @@ final class VerifySignatureRoundTripTest extends TestCase
         // must resolve it from the trust store, which holds the CA and the signer leaf.
         $document = $fixture->sign(
             [WsseSignatureFixture::bodyTarget()],
-            keyIdentifier: new X509SubjectKeyIdentifier(),
+            keyIdentifier: new X509SubjectKeyIdentifier($fixture->leafCertificate),
         );
 
         $block = new VerifySignature(

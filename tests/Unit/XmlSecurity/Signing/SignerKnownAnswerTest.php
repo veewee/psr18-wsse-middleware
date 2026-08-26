@@ -52,7 +52,6 @@ final class SignerKnownAnswerTest extends TestCase
             container: $this->security($document),
             targets: [Target::byId('Body-KAT')],
             signingKey: Key::fromFile(FIXTURE_DIR.'/interop/wss4j-recipient-php-client.key'),
-            signingCertificate: Certificate::fromFile(FIXTURE_DIR.'/interop/wss4j-recipient-php-client.crt'),
             keyIdentifier: new DirectReferenceKeyIdentifier('SignedToken', self::X509_TOKEN),
             signatureMethod: SignatureMethod::RSA_SHA256,
             digestMethod: DigestMethod::SHA256,

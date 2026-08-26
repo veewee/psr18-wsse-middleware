@@ -28,6 +28,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ReferenceListBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
@@ -199,11 +200,9 @@ final class DecryptRoundTripTest extends TestCase
     {
         return new Encryptor(
             new TargetLocator(),
-            new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder((new WsuIdConvention())->minter()),
-            new KeyTransport(),
-            new EncryptedKeyBuilder(),
+            new ReferenceListBuilder(),
             new ExternalPartSealer(
                 new Cipher(),
                 new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),
@@ -212,15 +211,30 @@ final class DecryptRoundTripTest extends TestCase
     }
 
 
+    /**
+     * Mints the session key, writes the xenc:EncryptedKey carrying it into the container, and returns the
+     * request that spends it. Wrapping the key is the caller's half of the flow: the Encryptor is handed a key
+     * and never learns how the recipient will come by it.
+     */
     private function encryptionRequest(Element $container, Certificate $certificate): EncryptionRequest
     {
+        $document = Document::fromUnsafeDocument($container->ownerDocument);
+        $sessionKey = (new SessionKeyFactory())->generate(DataEncryptionMethod::AES256_GCM->keyLength());
+        $keyIdentifier = new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN);
+
+        $container->appendChild((new EncryptedKeyBuilder())->build(
+            $document,
+            (new KeyTransport())->wrap($sessionKey, $certificate, KeyTransportAlgorithm::legacyMgf1p()),
+            $keyIdentifier,
+            KeyTransportAlgorithm::legacyMgf1p(),
+        ));
+
         return new EncryptionRequest(
             container: $container,
             targets: [new EncryptionTarget(Target::element(self::SOAP, 'Body'), EncryptionMode::Content)],
-            recipientCertificate: $certificate,
-            keyIdentifier: new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
+            sessionKey: $sessionKey,
             dataEncryptionMethod: DataEncryptionMethod::AES256_GCM,
-            keyTransportAlgorithm: KeyTransportAlgorithm::legacyMgf1p(),
+            keyIdentifier: $keyIdentifier,
         );
     }
 

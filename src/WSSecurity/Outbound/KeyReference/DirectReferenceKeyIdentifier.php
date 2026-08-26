@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityTokenReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier as KeyIdentifierInterface;
 use VeeWee\Xml\Dom\Document;
@@ -39,7 +38,7 @@ final class DirectReferenceKeyIdentifier implements KeyIdentifierInterface
         $this->tokenType = $tokenType;
     }
 
-    public function apply(Document $document, Certificate $certificate): Element
+    public function apply(Document $document): Element
     {
         return SecurityTokenReference::reference($this->tokenId, $this->valueType, $this->tokenType)
             ->buildKeyInfo($document);

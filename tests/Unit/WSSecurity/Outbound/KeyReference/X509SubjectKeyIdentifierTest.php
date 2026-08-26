@@ -16,8 +16,8 @@ final class X509SubjectKeyIdentifierTest extends KeyIdentifierTestCase
         $certificate = $this->certificate();
         $expected = $certificate->info()->subjectKeyIdentifier()->toBase64();
 
-        $keyInfo = (new X509SubjectKeyIdentifier())
-            ->apply($document, $certificate);
+        $keyInfo = (new X509SubjectKeyIdentifier($certificate))
+            ->apply($document);
 
         static::assertSame('KeyInfo', $keyInfo->localName);
         static::assertSame(self::DS, $keyInfo->namespaceURI);

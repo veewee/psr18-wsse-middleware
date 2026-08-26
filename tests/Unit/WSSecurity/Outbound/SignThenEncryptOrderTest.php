@@ -13,6 +13,8 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\CertificateSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
@@ -26,13 +28,12 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ReferenceListBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\DigestCalculator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\ReferenceCollector;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\SignedInfoBuilder;
@@ -58,8 +59,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature($clientCertificate, keyRef: KeyRef::BinarySecurityToken))->withSigner($this->realSigner())($context);
-        (new Encryption($recipientCertificate))->withEncryptor($this->realEncryptor())($context);
+        (new Signature(new CertificateSigningKey($clientCertificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($context);
+        (new Encryption(new WrappedSessionKey($recipientCertificate)))->withEncryptor($this->realEncryptor())($context);
 
         $order = [];
         foreach ($this->only($document, self::WSSE, 'Security')->childNodes as $child) {
@@ -92,8 +93,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature($clientCertificate, keyRef: KeyRef::BinarySecurityToken))->withSigner($this->realSigner())($context);
-        (new Encryption($recipientCertificate))->withEncryptor($this->realEncryptor())($context);
+        (new Signature(new CertificateSigningKey($clientCertificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($context);
+        (new Encryption(new WrappedSessionKey($recipientCertificate)))->withEncryptor($this->realEncryptor())($context);
 
         static::assertCount(1, $this->elements($document, self::DS, 'SignatureValue'));
     }
@@ -106,8 +107,8 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
         $document = $this->signableEnvelope();
         $context = $this->context($document);
 
-        (new Signature($clientCertificate, keyRef: KeyRef::BinarySecurityToken))->withSigner($this->realSigner())($context);
-        (new Encryption($clientCertificate->publicCertificate(), encKeyRef: EncKeyRef::BinarySecurityToken))->withEncryptor($this->realEncryptor())($context);
+        (new Signature(new CertificateSigningKey($clientCertificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($context);
+        (new Encryption(new WrappedSessionKey($clientCertificate->publicCertificate(), EncKeyRef::BinarySecurityToken)))->withEncryptor($this->realEncryptor())($context);
 
         static::assertCount(1, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
     }
@@ -142,11 +143,9 @@ final class SignThenEncryptOrderTest extends OutboundTestCase
     {
         return new Encryptor(
             new TargetLocator(),
-            new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder((new WsuIdConvention())->minter()),
-            new KeyTransport(),
-            new EncryptedKeyBuilder(),
+            new ReferenceListBuilder(),
             new ExternalPartSealer(
                 new Cipher(),
                 new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),

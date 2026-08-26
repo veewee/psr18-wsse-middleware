@@ -7,7 +7,6 @@ use Dom\Element;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\OaepHash;
-use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use VeeWee\Xml\Dom\Document;
@@ -16,19 +15,21 @@ use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
 
 /**
- * Builds the xenc:EncryptedKey element wrapping the session key under the recipient's public key and carrying
- * the ReferenceList that points at every xenc:EncryptedData produced for this operation.
+ * Builds the xenc:EncryptedKey element wrapping the session key under the recipient's public key.
  *
  *   xenc:EncryptedKey
  *     xenc:EncryptionMethod Algorithm="<keyEncryptionMethod>"
  *     ds:KeyInfo            [result of the KeyIdentifier strategy]
  *     xenc:CipherData
  *       xenc:CipherValue    [base64 of the wrapped key, or a pointer at wherever a sink put it]
- *     xenc:ReferenceList
- *       xenc:DataReference URI="#<id>" [one per encrypted part]
  *
- * Returns a detached element; the caller appends it to the Security header. The ds:KeyInfo is produced by the
- * request's KeyIdentifier strategy, the same seam the signing side uses.
+ * The xenc:ReferenceList naming the encrypted parts is not a child of this element. The key is written when it
+ * is minted, which is before any block has said what it will encrypt, and the same key may be consumed by a
+ * signature that never encrypts anything. A list nested here would therefore have to be appended after the
+ * fact, to an element a signature may already cover.
+ *
+ * Returns a detached element; the caller appends it to the Security header. The ds:KeyInfo is produced by a
+ * KeyIdentifier strategy, the same seam the signing side uses.
  */
 final class EncryptedKeyBuilder
 {
@@ -37,18 +38,13 @@ final class EncryptedKeyBuilder
     ) {
     }
 
-    /**
-     * @param non-empty-list<non-empty-string> $encryptedPartIds
-     */
     public function build(
         Document $document,
         string $wrappedKey,
         KeyIdentifier $keyIdentifier,
-        Certificate $recipientCertificate,
         KeyTransportAlgorithm $keyTransportAlgorithm,
-        array $encryptedPartIds,
     ): Element {
-        $keyInfo = $keyIdentifier->apply($document, $recipientCertificate);
+        $keyInfo = $keyIdentifier->apply($document);
 
         return $document->map(namespaced_element(
             Namespaces::Xenc->value,
@@ -63,7 +59,6 @@ final class EncryptedKeyBuilder
                         fn (): Element => $this->cipherValueElement->build($document, $wrappedKey),
                     ),
                 )),
-                fn (): Element => $this->buildReferenceList($document, $encryptedPartIds),
             ),
         ));
     }
@@ -116,27 +111,6 @@ final class EncryptedKeyBuilder
             Namespaces::Xenc->value,
             Namespaces::Xenc->qualify('EncryptionMethod'),
             attribute('Algorithm', $algorithm->method->value),
-        ));
-    }
-
-    /**
-     * @param non-empty-list<non-empty-string> $encryptedPartIds
-     */
-    private function buildReferenceList(Document $document, array $encryptedPartIds): Element
-    {
-        $references = array_map(
-            static fn (string $partId): callable => static fn (): Element => $document->map(namespaced_element(
-                Namespaces::Xenc->value,
-                Namespaces::Xenc->qualify('DataReference'),
-                attribute('URI', '#'.$partId),
-            )),
-            $encryptedPartIds,
-        );
-
-        return $document->map(namespaced_element(
-            Namespaces::Xenc->value,
-            Namespaces::Xenc->qualify('ReferenceList'),
-            children(...$references),
         ));
     }
 }

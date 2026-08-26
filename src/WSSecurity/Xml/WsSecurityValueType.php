@@ -16,4 +16,5 @@ enum WsSecurityValueType: string
     case ThumbprintSha1 = 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1';
     case SamlAssertionId = 'http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.0#SAMLAssertionID';
     case SamlId = 'http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLID';
+    case EncryptedKeySha1 = 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKeySHA1';
 }

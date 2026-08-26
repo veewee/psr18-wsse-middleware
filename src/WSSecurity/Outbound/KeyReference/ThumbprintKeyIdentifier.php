@@ -14,11 +14,16 @@ use VeeWee\Xml\Dom\Document;
  * result is ds:KeyInfo > wsse:SecurityTokenReference > wsse11:KeyIdentifier with the base64-encoded fingerprint.
  * The KeyIdentifier itself lives in the WSSE 1.1 namespace while the enclosing reference stays in WSSE 1.0.
  */
-final class ThumbprintKeyIdentifier implements KeyIdentifierInterface
+final readonly class ThumbprintKeyIdentifier implements KeyIdentifierInterface
 {
-    public function apply(Document $document, Certificate $certificate): Element
+    public function __construct(
+        private Certificate $certificate,
+    ) {
+    }
+
+    public function apply(Document $document): Element
     {
-        $encoded = $certificate->info()->thumbprintSha1()->toBase64();
+        $encoded = $this->certificate->info()->thumbprintSha1()->toBase64();
 
         return SecurityTokenReference::thumbprint($encoded)->buildKeyInfo($document);
     }

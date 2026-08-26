@@ -18,6 +18,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\PkiPath;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\CertificateSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
@@ -49,7 +50,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_lowers_registered_attachments_into_the_signing_request(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))
             ->withSigner($signer)
             ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))($this->signableContext());
 
@@ -63,7 +64,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_signs_no_external_parts_when_none_are_registered(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)($this->signableContext());
 
         static::assertNull($signer->lastRequest()->externalParts);
     }
@@ -71,7 +72,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_still_signs_the_default_parts_alongside_attachments(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))
             ->withSigner($signer)
             ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))($this->signableContext());
 
@@ -82,7 +83,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_signs_a_text_attachment(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))
             ->withSigner($signer)
             ->withAttachments($this->attachments('note@example.com', 'text/plain'))($this->signableContext());
 
@@ -99,7 +100,7 @@ final class SignatureTest extends OutboundTestCase
         $this->expectException(SigningFailed::class);
         $this->expectExceptionMessage('could not be read as a document');
 
-        (new Signature($this->clientCertificate()))
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))
             ->withAttachments($this->attachments('doc@example.com', 'application/xml'))($this->signableContext());
     }
 
@@ -113,7 +114,7 @@ final class SignatureTest extends OutboundTestCase
             'The signature does not cover the external part "cid:invoice@example.com", which was registered.',
         );
 
-        (new Signature($this->clientCertificate()))
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))
             ->withSigner(new UncoveringSigner())
             ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))(
                 $this->signableContext(),
@@ -123,7 +124,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_accepts_a_signature_that_covered_everything_registered(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))
             ->withSigner($signer)
             ->withAttachments($this->attachments('invoice@example.com', 'application/pdf'))(
                 $this->signableContext(),
@@ -135,7 +136,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_declares_the_complete_transform_for_a_complete_adapter(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))
             ->withSigner($signer)
             ->withAttachments($this->attachments(
                 'invoice@example.com',
@@ -168,7 +169,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_uses_profile_algorithms_by_default(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)($this->signableContext());
 
         $request = $signer->lastRequest();
         static::assertSame(SignatureMethod::RSA_SHA256, $request->signatureMethod);
@@ -180,7 +181,7 @@ final class SignatureTest extends OutboundTestCase
     {
         $signer = new RecordingSigner();
         $profile = new SecurityProfile(crypto: new CryptoPolicy(signatureMethod: SignatureMethod::RSA_SHA512));
-        (new Signature($this->clientCertificate()))->withSigner($signer)($this->context($this->signableEnvelope(), $profile));
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)($this->context($this->signableEnvelope(), $profile));
 
         static::assertSame(SignatureMethod::RSA_SHA512, $signer->lastRequest()->signatureMethod);
     }
@@ -188,7 +189,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_a_per_block_override_wins_over_the_profile(): void
     {
         $signer = new RecordingSigner();
-        $block = (new Signature($this->clientCertificate()))->withSigner($signer)->withSignatureMethod(SignatureMethod::RSA_SHA1);
+        $block = (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)->withSignatureMethod(SignatureMethod::RSA_SHA1);
         $block($this->signableContext());
 
         static::assertSame(SignatureMethod::RSA_SHA1, $signer->lastRequest()->signatureMethod);
@@ -197,7 +198,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_pins_no_inclusive_prefixes_by_default(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)($this->signableContext());
 
         static::assertFalse($signer->lastRequest()->inclusivePrefixes);
     }
@@ -205,7 +206,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_pins_inclusive_prefixes_when_asked(): void
     {
         $signer = new RecordingSigner();
-        $block = (new Signature($this->clientCertificate()))->withSigner($signer)->withInclusivePrefixes();
+        $block = (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)->withInclusivePrefixes();
         $block($this->signableContext());
 
         static::assertTrue($signer->lastRequest()->inclusivePrefixes);
@@ -214,11 +215,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_with_methods_are_immutable(): void
     {
         $certificate = $this->clientCertificate();
-        $original = (new Signature($certificate))->withSigner(new RecordingSigner());
-
-        static::assertNotSame($original, $original->withCertificatePath(
-            CertificateChain::fromCertificates($certificate->publicCertificate()),
-        ));
+        $original = (new Signature(new CertificateSigningKey($certificate)))->withSigner(new RecordingSigner());
 
         static::assertNotSame($original, $original->withSignatureMethod(SignatureMethod::RSA_SHA1));
         static::assertNotSame($original, $original->withDigestMethod(DigestMethod::SHA512));
@@ -230,7 +227,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_with_signer_routes_signing_to_the_given_signer(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)($this->signableContext());
 
         // lastRequest() throws unless sign() ran on the injected double, proving the override is used.
         static::assertInstanceOf(SignatureMethod::class, $signer->lastRequest()->signatureMethod);
@@ -239,7 +236,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_default_parts_are_body_and_the_security_header_contents(): void
     {
         $signer = new RecordingSigner();
-        (new Signature($this->clientCertificate()))->withSigner($signer)($this->signableContext());
+        (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)($this->signableContext());
 
         // Default keyRef embeds a BinarySecurityToken into the Security header, so the default parts resolve to
         // the Body plus the security-header children (the embedded BST here), each targeted by id.
@@ -252,7 +249,7 @@ final class SignatureTest extends OutboundTestCase
     public function test_explicit_parts_override_the_default(): void
     {
         $signer = new RecordingSigner();
-        $block = (new Signature($this->clientCertificate()))->withSigner($signer)->withParts([Part::body()]);
+        $block = (new Signature(new CertificateSigningKey($this->clientCertificate())))->withSigner($signer)->withParts([Part::body()]);
         $block($this->signableContext());
 
         $targets = $signer->lastRequest()->targets;
@@ -264,7 +261,7 @@ final class SignatureTest extends OutboundTestCase
     {
         $signer = new RecordingSigner();
         $document = $this->signableEnvelope();
-        (new Signature($this->clientCertificate(), keyRef: KeyRef::BinarySecurityToken))->withSigner($signer)($this->context($document));
+        (new Signature(new CertificateSigningKey($this->clientCertificate(), KeyRef::BinarySecurityToken)))->withSigner($signer)($this->context($document));
 
         $bst = $this->only($document, self::WSSE, 'BinarySecurityToken');
         $tokenId = $bst->getAttributeNS(self::WSU, 'Id');
@@ -273,7 +270,7 @@ final class SignatureTest extends OutboundTestCase
         static::assertInstanceOf(DirectReferenceKeyIdentifier::class, $keyIdentifier);
 
         // The strategy points the SecurityTokenReference at exactly the embedded token's id.
-        $keyInfo = $keyIdentifier->apply($document, $this->clientCertificate()->publicCertificate());
+        $keyInfo = $keyIdentifier->apply($document);
         static::assertStringContainsString('#'.$tokenId, $document->stringifyNode($keyInfo));
     }
 
@@ -284,9 +281,10 @@ final class SignatureTest extends OutboundTestCase
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $chain = CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate);
 
-        $block = (new Signature($this->clientCertificateFor($fixture)))
-            ->withSigner($signer)
-            ->withCertificatePath($chain);
+        $block = (new Signature(new CertificateSigningKey(
+            $this->clientCertificateFor($fixture),
+            path: $chain,
+        )))->withSigner($signer);
         $block($this->context($document));
 
         $bst = $this->only($document, self::WSSE, 'BinarySecurityToken');
@@ -297,7 +295,7 @@ final class SignatureTest extends OutboundTestCase
         // token it points at, so emitting the token alone produces a message no Java peer accepts.
         $keyIdentifier = $signer->lastRequest()->keyIdentifier;
         static::assertInstanceOf(DirectReferenceKeyIdentifier::class, $keyIdentifier);
-        $keyInfo = $document->stringifyNode($keyIdentifier->apply($document, $chain->leaf()));
+        $keyInfo = $document->stringifyNode($keyIdentifier->apply($document));
         static::assertStringContainsString(self::X509_PKI_PATH, $keyInfo);
         static::assertStringContainsString('#'.$bst->getAttributeNS(self::WSU, 'Id'), $keyInfo);
     }
@@ -305,13 +303,15 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_refuses_a_certificate_path_that_does_not_start_at_the_signing_certificate(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $block = new Signature($this->clientCertificate());
 
         // The path advertises which key verifies the signature; a leaf that is not the signing certificate
         // produces a message no peer can verify, so it is refused where it is configured.
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('signing certificate');
-        $block->withCertificatePath(CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate));
+        new CertificateSigningKey(
+            $this->clientCertificate(),
+            path: CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate),
+        );
     }
 
     public function test_it_refuses_an_empty_part_list(): void
@@ -319,7 +319,7 @@ final class SignatureTest extends OutboundTestCase
         // An empty list is not "the default": it would emit a ds:Signature covering nothing, which verifies
         // against any trusted key and protects none of the message. A list narrowed to nothing by
         // configuration must fail where it is configured rather than ship an authentic-looking envelope.
-        $block = new Signature($this->clientCertificate());
+        $block = new Signature(new CertificateSigningKey($this->clientCertificate()));
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('at least one part');
@@ -329,20 +329,23 @@ final class SignatureTest extends OutboundTestCase
     public function test_it_refuses_a_certificate_path_without_the_binary_security_token_reference(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $block = new Signature($this->clientCertificateFor($fixture), keyRef: KeyRef::SubjectKeyIdentifier);
 
         // The inline references derive their content from the certificate alone and embed no token, so there is
         // nowhere for a path to go. Silently dropping it would advertise less than the caller asked for.
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('KeyRef::BinarySecurityToken');
-        $block->withCertificatePath(CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate));
+        new CertificateSigningKey(
+            $this->clientCertificateFor($fixture),
+            KeyRef::SubjectKeyIdentifier,
+            CertificateChain::fromCertificates($fixture->leafCertificate, $fixture->caCertificate),
+        );
     }
 
     public function test_subject_key_identifier_embeds_no_bst(): void
     {
         $signer = new RecordingSigner();
         $document = $this->signableEnvelope();
-        (new Signature($this->clientCertificate(), keyRef: KeyRef::SubjectKeyIdentifier))->withSigner($signer)($this->context($document));
+        (new Signature(new CertificateSigningKey($this->clientCertificate(), KeyRef::SubjectKeyIdentifier)))->withSigner($signer)($this->context($document));
 
         static::assertCount(0, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
         static::assertInstanceOf(X509SubjectKeyIdentifier::class, $signer->lastRequest()->keyIdentifier);
@@ -354,7 +357,7 @@ final class SignatureTest extends OutboundTestCase
         $certificate = $this->clientCertificate();
         $document = $this->signableEnvelope();
 
-        (new Signature($certificate, keyRef: KeyRef::BinarySecurityToken))->withSigner($this->realSigner())($this->context($document));
+        (new Signature(new CertificateSigningKey($certificate, KeyRef::BinarySecurityToken)))->withSigner($this->realSigner())($this->context($document));
 
         // The KeyInfo references the embedded BST by its minted id.
         $bstId = $this->only($document, self::WSSE, 'BinarySecurityToken')->getAttributeNS(self::WSU, 'Id');
@@ -368,7 +371,7 @@ final class SignatureTest extends OutboundTestCase
         $certificate = $this->clientCertificate();
         $document = $this->signableEnvelope();
 
-        $block = (new Signature($certificate, keyRef: KeyRef::BinarySecurityToken))
+        $block = (new Signature(new CertificateSigningKey($certificate, KeyRef::BinarySecurityToken)))
             ->withSigner($this->realSigner())
             ->withSignatureMethod(SignatureMethod::RSA_SHA1)
             ->withParts([Part::body()]);

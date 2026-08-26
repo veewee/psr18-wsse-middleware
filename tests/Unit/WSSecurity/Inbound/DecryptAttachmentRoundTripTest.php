@@ -14,6 +14,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -235,7 +236,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
         // message would still satisfy a policy check for "the Body is encrypted".
         $this->expectException(EncryptionFailed::class);
         $this->expectExceptionMessage('An element carrying an xop:Include cannot be encrypted');
-        (new Encryption($fixture->leafCertificate))(
+        (new Encryption(new WrappedSessionKey($fixture->leafCertificate)))(
             new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
         );
     }
@@ -326,7 +327,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
     ): Document {
         $document = $fixture->envelope();
 
-        $block = (new Encryption($fixture->leafCertificate))
+        $block = (new Encryption(new WrappedSessionKey($fixture->leafCertificate)))
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content));
         if ($parts !== null) {
             $block = $block->withParts($parts);

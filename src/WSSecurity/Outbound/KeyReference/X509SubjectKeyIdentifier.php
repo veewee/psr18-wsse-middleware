@@ -15,11 +15,16 @@ use VeeWee\Xml\Dom\Document;
  * References the key by the certificate's Subject Key Identifier extension. The result is
  * ds:KeyInfo > wsse:SecurityTokenReference > wsse:KeyIdentifier carrying the base64-encoded SKI bytes.
  */
-final class X509SubjectKeyIdentifier implements KeyIdentifierInterface
+final readonly class X509SubjectKeyIdentifier implements KeyIdentifierInterface
 {
-    public function apply(Document $document, Certificate $certificate): Element
+    public function __construct(
+        private Certificate $certificate,
+    ) {
+    }
+
+    public function apply(Document $document): Element
     {
-        $encoded = $certificate->info()->subjectKeyIdentifier()->toBase64();
+        $encoded = $this->certificate->info()->subjectKeyIdentifier()->toBase64();
 
         return SecurityTokenReference::keyIdentifier(
             $encoded,

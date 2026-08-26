@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference;
 
 use Dom\Element;
-use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\SamlVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityTokenReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier as KeyIdentifierInterface;
@@ -35,7 +34,7 @@ final class SamlAssertionKeyIdentifier implements KeyIdentifierInterface
         $this->version = $version;
     }
 
-    public function apply(Document $document, Certificate $certificate): Element
+    public function apply(Document $document): Element
     {
         return SecurityTokenReference::samlAssertion($this->samlAssertionId, $this->version)->buildKeyInfo($document);
     }

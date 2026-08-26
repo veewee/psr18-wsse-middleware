@@ -6,16 +6,11 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use InvalidArgumentException;
 use LogicException;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
-use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
-use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
-use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentEncryptedDataType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\CipherValueParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentCoverage;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricKeySource;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
@@ -29,20 +24,21 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
-use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use VeeWee\Xml\Dom\Document;
 
 /**
  * Encrypts the requested parts of the outbound message via XML-Enc. Configuration:
- *   - the recipient public certificate, used to wrap the session key
- *   - which key-reference type to put in xenc:EncryptedKey/ds:KeyInfo, via EncKeyRef
+ *   - where the session key comes from, via a SymmetricKeySource: a WrappedSessionKey mints one and carries it
+ *     to the recipient in an xenc:EncryptedKey, which is what this block used to do on its own
  *   - which parts to encrypt (default: Body only; override via withParts)
  *   - algorithms (default: the profile carried on the context; override per block)
  *
- * For the direct-reference path (EncKeyRef::BinarySecurityToken), the block embeds a
- * wsse:BinarySecurityToken before encrypting, locates it by content in the Security header to read its
- * wsu:Id, and points a DirectReferenceKeyIdentifier at it. For the inline key-reference types (SKI / IssuerSerial /
- * Thumbprint) no token is embedded; the strategy derives its content from the recipient certificate alone.
+ * The key source is asked for exactly as many bytes as the data-encryption method takes, and a source already
+ * carrying a key of a different width is refused rather than serving one the cipher cannot use.
+ *
+ * The xenc:ReferenceList naming the encrypted parts is appended to the Security header beside the key rather
+ * than inside it, and every xenc:EncryptedData carries a ds:KeyInfo pointing back at the key. That is what lets
+ * one key serve this block and a symmetric Signature together: the key is written when it is minted, before
+ * either block has said what it will cover.
  *
  * The Security header is guaranteed to exist before the encryptor runs. Algorithm resolution order:
  * per-block override, then the profile carried on the context.
@@ -58,16 +54,13 @@ final class Encryption implements OutboundAction
     private ?array $parts = null;
 
     private ?DataEncryptionMethod $dataEncryptionMethod = null;
-    private ?KeyEncryptionMethod $keyEncryptionMethod = null;
-    private ?KeyTransportAlgorithm $keyTransportAlgorithm = null;
     private ?ExternalParts $attachments = null;
     private ?ExternalParts $cipherCarriers = null;
 
     private ?XmlEncryptor $encryptor = null;
 
     public function __construct(
-        private readonly Certificate $recipientCertificate,
-        private readonly EncKeyRef $encKeyRef = EncKeyRef::SubjectKeyIdentifier,
+        private readonly SymmetricKeySource $key,
     ) {
     }
 
@@ -170,30 +163,6 @@ final class Encryption implements OutboundAction
     }
 
     /**
-     * Overrides only the key-encryption method; the OAEP hash is resolved from the profile (or its default) at
-     * apply time. For a method paired with a specific hash, use withKeyTransportAlgorithm.
-     */
-    public function withKeyEncryptionMethod(KeyEncryptionMethod $method): self
-    {
-        $clone = clone $this;
-        $clone->keyEncryptionMethod = $method;
-
-        return $clone;
-    }
-
-    /**
-     * Overrides the whole key-transport choice atomically: an invalid method/hash pairing cannot be expressed,
-     * and this override wins over withKeyEncryptionMethod and the profile.
-     */
-    public function withKeyTransportAlgorithm(KeyTransportAlgorithm $algorithm): self
-    {
-        $clone = clone $this;
-        $clone->keyTransportAlgorithm = $algorithm;
-
-        return $clone;
-    }
-
-    /**
      * @throws \Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException when the header cannot be created
      * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\IdStampFailed when an encrypted part cannot carry a wsu:Id
      * @throws \Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed when encryption fails
@@ -203,14 +172,12 @@ final class Encryption implements OutboundAction
         $document = $context->document();
 
         $security = SecurityHeader::forContext($context);
-
-        $keyIdentifier = $this->resolveKeyIdentifier($context);
         $profile = $context->profile();
 
-        $keyTransportAlgorithm = $this->keyTransportAlgorithm ?? KeyTransportAlgorithm::fromMethod(
-            $this->keyEncryptionMethod ?? $profile->crypto()->keyEncryptionMethod(),
-            $profile->crypto()->oaepHash(),
-        );
+        $dataEncryptionMethod = $this->dataEncryptionMethod ?? $profile->crypto()->dataEncryptionMethod();
+        // Mandatory: a cipher takes the width its algorithm defines, and a key of any other size is one it
+        // cannot use rather than a weaker choice.
+        $key = $this->key->resolve($context, KeyRequest::exactly($dataEncryptionMethod->keyLength()));
 
         $parts = $this->parts ?? [Part::body()];
         $soapVersion = $context->soapVersion();
@@ -233,10 +200,9 @@ final class Encryption implements OutboundAction
                 ),
                 $parts,
             ),
-            recipientCertificate: $this->recipientCertificate,
-            keyIdentifier: $keyIdentifier,
-            dataEncryptionMethod: $this->dataEncryptionMethod ?? $profile->crypto()->dataEncryptionMethod(),
-            keyTransportAlgorithm: $keyTransportAlgorithm,
+            sessionKey: $key->bytes,
+            dataEncryptionMethod: $dataEncryptionMethod,
+            keyIdentifier: $key->localKeyIdentifier(),
             externalParts: $external,
         );
 
@@ -311,16 +277,5 @@ final class Encryption implements OutboundAction
         }
 
         return ExternalPartList::of(...$opaque);
-    }
-
-    private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier
-    {
-        return match ($this->encKeyRef) {
-            EncKeyRef::SubjectKeyIdentifier => new X509SubjectKeyIdentifier(),
-            EncKeyRef::IssuerSerial => new IssuerSerialKeyIdentifier(),
-            EncKeyRef::Thumbprint => new ThumbprintKeyIdentifier(),
-            EncKeyRef::BinarySecurityToken => (new BinarySecurityToken($this->recipientCertificate))
-                ->embedAsDirectReference($context),
-        };
     }
 }

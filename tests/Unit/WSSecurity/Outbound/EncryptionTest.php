@@ -21,12 +21,9 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentCoverage;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -39,14 +36,13 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedDataReader;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionMode;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ReferenceListBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
@@ -61,6 +57,7 @@ use VeeWee\Xml\Dom\Document;
 final class EncryptionTest extends OutboundTestCase
 {
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
+    private const XENC11 = 'http://www.w3.org/2009/xmlenc11#';
 
     public function test_it_refuses_an_encryption_that_left_a_registered_attachment_unsealed(): void
     {
@@ -81,7 +78,7 @@ final class EncryptionTest extends OutboundTestCase
             MemoryStream::create()->write('%PDF-1.7')->rewind(),
         ));
 
-        (new Encryption($this->recipientCertificate()))
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
             ->withEncryptor(new SealingNothingEncryptor())
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
                 $this->context($this->envelope()),
@@ -90,7 +87,7 @@ final class EncryptionTest extends OutboundTestCase
 
     public function test_it_rejects_a_dynamic_signing_only_part(): void
     {
-        $block = (new Encryption($this->recipientCertificate()))
+        $block = (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
             ->withEncryptor(new RecordingEncryptor())
             ->withParts([Part::securityHeaderContents()]);
 
@@ -101,65 +98,74 @@ final class EncryptionTest extends OutboundTestCase
     public function test_it_uses_profile_algorithms_by_default(): void
     {
         $encryptor = new RecordingEncryptor();
-        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
 
         $request = $encryptor->lastRequest();
         static::assertSame(DataEncryptionMethod::AES256_GCM, $request->dataEncryptionMethod);
-        static::assertSame(KeyEncryptionMethod::RSA_OAEP, $request->keyTransportAlgorithm->method);
-        static::assertSame(OaepHash::Sha1, $request->keyTransportAlgorithm->labelHash);
+    }
+
+    public function test_the_profile_drives_the_key_transport_the_wrapped_key_declares(): void
+    {
+        $document = $this->plainEnvelope();
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
+            ->withEncryptor(new RecordingEncryptor())($this->context($document));
+
+        static::assertSame(
+            KeyEncryptionMethod::RSA_OAEP->value,
+            $this->keyEncryptionMethod($document)->getAttribute('Algorithm'),
+        );
     }
 
     public function test_a_per_block_data_encryption_override_wins(): void
     {
         $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
+        $block = (new Encryption(new WrappedSessionKey($this->recipientCertificate())))->withEncryptor($encryptor)
             ->withDataEncryptionMethod(DataEncryptionMethod::AES128_CBC);
         $block($this->context($this->plainEnvelope()));
 
         static::assertSame(DataEncryptionMethod::AES128_CBC, $encryptor->lastRequest()->dataEncryptionMethod);
     }
 
-    public function test_a_per_block_key_encryption_override_wins(): void
+    public function test_an_atomic_key_transport_on_the_key_source_wins(): void
     {
-        $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
-            ->withKeyEncryptionMethod(KeyEncryptionMethod::RSA_OAEP_MGF1P);
-        $block($this->context($this->plainEnvelope()));
+        $document = $this->plainEnvelope();
+        (new Encryption(new WrappedSessionKey(
+            $this->recipientCertificate(),
+            keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha256(),
+        )))->withEncryptor(new RecordingEncryptor())($this->context($document));
 
-        static::assertSame(KeyEncryptionMethod::RSA_OAEP_MGF1P, $encryptor->lastRequest()->keyTransportAlgorithm->method);
+        $method = $this->keyEncryptionMethod($document);
+        static::assertSame(KeyEncryptionMethod::RSA_OAEP->value, $method->getAttribute('Algorithm'));
+        static::assertSame(1, $method->getElementsByTagNameNS(self::XENC11, 'MGF')->count());
     }
 
-    public function test_an_atomic_key_transport_override_wins(): void
+    public function test_an_rsa_1_5_transport_declares_no_oaep_parameters(): void
     {
-        $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
-            ->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
-        $block($this->context($this->plainEnvelope()));
+        $document = $this->plainEnvelope();
+        (new Encryption(new WrappedSessionKey(
+            $this->recipientCertificate(),
+            keyTransportAlgorithm: KeyTransportAlgorithm::rsa1_5(),
+        )))->withEncryptor(new RecordingEncryptor())($this->context($document));
 
-        $algorithm = $encryptor->lastRequest()->keyTransportAlgorithm;
-        static::assertSame(KeyEncryptionMethod::RSA_OAEP, $algorithm->method);
-        static::assertSame(OaepHash::Sha256, $algorithm->labelHash);
-    }
-
-    public function test_an_rsa_1_5_transport_carries_a_null_oaep_hash(): void
-    {
-        $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
-            ->withKeyTransportAlgorithm(KeyTransportAlgorithm::rsa1_5());
-        $block($this->context($this->plainEnvelope()));
-
-        $algorithm = $encryptor->lastRequest()->keyTransportAlgorithm;
-        static::assertSame(KeyEncryptionMethod::RSA_1_5, $algorithm->method);
-        static::assertNull($algorithm->labelHash);
+        $method = $this->keyEncryptionMethod($document);
+        static::assertSame(KeyEncryptionMethod::RSA_1_5->value, $method->getAttribute('Algorithm'));
+        static::assertSame(0, $method->getElementsByTagNameNS(self::XENC11, 'MGF')->count());
     }
 
     public function test_a_context_profile_drives_the_outbound_oaep_hash(): void
     {
-        $encryptor = new RecordingEncryptor();
         $profile = new SecurityProfile(crypto: new CryptoPolicy(oaepHash: OaepHash::Sha256));
-        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope(), $profile));
+        $document = $this->plainEnvelope();
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
+            ->withEncryptor(new RecordingEncryptor())($this->context($document, $profile));
 
-        static::assertSame(OaepHash::Sha256, $encryptor->lastRequest()->keyTransportAlgorithm->labelHash);
+        static::assertSame(
+            OaepHash::Sha256->digestMethod()->value,
+            $this->keyEncryptionMethod($document)
+                ->getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'DigestMethod')
+                ->item(0)
+                ?->getAttribute('Algorithm'),
+        );
     }
 
     public function test_it_encrypts_with_oaep_sha256_and_round_trips_through_the_engine_decryptor(): void
@@ -168,14 +174,17 @@ final class EncryptionTest extends OutboundTestCase
         $document = $this->envelopeWithSecurity();
         $originalBody = $document->stringifyNode($this->only($document, self::SOAP12, 'Body'));
 
-        $block = (new Encryption($certificate))->withEncryptor($this->realEncryptor())->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256());
+        $block = (new Encryption(new WrappedSessionKey(
+            $certificate,
+            keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha256(),
+        )))->withEncryptor($this->realEncryptor());
         $block($this->context($document));
 
         // The xenc:EncryptionMethod carries explicit SHA-256 digest and MGF children.
         $encryptedKey = $this->only($document, self::XENC, 'EncryptedKey');
         $method = $encryptedKey->getElementsByTagNameNS(self::XENC, 'EncryptionMethod')->item(0);
         static::assertInstanceOf(Element::class, $method);
-        static::assertSame(1, $method->getElementsByTagNameNS('http://www.w3.org/2009/xmlenc11#', 'MGF')->count());
+        static::assertSame(1, $method->getElementsByTagNameNS(self::XENC11, 'MGF')->count());
 
         (new Decryptor(new EncryptedKeyReader(new KeyTransport()), new EncryptedDataReader(new Cipher()), new EncryptedDataLocator((new WsuIdConvention())->lookup()), new ExternalEncryptedDataReader(new Cipher())))
             ->decrypt($document, new DecryptionRequest($this->security($document), $key));
@@ -188,7 +197,7 @@ final class EncryptionTest extends OutboundTestCase
     {
         $encryptor = new RecordingEncryptor();
         $profile = new SecurityProfile(crypto: new CryptoPolicy(dataEncryptionMethod: DataEncryptionMethod::AES256_CBC));
-        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope(), $profile));
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))->withEncryptor($encryptor)($this->context($this->plainEnvelope(), $profile));
 
         static::assertSame(DataEncryptionMethod::AES256_CBC, $encryptor->lastRequest()->dataEncryptionMethod);
     }
@@ -203,7 +212,7 @@ final class EncryptionTest extends OutboundTestCase
 
         // Refused when the block runs rather than when the list is set, so withParts() and withAttachments()
         // can be chained in either order. Registering attachments makes an empty list legitimate.
-        (new Encryption($this->recipientCertificate()))
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
             ->withEncryptor(new RecordingEncryptor())
             ->withParts([])($this->context($this->envelope()));
     }
@@ -221,7 +230,7 @@ final class EncryptionTest extends OutboundTestCase
         ));
 
         // Either order works, which is the point of checking this when the block runs.
-        (new Encryption($this->recipientCertificate()))
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
             ->withEncryptor($encryptor)
             ->withParts([])
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))($this->context($this->envelope()));
@@ -244,7 +253,7 @@ final class EncryptionTest extends OutboundTestCase
         $this->expectException(UnsupportedAttachmentCoverage::class);
         $this->expectExceptionMessage('encrypts an attachment\'s content only');
 
-        (new Encryption($this->recipientCertificate()))
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
             ->withEncryptor(new RecordingEncryptor())
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Complete))(
                 $this->context($this->envelope())
@@ -253,18 +262,16 @@ final class EncryptionTest extends OutboundTestCase
 
     public function test_with_methods_are_immutable(): void
     {
-        $original = (new Encryption($this->recipientCertificate()))->withEncryptor(new RecordingEncryptor());
+        $original = (new Encryption(new WrappedSessionKey($this->recipientCertificate())))->withEncryptor(new RecordingEncryptor());
 
         static::assertNotSame($original, $original->withParts([Part::timestamp()]));
         static::assertNotSame($original, $original->withDataEncryptionMethod(DataEncryptionMethod::AES128_CBC));
-        static::assertNotSame($original, $original->withKeyEncryptionMethod(KeyEncryptionMethod::RSA_OAEP_MGF1P));
-        static::assertNotSame($original, $original->withKeyTransportAlgorithm(KeyTransportAlgorithm::oaepSha256()));
     }
 
     public function test_with_encryptor_routes_encryption_to_the_given_encryptor(): void
     {
         $encryptor = new RecordingEncryptor();
-        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
 
         // lastRequest() throws unless encrypt() ran on the injected double, proving the override is used.
         static::assertInstanceOf(DataEncryptionMethod::class, $encryptor->lastRequest()->dataEncryptionMethod);
@@ -273,7 +280,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_the_default_part_is_the_body_only(): void
     {
         $encryptor = new RecordingEncryptor();
-        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
 
         $targets = $encryptor->lastRequest()->targets;
         static::assertCount(1, $targets);
@@ -284,7 +291,7 @@ final class EncryptionTest extends OutboundTestCase
     public function test_explicit_parts_override_the_default(): void
     {
         $encryptor = new RecordingEncryptor();
-        $block = (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)
+        $block = (new Encryption(new WrappedSessionKey($this->recipientCertificate())))->withEncryptor($encryptor)
             ->withParts([Part::body(), Part::timestamp()]);
         $block($this->context($this->plainEnvelope()));
 
@@ -294,52 +301,101 @@ final class EncryptionTest extends OutboundTestCase
         static::assertTrue($targets[1]->target->equals(Target::element(self::WSU, 'Timestamp')));
     }
 
-    public function test_the_default_key_reference_does_not_use_deprecated_rsa_padding(): void
+    public function test_the_default_key_transport_does_not_use_deprecated_rsa_padding(): void
     {
-        $encryptor = new RecordingEncryptor();
-        (new Encryption($this->recipientCertificate()))->withEncryptor($encryptor)($this->context($this->plainEnvelope()));
+        $document = $this->plainEnvelope();
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
+            ->withEncryptor(new RecordingEncryptor())($this->context($document));
 
-        static::assertNotSame(KeyEncryptionMethod::RSA_1_5, $encryptor->lastRequest()->keyTransportAlgorithm->method);
+        static::assertNotSame(
+            KeyEncryptionMethod::RSA_1_5->value,
+            $this->keyEncryptionMethod($document)->getAttribute('Algorithm'),
+        );
     }
 
     /**
-     * @return iterable<string, array{0: EncKeyRef, 1: class-string}>
+     * @return iterable<string, array{0: EncKeyRef, 1: string}>
      */
     public static function inlineKeyReferences(): iterable
     {
-        yield 'subject-key-identifier' => [EncKeyRef::SubjectKeyIdentifier, X509SubjectKeyIdentifier::class];
-        yield 'issuer-serial' => [EncKeyRef::IssuerSerial, IssuerSerialKeyIdentifier::class];
-        yield 'thumbprint' => [EncKeyRef::Thumbprint, ThumbprintKeyIdentifier::class];
+        yield 'subject-key-identifier' => [
+            EncKeyRef::SubjectKeyIdentifier,
+            'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509SubjectKeyIdentifier',
+        ];
+        yield 'thumbprint' => [
+            EncKeyRef::Thumbprint,
+            'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1',
+        ];
     }
 
     /**
-     * @param class-string $expectedStrategy
+     * How the recipient is named is the key source's decision, so it is read off the xenc:EncryptedKey the
+     * source wrote rather than off the encryption request, whose own key identifier names the session key.
      */
     #[DataProvider('inlineKeyReferences')]
-    public function test_inline_key_references_embed_no_bst(EncKeyRef $encKeyRef, string $expectedStrategy): void
+    public function test_inline_key_references_embed_no_bst(EncKeyRef $encKeyRef, string $valueType): void
     {
-        $encryptor = new RecordingEncryptor();
         $document = $this->plainEnvelope();
-        (new Encryption($this->recipientCertificate(), encKeyRef: $encKeyRef))->withEncryptor($encryptor)($this->context($document));
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate(), $encKeyRef)))
+            ->withEncryptor(new RecordingEncryptor())($this->context($document));
 
         static::assertCount(0, $this->elements($document, self::WSSE, 'BinarySecurityToken'));
-        static::assertInstanceOf($expectedStrategy, $encryptor->lastRequest()->keyIdentifier);
+        $keyIdentifier = $this->only($document, self::XENC, 'EncryptedKey')
+            ->getElementsByTagNameNS(self::WSSE, 'KeyIdentifier')
+            ->item(0);
+        static::assertInstanceOf(Element::class, $keyIdentifier);
+        static::assertSame($valueType, $keyIdentifier->getAttribute('ValueType'));
+    }
+
+    public function test_an_issuer_serial_reference_names_the_recipient_by_issuer_and_serial(): void
+    {
+        $document = $this->plainEnvelope();
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate(), EncKeyRef::IssuerSerial)))
+            ->withEncryptor(new RecordingEncryptor())($this->context($document));
+
+        static::assertSame(
+            1,
+            $this->only($document, self::XENC, 'EncryptedKey')
+                ->getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'X509IssuerSerial')
+                ->count(),
+        );
     }
 
     public function test_binary_security_token_embeds_a_token_and_wires_a_direct_reference(): void
     {
-        $encryptor = new RecordingEncryptor();
         $document = $this->plainEnvelope();
-        (new Encryption($this->recipientCertificate(), encKeyRef: EncKeyRef::BinarySecurityToken))->withEncryptor($encryptor)($this->context($document));
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate(), EncKeyRef::BinarySecurityToken)))
+            ->withEncryptor(new RecordingEncryptor())($this->context($document));
 
         $bst = $this->only($document, self::WSSE, 'BinarySecurityToken');
         $tokenId = $bst->getAttributeNS(self::WSU, 'Id');
 
-        $keyIdentifier = $encryptor->lastRequest()->keyIdentifier;
-        static::assertInstanceOf(DirectReferenceKeyIdentifier::class, $keyIdentifier);
+        $reference = $this->only($document, self::XENC, 'EncryptedKey')
+            ->getElementsByTagNameNS(self::WSSE, 'Reference')
+            ->item(0);
+        static::assertInstanceOf(Element::class, $reference);
+        static::assertSame('#'.$tokenId, $reference->getAttribute('URI'));
+    }
 
-        $keyInfo = $keyIdentifier->apply($document, $this->recipientCertificate());
-        static::assertStringContainsString('#'.$tokenId, $document->stringifyNode($keyInfo));
+    /**
+     * An xenc:EncryptedData names the element carrying the key, by wsu:Id, which is what every stack emitting
+     * this shape reads. The EncryptedKeySHA1 form names the key itself and belongs on a signature, where the
+     * key may not be in the same header at all.
+     */
+    public function test_every_encrypted_data_points_at_the_local_encrypted_key(): void
+    {
+        $document = $this->envelopeWithSecurity();
+        (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
+            ->withEncryptor($this->realEncryptor())($this->context($document));
+
+        $encryptedKeyId = $this->only($document, self::XENC, 'EncryptedKey')->getAttributeNS(self::WSU, 'Id');
+        static::assertNotSame('', $encryptedKeyId);
+
+        $reference = $this->only($document, self::XENC, 'EncryptedData')
+            ->getElementsByTagNameNS(self::WSSE, 'Reference')
+            ->item(0);
+        static::assertInstanceOf(Element::class, $reference);
+        static::assertSame('#'.$encryptedKeyId, $reference->getAttribute('URI'));
     }
 
     public function test_it_encrypts_the_body_and_round_trips_through_the_engine_decryptor(): void
@@ -348,13 +404,16 @@ final class EncryptionTest extends OutboundTestCase
         $document = $this->envelopeWithSecurity();
         $originalBody = $document->stringifyNode($this->only($document, self::SOAP12, 'Body'));
 
-        (new Encryption($certificate))->withEncryptor($this->realEncryptor())($this->context($document));
+        (new Encryption(new WrappedSessionKey($certificate)))->withEncryptor($this->realEncryptor())($this->context($document));
 
-        // One EncryptedKey in the Security header, one EncryptedData replacing the Body content, one DataReference.
+        // One EncryptedKey in the Security header, one ReferenceList beside it, one EncryptedData replacing
+        // the Body content, one DataReference.
         $encryptedKey = $this->only($document, self::XENC, 'EncryptedKey');
         static::assertSame('Security', $encryptedKey->parentNode?->localName);
         static::assertCount(1, $this->elements($document, self::XENC, 'EncryptedData'));
-        static::assertSame(1, $encryptedKey->getElementsByTagNameNS(self::XENC, 'DataReference')->count());
+        $referenceList = $this->only($document, self::XENC, 'ReferenceList');
+        static::assertSame('Security', $referenceList->parentNode?->localName);
+        static::assertSame(1, $referenceList->getElementsByTagNameNS(self::XENC, 'DataReference')->count());
 
         $encryptedData = $this->only($document, self::XENC, 'EncryptedData');
         static::assertSame('http://www.w3.org/2001/04/xmlenc#Content', $encryptedData->getAttribute('Type'));
@@ -371,7 +430,7 @@ final class EncryptionTest extends OutboundTestCase
         [$key, $certificate] = $this->keyAndCertificate();
         $document = $this->envelopeWithSecurity();
 
-        $block = (new Encryption($certificate))->withEncryptor($this->realEncryptor())
+        $block = (new Encryption(new WrappedSessionKey($certificate)))->withEncryptor($this->realEncryptor())
             ->withDataEncryptionMethod(DataEncryptionMethod::AES256_CBC);
         $block($this->context($document));
 
@@ -392,6 +451,20 @@ final class EncryptionTest extends OutboundTestCase
     }
 
     /**
+     * The xenc:EncryptionMethod of the wrapped key the source wrote. The key transport is the key source's
+     * decision now, so the wire is where it is read back from rather than off the encryption request.
+     */
+    private function keyEncryptionMethod(Document $document): Element
+    {
+        $method = $this->only($document, self::XENC, 'EncryptedKey')
+            ->getElementsByTagNameNS(self::XENC, 'EncryptionMethod')
+            ->item(0);
+        static::assertInstanceOf(Element::class, $method);
+
+        return $method;
+    }
+
+    /**
      * The Security header the encrypting block wrote into, which is also the container the wrapped key is read
      * back out of.
      */
@@ -407,11 +480,9 @@ final class EncryptionTest extends OutboundTestCase
     {
         return new Encryptor(
             new TargetLocator(),
-            new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder((new WsuIdConvention())->minter()),
-            new KeyTransport(),
-            new EncryptedKeyBuilder(),
+            new ReferenceListBuilder(),
             new ExternalPartSealer(
                 new Cipher(),
                 new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),

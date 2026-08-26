@@ -13,8 +13,8 @@ final class IssuerSerialKeyIdentifierTest extends KeyIdentifierTestCase
         $certificate = $this->certificate();
         $expected = $certificate->info()->issuerSerial();
 
-        $keyInfo = (new IssuerSerialKeyIdentifier())
-            ->apply($document, $certificate);
+        $keyInfo = (new IssuerSerialKeyIdentifier($certificate))
+            ->apply($document);
 
         static::assertSame('KeyInfo', $keyInfo->localName);
         static::assertSame(self::DS, $keyInfo->namespaceURI);
