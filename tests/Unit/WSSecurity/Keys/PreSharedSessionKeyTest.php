@@ -38,7 +38,8 @@ final class PreSharedSessionKeyTest extends TestCase
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
     private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
-    private const IDENTIFIER = 'the-agreed-key';
+    /** Base64, because the reference declares a base64 encoding type; a plain name is refused. */
+    private const IDENTIFIER = 'dGhlLWFncmVlZC1rZXk=';
     private const VALUE_TYPE = 'urn:example:pre-shared-key';
 
     public function test_it_signs_without_writing_any_token(): void
@@ -144,6 +145,38 @@ final class PreSharedSessionKeyTest extends TestCase
             ->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
     }
 
+    /**
+     * The identifier is written verbatim under the encoding the reference declares, so a plain name under the
+     * base64 default is a reference saying one thing and carrying another.
+     */
+    public function test_an_identifier_that_is_not_base64_is_refused_under_the_base64_default(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('is not base64');
+
+        new PreSharedSessionKey(
+            SessionKey::fromBytes(str_repeat("\x2a", 32)),
+            'the-agreed-key',
+            self::VALUE_TYPE,
+        );
+    }
+
+    public function test_a_peer_naming_its_own_encoding_may_use_any_identifier(): void
+    {
+        // The encoding is the peer's to agree, so naming a different one is what makes a plain name legitimate.
+        $key = new PreSharedSessionKey(
+            SessionKey::fromBytes(str_repeat("\x2a", 32)),
+            'the-agreed-key',
+            self::VALUE_TYPE,
+            'urn:example:plain-text',
+        );
+
+        $keys = new ExchangeKeys();
+        $key->resolve($this->context($this->envelopeFor(), $keys), KeyRequest::preferably(32));
+
+        static::assertNotNull($keys->resolve('the-agreed-key'));
+    }
+
     public function test_an_empty_secret_is_refused(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -164,6 +197,11 @@ final class PreSharedSessionKeyTest extends TestCase
 
         static::assertSame($first, $second);
         static::assertSame($first->bytes, $keys->resolve(self::IDENTIFIER));
+    }
+
+    private function envelopeFor(): Document
+    {
+        return WsseSignatureFixture::caSignedLeaf()->envelope();
     }
 
     private function key(string $bytes = "\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a\x2a"): PreSharedSessionKey

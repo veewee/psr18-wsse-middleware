@@ -31,9 +31,11 @@ final class PreSharedSessionKey implements SymmetricKeySource
      * @param non-empty-string $identifier   the name both sides agreed on, carried verbatim as the
      *        wsse:KeyIdentifier content and matched verbatim against what an inbound reference names
      * @param non-empty-string $valueType    the ValueType URI the agreed reference declares
-     * @param non-empty-string $encodingType the encoding the identifier is written in, base64 by default
+     * @param non-empty-string $encodingType the encoding the identifier is written in, base64 by default,
+     *        which is what a peer expects unless it says otherwise
      *
-     * @throws InvalidArgumentException when the secret is empty
+     * @throws InvalidArgumentException when the secret is empty, or the identifier does not match the encoding
+     *         it is written under
      */
     public function __construct(
         #[SensitiveParameter] SessionKey $secret,
@@ -44,6 +46,19 @@ final class PreSharedSessionKey implements SymmetricKeySource
         if ($secret->bytes() === '') {
             // An empty secret keys a MAC anyone can reproduce, which authenticates nobody.
             throw new InvalidArgumentException('A pre-shared secret must not be empty.');
+        }
+
+        // The identifier is written verbatim under the encoding the reference declares, so the two have to
+        // agree. A plain name under a base64 encoding type is a reference that says one thing and carries
+        // another, which a strict receiver refuses and a lenient one resolves to something else.
+        if ($encodingType === WsSecurityEncodingType::Base64Binary->value
+            && base64_encode((string) base64_decode($identifier, true)) !== $identifier
+        ) {
+            throw new InvalidArgumentException(sprintf(
+                'The key identifier "%s" is not base64, which is the encoding this reference declares. '
+                .'Encode it, or name the encoding your peer agreed on.',
+                $identifier,
+            ));
         }
 
         $reference = new CustomKeyIdentifier($identifier, $valueType, $encodingType);
