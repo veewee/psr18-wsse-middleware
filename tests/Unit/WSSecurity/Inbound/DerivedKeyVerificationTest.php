@@ -36,6 +36,7 @@ final class DerivedKeyVerificationTest extends TestCase
 {
     private const WSC = 'http://docs.oasis-open.org/ws-sx/ws-secureconversation/200512';
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
+    private const WSSE = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd';
     private const DS = 'http://www.w3.org/2000/09/xmldsig#';
 
     public function test_it_verifies_a_signature_keyed_by_a_derived_key(): void
@@ -117,6 +118,70 @@ final class DerivedKeyVerificationTest extends TestCase
 
         $this->expectException(SecurityFault::class);
         $this->verifier($fixture)($this->context($document, $keys));
+    }
+
+    /**
+     * The @Algorithm is optional and defaults to P_SHA1, and the reference implementation omits it entirely.
+     * Requiring it would leave every token WSS4J emits unreadable.
+     */
+    public function test_a_token_declaring_no_algorithm_derives_with_the_default(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $this->signedWithADerivedKey($fixture, $keys);
+
+        $this->only($document, self::WSC, 'DerivedKeyToken')->removeAttribute('Algorithm');
+
+        $this->verifier($fixture)($this->context($document, $keys));
+
+        static::assertCount(1, $this->elements($document, self::WSC, 'DerivedKeyToken'));
+    }
+
+    public function test_a_token_declaring_another_derivation_is_refused(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $this->signedWithADerivedKey($fixture, $keys);
+
+        // A token that derived some other way describes a key this cannot reproduce, so naming one is refused
+        // where omitting the attribute is not.
+        $this->only($document, self::WSC, 'DerivedKeyToken')
+            ->setAttribute('Algorithm', self::WSC.'/dk/p_sha256');
+
+        $this->expectException(SecurityFault::class);
+        $this->verifier($fixture)($this->context($document, $keys));
+    }
+
+    /**
+     * The other place this profile lets a session key be named: a wsse:Reference whose URI carries the
+     * EncryptedKeySHA1 value rather than a same-document id, declared by its ValueType. Nothing here emits that
+     * form; reading it is what lets a peer that does be answered.
+     */
+    public function test_a_reference_naming_the_key_by_its_digest_resolves_too(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $this->signedWithADerivedKey($fixture, $keys);
+
+        // Rewrite the token's own reference from the KeyIdentifier form into the Reference form, carrying the
+        // same digest.
+        $token = $this->only($document, self::WSC, 'DerivedKeyToken');
+        $str = $token->getElementsByTagNameNS(self::WSSE, 'SecurityTokenReference')->item(0);
+        static::assertInstanceOf(Element::class, $str);
+        $keyIdentifier = $str->getElementsByTagNameNS(self::WSSE, 'KeyIdentifier')->item(0);
+        static::assertInstanceOf(Element::class, $keyIdentifier);
+
+        $reference = $document->toUnsafeDocument()->createElementNS(self::WSSE, 'wsse:Reference');
+        $reference->setAttribute('URI', '#'.trim($keyIdentifier->textContent));
+        $reference->setAttribute(
+            'ValueType',
+            'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKeySHA1',
+        );
+        $str->replaceChild($reference, $keyIdentifier);
+
+        $this->verifier($fixture)($this->context($document, $keys));
+
+        static::assertCount(1, $this->elements($document, self::WSC, 'DerivedKeyToken'));
     }
 
     public function test_a_token_carrying_both_a_generation_and_an_offset_is_refused(): void

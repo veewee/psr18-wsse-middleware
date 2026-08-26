@@ -60,7 +60,7 @@ final readonly class DerivedKeyTokenReader
         IdLookup $idLookup,
     ): ?SessionKey {
         $version = $this->version($token);
-        if ($version === null || (string) $token->getAttribute('Algorithm') !== $version->derivationAlgorithm()) {
+        if ($version === null || !$this->derivesWithPSha1($token, $version)) {
             return null;
         }
 
@@ -90,6 +90,21 @@ final readonly class DerivedKeyTokenReader
         $label = $this->text($token, $version, 'Label') ?? DerivedSessionKey::DEFAULT_LABEL;
 
         return $this->pSha1->derive($deriving, $label.$nonce, $offset, $length);
+    }
+
+    /**
+     * Whether the token derives with the one function this reads.
+     *
+     * The attribute is optional and the specification's default is P_SHA1, which is why an absent one is
+     * accepted rather than refused: the reference implementation omits it entirely, so requiring it would leave
+     * every token it emits unreadable. A present attribute naming anything else is refused, because a token that
+     * derived some other way describes a key this cannot reproduce.
+     */
+    private function derivesWithPSha1(Element $token, WsSecureConversationVersion $version): bool
+    {
+        $declared = (string) $token->getAttribute('Algorithm');
+
+        return $declared === '' || $declared === $version->derivationAlgorithm();
     }
 
     private function version(Element $token): ?WsSecureConversationVersion

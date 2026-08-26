@@ -118,6 +118,12 @@ message uses is decided by the message rather than by configuration, so nothing 
 container carrying a wrapped key has that key unwrapped, and a container carrying none has each part's key
 resolved from what the exchange established.
 
+Both ways a peer may name a session key are read: a `wsse:KeyIdentifier` carrying the `EncryptedKeySHA1`
+digest, and a `wsse:Reference` whose URI carries that same digest and whose `ValueType` declares it. This
+package emits the first; WSS4J's derived-key path emits the second. A `wsc:DerivedKeyToken` is read whether or
+not it declares an `Algorithm`, since the attribute is optional and P_SHA1 is the default, and whether or not it
+carries a `Label`.
+
 **Established, and nothing else.** A reference naming a key this exchange never saw is refused; there is no
 fallback and no second candidate. The keys of one exchange are scoped to that exchange and shared only between
 its request and its response, because a wider cache would let a response be opened with a key from a different

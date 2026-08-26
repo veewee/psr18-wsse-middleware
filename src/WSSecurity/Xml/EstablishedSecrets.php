@@ -77,6 +77,18 @@ final readonly class EstablishedSecrets
         IdLookup $idLookup,
         bool $allowDerivation,
     ): ?SessionKey {
+        // A reference declaring the EncryptedKeySHA1 type carries the identifier itself in its URI rather than
+        // a same-document id. There is no element to find: the peer is naming the key, in the other of the two
+        // places this profile allows it to be named. Nothing here emits that form, and reading it is what lets
+        // a peer that does be answered.
+        if (WsSecurityValueType::tryFrom((string) $reference->getAttribute('ValueType'))
+            === WsSecurityValueType::EncryptedKeySha1
+        ) {
+            $named = ltrim((string) $reference->getAttribute('URI'), '#');
+
+            return $named === '' ? null : $this->keys->resolve($named);
+        }
+
         $id = SameDocumentId::parse((string) $reference->getAttribute('URI'));
         if ($id === null) {
             return null;
