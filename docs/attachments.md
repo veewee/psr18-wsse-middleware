@@ -201,14 +201,10 @@ attachment parts together, so all of them are under one session key. That is why
 the same `Outbound\Encryption` block rather than being a block of its own: a second block would emit a second
 key, which a receiver refuses.
 
-**Do not encrypt attachments under a key you also sign with.** Handing one
-[key source](outbound-blocks.md#symmetric-key-sources) to both an `Encryption` and a `Signature` block moves the
-`xenc:ReferenceList` out of the `xenc:EncryptedKey`, which makes every `xenc:EncryptedData` name its own key.
-WSS4J reads that on an in-document part and cannot on an attachment: an element carrying a
-`xenc:CipherReference` is opened through Santuario, which has never heard of a `wsse:SecurityTokenReference`.
-Nothing here refuses the combination, because it is one peer's limitation rather than a shape that is wrong, but
-give the attachments a key of their own unless you know your peer reads it. The interop harness pins the
-limitation, so a WSS4J release lifting it is noticed rather than guessed at.
+Sharing that key with a `Signature` block works too, and changes the shape: the `xenc:ReferenceList` moves out of
+the `xenc:EncryptedKey` and each `xenc:EncryptedData`, attachments included, names the key with an
+`EncryptedKeySHA1` identifier. See
+[where the reference list goes](outbound-blocks.md#outbound-encryption). The interop harness covers it.
 
 A signed attachment adds a reference to the same `ds:Signature` as the body's:
 
