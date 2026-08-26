@@ -23,11 +23,22 @@ use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 final class P_SHA1
 {
     /**
-     * @param non-empty-string $seed   the label concatenated with the nonce, as the specification defines it
-     * @param non-negative-int $offset how far into the generated stream the key starts
-     * @param positive-int     $length how many bytes of it the key is
+     * The upper bound on how many bytes one derivation generates, which is Offset + Length rather than either
+     * alone: the stream is built up to the end of the slice, so a key sixteen bytes wide taken ten billion bytes
+     * in is not a large key, it is an allocation. A conservative ceiling far above any key any algorithm here
+     * takes. Both sides of the wire answer to it, whoever chose the numbers.
+     */
+    public const int MAX_GENERATED = 128;
+
+    /**
+     * The offset and the length are plain ints rather than refined ones, because both arrive from a peer's
+     * element or a caller's configuration and the check below is what makes them what the names say.
      *
-     * @throws InvalidArgumentException when the secret is empty
+     * @param non-empty-string $seed   the label concatenated with the nonce, as the specification defines it
+     * @param int              $offset how far into the generated stream the key starts
+     * @param int              $length how many bytes of it the key is
+     *
+     * @throws InvalidArgumentException when the secret is empty, or the slice asked for is outside the bound
      */
     public function derive(
         #[SensitiveParameter] SessionKey $secret,
@@ -39,6 +50,20 @@ final class P_SHA1
         if ($key === '') {
             // Deriving from nothing produces a stream anyone can reproduce.
             throw new InvalidArgumentException('A derivation secret must not be empty.');
+        }
+
+        if ($offset < 0 || $length < 1) {
+            // A slice outside the stream returns a shorter one than was asked for, and SessionKey holds
+            // whatever it is given, so an unchecked offset mints a key narrower than the caller believes.
+            throw new InvalidArgumentException('A derivation offset must not be negative and its length must be at least one byte.');
+        }
+
+        if ($offset + $length > self::MAX_GENERATED) {
+            throw new InvalidArgumentException(sprintf(
+                'A derivation generates at most %d bytes and this one asked for %d.',
+                self::MAX_GENERATED,
+                $offset + $length,
+            ));
         }
 
         // Psl's Hmac\Algorithm is the typed source of the algorithm identity; the raw finalization comes from

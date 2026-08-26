@@ -94,4 +94,35 @@ final class PSha1Test extends TestCase
 
         (new P_SHA1())->derive(SessionKey::fromBytes(''), 'seed', 0, 32);
     }
+    public function test_an_offset_below_zero_is_refused_rather_than_silently_shortening_the_key(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must not be negative');
+
+        (new P_SHA1())->derive(SessionKey::fromBytes(str_repeat("\x2a", 32)), 'seed', -10, 32);
+    }
+
+    public function test_a_stream_longer_than_the_bound_is_refused_rather_than_generated(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('generates');
+
+        (new P_SHA1())->derive(
+            SessionKey::fromBytes(str_repeat("\x2a", 32)),
+            'seed',
+            P_SHA1::MAX_GENERATED,
+            32,
+        );
+    }
+
+    public function test_the_bound_counts_the_offset_and_the_length_together(): void
+    {
+        $derive = new P_SHA1();
+        $secret = SessionKey::fromBytes(str_repeat("\x2a", 32));
+
+        static::assertSame(
+            32,
+            strlen($derive->derive($secret, 'seed', P_SHA1::MAX_GENERATED - 32, 32)->bytes()),
+        );
+    }
 }

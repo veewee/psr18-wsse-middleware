@@ -26,14 +26,6 @@ use VeeWee\Xml\Dom\Document;
  */
 final readonly class DerivedKeyTokenReader
 {
-    /**
-     * The upper bound on Offset + Length, which is how many bytes P_SHA1 generates before slicing. Both are the
-     * peer's to choose, so bounding only the length would leave the offset as the same memory bomb. A response
-     * asking for a key ten billion bytes into the stream is not a large key, it is an allocation. Follows the
-     * bound the decryptor puts on a reference list.
-     */
-    public const int MAX_GENERATED = 128;
-
     public function __construct(
         private P_SHA1 $pSha1 = new P_SHA1(),
     ) {
@@ -78,7 +70,7 @@ final readonly class DerivedKeyTokenReader
 
         $offset = $this->offset($token, $version);
         $length = $this->length($token, $version);
-        if ($offset === null || $length === null || $offset + $length > self::MAX_GENERATED) {
+        if ($offset === null || $length === null || $offset + $length > P_SHA1::MAX_GENERATED) {
             return null;
         }
 
@@ -155,7 +147,7 @@ final readonly class DerivedKeyTokenReader
         // The default both dialects state when the element is absent.
         $length = $declared === null ? 32 : $this->nonNegativeInt($declared);
 
-        return $length === null || $length < 1 || $length > self::MAX_GENERATED ? null : $length;
+        return $length === null || $length < 1 || $length > P_SHA1::MAX_GENERATED ? null : $length;
     }
 
     /**

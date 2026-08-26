@@ -48,18 +48,23 @@ final class DerivedSessionKey implements SymmetricKeySource
     private readonly P_SHA1 $pSha1;
     private readonly Random $random;
 
+    /** @var non-negative-int */
+    private readonly int $offset;
+
     /**
-     * @param ?string          $label the derivation label. Null uses the specification's default, which is what
-     *        every peer emitting this shape uses
-     * @param non-negative-int $offset how far into the derived stream this key starts, for a peer that
-     *        partitions one stream across several keys
+     * @param ?string $label the derivation label. Null uses the specification's default, which is what every
+     *        peer emitting this shape uses
+     * @param int     $offset how far into the derived stream this key starts, for a peer that partitions one
+     *        stream across several keys. A plain int rather than a refined one, because it is configuration
+     *        and the check below is what makes it what the name says
      *
-     * @throws InvalidArgumentException when the deriving key is itself derived
+     * @throws InvalidArgumentException when the deriving key is itself derived, or the offset is negative or
+     *         past what a derivation generates
      */
     public function __construct(
         private readonly SymmetricKeySource $from,
         private readonly ?string $label = null,
-        private readonly int $offset = 0,
+        int $offset = 0,
     ) {
         if ($from instanceof self) {
             // No peer emits chained derivation, and permitting it would let a response nest tokens until the
@@ -67,6 +72,22 @@ final class DerivedSessionKey implements SymmetricKeySource
             throw new InvalidArgumentException('A derived key cannot be derived from another derived key.');
         }
 
+        // The width is not known until a block asks, so the offset alone is what can be judged here. Refused
+        // where it is written, because it is a configured number rather than a peer's, and a caller who wrote
+        // it wants to hear about it at the line that wrote it.
+        if ($offset < 0) {
+            throw new InvalidArgumentException('A derivation offset must not be negative.');
+        }
+
+        if ($offset + self::MINIMUM_LENGTH > P_SHA1::MAX_GENERATED) {
+            throw new InvalidArgumentException(sprintf(
+                'A derivation generates at most %d bytes and an offset of %d leaves no room for a key.',
+                P_SHA1::MAX_GENERATED,
+                $offset,
+            ));
+        }
+
+        $this->offset = $offset;
         $this->pSha1 = new P_SHA1();
         $this->random = new Random();
     }

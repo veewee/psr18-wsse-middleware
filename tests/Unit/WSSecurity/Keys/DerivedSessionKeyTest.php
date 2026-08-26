@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\OpenSSL\P_SHA1;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\DerivedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
@@ -308,5 +309,27 @@ final class DerivedSessionKeyTest extends TestCase
         static::assertCount(1, $elements);
 
         return $elements[0];
+    }
+    public function test_an_offset_below_zero_is_refused_where_it_is_written(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must not be negative');
+
+        new DerivedSessionKey(new WrappedSessionKey($fixture->leafCertificate), offset: -1);
+    }
+
+    public function test_an_offset_past_what_a_derivation_generates_is_refused_where_it_is_written(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('generates');
+
+        new DerivedSessionKey(
+            new WrappedSessionKey($fixture->leafCertificate),
+            offset: P_SHA1::MAX_GENERATED,
+        );
     }
 }
