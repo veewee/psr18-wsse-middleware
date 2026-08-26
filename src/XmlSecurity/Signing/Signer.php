@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\XopInclude;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
@@ -17,6 +18,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\ExternalPartSignature;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\External\SignedExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
@@ -78,6 +80,8 @@ final class Signer implements XmlSigner
         $container = $request->container;
 
         $references = $this->referenceCollector->collect($document, $request->targets);
+
+        $this->assertCoversItsOwnContent($document, $references, $request->externalParts);
 
         // Digest a fresh parse of the serialized document, not the live DOM. Elements minted with
         // createElementNS carry namespace declarations the live DOM omits but the serialized wire
@@ -172,6 +176,34 @@ final class Signer implements XmlSigner
         }
 
         value(base64_encode($signature))($signatureValue);
+    }
+
+    /**
+     * Refuses to sign an element that stands in for bytes this signature says nothing about.
+     *
+     * An xop:Include is a pointer. Digesting the element that holds one produces a signature over the pointer
+     * while the bytes it names travel in their own MIME part, and the message still satisfies a far-side
+     * policy check for that element being signed. Every reference under a signed element must therefore name
+     * one of the external parts this same signature covers, which is the supported MTOM shape.
+     *
+     * The encryption side refuses the mirror image of this, and the verifier refuses it on the way in.
+     *
+     * @param list<ResolvedReference> $references
+     *
+     * @throws SigningFailed
+     */
+    private function assertCoversItsOwnContent(
+        Document $document,
+        array $references,
+        ?ExternalPartSignature $external,
+    ): void {
+        foreach ($references as $reference) {
+            foreach (XopInclude::hrefsIn($document, $reference->element) as $href) {
+                if ($external?->parts->byReference($href) === null) {
+                    throw SigningFailed::uncoveredOptimizedContent($href);
+                }
+            }
+        }
     }
 
     /**

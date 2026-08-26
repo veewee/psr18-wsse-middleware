@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
+use Soap\Psr18WsseMiddleware\Xml\XopInclude;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
@@ -107,6 +108,10 @@ final class ReferenceResolver
                 $this->assertNotSignatureInfrastructure($element, $signatureElement);
             }
 
+            $dereferenced = $this->dereference($document, $referenceElement, $parsed, $element, $signatureElement);
+
+            $this->assertCoversItsOwnContent($document, $dereferenced ?? $element, $external);
+
             $elements[] = new ResolvedVerificationReference(
                 $parsed,
                 $element,
@@ -114,11 +119,38 @@ final class ReferenceResolver
                 $this->declaresEnvelopedSignature($referenceElement)
                     ? $this->signatureToStrip($document, $element, $signatureElement)
                     : null,
-                $this->dereference($document, $referenceElement, $parsed, $element, $signatureElement),
+                $dereferenced,
             );
         }
 
         return new ResolvedReferences($elements, $externalReferences);
+    }
+
+    /**
+     * Refuses an element that stands in for bytes the signature says nothing about.
+     *
+     * An xop:Include is a pointer. Digesting the element that holds one covers the pointer while the bytes it
+     * names travel in their own MIME part, so the message satisfies a policy check for that element being
+     * signed while an intermediary is free to replace the file. Every reference under the element must
+     * therefore name one of the supplied parts, which the caller only ever supplies alongside the requirement
+     * that each of them was signed in its own right.
+     *
+     * Without supplied parts there is nothing a pointer can legitimately name, so any pointer is refused.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function assertCoversItsOwnContent(
+        Document $document,
+        Element $element,
+        ?ExternalPartVerification $external,
+    ): void {
+        foreach (XopInclude::hrefsIn($document, $element) as $href) {
+            if ($external?->parts->byReference($href) === null) {
+                throw SignatureVerificationFailed::withReason(
+                    'A signed element points at content the signature does not cover.',
+                );
+            }
+        }
     }
 
     /**

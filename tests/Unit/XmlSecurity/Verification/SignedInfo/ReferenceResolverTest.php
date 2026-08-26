@@ -25,6 +25,9 @@ final class ReferenceResolverTest extends TestCase
     private const SWA_CONTENT = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
     private const XSLT = 'http://www.w3.org/TR/1999/REC-xslt-19991116';
     private const ENVELOPED_SIGNATURE = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature';
+    private const XOP = 'http://www.w3.org/2004/08/xop/include';
+    private const BODY = '<data>x</data>';
+    private const UNCOVERED_POINTER = 'A signed element points at content the signature does not cover.';
 
     public function test_it_resolves_a_known_wsu_id_to_the_exact_element(): void
     {
@@ -268,16 +271,19 @@ final class ReferenceResolverTest extends TestCase
     /**
      * @param array<string, string> $references map of marker to ds:Reference markup
      */
-    private function document(array $references, ?string $duplicateId = null): Document
-    {
+    private function document(
+        array $references,
+        ?string $duplicateId = null,
+        string $body = self::BODY,
+    ): Document {
         $duplicate = $duplicateId !== null
             ? '<dup wsu:Id="'.$duplicateId.'"/><dup wsu:Id="'.$duplicateId.'"/>'
             : '';
 
-        return Document::fromXmlString($this->envelope(implode('', $references), $duplicate));
+        return Document::fromXmlString($this->envelope(implode('', $references), $duplicate, $body));
     }
 
-    private function envelope(string $references, string $duplicate = ''): string
+    private function envelope(string $references, string $duplicate = '', string $body = self::BODY): string
     {
         return '<soap:Envelope'
             .' xmlns:soap="'.WsseSignatureFixture::SOAP.'"'
@@ -291,7 +297,7 @@ final class ReferenceResolverTest extends TestCase
             .'<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>'
             .$references.'</ds:SignedInfo></ds:Signature>'
             .'</wsse:Security></soap:Header>'
-            .'<soap:Body wsu:Id="Body"><data>x</data></soap:Body></soap:Envelope>';
+            .'<soap:Body wsu:Id="Body">'.$body.'</soap:Body></soap:Envelope>';
     }
 
     /**
@@ -367,6 +373,108 @@ final class ReferenceResolverTest extends TestCase
                 self::SWA_CONTENT,
             ),
         );
+    }
+
+    public function test_it_refuses_an_element_pointing_at_content_no_part_covers(): void
+    {
+        // The shape a WSS4J peer sends with expandXopInclude off: the Body is signed, its content is a
+        // pointer, and nothing in the signature says anything about the bytes the pointer names. Accepting it
+        // would report the file as signed while an intermediary is free to replace it.
+        $document = $this->document(
+            ['Body' => self::reference('#Body', self::EXC_C14N)],
+            body: $this->optimizedBody('cid:invoice@example.com'),
+        );
+        [$elements, $parsed] = $this->references($document);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage(self::UNCOVERED_POINTER);
+
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))
+            ->resolve($document, $elements, $parsed, $this->signature($document));
+    }
+
+    public function test_it_refuses_an_element_pointing_at_a_part_that_was_not_supplied(): void
+    {
+        $document = $this->document(
+            ['Body' => self::reference('#Body', self::EXC_C14N)],
+            body: $this->optimizedBody('cid:invoice@example.com'),
+        );
+        [$elements, $parsed] = $this->references($document);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage(self::UNCOVERED_POINTER);
+
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve(
+            $document,
+            $elements,
+            $parsed,
+            $this->signature($document),
+            new ExternalPartVerification(
+                ExternalPartList::of($this->part('cid:other@example.com')),
+                self::SWA_CONTENT,
+            ),
+        );
+    }
+
+    public function test_it_refuses_an_element_pointing_at_nothing(): void
+    {
+        $document = $this->document(
+            ['Body' => self::reference('#Body', self::EXC_C14N)],
+            body: '<data><xop:Include xmlns:xop="'.self::XOP.'"/></data>',
+        );
+        [$elements, $parsed] = $this->references($document);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage(self::UNCOVERED_POINTER);
+
+        (new ReferenceResolver((new WsuIdConvention())->lookup()))
+            ->resolve($document, $elements, $parsed, $this->signature($document));
+    }
+
+    public function test_it_accepts_an_element_pointing_at_a_part_that_was_supplied(): void
+    {
+        // The supported MTOM shape. The part is supplied, which the block above only ever does when it also
+        // requires that part to have been signed, so the bytes are covered in their own right.
+        $document = $this->document(
+            ['Body' => self::reference('#Body', self::EXC_C14N)],
+            body: $this->optimizedBody('cid:invoice@example.com'),
+        );
+        [$elements, $parsed] = $this->references($document);
+
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))->resolve(
+            $document,
+            $elements,
+            $parsed,
+            $this->signature($document),
+            new ExternalPartVerification(
+                ExternalPartList::of($this->part('cid:invoice@example.com')),
+                self::SWA_CONTENT,
+            ),
+        );
+
+        static::assertSame($this->byId($document, 'Body'), $resolved->elements[0]->element);
+    }
+
+    public function test_it_leaves_a_pointer_outside_the_signed_element_alone(): void
+    {
+        // Only what a reference covers is this rule's business. A pointer elsewhere in the message says
+        // nothing about the element being digested, and refusing on it would reject a message whose signed
+        // region is entirely self-contained.
+        $document = $this->document(
+            ['Inner' => self::reference('#Inner', self::EXC_C14N)],
+            body: '<inner wsu:Id="Inner">x</inner>'.$this->optimizedBody('cid:invoice@example.com'),
+        );
+        [$elements, $parsed] = $this->references($document);
+
+        $resolved = (new ReferenceResolver((new WsuIdConvention())->lookup()))
+            ->resolve($document, $elements, $parsed, $this->signature($document));
+
+        static::assertSame($this->byId($document, 'Inner'), $resolved->elements[0]->element);
+    }
+
+    private function optimizedBody(string $reference): string
+    {
+        return '<data><xop:Include xmlns:xop="'.self::XOP.'" href="'.$reference.'"/></data>';
     }
 
     /**

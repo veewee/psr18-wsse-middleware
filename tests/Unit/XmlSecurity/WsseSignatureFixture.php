@@ -45,6 +45,11 @@ final class WsseSignatureFixture
         = 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3';
     public const BST_ID = 'SignedToken';
 
+    /**
+     * The body contents every test signs unless it needs a shape of its own.
+     */
+    public const BODY = '<data>x</data>';
+
     private function __construct(
         public readonly Key $leafKey,
         public readonly Certificate $leafCertificate,
@@ -156,8 +161,9 @@ final class WsseSignatureFixture
         SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N,
         bool $inclusivePrefixes = false,
         ?ExternalPartSignature $externalParts = null,
+        string $body = self::BODY,
     ): Document {
-        $document = $this->envelope($withTimestamp);
+        $document = $this->envelope($withTimestamp, $body);
 
         $this->signer()->sign($document, new SigningRequest(
             container: $this->security($document),
@@ -181,7 +187,7 @@ final class WsseSignatureFixture
             ?? throw new RuntimeException('The fixture envelope is missing its wsse:Security header.');
     }
 
-    public function envelope(bool $withTimestamp = false): Document
+    public function envelope(bool $withTimestamp = false, string $body = self::BODY): Document
     {
         $timestamp = $withTimestamp
             ? '<wsu:Timestamp wsu:Id="TS"><wsu:Created>2026-01-01T00:00:00Z</wsu:Created></wsu:Timestamp>'
@@ -197,7 +203,7 @@ final class WsseSignatureFixture
             .$this->binarySecurityToken()
             .$timestamp
             .'</wsse:Security></soap:Header>'
-            .'<soap:Body><data>x</data></soap:Body>'
+            .'<soap:Body>'.$body.'</soap:Body>'
             .'</soap:Envelope>'
         );
     }
