@@ -35,10 +35,11 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
  * The key source is asked for exactly as many bytes as the data-encryption method takes, and a source already
  * carrying a key of a different width is refused rather than serving one the cipher cannot use.
  *
- * The xenc:ReferenceList naming the encrypted parts is appended to the Security header beside the key rather
- * than inside it, and every xenc:EncryptedData carries a ds:KeyInfo pointing back at the key. That is what lets
- * one key serve this block and a symmetric Signature together: the key is written when it is minted, before
- * either block has said what it will cover.
+ * The xenc:ReferenceList naming the encrypted parts goes inside the xenc:EncryptedKey when this block is alone
+ * with its key, which is the shape every stack has always read. A key shared with another block goes the other
+ * way: the list stands beside the key in the Security header and each xenc:EncryptedData carries a ds:KeyInfo
+ * naming the key, because whoever took the key first may already have signed the element carrying it and this
+ * block must not write into it.
  *
  * The Security header is guaranteed to exist before the encryptor runs. Algorithm resolution order:
  * per-block override, then the profile carried on the context.
@@ -179,6 +180,12 @@ final class Encryption implements OutboundAction
         // cannot use rather than a weaker choice.
         $key = $this->key->resolve($context, KeyRequest::exactly($dataEncryptionMethod->keyLength()));
 
+        // A block alone with its key nests the reference list inside the element carrying that key, which is the
+        // shape every stack has always read and which needs nothing said on each xenc:EncryptedData. Sharing the
+        // key rules that out: whoever took it first may already have signed the element, so the list stands
+        // beside it and each xenc:EncryptedData names the key instead.
+        $nestIn = $context->keys()->isShared($this->key) ? null : $key->referenceListCarrier;
+
         $parts = $this->parts ?? [Part::body()];
         $soapVersion = $context->soapVersion();
         $external = $this->externalPartEncryption();
@@ -202,8 +209,9 @@ final class Encryption implements OutboundAction
             ),
             sessionKey: $key->bytes,
             dataEncryptionMethod: $dataEncryptionMethod,
-            keyIdentifier: $key->localKeyIdentifier(),
+            keyIdentifier: $nestIn === null ? $key->keyIdentifier : null,
             externalParts: $external,
+            nestReferenceListIn: $nestIn,
         );
 
         $result = $this->encryptor()->encrypt($document, $request);

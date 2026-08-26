@@ -17,7 +17,12 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
  *
  * The session key arrives ready to use, and how it reaches the recipient is the caller\'s concern: wrapped in an
  * xenc:EncryptedKey, derived from one, or shared out of band. That is what lets one key protect a signature and
- * an encryption together. The key identifier is what each xenc:EncryptedData names it by.
+ * an encryption together.
+ *
+ * Where the xenc:ReferenceList goes is the caller\'s too, and it decides whether a ds:KeyInfo is needed at all. A
+ * list nested inside the xenc:EncryptedKey ties the key to the parts itself, so nothing else has to; a list
+ * standing in the container has no such tie, so each xenc:EncryptedData names its own key. The caller states
+ * both, because which is possible depends on whether anything else has taken the key.
  */
 final readonly class EncryptionRequest
 {
@@ -26,7 +31,9 @@ final readonly class EncryptionRequest
      *        attachments is a legitimate configuration. The Encryptor refuses a request that would encrypt
      *        nothing at all
      * @param ?KeyIdentifier $keyIdentifier written as a ds:KeyInfo on every xenc:EncryptedData this operation
-     *        produces; null emits none, leaving the receiver to resolve the key from context alone
+     *        produces; null emits none, leaving the receiver to resolve the key from where the list sits
+     * @param ?Element $nestReferenceListIn the element the xenc:ReferenceList becomes a child of; null appends
+     *        it to the container instead
      */
     public function __construct(
         public Element $container,
@@ -35,6 +42,7 @@ final readonly class EncryptionRequest
         public DataEncryptionMethod $dataEncryptionMethod,
         public ?KeyIdentifier $keyIdentifier = null,
         public ?ExternalPartEncryption $externalParts = null,
+        public ?Element $nestReferenceListIn = null,
     ) {
     }
 }

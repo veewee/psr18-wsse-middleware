@@ -23,6 +23,9 @@ final class ExchangeKeys
     /** @var WeakMap<SymmetricKeySource, SymmetricKey> */
     private WeakMap $materialized;
 
+    /** @var WeakMap<SymmetricKeySource, true> */
+    private WeakMap $shared;
+
     /** @var array<non-empty-string, SessionKey> */
     private array $established = [];
 
@@ -30,6 +33,8 @@ final class ExchangeKeys
     {
         /** @var WeakMap<SymmetricKeySource, SymmetricKey> */
         $this->materialized = new WeakMap();
+        /** @var WeakMap<SymmetricKeySource, true> */
+        $this->shared = new WeakMap();
     }
 
     /**
@@ -43,6 +48,9 @@ final class ExchangeKeys
     {
         $existing = $this->materialized[$source] ?? null;
         if ($existing !== null) {
+            // A second taker, so the key is shared from here on.
+            $this->shared[$source] = true;
+
             return $existing;
         }
 
@@ -51,6 +59,19 @@ final class ExchangeKeys
         $this->establish($key->bytes, ...$key->wireIdentifiers);
 
         return $key;
+    }
+
+    /**
+     * Whether anything else in this exchange has already taken this source's key.
+     *
+     * A block that is alone with a key may still write into the element carrying it; one sharing a key may not,
+     * because whoever took it first may already have signed that element. Counted at the moment a block asks,
+     * which is what makes the answer right in either block order: a block running before the one it shares with
+     * is alone when it asks, and the element it wrote into is then covered as it finally stands.
+     */
+    public function isShared(SymmetricKeySource $source): bool
+    {
+        return isset($this->shared[$source]);
     }
 
     /**

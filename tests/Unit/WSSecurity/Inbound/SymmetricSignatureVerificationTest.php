@@ -144,6 +144,12 @@ final class SymmetricSignatureVerificationTest extends TestCase
         $context = $this->context($document, $keys);
         $key = new WrappedSessionKey($fixture->leafCertificate);
 
+        // Signed as well as encrypted, so the key is shared and the reference list stands beside it rather than
+        // inside it. That is the shape a correlated response takes: the list and the ciphertext survive the key
+        // element being gone, because each xenc:EncryptedData names the key itself.
+        (new Signature(new SymmetricSigningKey($key)))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($context);
         (new Encryption($key))->withParts([Part::body()])($context);
 
         // What a correlated response looks like: the key was conveyed by the request, so the answer carries
@@ -151,6 +157,7 @@ final class SymmetricSignatureVerificationTest extends TestCase
         $encryptedKey = $this->only($document, self::XENC, 'EncryptedKey');
         $encryptedKey->parentNode?->removeChild($encryptedKey);
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedKey'));
+        static::assertCount(1, $this->elements($document, self::XENC, 'ReferenceList'));
 
         (new Decrypt())($this->context($document, $keys));
 
@@ -162,9 +169,13 @@ final class SymmetricSignatureVerificationTest extends TestCase
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope(body: '<data>secret</data>');
+        $context = $this->context($document, new ExchangeKeys());
         $key = new WrappedSessionKey($fixture->leafCertificate);
 
-        (new Encryption($key))->withParts([Part::body()])($this->context($document, new ExchangeKeys()));
+        (new Signature(new SymmetricSigningKey($key)))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($context);
+        (new Encryption($key))->withParts([Part::body()])($context);
         $encryptedKey = $this->only($document, self::XENC, 'EncryptedKey');
         $encryptedKey->parentNode?->removeChild($encryptedKey);
 

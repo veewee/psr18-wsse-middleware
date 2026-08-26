@@ -47,9 +47,12 @@ part of this package that knows what a SOAP envelope is.
   one and never learns how the recipient will come by it, which is what lets one key protect a signature and an
   encryption together. Wrapping is `EncryptedKeyBuilder` plus `OpenSSL\KeyTransport`, composed by whoever needs
   it; the WS-Security profile composes them in its own key sources.
-- **An `xenc:EncryptedData` may name its key.** `EncryptionRequest::$keyIdentifier` is written as a `ds:KeyInfo`
-  on every element the operation produces, which is what a receiver needs when the `xenc:ReferenceList` stands
-  beside the key rather than inside it. Null emits none.
+- **Where the `xenc:ReferenceList` goes is an input, and it decides whether a `ds:KeyInfo` is needed.**
+  `EncryptionRequest::$nestReferenceListIn` names the element the list becomes a child of, or null to append it
+  to the container. `$keyIdentifier` is written as a `ds:KeyInfo` on every `xenc:EncryptedData` the operation
+  produces. A nested list ties the key to the parts itself, so it needs no identifier; a detached one has no such
+  tie, so each element names its own key. Which is possible depends on whether anything else has taken the key,
+  which is why the caller states both rather than the engine inferring either.
 - **A message may be encrypted under a key both sides already hold.** `DecryptionRequest::$privateKey` is
   therefore optional, and `$sessionKeys` is a `SessionKeyResolver` the profile implements: given an
   `xenc:EncryptedData`, it answers which established key that element names. The engine cannot decide this

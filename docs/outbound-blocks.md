@@ -417,10 +417,19 @@ new Outbound\Encryption(new Keys\WrappedSessionKey($recipient, EncKeyRef::Issuer
   method takes, and a source already carrying a key of a different width is refused rather than serving one the
   cipher cannot use.
 
-The `xenc:ReferenceList` naming the encrypted parts is appended to the Security header beside the key rather
-than inside it, and every `xenc:EncryptedData` carries a `ds:KeyInfo` pointing back at the key. That is what
-lets one key serve this block and a symmetric `Signature` together: the key is written when it is minted, before
-either block has said what it will cover.
+Where the `xenc:ReferenceList` goes follows from whether the key is shared, and you never state it:
+
+- **Alone with its key**, this block nests the list inside the `xenc:EncryptedKey` and says nothing on the
+  `xenc:EncryptedData`. The nesting already ties the key to the parts, and this is the shape every stack has
+  always read.
+- **Sharing its key** with another block, it cannot: the key is written when it is minted, before either block
+  has said what it will cover, so the other block may already have signed the element carrying it. The list
+  stands beside the key instead, and each `xenc:EncryptedData` names the key with a WSS 1.1 `EncryptedKeySHA1`
+  identifier.
+
+Both are what WSS4J emits, and its reader requires the matching pair: with the list detached it refuses a
+message whose `xenc:EncryptedData` says nothing about its key, and with the list nested it refuses one that
+does.
 - `withParts(list<Part> $parts): self`: which parts to encrypt. Default is `[Part::body()]`. An empty list
   throws unless attachments are registered: it is not read as "the default". Encrypting nothing still wraps a
   session key and appends an `xenc:EncryptedKey`, so the Body would leave in cleartext under a message that

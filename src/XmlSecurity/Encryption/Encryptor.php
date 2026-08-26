@@ -23,7 +23,8 @@ use function VeeWee\Xml\Dom\Manipulator\append;
 /**
  * Orchestrates the XML encryption flow for one request: resolve every target first (fail fast before any
  * mutation), encrypt and replace each target as xenc:EncryptedData under the session key the request carries,
- * and append one xenc:ReferenceList naming them all to the container element the caller supplies.
+ * and append one xenc:ReferenceList naming them all where the request says it goes: the container, or the
+ * element carrying the key.
  *
  * How the session key reaches the recipient is not decided here. The caller has already established it, which
  * is what lets one key protect both a signature and an encryption; this class only spends it.
@@ -123,7 +124,9 @@ final class Encryptor implements XmlEncryptor
                 throw EncryptionFailed::withReason('An encryption request must name at least one part.');
             }
 
-            append($this->referenceListBuilder->build($document, $partIds))($container);
+            append($this->referenceListBuilder->build($document, $partIds))(
+                $request->nestReferenceListIn ?? $container,
+            );
 
             return new EncryptionResult($sealed->parts);
         } catch (EncryptionFailed $exception) {

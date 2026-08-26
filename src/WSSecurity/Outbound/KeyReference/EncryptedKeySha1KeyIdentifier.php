@@ -18,6 +18,10 @@ use VeeWee\Xml\Dom\Document;
  * has established rather than by walking the document. That is what lets the reference survive the
  * xenc:EncryptedKey travelling anywhere in the message, or the same key being reused across a correlated
  * response.
+ *
+ * The reference declares a wsse11:TokenType saying it points at a session key. A receiver enforcing the Basic
+ * Security Profile classifies a reference by that attribute, and refuses one it cannot classify: without it the
+ * message is rejected for the shape the receiver guessed at instead.
  */
 final readonly class EncryptedKeySha1KeyIdentifier implements KeyIdentifierInterface
 {
@@ -36,6 +40,7 @@ final readonly class EncryptedKeySha1KeyIdentifier implements KeyIdentifierInter
             $this->base64Sha1,
             WsSecurityValueType::EncryptedKeySha1->value,
             WsSecurityEncodingType::Base64Binary->value,
+            WsSecurityValueType::EncryptedKey->value,
         )->buildKeyInfo($document);
     }
 }

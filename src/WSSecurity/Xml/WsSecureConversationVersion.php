@@ -46,6 +46,17 @@ enum WsSecureConversationVersion: string implements XmlNamespace
         return $this->value.'/dk/p_sha1';
     }
 
+    /**
+     * The @ValueType a reference to a wsc:DerivedKeyToken in this dialect declares, so a receiver classifying
+     * references by their declared type can place it.
+     *
+     * @return non-empty-string
+     */
+    public function derivedKeyTokenType(): string
+    {
+        return $this->value.'/dk';
+    }
+
     public static function default(): self
     {
         return self::V2005_12;

@@ -126,7 +126,7 @@ final class WrappedSessionKey implements SymmetricKeySource
             // Both forms, whichever this message emits: a peer may name the key by either in its response, and
             // which one it picks is not ours to constrain.
             [$sha1, '#'.$wsuId],
-            new LocalTokenKeyIdentifier($wsuId),
+            $encryptedKey,
         );
     }
 

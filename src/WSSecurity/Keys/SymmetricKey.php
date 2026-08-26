@@ -3,17 +3,21 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
+use Dom\Element;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 
 /**
- * A materialized symmetric key: the bytes, the two ways a consumer points a ds:KeyInfo at it, and every form an
- * inbound reference may use to name it.
+ * A materialized symmetric key: the bytes, how a consumer points a ds:KeyInfo at it, and every form an inbound
+ * reference may use to name it.
  *
- * Two references rather than one, because the two wire positions are referenced differently by the stacks that
- * emit this shape. A ds:Signature names the key itself, by an identifier that stays valid however the key
- * travels; an xenc:EncryptedData in the same header names the element carrying it, by wsu:Id. Sources with no
- * carrying element hand over the same reference for both.
+ * One reference, used by every consumer. A ds:Signature and an xenc:EncryptedData keyed by the same key name it
+ * the same way, which is what makes them the same key to a reader, and it is what the reference implementation
+ * emits: a session key is named by an identifier of its own rather than by the element that happens to carry it.
+ *
+ * The carrier is the element an xenc:ReferenceList may be nested into, when there is one. A lone encryption
+ * nests its list there and needs no ds:KeyInfo on anything, which is the shape every stack has always read; a
+ * shared key cannot, because whoever took the key first may already have signed that element.
  *
  * The wire identifiers travel with the key rather than being registered separately, because a key nothing can
  * name inbound is a response nobody can verify. ExchangeKeys establishes them itself when it materializes the
@@ -23,21 +27,16 @@ final readonly class SymmetricKey
 {
     /**
      * @param list<non-empty-string> $wireIdentifiers
-     * @param ?KeyIdentifier         $localKeyIdentifier how an element in the same Security header names the
-     *        key; null when the key has no carrying element to point at, in which case the general reference
-     *        serves both positions
+     * @param ?Element $referenceListCarrier the element an xenc:ReferenceList may be nested into, which is an
+     *        xenc:EncryptedKey and nothing else: it is the one element whose schema takes the list. Null for a
+     *        key carried by anything else, or by nothing
      */
     public function __construct(
         public SessionKey $bytes,
         public KeyIdentifier $keyIdentifier,
         public array $wireIdentifiers = [],
-        private ?KeyIdentifier $localKeyIdentifier = null,
+        public ?Element $referenceListCarrier = null,
     ) {
-    }
-
-    public function localKeyIdentifier(): KeyIdentifier
-    {
-        return $this->localKeyIdentifier ?? $this->keyIdentifier;
     }
 
     /**

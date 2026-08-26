@@ -65,15 +65,17 @@ not what the previous version sent. If a peer pins the old algorithms, set them 
 | Encrypted parts | Body **and the signature** (`encryptSignature` defaulted to `true`) | Body only |
 | Encryption key reference | had to be passed explicitly | `EncKeyRef::SubjectKeyIdentifier` |
 | Signature key reference | had to be passed explicitly | `KeyRef::BinarySecurityToken` |
-| `xenc:ReferenceList` position | nested inside the `xenc:EncryptedKey` | a sibling of it, directly in the Security header |
-| `xenc:EncryptedData/ds:KeyInfo` | absent | a `wsse:Reference` naming the local `xenc:EncryptedKey` |
+**An encryption on its own emits the bytes it always did.** The `xenc:ReferenceList` stays nested inside the
+`xenc:EncryptedKey` and no `ds:KeyInfo` appears on the `xenc:EncryptedData`, so a peer reading your messages
+today sees no change.
 
-The last two rows are what makes one session key serve both a signature and an encryption. The key is written
-when it is minted, before any block has said what it will cover, so a nested list would have to be appended to an
-element a signature may already have covered. Both shapes are what CXF and WCF emit and what WSS4J reads; the
-inbound reader here already accepted either, so a correlated response is unaffected. Nothing in the WS-Security
-node ordering changes: the profile already ranked a top-level `xenc:ReferenceList` between the key and the
-signature.
+A key **shared** with another block is the new shape, and it has to be: the key is written when it is minted,
+before either block has said what it will cover, so the list cannot be appended to an element the other block
+may already have signed. There the list stands beside the key in the Security header and each
+`xenc:EncryptedData` names the key with a WSS 1.1 `EncryptedKeySHA1` identifier. That is what WSS4J emits and
+what its reader requires: with the list detached it refuses a message whose `xenc:EncryptedData` says nothing
+about its key, and with the list nested it refuses one that does. Which shape you get follows from whether you
+handed the same key source to two blocks, and nothing else.
 
 SHA-1 signing and digests are still selectable, so a peer that has not moved on keeps working:
 

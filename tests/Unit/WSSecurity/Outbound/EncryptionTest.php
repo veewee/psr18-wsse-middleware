@@ -58,6 +58,7 @@ final class EncryptionTest extends OutboundTestCase
 {
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
     private const XENC11 = 'http://www.w3.org/2009/xmlenc11#';
+    private const WSSE11 = 'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd';
 
     public function test_it_refuses_an_encryption_that_left_a_registered_attachment_unsealed(): void
     {
@@ -378,24 +379,26 @@ final class EncryptionTest extends OutboundTestCase
     }
 
     /**
-     * An xenc:EncryptedData names the element carrying the key, by wsu:Id, which is what every stack emitting
-     * this shape reads. The EncryptedKeySHA1 form names the key itself and belongs on a signature, where the
-     * key may not be in the same header at all.
+     * A block alone with its key nests the reference list inside the xenc:EncryptedKey, which is the shape every
+     * stack has always read, and says nothing on the xenc:EncryptedData because the nesting already ties the key
+     * to the parts.
      */
-    public function test_every_encrypted_data_points_at_the_local_encrypted_key(): void
+    public function test_a_lone_encryption_nests_its_reference_list_in_the_key(): void
     {
         $document = $this->envelopeWithSecurity();
         (new Encryption(new WrappedSessionKey($this->recipientCertificate())))
             ->withEncryptor($this->realEncryptor())($this->context($document));
 
-        $encryptedKeyId = $this->only($document, self::XENC, 'EncryptedKey')->getAttributeNS(self::WSU, 'Id');
-        static::assertNotSame('', $encryptedKeyId);
-
-        $reference = $this->only($document, self::XENC, 'EncryptedData')
-            ->getElementsByTagNameNS(self::WSSE, 'Reference')
-            ->item(0);
-        static::assertInstanceOf(Element::class, $reference);
-        static::assertSame('#'.$encryptedKeyId, $reference->getAttribute('URI'));
+        static::assertSame(
+            'EncryptedKey',
+            $this->only($document, self::XENC, 'ReferenceList')->parentNode?->localName,
+        );
+        static::assertSame(
+            0,
+            $this->only($document, self::XENC, 'EncryptedData')
+                ->getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'KeyInfo')
+                ->count(),
+        );
     }
 
     public function test_it_encrypts_the_body_and_round_trips_through_the_engine_decryptor(): void
@@ -406,13 +409,13 @@ final class EncryptionTest extends OutboundTestCase
 
         (new Encryption(new WrappedSessionKey($certificate)))->withEncryptor($this->realEncryptor())($this->context($document));
 
-        // One EncryptedKey in the Security header, one ReferenceList beside it, one EncryptedData replacing
-        // the Body content, one DataReference.
+        // One EncryptedKey in the Security header, its ReferenceList nested inside it, one EncryptedData
+        // replacing the Body content, one DataReference.
         $encryptedKey = $this->only($document, self::XENC, 'EncryptedKey');
         static::assertSame('Security', $encryptedKey->parentNode?->localName);
         static::assertCount(1, $this->elements($document, self::XENC, 'EncryptedData'));
         $referenceList = $this->only($document, self::XENC, 'ReferenceList');
-        static::assertSame('Security', $referenceList->parentNode?->localName);
+        static::assertSame('EncryptedKey', $referenceList->parentNode?->localName);
         static::assertSame(1, $referenceList->getElementsByTagNameNS(self::XENC, 'DataReference')->count());
 
         $encryptedData = $this->only($document, self::XENC, 'EncryptedData');
