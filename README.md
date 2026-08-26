@@ -115,13 +115,13 @@ default you are about to change, drop one level down:
 | Take a closer look at | For |
 |---|---|
 | [Outbound blocks](docs/outbound-blocks.md) | Every argument and `with*()` method of `Timestamp`, `Username`, `BinarySecurityToken`, `Signature`, `Encryption`, `SamlAssertion` |
-| [Inbound blocks](docs/inbound-blocks.md) | The same for `Decrypt`, `VerifySignature`, `ValidateTimestamp`, and what a `soap:Fault` reply gives you |
+| [Inbound blocks](docs/inbound-blocks.md) | The same for `ResolveOptimizedBytes`, `Decrypt`, `VerifySignature`, `ValidateTimestamp`, and what a `soap:Fault` reply gives you |
 | [Choosing parts and key references](docs/parts-and-key-references.md) | `Part`, the dynamic parts, `KeyRef` and `EncKeyRef` |
 | [Key stores](docs/key-stores.md) | Loading certificates, private keys, PEM bundles and `.p12` / `.pfx` files |
 | [Trust](docs/trust.md) | Why a verified signature is not an authenticated peer, pinning, and opt-in revocation checking |
 | [Security profile and defaults](docs/security-profile.md) | `SecurityProfile`, `CryptoPolicy`, the inbound allow-lists, and what is rejected by default and why |
 | [The XML-Security layer](docs/xmlsecurity.md) | Swapping an engine service, and signing or encrypting plain XML without SOAP |
-| [Attachment security](docs/attachments.md) | Signing and encrypting SOAP attachments (SwA and MTOM), how much of a part a protection covers, the wire format, and what is refused |
+| [Attachment security](docs/attachments.md) | Signing and encrypting SOAP attachments (SwA and MTOM), cipher bytes travelling in MIME parts, how much of a part a protection covers, the wire format, and what is refused |
 | [Importing a peer's existing configuration](docs/importing-a-peer-configuration.md) | Turning a SoapUI project or an IBM WebSphere descriptor you were handed into these blocks |
 
 ## The building blocks
@@ -139,6 +139,7 @@ Every block is a small, immutable value object you drop into the `outbound` or `
 
 | Inbound | Checks |
 |---|---|
+| [`ResolveOptimizedBytes`](docs/inbound-blocks.md#inbound-resolveoptimizedbytes) | Puts back cipher bytes a peer moved into MIME parts, which CXF with MTOM and .NET do by default |
 | [`Decrypt`](docs/inbound-blocks.md#inbound-decrypt) | Decrypts the `xenc:EncryptedData` parts, and optionally the attachments, with your private key |
 | [`VerifySignature`](docs/inbound-blocks.md#inbound-verifysignature) | The signature verifies, and the parts and attachments you require were covered by a trusted signer (including a token covered through `#STR-Transform`) |
 | [`ValidateTimestamp`](docs/inbound-blocks.md#inbound-validatetimestamp) | The response is not stale, future-dated, or past its own `Expires` |
@@ -151,7 +152,8 @@ list you compose, so these are yours to get right:
 - **Outbound:** `Timestamp`, then the tokens (`Username`, `BinarySecurityToken`, `SamlAssertion`), then
   `Signature`, then `Encryption`. Signing before encrypting is what lets the receiver verify the signature over
   the plaintext it will read.
-- **Inbound:** `Decrypt`, then `VerifySignature`, then `ValidateTimestamp`. Verifying before decrypting fails
+- **Inbound:** `ResolveOptimizedBytes` (only if you registered it), then `Decrypt`, then `VerifySignature`,
+  then `ValidateTimestamp`. Verifying before decrypting fails
   closed against an encrypt-then-sign peer, so that mistake breaks loudly rather than silently.
 - **An empty `inbound` list checks nothing.** A client that signs every request and accepts any response at all
   is a valid configuration as far as this middleware is concerned. If you sign outbound, verify inbound.
