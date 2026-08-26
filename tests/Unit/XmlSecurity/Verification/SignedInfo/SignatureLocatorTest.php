@@ -10,7 +10,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignatureLocato
 use VeeWee\Xml\Dom\Document;
 
 /**
- * The locator reads the signature out of the scope its caller resolved, never out of the document. The
+ * The locator reads the signatures out of the scope its caller resolved, never out of the document. The
  * caller decides which region of the message is its own: for the WS-Security profile, the Security header
  * addressed to this receiver: so a ds:Signature sitting anywhere else belongs to another hop or was planted,
  * and must not be offered to the verifier.
@@ -26,10 +26,11 @@ final class SignatureLocatorTest extends TestCase
             '<wsse:Security><ds:Signature ds:Id="ours"/></wsse:Security>',
         );
 
-        $signature = (new SignatureLocator())->locate($this->scope($document, 0));
+        $signatures = (new SignatureLocator())->locate($this->scope($document, 0));
 
-        static::assertSame('Signature', $signature->localName);
-        static::assertSame('ours', $signature->getAttributeNS(self::DS, 'Id'));
+        static::assertCount(1, $signatures);
+        static::assertSame('Signature', $signatures[0]->localName);
+        static::assertSame('ours', $signatures[0]->getAttributeNS(self::DS, 'Id'));
     }
 
     public function test_it_refuses_a_signature_that_lives_outside_the_scope(): void
@@ -56,14 +57,49 @@ final class SignatureLocatorTest extends TestCase
         (new SignatureLocator())->locate($this->scope($document, 0));
     }
 
-    public function test_it_refuses_two_signatures_in_the_scope(): void
+    /**
+     * Several are returned, in document order. What keeps that safe is not a count: the orchestrator requires
+     * every one of them to verify, so an injected extra signature refuses the message rather than offering an
+     * alternative to validate.
+     */
+    public function test_it_returns_every_signature_in_the_scope_in_document_order(): void
     {
         $document = $this->document(
             '<wsse:Security><ds:Signature ds:Id="a"/><ds:Signature ds:Id="b"/></wsse:Security>',
         );
 
+        $signatures = (new SignatureLocator())->locate($this->scope($document, 0));
+
+        static::assertCount(2, $signatures);
+        static::assertSame('a', $signatures[0]->getAttributeNS(self::DS, 'Id'));
+        static::assertSame('b', $signatures[1]->getAttributeNS(self::DS, 'Id'));
+    }
+
+    /**
+     * Each signature costs a canonicalization, a digest per reference and a crypto operation, so an unbounded
+     * count is a denial-of-service lever rather than a richer message.
+     */
+    public function test_it_refuses_more_signatures_than_the_cap(): void
+    {
+        $document = $this->document(
+            '<wsse:Security>'.str_repeat('<ds:Signature/>', SignatureLocator::MAX_SIGNATURES + 1).'</wsse:Security>',
+        );
+
         $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('too many signatures');
         (new SignatureLocator())->locate($this->scope($document, 0));
+    }
+
+    public function test_it_accepts_exactly_the_cap(): void
+    {
+        $document = $this->document(
+            '<wsse:Security>'.str_repeat('<ds:Signature/>', SignatureLocator::MAX_SIGNATURES).'</wsse:Security>',
+        );
+
+        static::assertCount(
+            SignatureLocator::MAX_SIGNATURES,
+            (new SignatureLocator())->locate($this->scope($document, 0)),
+        );
     }
 
     public function test_it_refuses_a_scope_carrying_no_signature(): void

@@ -174,12 +174,21 @@ new Inbound\VerifySignature(
 - `withPreSharedKey(PreSharedSessionKey $key): self`: register a secret no outbound direction established, so a
   symmetric signature keyed by it can be verified. Same source and same reasoning as on `Decrypt`.
 
-A response is verified against **one** signature: exactly one `ds:Signature` directly inside the header
-addressed to you. A second one is refused rather than chosen between, which is what stops an injected signature
-offering the verifier an alternative to validate. So a peer that endorses its own response signature the way
-[the outbound side can](outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control) sends something
-this block refuses. Deciding which of two signatures is primary, from a message an attacker also gets to shape,
-has no safe default.
+A response may carry more than one `ds:Signature` directly inside the header addressed to you, and **every one
+of them must verify**. That is what lets a peer endorse its own response signature the way
+[the outbound side can](outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control), and it is also
+what makes an injected signature refuse the message: a second one is one more thing that must hold, never an
+alternative the verifier may pick. What you may require is the union of what they covered. Signatures nested
+deeper than a direct child are still not candidates at all, which is the wrapping defense and does not depend on
+how many there are. The count is bounded, because each signature costs a canonicalization, a digest per
+reference and a crypto operation.
+
+**Every certificate-keyed signature in the header must be by the same signer.** Where you anchor trust on a CA
+rather than pinning the peer, anyone holding a certificate that CA issued can produce a signature this block
+accepts, so without this rule they could append their own token and a signature over it to a message your peer
+signed: a `Part::securityHeaderContents()` requirement would then be satisfied partly by each, and nothing in
+the result would tell you. A message genuinely signed by two identities is refused rather than merged, because
+which parts each of them vouched for is a question this reports no answer to.
 - `withAttachments(ExternalParts $attachments): self`: require the response's attachments to be covered by the
   verified signature. Off by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).

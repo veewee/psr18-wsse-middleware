@@ -539,12 +539,16 @@ throws too: which of them a reader treats as primary is not something document o
 excludes every `ds:Signature` in both directions, because a signature is never one of the parts it covers and
 outbound it does not yet exist when the parts are resolved.
 
-**This is outbound only.** `Inbound\VerifySignature` requires exactly one `ds:Signature` directly inside the
-header it scopes to, so that a second injected one cannot offer the verifier an alternative to validate. An
-endorsed message a *peer* sent you is refused by that same rule. Verifying one would mean deciding which of two
-signatures is the primary and which the endorsement, from a message an attacker also gets to shape, and that
-decision has no safe default. Same shape as the Holder-of-Key flow below, which is outbound only for its own
-reasons.
+An endorsed message a peer sends you verifies too. `Inbound\VerifySignature` checks **every** `ds:Signature`
+directly inside the header it scopes to and requires each of them to verify, so what you may require is the union
+of what they covered. A second signature is one more thing that must hold rather than an alternative the
+verifier may pick, which is what makes an injected one refuse the message.
+
+`Part::primarySignature()` is outbound only, though. Required inbound it refuses an endorsed message, because
+such a message carries two signatures and which of them is primary is not something document order decides on a
+message a peer shaped. **To require that a response was endorsed at all, register an identity check**: a
+signature keyed by a shared secret names nobody, so `onTrustedSigner` has a signer to run against only when a
+certificate also signed.
 
 ## Outbound: `SamlAssertion`
 

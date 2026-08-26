@@ -114,7 +114,77 @@ final class Verifier implements XmlSignatureVerifier
 
     public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature
     {
-        $signature = $this->signatureLocator->locate($scope);
+        $elements = [];
+        $ids = [];
+        $externalParts = [];
+        $signers = [];
+
+        // Every signature the scope carries, and every one of them has to verify. What a caller may rely on is
+        // the union of what they covered, which is what makes an endorsing supporting token work: the primary
+        // signature covers the Body, the endorsement covers the primary. An injected extra signature is not an
+        // alternative to validate, it is one more thing that must hold, so it refuses the message.
+        foreach ($this->signatureLocator->locate($scope) as $signature) {
+            $verified = $this->verifyOne($document, $policy, $signature);
+
+            $elements = [...$elements, ...$verified->elements];
+            $ids = [...$ids, ...$verified->ids];
+            $externalParts = [...$externalParts, ...$verified->externalParts];
+            if ($verified->signer !== null) {
+                $signers[] = $verified->signer;
+            }
+        }
+
+        $this->assertOneSignerAtMost($signers);
+
+        return new VerifiedSignature(
+            new VerifiedReferences($elements, $ids),
+            $signers,
+            ExternalPartList::of(...$externalParts),
+        );
+    }
+
+    /**
+     * Every certificate-keyed signature in one scope must be by the same signer.
+     *
+     * Without this the union of coverage would span parties. Where trust is anchored on a CA rather than pinned
+     * to the peer, anyone holding a certificate that CA issued can produce a signature this verifier accepts, so
+     * they could append their own token and a signature over it to a message the real peer signed. A coverage
+     * requirement naming the Security header contents would then be satisfied partly by the peer and partly by
+     * the attacker, and a caller reading "every token was signed" would have no way to tell.
+     *
+     * One signer is what a message from one party looks like, endorsement included: the endorsing token belongs
+     * to the sender. A message genuinely signed by two identities, a countersignature by a notary say, is
+     * refused rather than merged, because which parts each of them vouched for is a question this reports no
+     * answer to.
+     *
+     * @param list<TrustedSigner> $signers
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function assertOneSignerAtMost(array $signers): void
+    {
+        $seen = null;
+        foreach ($signers as $signer) {
+            $certificate = $signer->certificate()->toBase64Der();
+            $seen ??= $certificate;
+
+            if ($seen !== $certificate) {
+                throw SignatureVerificationFailed::withReason('The scope carries signatures by more than one signer.');
+            }
+        }
+    }
+
+    /**
+     * One signature, verified whole: its algorithms allow-listed, its key resolved and held against its method,
+     * every reference resolved and digested, and finally the signature value itself.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function verifyOne(
+        Document $document,
+        VerificationPolicy $policy,
+        Element $signature,
+    ): VerifiedOneSignature {
         $signedInfo = $this->signedInfoParser->parse(
             $signature,
             $policy->externalParts?->transform,
@@ -152,23 +222,20 @@ final class Verifier implements XmlSignatureVerifier
         // What a signature covered is what it digested, so a reference whose transform substituted the
         // element reports the substituted one. A caller asserting coverage by identity is asking about the
         // token, never about the indirection that named it.
-        $elements = array_map(
-            static fn (ResolvedVerificationReference $reference): Element => $reference->digested(),
-            $resolved->elements,
-        );
-        $ids = array_map(
-            static fn (ResolvedVerificationReference $reference): string => $reference->id,
-            $resolved->elements,
-        );
-        $externalParts = array_map(
-            static fn (ResolvedExternalReference $reference): ExternalPart => $reference->part,
-            $resolved->external,
-        );
-
-        return new VerifiedSignature(
-            new VerifiedReferences($elements, $ids),
+        return new VerifiedOneSignature(
+            array_map(
+                static fn (ResolvedVerificationReference $reference): Element => $reference->digested(),
+                $resolved->elements,
+            ),
+            array_map(
+                static fn (ResolvedVerificationReference $reference): string => $reference->id,
+                $resolved->elements,
+            ),
+            array_map(
+                static fn (ResolvedExternalReference $reference): ExternalPart => $reference->part,
+                $resolved->external,
+            ),
             $verificationKey->signer,
-            ExternalPartList::of(...$externalParts),
         );
     }
 

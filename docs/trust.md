@@ -54,9 +54,15 @@ $expected = DistinguishedName::fromString('CN=payments.example.com,O=Example,C=B
   the certificate's own bytes for a per-message pin.
 
 A signature keyed by a symmetric secret names no signer: one key both produces and checks it, so there is no
-identity for a check to run against. A response like that with a check registered is **refused**, not accepted
-with the check quietly skipped. If your peer signs responses symmetrically, the identity the secret stands for
-is whatever established it, and the place to state that is the key source rather than here.
+identity for a check to run against. A message signed **only** that way, with a check registered, is
+**refused** rather than accepted with the check quietly skipped. That is also how you require a message to
+carry an endorsing signature: the check has a signer to run against only when a certificate signed too.
+
+When a message carries several signatures, the check runs against **every** signer and all of them must pass.
+All rather than any, because you are naming the identity you expected: a second signature from some other
+certificate your trust store happens to hold is exactly the thing you did not expect. It costs a message a
+lenient reading would have accepted, and it stops an identity you never named contributing to one you believe
+you checked.
 
 ## Revocation checking (opt-in)
 

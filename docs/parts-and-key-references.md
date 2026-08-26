@@ -77,7 +77,8 @@ every such element to have been signed.
 
   Unlike the other two it refuses rather than expanding to what it finds. No signature in the header means the
   endorsing block was placed before the block it endorses, which would otherwise sign nothing; two mean neither
-  is the primary one, and document order does not get to decide. See
+  is the primary one, and document order does not get to decide. That second rule makes it **outbound only**:
+  an endorsed message carries two signatures, so requiring this part inbound refuses it. See
   [Endorsing a signature](outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control).
 
 `KeyRef` (for signing), and `EncKeyRef` (for encryption) choose how your certificate is referenced:

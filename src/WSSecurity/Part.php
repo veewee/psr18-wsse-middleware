@@ -86,6 +86,12 @@ final readonly class Part
      * This is the only way to cover a signature. securityHeaderContents() deliberately excludes every
      * ds:Signature in both directions, since a signature is never one of the parts it covers and outbound it
      * does not yet exist when the parts are resolved.
+     *
+     * Outbound only, in effect. Required inbound it refuses an endorsed message, because such a message carries
+     * two signatures and which of them is primary is not something document order decides on a message a peer
+     * shaped. To require that a response was endorsed at all, register an identity check instead: a signature
+     * keyed by a shared secret names nobody, so the check has a signer to run against only when a certificate
+     * also signed.
      */
     public static function primarySignature(): self
     {

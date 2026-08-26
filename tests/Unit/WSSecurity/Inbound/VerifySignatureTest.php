@@ -284,7 +284,7 @@ final class VerifySignatureTest extends TestCase
      */
     private function signed(array $elements): VerifiedSignature
     {
-        return new VerifiedSignature(new VerifiedReferences($elements), $this->signer());
+        return new VerifiedSignature(new VerifiedReferences($elements), [$this->signer()]);
     }
 
     private function signer(): TrustedSigner

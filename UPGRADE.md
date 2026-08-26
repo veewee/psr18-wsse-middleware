@@ -353,8 +353,13 @@ Security-header token (or every other SOAP header, or the primary signature) was
 supporting token covers. It is the only way to cover a signature: `securityHeaderContents()` excludes every
 `ds:Signature` in both directions, so the two cannot double-cover one. Unlike the other dynamic parts it refuses
 rather than expanding to what it finds, because nothing to endorse and two things to endorse are both
-configurations that would otherwise protect nothing. See
+configurations that would otherwise protect nothing. That makes it outbound only, since an endorsed message
+carries two. See
 [Endorsing a signature](docs/outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control).
+
+Inbound, a scope may now carry **several** signatures and every one of them must verify, where the previous
+version refused a scope carrying more than one. `VerifiedSignature::$signer` is therefore
+`VerifiedSignature::$signers`, a list, and a registered `onTrustedSigner` check runs against each of them.
 
 `Outbound\Encryption` takes the same `withParts()` list to choose what gets encrypted, and defaults to the Body
 alone. Its `withEncryptSignature(bool)` switch is gone with the other booleans: and it used to default to

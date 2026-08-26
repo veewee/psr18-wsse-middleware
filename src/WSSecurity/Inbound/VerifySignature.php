@@ -227,16 +227,39 @@ final class VerifySignature implements InboundAction
             $this->assertEveryAttachmentSigned($registeredAttachments, $verified->signedExternalParts());
         }
 
-        if ($this->signerCheck !== null) {
-            // A symmetric signature names no signer, so a registered identity check has nothing to run against.
-            // Refused rather than skipped: a check that silently does not run is worse than none at all.
-            $signer = $verified->signer
-                ?? throw SecurityFault::inboundFailure(SignatureVerificationFailed::withReason(
-                    'The signature is keyed by a shared secret and names no signer to check.',
-                ));
+        $signerCheck = $this->signerCheck;
+        if ($signerCheck !== null) {
+            $this->assertEverySignerAccepted($verified->signers, $signerCheck);
+        }
+    }
 
+    /**
+     * The registered check runs against every signer the message carried, and all of them must pass.
+     *
+     * All rather than any: the caller is saying which identity they expected, so a second signature from some
+     * other certificate their trust store happens to hold is exactly the thing they did not expect. Refusing
+     * costs a message a lenient reading would have accepted; accepting would let an identity they never named
+     * contribute to a message they believe they checked.
+     *
+     * No signers at all means every signature was keyed by a shared secret, which names no party. Refused
+     * rather than skipped: a check that silently does not run is worse than none at all.
+     *
+     * @param list<TrustedSigner>           $signers
+     * @param callable(TrustedSigner): void $check
+     *
+     * @throws SecurityFault
+     */
+    private function assertEverySignerAccepted(array $signers, callable $check): void
+    {
+        if ($signers === []) {
+            throw SecurityFault::inboundFailure(SignatureVerificationFailed::withReason(
+                'The message is signed only by a shared secret and names no signer to check.',
+            ));
+        }
+
+        foreach ($signers as $signer) {
             try {
-                ($this->signerCheck)($signer);
+                $check($signer);
             } catch (Throwable $exception) {
                 throw SecurityFault::inboundFailure($exception);
             }

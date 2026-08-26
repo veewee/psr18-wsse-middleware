@@ -16,6 +16,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseKeyInfoResolver;
@@ -54,7 +55,7 @@ final class VerifierTest extends TestCase
 
         static::assertInstanceOf(VerifiedSignature::class, $result);
         static::assertTrue($result->signedElements->wasSigned($this->body($document)));
-        static::assertStringContainsString('WSSE Round Trip Leaf', $result->signer->subjectDistinguishedName()->toString());
+        static::assertStringContainsString('WSSE Round Trip Leaf', $result->signers[0]->subjectDistinguishedName()->toString());
     }
 
     /**
@@ -354,21 +355,100 @@ final class VerifierTest extends TestCase
         $this->verifier()->verify($document, $this->policy(WsseSignatureFixture::caSignedLeaf()->caCertificate), $this->security($document));
     }
 
-    public function test_it_rejects_more_than_one_signature(): void
+    /**
+     * A second signature is one more thing that must hold, not an alternative to validate. A copy of a genuine
+     * signature covers the same elements and verifies against the same key, so it changes nothing: what this
+     * pins is that the verifier does not refuse the message merely for carrying two.
+     */
+    public function test_a_second_signature_is_verified_as_well(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
+        $this->appendSignatureCopy($document, static fn (Element $copy): Element => $copy);
+
+        $result = $this->verifier()->verify(
+            $document,
+            $this->policy($fixture->caCertificate),
+            $this->security($document),
+        );
+
+        static::assertCount(2, $result->signers);
+        static::assertTrue($result->signedElements->wasSigned($this->body($document)));
+    }
+
+    /**
+     * The reason a count was never the protection: an injected signature has to verify like every other one,
+     * and one whose value was touched does not.
+     */
+    public function test_an_injected_second_signature_refuses_the_message(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
+
+        $this->appendSignatureCopy($document, static function (Element $copy): Element {
+            $value = $copy->getElementsByTagNameNS(WsseSignatureFixture::DS, 'SignatureValue')->item(0);
+            self::assertInstanceOf(Element::class, $value);
+            $encoded = trim($value->textContent);
+            $value->textContent = ($encoded[0] === 'A' ? 'B' : 'A').substr($encoded, 1);
+
+            return $copy;
+        });
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
+    }
+
+    /**
+     * Where trust is anchored on a CA rather than pinned to the peer, anyone that CA issued a certificate to can
+     * produce a signature this verifier accepts. Merging their coverage with the peer's would let them satisfy
+     * a requirement the peer never met, so a scope signed by two identities is refused rather than merged.
+     */
+    public function test_a_scope_signed_by_two_different_signers_is_refused(): void
+    {
+        $peer = WsseSignatureFixture::caSignedLeaf();
+        $document = $peer->sign([WsseSignatureFixture::bodyTarget()]);
+
+        // A second signature over the same Body by a different leaf, which is what anyone holding a certificate
+        // the anchor issued can produce. Named by Subject Key Identifier so it needs no token of its own.
+        $other = WsseSignatureFixture::caSignedLeaf();
+        $other->sign(
+            [WsseSignatureFixture::bodyTarget()],
+            keyIdentifier: new X509SubjectKeyIdentifier($other->leafCertificate),
+            document: $document,
+        );
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('more than one signer');
+        $this->verifier()->verify(
+            $document,
+            new VerificationPolicy(
+                trustStore: TrustStore::fromCertificates(
+                    $peer->caCertificate,
+                    $other->caCertificate,
+                    $other->leafCertificate,
+                ),
+                crypto: CryptoPolicy::default(),
+            ),
+            $this->security($document),
+        );
+    }
+
+    /**
+     * @param callable(Element): Element $mangle
+     */
+    private function appendSignatureCopy(Document $document, callable $mangle): void
+    {
         $security = $document->toUnsafeDocument()
             ->getElementsByTagNameNS(WsseSignatureFixture::WSSE, 'Security')->item(0);
         static::assertInstanceOf(Element::class, $security);
         $signature = $document->toUnsafeDocument()
             ->getElementsByTagNameNS(WsseSignatureFixture::DS, 'Signature')->item(0);
         static::assertInstanceOf(Element::class, $signature);
-        $security->appendChild($signature->cloneNode(true));
 
-        $this->expectException(SignatureVerificationFailed::class);
-        $this->verifier()->verify($document, $this->policy($fixture->caCertificate), $this->security($document));
+        $copy = $signature->cloneNode(true);
+        static::assertInstanceOf(Element::class, $copy);
+        $security->appendChild($mangle($copy));
     }
 
     public function test_a_relocated_signed_element_is_resolved_by_id_so_a_wrapper_copy_is_not_signed(): void

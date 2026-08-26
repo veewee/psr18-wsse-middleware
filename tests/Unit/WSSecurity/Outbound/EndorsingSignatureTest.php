@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
@@ -94,11 +95,10 @@ final class EndorsingSignatureTest extends TestCase
     }
 
     /**
-     * Endorsing is outbound only. The verifier requires exactly one ds:Signature directly inside the header it
-     * scopes to, so that a second injected one cannot offer it an alternative to validate, and an endorsed
-     * message a peer sent is refused by that same rule. This pins the limitation rather than the wish.
+     * An endorsed message verifies inbound: both signatures are checked, and what a caller may require is the
+     * union of what they covered.
      */
-    public function test_an_endorsed_message_cannot_be_verified_inbound(): void
+    public function test_an_endorsed_message_verifies_inbound(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $keys = new ExchangeKeys();
@@ -110,6 +110,110 @@ final class EndorsingSignatureTest extends TestCase
             ->withParts([Part::body()])($context);
         (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
             ->withParts([Part::primarySignature()])($context);
+
+        (new VerifySignature(
+            TrustStore::fromCertificates($fixture->caCertificate),
+            signed: [Part::body()],
+        ))($this->context($document, $keys));
+
+        static::assertCount(2, $this->signatures($document));
+    }
+
+    /**
+     * Requiring the primary signature inbound is a question with no answer once a message carries two: which of
+     * them is primary is not something document order decides, and the message is a peer's to shape. So the
+     * part stays outbound-only, and asking for it inbound refuses rather than picks.
+     */
+    public function test_requiring_the_primary_signature_inbound_is_refused_as_ambiguous(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $fixture->envelope();
+        $context = $this->context($document, $keys);
+
+        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($context);
+        (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
+            ->withParts([Part::primarySignature()])($context);
+
+        $this->expectException(SecurityFault::class);
+        (new VerifySignature(
+            TrustStore::fromCertificates($fixture->caCertificate),
+            signed: [Part::body(), Part::primarySignature()],
+        ))($this->context($document, $keys));
+    }
+
+    /**
+     * How a caller requires that a message was endorsed at all: a signature keyed by a shared secret names
+     * nobody, so a registered identity check has a signer to run against only when a certificate also signed.
+     */
+    public function test_a_signer_check_refuses_an_unendorsed_symmetric_message(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $fixture->envelope();
+
+        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($this->context($document, $keys));
+
+        $this->expectException(SecurityFault::class);
+        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))
+            ->onTrustedSigner(static function (TrustedSigner $signer): void {
+            })($this->context($document, $keys));
+    }
+
+    /**
+     * The endorsement is what carries an identity here: the primary signature is keyed by a session key anyone
+     * holding the recipient's certificate could have minted, so it names nobody. A registered signer check
+     * therefore has exactly one signer to run against, and it is the endorser's.
+     */
+    public function test_the_endorser_is_the_identity_a_signer_check_sees(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $fixture->envelope();
+        $context = $this->context($document, $keys);
+
+        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($context);
+        (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
+            ->withParts([Part::primarySignature()])($context);
+
+        $seen = [];
+        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))
+            ->onTrustedSigner(static function (TrustedSigner $signer) use (&$seen): void {
+                $seen[] = $signer->subjectDistinguishedName()->toString();
+            })($this->context($document, $keys));
+
+        static::assertCount(1, $seen);
+        static::assertStringContainsString('WSSE Round Trip Leaf', $seen[0]);
+    }
+
+    /**
+     * A second signature is one more thing that must hold. One a peer could not have produced refuses the
+     * message, which is why a count was never what made this safe.
+     */
+    public function test_an_endorsement_that_does_not_verify_refuses_the_message(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $fixture->envelope();
+        $context = $this->context($document, $keys);
+
+        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($context);
+        (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
+            ->withParts([Part::primarySignature()])($context);
+
+        $endorsing = $this->signatures($document)[1];
+        $value = $endorsing->getElementsByTagNameNS(self::DS, 'SignatureValue')->item(0);
+        static::assertInstanceOf(Element::class, $value);
+        $encoded = trim($value->textContent);
+        $value->textContent = ($encoded[0] === 'A' ? 'B' : 'A').substr($encoded, 1);
 
         $this->expectException(SecurityFault::class);
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))(

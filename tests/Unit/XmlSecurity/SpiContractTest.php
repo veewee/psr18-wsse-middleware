@@ -100,10 +100,10 @@ final class SpiContractTest extends TestCase
         $references = new VerifiedReferences([]);
         $signer = new TrustedSigner(DistinguishedName::fromString('CN=test'), new Certificate('cert'));
 
-        $signature = new VerifiedSignature($references, $signer);
+        $signature = new VerifiedSignature($references, [$signer]);
 
         static::assertSame($references, $signature->signedElements);
-        static::assertSame($signer, $signature->signer);
+        static::assertSame([$signer], $signature->signers);
     }
 
     private function container(): Element

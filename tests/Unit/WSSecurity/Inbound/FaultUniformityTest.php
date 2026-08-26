@@ -210,7 +210,7 @@ final class FaultUniformityTest extends TestCase
         // The verifier succeeds but reports an empty signed set, so the required Body is not covered.
         $verified = new VerifiedSignature(
             new VerifiedReferences([]),
-            new TrustedSigner(DistinguishedName::fromString('CN=test'), new Certificate('pem')),
+            [new TrustedSigner(DistinguishedName::fromString('CN=test'), new Certificate('pem'))],
         );
 
         (new VerifySignature($this->trustStore(), signed: [Part::body()]))
