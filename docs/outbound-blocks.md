@@ -125,12 +125,12 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   embed no token. See [Choosing parts and key references](parts-and-key-references.md).
 - `withAttachments(ExternalParts $attachments): self`: also cover the message's attachments, in the same
   `ds:Signature` as the in-document parts. Off by default. Pass
-  `AttachmentParts::request($attachmentStorage)`; see [Attachment security](attachments.md).
+  `AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Complete)`; see [Attachment security](attachments.md).
   ```php
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 
   (new Outbound\Signature($clientCertificate))
-      ->withAttachments(AttachmentParts::request($attachmentStorage));
+      ->withAttachments(AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Complete));
   ```
   The second argument says how much of each part the signature covers: `ExternalPartCoverage::Content` by
   default, `Complete` to cover the canonical MIME header block as well. A bare `<sp:Attachments/>` in the
@@ -237,12 +237,12 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
   the check runs when `withParts()` is called.
 - `withAttachments(ExternalParts $attachments): self`: also encrypt the message's attachments, under the same
   session key and in the same `xenc:EncryptedKey`. Off by default. Pass
-  `AttachmentParts::request($attachmentStorage)`; see [Attachment security](attachments.md).
+  `AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Content)`; see [Attachment security](attachments.md).
   ```php
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 
   (new Outbound\Encryption($recipient))
-      ->withAttachments(AttachmentParts::request($attachmentStorage));
+      ->withAttachments(AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Content));
   ```
   This block emits content-only ciphertext, so an adapter built with `ExternalPartCoverage::Complete` is
   refused. No policy can require the wider one: a peer validates the coverage of a signature and never of an

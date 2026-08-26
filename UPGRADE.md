@@ -490,11 +490,11 @@ new WsseMiddleware(
     new SecurityProfile(),
     outbound: [
         (new Outbound\Signature($clientCertificate))
-            ->withAttachments(AttachmentParts::request($attachments)),
+            ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete)),
     ],
     inbound: [
         (new Inbound\VerifySignature($trustStore))
-            ->withAttachments(AttachmentParts::response($attachments)),
+            ->withAttachments(AttachmentParts::response($attachments, ExternalPartCoverage::Complete)),
     ],
 ),
 new AttachmentsMiddleware($attachments, AttachmentType::Swa),

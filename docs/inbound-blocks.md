@@ -26,13 +26,13 @@ new Inbound\Decrypt($privateKey);
 
 - `Key $privateKey`: your recipient private key as a `KeyStore\Key`. Required.
 - `withAttachments(ExternalParts $attachments): self`: also decrypt the response's encrypted attachments. Off
-  by default. Pass `AttachmentParts::response($attachmentStorage)`; see
+  by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).
   ```php
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 
   (new Inbound\Decrypt($privateKey))
-      ->withAttachments(AttachmentParts::response($attachmentStorage));
+      ->withAttachments(AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete));
   ```
   The second argument says which coverage the peer's ciphertext must declare, and it is a requirement rather
   than a hint: a `Complete` adapter refuses a content-only `@Type` and the other way round. A
@@ -95,13 +95,13 @@ new Inbound\VerifySignature(
   message carrying a signature from any trusted certificate passes, whatever that signature actually covers.
   Pass `null` (or omit the argument) if you want the default; pass a list only when you mean every part in it.
 - `withAttachments(ExternalParts $attachments): self`: require the response's attachments to be covered by the
-  verified signature. Off by default. Pass `AttachmentParts::response($attachmentStorage)`; see
+  verified signature. Off by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).
   ```php
   use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 
   (new Inbound\VerifySignature($trustStore, signed: [Part::body()]))
-      ->withAttachments(AttachmentParts::response($attachmentStorage));
+      ->withAttachments(AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete));
   ```
   The second argument says which coverage each reference must declare, and it is a requirement rather than a
   hint: a `Complete` adapter refuses a reference declaring the content transform. See

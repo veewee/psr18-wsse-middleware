@@ -43,17 +43,17 @@ $transport = Psr18Transport::createForClient(
                 new Outbound\Timestamp(),
                 // Sign first, so the digest covers the plaintext attachment.
                 (new Outbound\Signature($clientCertificate))
-                    ->withAttachments(AttachmentParts::request($attachments)),
+                    ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete)),
                 (new Outbound\Encryption($recipientCertificate))
                     ->withParts([Part::body()])
-                    ->withAttachments(AttachmentParts::request($attachments)),
+                    ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Content)),
             ],
             inbound: [
                 // Decrypt first, so the signature is verified against the plaintext.
                 (new Inbound\Decrypt($privateKey))
-                    ->withAttachments(AttachmentParts::response($attachments)),
+                    ->withAttachments(AttachmentParts::response($attachments, ExternalPartCoverage::Complete)),
                 (new Inbound\VerifySignature($trustStore))
-                    ->withAttachments(AttachmentParts::response($attachments)),
+                    ->withAttachments(AttachmentParts::response($attachments, ExternalPartCoverage::Complete)),
                 new Inbound\ValidateTimestamp(),
             ],
         ),
@@ -207,7 +207,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 // EncryptedParts is satisfied by either, so content-only is the cheaper choice.
 (new Outbound\Encryption($recipientCertificate))
     ->withParts([Part::body()])
-    ->withAttachments(AttachmentParts::request($attachments));
+    ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Content));
 
 // A default-configured CXF sender encrypts Complete, so accept that on the way in.
 (new Inbound\Decrypt($privateKey))
@@ -217,15 +217,12 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 The asymmetry is not an oversight: it is what the two policy validators require. Building two adapters is the
 supported way to express it, since they are cheap immutable values.
 
-**The default is `Content` and the recommendation is `Complete`.** They pull in opposite directions on
-purpose. The recommendation is what your peer's WSDL most likely means, since a bare `<sp:Attachments/>` is
-the common case. The default is `Content` because it is the only coverage `Outbound\Encryption` emits, so a
-`Complete` default would refuse the ordinary encryption wiring for a choice a peer never validates. It also
-matches what the Java library defaults to when a coverage is not stated; it is the policy layer above it, not
-the library, that reads a bare assertion as `Complete`.
+**There is no default: the coverage is required.** It is not a preference to be nudged by a sensible
+starting value. Your peer's policy decides it, both wrong answers are refused by that peer, and a default
+would let the decision be skipped by somebody who never opened the WSDL. The table above is the whole rule.
 
-So: pass the coverage on a signing or verifying adapter, where the WSDL decides it. Leave it alone on an
-encrypting one.
+On an encrypting block the answer is always `Content`, since that is the only coverage this package emits
+and a peer never validates an encryption's scope. Everywhere else, read the policy.
 
 **Inbound, the coverage you configure is a requirement rather than a hint.** A `Complete` adapter on
 `VerifySignature` refuses a reference declaring the content transform, and `Decrypt` refuses the wrong

@@ -303,7 +303,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
         $document = $fixture->envelope();
 
         $block = (new Encryption($fixture->leafCertificate))
-            ->withAttachments(AttachmentParts::request($storage));
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content));
         if ($parts !== null) {
             $block = $block->withParts($parts);
         }
@@ -319,7 +319,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
         AttachmentStorageInterface $storage,
     ): void {
         (new Decrypt($fixture->leafKey))
-            ->withAttachments(AttachmentParts::request($storage))(
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
                 new WsseContext($document, SoapVersion::Soap12, $this->profile()),
             );
     }

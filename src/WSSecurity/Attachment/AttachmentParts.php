@@ -28,6 +28,10 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
  * Named after what it adapts rather than after SwA, because the mechanism is identical under MTOM: both put
  * the bytes in a MIME part addressed by a cid. This is the only class in this package that names the
  * attachments middleware, and the engine below it never hears the word attachment.
+ *
+ * The coverage is required rather than defaulted. It is not a preference: a peer's policy decides it, both
+ * wrong answers are refused by that peer, and a default would let the decision be skipped by someone who
+ * never read the WSDL. See docs/attachments.md for the table that turns a policy into this argument.
  */
 final readonly class AttachmentParts implements ExternalParts
 {
@@ -45,7 +49,7 @@ final readonly class AttachmentParts implements ExternalParts
 
     public static function request(
         AttachmentStorageInterface $storage,
-        ExternalPartCoverage $coverage = ExternalPartCoverage::Content,
+        ExternalPartCoverage $coverage,
     ): self {
         self::assertSupported();
 
@@ -54,7 +58,7 @@ final readonly class AttachmentParts implements ExternalParts
 
     public static function response(
         AttachmentStorageInterface $storage,
-        ExternalPartCoverage $coverage = ExternalPartCoverage::Content,
+        ExternalPartCoverage $coverage,
     ): self {
         self::assertSupported();
 

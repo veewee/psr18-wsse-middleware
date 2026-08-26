@@ -146,7 +146,7 @@ final class VerifyAttachmentSignatureRoundTripTest extends TestCase
             [WsseSignatureFixture::timestampTarget()],
             withTimestamp: true,
             externalParts: new ExternalPartSignature(
-                AttachmentParts::response($storage)->collect(),
+                AttachmentParts::response($storage, ExternalPartCoverage::Content)->collect(),
                 self::SWA_CONTENT_TRANSFORM,
             ),
         );

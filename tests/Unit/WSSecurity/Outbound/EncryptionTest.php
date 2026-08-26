@@ -197,7 +197,7 @@ final class EncryptionTest extends OutboundTestCase
         (new Encryption($this->recipientCertificate()))
             ->withEncryptor($encryptor)
             ->withParts([])
-            ->withAttachments(AttachmentParts::request($storage))($this->context($this->envelope()));
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))($this->context($this->envelope()));
 
         static::assertSame([], $encryptor->lastRequest()->targets);
         static::assertNotNull($encryptor->lastRequest()->externalParts);

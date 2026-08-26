@@ -23,8 +23,8 @@ final class AttachmentPartsTest extends TestCase
     {
         $storage = new AttachmentStorage();
 
-        static::assertSame(ExternalPartCoverage::Content, AttachmentParts::request($storage)->coverage());
-        static::assertSame(ExternalPartCoverage::Content, AttachmentParts::response($storage)->coverage());
+        static::assertSame(ExternalPartCoverage::Content, AttachmentParts::request($storage, ExternalPartCoverage::Content)->coverage());
+        static::assertSame(ExternalPartCoverage::Content, AttachmentParts::response($storage, ExternalPartCoverage::Content)->coverage());
     }
 
     public function test_it_collects_request_attachments_as_external_parts(): void
@@ -34,7 +34,7 @@ final class AttachmentPartsTest extends TestCase
             Attachment::cid('invoice@example.com', 'file', 'invoice.pdf', $this->stream('%PDF-1.7'))
         );
 
-        $parts = AttachmentParts::request($storage)->collect();
+        $parts = AttachmentParts::request($storage, ExternalPartCoverage::Content)->collect();
 
         static::assertCount(1, $parts);
         $part = $parts->byReference('cid:invoice@example.com');
@@ -53,7 +53,7 @@ final class AttachmentPartsTest extends TestCase
             Attachment::cid('in@example.com', 'file', 'in.pdf', $this->stream('inbound'))
         );
 
-        $parts = AttachmentParts::response($storage)->collect();
+        $parts = AttachmentParts::response($storage, ExternalPartCoverage::Content)->collect();
 
         static::assertCount(1, $parts);
         static::assertNotNull($parts->byReference('cid:in@example.com'));
@@ -66,7 +66,7 @@ final class AttachmentPartsTest extends TestCase
         $storage->requestAttachments()->add(
             Attachment::cid('invoice@example.com', 'file', 'invoice.pdf', $this->stream('%PDF-1.7'))
         );
-        $parts = AttachmentParts::request($storage);
+        $parts = AttachmentParts::request($storage, ExternalPartCoverage::Content);
 
         // Sign-then-encrypt collects twice over one message: the signature reads the plaintext to
         // digest it, then encryption reads the same plaintext to seal it.
@@ -82,7 +82,7 @@ final class AttachmentPartsTest extends TestCase
     public function test_it_resolves_the_collection_on_every_call(): void
     {
         $storage = new AttachmentStorage();
-        $parts = AttachmentParts::request($storage);
+        $parts = AttachmentParts::request($storage, ExternalPartCoverage::Content);
         $storage->requestAttachments()->add(
             Attachment::cid('first@example.com', 'file', 'first.pdf', $this->stream('first'))
         );
@@ -108,7 +108,7 @@ final class AttachmentPartsTest extends TestCase
             Attachment::cid('invoice@example.com', 'file', 'invoice.pdf', $this->stream('%PDF-1.7'))
         );
 
-        AttachmentParts::request($storage)->replace(ExternalPartList::of(
+        AttachmentParts::request($storage, ExternalPartCoverage::Content)->replace(ExternalPartList::of(
             new ExternalPart('cid:invoice@example.com', 'application/octet-stream', $this->stream('ciphertext'))
         ));
 
@@ -131,7 +131,7 @@ final class AttachmentPartsTest extends TestCase
 
         // Inbound, replace() is handed only the parts an EncryptedData actually named. An attachment
         // that arrived unencrypted must survive untouched rather than be dropped.
-        AttachmentParts::response($storage)->replace(ExternalPartList::of(
+        AttachmentParts::response($storage, ExternalPartCoverage::Content)->replace(ExternalPartList::of(
             new ExternalPart('cid:sealed@example.com', 'application/pdf', $this->stream('plaintext'))
         ));
 
@@ -153,7 +153,7 @@ final class AttachmentPartsTest extends TestCase
             new Attachment('<invoice@example.com>', 'file', 'invoice.pdf', '', $this->stream('%PDF-1.7'))
         );
 
-        $part = AttachmentParts::request($storage)->collect()->byReference('cid:invoice@example.com');
+        $part = AttachmentParts::request($storage, ExternalPartCoverage::Content)->collect()->byReference('cid:invoice@example.com');
 
         static::assertNotNull($part);
         static::assertSame('application/octet-stream', $part->mimeType);
@@ -171,7 +171,7 @@ final class AttachmentPartsTest extends TestCase
             'No attachment answers the external part reference "cid:stranger@example.com".'
         );
 
-        AttachmentParts::request($storage)->replace(ExternalPartList::of(
+        AttachmentParts::request($storage, ExternalPartCoverage::Content)->replace(ExternalPartList::of(
             new ExternalPart('cid:stranger@example.com', 'application/pdf', $this->stream('x'))
         ));
     }
@@ -218,7 +218,7 @@ final class AttachmentPartsTest extends TestCase
             Attachment::cid('invoice@example.com', 'invoice', 'invoice.pdf', $this->stream('%PDF-1.7'))
         );
 
-        $part = AttachmentParts::request($storage)->collect()->byReference('cid:invoice@example.com');
+        $part = AttachmentParts::request($storage, ExternalPartCoverage::Content)->collect()->byReference('cid:invoice@example.com');
 
         static::assertNotNull($part);
         static::assertSame('%PDF-1.7', $part->content->getContents());
@@ -269,7 +269,7 @@ final class AttachmentPartsTest extends TestCase
             $this->stream('%PDF-1.7')
         ));
 
-        $part = AttachmentParts::request($storage)->collect()->byReference('cid:report@example.com');
+        $part = AttachmentParts::request($storage, ExternalPartCoverage::Content)->collect()->byReference('cid:report@example.com');
 
         static::assertNotNull($part);
         static::assertSame('application/pdf; charset=UTF-8', $part->mimeType);
@@ -288,7 +288,7 @@ final class AttachmentPartsTest extends TestCase
             $this->stream('ciphertext')
         ));
 
-        AttachmentParts::response($storage)->replace(ExternalPartList::of(
+        AttachmentParts::response($storage, ExternalPartCoverage::Content)->replace(ExternalPartList::of(
             new ExternalPart('cid:invoice@example.com', 'text/xml; charset=UTF-8', $this->stream('<invoice/>'))
         ));
 
