@@ -128,29 +128,44 @@ final class DigestCalculatorTest extends TestCase
         static::assertSame(base64_encode(hash('sha256', '%PDF-1.7 raw', true)), $result->digestValueBase64);
     }
 
-    public function test_it_refuses_to_sign_a_text_external_part(): void
+    public function test_it_digests_a_text_part_with_its_line_endings_normalised(): void
     {
-        // The profile canonicalizes line endings in text content before digesting, and this cut does not
-        // implement that. Signing without it would produce a digest a peer that does implement it rejects.
-        $part = new ExternalPart('cid:note@example.com', 'text/plain', $this->stream('hello'));
+        // The transform normalizes line endings in text content before digesting, so the digest is over the
+        // normalized form rather than over the octets. A peer applying the same rule reproduces it.
+        $part = new ExternalPart('cid:note@example.com', 'text/plain', $this->stream("one\ntwo\r\nthree\rfour"));
 
-        $this->expectException(SigningFailed::class);
-        $this->expectExceptionMessage(
-            'Unable to sign the external part "cid:note@example.com": signing a text/plain part needs '
-            .'content line-ending canonicalization, which is not supported.'
-        );
-
-        (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+        $result = (new DigestCalculator(new DomCanonicalizer(), new Digest()))
             ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
+
+        static::assertSame(
+            base64_encode(hash('sha256', "one\r\ntwo\r\nthree\r\nfour", true)),
+            $result->digestValueBase64,
+        );
     }
 
-    public function test_it_refuses_any_text_subtype(): void
+    public function test_it_normalises_any_text_subtype(): void
     {
-        $part = new ExternalPart('cid:page@example.com', 'text/html; charset=utf-8', $this->stream('<p>x</p>'));
+        $part = new ExternalPart('cid:page@example.com', 'text/html; charset=utf-8', $this->stream("<p>\nx</p>"));
 
-        $this->expectException(SigningFailed::class);
-        (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+        $result = (new DigestCalculator(new DomCanonicalizer(), new Digest()))
             ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
+
+        static::assertSame(
+            base64_encode(hash('sha256', "<p>\r\nx</p>", true)),
+            $result->digestValueBase64,
+        );
+    }
+
+    public function test_it_leaves_a_binary_part_alone_even_when_it_holds_line_endings(): void
+    {
+        // Only text is normalized. Rewriting a byte inside a binary part would digest something the file is
+        // not, and a peer digesting it verbatim would disagree.
+        $part = new ExternalPart('cid:file@example.com', 'application/pdf', $this->stream("a\nb\rc"));
+
+        $result = (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+            ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
+
+        static::assertSame(base64_encode(hash('sha256', "a\nb\rc", true)), $result->digestValueBase64);
     }
 
     #[DataProvider('xmlMediaTypes')]

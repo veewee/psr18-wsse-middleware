@@ -8,6 +8,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\ApexDefaultNamespace;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartContent;
 
 /**
  * Re-canonicalizes one resolved element with the same method the signature declared, digests the canonical
@@ -64,14 +65,17 @@ final class DigestVerifier
     }
 
     /**
-     * Digests an external part's octets exactly as they are and compares in constant time. No
-     * canonicalization: the content transform selects the bytes and normalizes nothing, so anything applied
-     * here would be a step the signer never took.
+     * Digests an external part's content under the same rule the signer applied to it and compares in
+     * constant time: a text part with its line endings normalized, anything else exactly as it travels.
+     *
+     * XML is refused rather than verified. Its canonicalization is not implemented, and digesting the octets
+     * as they are would answer a question nobody asked: whether a signature nobody would emit matches.
      *
      * The stream is rewound first, because the same part may already have been read on this message: the
      * decryption block ran before this one and replaced these bytes.
      *
-     * @throws SignatureVerificationFailed when the expected digest value is not valid base64
+     * @throws SignatureVerificationFailed when the expected digest value is not valid base64, or the part is
+     *         one whose canonicalization is not implemented
      */
     public function verifyExternalPart(ResolvedExternalReference $reference): bool
     {
@@ -80,8 +84,13 @@ final class DigestVerifier
             throw SignatureVerificationFailed::withReason('The digest value is not valid base64.');
         }
 
+        $part = $reference->part;
+        if (ExternalPartContent::isXml($part->mimeType)) {
+            throw SignatureVerificationFailed::withReason('A referenced part has an unsupported media type.');
+        }
+
         $actual = $this->digest->hash(
-            $reference->part->content->rewind()->getContents(),
+            ExternalPartContent::canonicalize($part->mimeType, $part->content->rewind()->getContents()),
             $reference->parsed->digestMethod,
         );
 

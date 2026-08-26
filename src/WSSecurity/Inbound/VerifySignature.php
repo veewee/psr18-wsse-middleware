@@ -131,13 +131,13 @@ final class VerifySignature implements InboundAction
         $attachments = $this->attachments;
         // Collected before the verifier runs, and the same list is used to check coverage afterwards, so the
         // parts the signature was checked against are exactly the parts the requirement is asserted over.
-        $registered = $attachments?->collect();
+        $registeredAttachments = $attachments?->collect();
         $policy = new VerificationPolicy(
             $this->trustStore,
             $context->profile()->crypto(),
-            $attachments !== null && $registered !== null
+            $attachments !== null && $registeredAttachments !== null
                 ? new ExternalPartVerification(
-                    $registered,
+                    $registeredAttachments,
                     AttachmentSignatureTransform::for($attachments->coverage())->value,
                 )
                 : null,
@@ -171,8 +171,8 @@ final class VerifySignature implements InboundAction
             $context->profile()->actorOrRole(),
         );
 
-        if ($registered !== null) {
-            $this->assertEveryAttachmentSigned($registered, $verified->signedExternalParts());
+        if ($registeredAttachments !== null) {
+            $this->assertEveryAttachmentSigned($registeredAttachments, $verified->signedExternalParts());
         }
 
         if ($this->signerCheck !== null) {
@@ -194,9 +194,11 @@ final class VerifySignature implements InboundAction
      *
      * @throws SecurityFault
      */
-    private function assertEveryAttachmentSigned(ExternalPartList $registered, ExternalPartList $covered): void
-    {
-        foreach ($registered as $part) {
+    private function assertEveryAttachmentSigned(
+        ExternalPartList $registeredAttachments,
+        ExternalPartList $covered,
+    ): void {
+        foreach ($registeredAttachments as $part) {
             if ($covered->byReference($part->reference) === null) {
                 throw SecurityFault::inboundFailure(SignatureVerificationFailed::withReason(
                     'A registered attachment is not covered by the signature.',

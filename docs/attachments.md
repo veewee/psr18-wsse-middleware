@@ -172,11 +172,16 @@ A signed attachment adds a reference to the same `ds:Signature` as the body's:
 ```
 
 One signature covering body and attachments together, which is the shape a far-side `sp:SignedParts` policy is
-checked against. The digest is over the part's octets exactly as they travel: no canonicalization, no
-transfer-encoding step. The profile says so, and the attachments middleware already sends
+checked against. There is no transfer-encoding step: the attachments middleware sends
 `Content-Transfer-Encoding: binary`, so the bytes on the wire are the bytes hashed. The URI is the part's
 `cid:` verbatim, which binds each digest to one specific part: swapping two attachments is a digest mismatch
 rather than a substitution nobody notices.
+
+**A text part is digested over its normalized line endings.** The content transform is the identity for binary
+parts and not for text: a CR, an LF and a CRLF all become a CRLF before the digest is taken. That is what lets
+a text attachment survive an intermediary that rewrites line endings, which MIME permits for text and not for
+binary. The part itself travels unmodified; only the digest is taken over the normalized form. Both directions
+are pinned against a live peer, and removing the normalization makes the peer reject the signature.
 
 ## How much of a part a protection covers
 
@@ -282,8 +287,7 @@ never trips them.
 
 | Case | Behaviour |
 |---|---|
-| Signing a `text/*` attachment | Refused. The profile normalizes line endings in text content before digesting, which is not implemented, so the signature would be one only this package can verify |
-| Signing an XML attachment (`text/xml`, `application/xml`, or a `+xml` subtype of `application` or `image`) | Refused, for the same reason in its other form: the profile canonicalizes XML content with exclusive C14N before digesting. The set matches what a peer treats as XML, so a `+xml` subtype under any other top-level type is digested as opaque bytes by both sides |
+| Signing or verifying an XML attachment (`text/xml`, `application/xml`, or a `+xml` subtype of `application` or `image`) | Refused. The profile canonicalizes XML content with exclusive C14N before digesting, which is not implemented, so the digest would be one only this package computes. The set matches what a peer treats as XML, so a `+xml` subtype under any other top-level type is digested as opaque bytes by both sides |
 | An attachment whose stream reads zero bytes | Refused. Encrypting nothing ships an empty file that passes every structural check on the far side. A stream that cannot rewind reads this way too |
 | Encrypting an element that is or contains an `xop:Include` | Refused. See the MTOM section above |
 | A registered attachment that no `ds:Reference` covers | Refused. Registering parts on `VerifySignature` is the requirement that they be signed |
@@ -311,9 +315,9 @@ attachment path is no more of an oracle than the body's. Outbound failures are `
   support the complete coverage; outbound encryption does not, and no policy can require it. What it would
   buy is hiding the filename and media type from an intermediary that terminates TLS, which content-only
   leaves readable in the MIME headers. Nobody has asked for it.
-- **`text/*` and XML attachments cannot be signed under either coverage.** A peer canonicalizes their content
-  before digesting, so this is a content-level refusal that sits upstream of the coverage. See the refusal
-  table.
+- **XML attachments cannot be signed or verified, under either coverage.** A peer canonicalizes their content
+  with exclusive C14N before digesting, so this is a content-level refusal that sits upstream of the coverage.
+  See the refusal table. `text/*` is supported and is described below.
 - **WCF and .NET cannot be the peer.** There is no SwA support in WCF, only MTOM. A .NET peer that wants
   attachment security is not a case this feature serves.
 

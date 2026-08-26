@@ -66,16 +66,58 @@ final class DigestVerifierTest extends TestCase
             ->verifyExternalPart($this->externalReference('x', 'not!base64'));
     }
 
-    private function externalReference(string $bytes, string $expectedBase64): ResolvedExternalReference
-    {
+    private function externalReference(
+        string $bytes,
+        string $expectedBase64,
+        string $mimeType = 'application/pdf',
+    ): ResolvedExternalReference {
         return new ResolvedExternalReference(
             new ParsedReference(DigestMethod::SHA256, $expectedBase64, null, [], self::SWA_CONTENT),
             new ExternalPart(
                 'cid:invoice@example.com',
-                'application/pdf',
+                $mimeType,
                 MemoryStream::create()->write($bytes)->rewind(),
             ),
         );
+    }
+
+    public function test_it_verifies_a_text_part_against_its_normalised_line_endings(): void
+    {
+        // The signer digested the normalized form, so verifying the octets as they arrived would reject a
+        // signature every conforming peer emits. This is the inbound half of the same transform rule.
+        $verifier = new DigestVerifier(new DomCanonicalizer(), new Digest());
+        $normalised = base64_encode(hash('sha256', "one\r\ntwo\r\nthree", true));
+
+        static::assertTrue($verifier->verifyExternalPart(
+            $this->externalReference("one\ntwo\rthree", $normalised, 'text/plain'),
+        ));
+    }
+
+    public function test_it_refuses_a_text_part_whose_digest_was_taken_over_the_raw_octets(): void
+    {
+        // A digest over the unnormalized bytes is not what the transform defines, so it must not verify:
+        // accepting both forms would let one part have two valid digests.
+        $verifier = new DigestVerifier(new DomCanonicalizer(), new Digest());
+        $raw = base64_encode(hash('sha256', "one\ntwo\rthree", true));
+
+        static::assertFalse($verifier->verifyExternalPart(
+            $this->externalReference("one\ntwo\rthree", $raw, 'text/plain'),
+        ));
+    }
+
+    public function test_it_refuses_an_xml_part_rather_than_digesting_its_octets(): void
+    {
+        $verifier = new DigestVerifier(new DomCanonicalizer(), new Digest());
+        $reference = $this->externalReference(
+            '<a  b="1"/>',
+            base64_encode(hash('sha256', '<a  b="1"/>', true)),
+            'application/xml',
+        );
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('A referenced part has an unsupported media type.');
+
+        $verifier->verifyExternalPart($reference);
     }
 
     #[RequiresPhp('>= 8.4.21')]

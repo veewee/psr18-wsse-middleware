@@ -79,14 +79,27 @@ final class SignatureTest extends OutboundTestCase
         static::assertNotSame([], $signer->lastRequest()->targets);
     }
 
-    public function test_it_refuses_to_sign_a_text_attachment(): void
+    public function test_it_signs_a_text_attachment(): void
+    {
+        $signer = new RecordingSigner();
+        (new Signature($this->clientCertificate()))
+            ->withSigner($signer)
+            ->withAttachments($this->attachments('note@example.com', 'text/plain'))($this->signableContext());
+
+        $external = $signer->lastRequest()->externalParts;
+        static::assertNotNull($external);
+        static::assertCount(1, $external->parts);
+        static::assertNotNull($external->parts->byReference('cid:note@example.com'));
+    }
+
+    public function test_it_refuses_to_sign_an_xml_attachment(): void
     {
         // Refused by the engine rather than the block, because the reason is that the digest would be wrong.
         $this->expectException(SigningFailed::class);
-        $this->expectExceptionMessage('content line-ending canonicalization, which is not supported');
+        $this->expectExceptionMessage('XML canonicalization, which is not supported');
 
         (new Signature($this->clientCertificate()))
-            ->withAttachments($this->attachments('note@example.com', 'text/plain'))($this->signableContext());
+            ->withAttachments($this->attachments('doc@example.com', 'application/xml'))($this->signableContext());
     }
 
     public function test_it_declares_the_complete_transform_for_a_complete_adapter(): void

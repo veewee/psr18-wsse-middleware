@@ -30,19 +30,4 @@ final class SigningFailed extends RuntimeException
             $mimeType,
         ));
     }
-
-    /**
-     * A text external part. The SwA content transform normalizes line endings in text content before
-     * digesting, which this cut does not implement, so the media type is refused rather than digested under a
-     * rule we would be guessing at.
-     */
-    public static function textExternalPart(string $reference, string $mimeType): self
-    {
-        return new self(sprintf(
-            'Unable to sign the external part "%s": signing a %s part needs content line-ending '
-            .'canonicalization, which is not supported.',
-            $reference,
-            $mimeType,
-        ));
-    }
 }

@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SigningFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartContent;
 use function Psl\Type\non_empty_string;
 
 /**
@@ -63,39 +64,32 @@ final class DigestCalculator
     }
 
     /**
-     * Digests an external part's octets exactly as they travel: no canonicalization, no transfer-encoding
-     * step, which is what the SwA content transform specifies and what makes the digest reproducible by a
-     * peer that only sees the bytes.
+     * Digests an external part's content under the transform's own rule for its media type: a text part with
+     * its line endings normalized, anything else exactly as it travels. No transfer-encoding step either way.
      *
      * The URI is the part's reference verbatim, so a digest is bound to one specific part. Swapping two parts
      * is then a digest mismatch rather than a silent substitution.
      *
      * @param non-empty-string $transform
      *
-     * @throws SigningFailed when the part's media type is one the content transform canonicalizes, which is
-     *         not implemented
+     * @throws SigningFailed when the part is XML, which the transform canonicalizes in a way that is not
+     *         implemented
      */
     public function forExternalPart(
         ExternalPart $part,
         DigestMethod $digestMethod,
         string $transform,
     ): SignedReference {
-        // The content transform canonicalizes two families before digesting: XML content with exclusive C14N,
-        // and any other text media type by normalizing its line endings. Neither is implemented, and digesting
-        // the octets as they are would produce a value a peer that applies the rule rejects, so refuse instead
-        // of emitting a signature only we can verify. Binary parts are the identity case and need nothing.
-        $mimeType = strtolower($part->mimeType);
-        if (self::isXml($mimeType)) {
+        // XML content is canonicalized with exclusive C14N before digesting, which is not implemented, so
+        // emitting a digest over the octets as they are would be a signature only this package can verify.
+        if (ExternalPartContent::isXml($part->mimeType)) {
             throw SigningFailed::xmlExternalPart($part->reference, $part->mimeType);
         }
 
-        if (str_starts_with($mimeType, 'text/')) {
-            throw SigningFailed::textExternalPart($part->reference, $part->mimeType);
-        }
-
-        $digest = non_empty_string()->coerce(
-            base64_encode($this->digest->hash($part->content->rewind()->getContents(), $digestMethod)),
-        );
+        $digest = non_empty_string()->coerce(base64_encode($this->digest->hash(
+            ExternalPartContent::canonicalize($part->mimeType, $part->content->rewind()->getContents()),
+            $digestMethod,
+        )));
 
         return new SignedReference(
             $part->reference,
@@ -103,14 +97,5 @@ final class DigestCalculator
             $digestMethod,
             [new SignedTransform($transform)],
         );
-    }
-
-    /**
-     * XML content as the peers reckon it: text/xml, application/xml, and the "+xml" structured-syntax suffix
-     * under application and image alone. Each may carry media-type parameters.
-     */
-    private static function isXml(string $mimeType): bool
-    {
-        return (bool) preg_match('#^(text/xml|application/xml|(application|image)/[^;]*\+xml)(;|$)#', $mimeType);
     }
 }
