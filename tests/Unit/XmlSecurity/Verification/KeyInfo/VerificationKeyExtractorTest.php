@@ -16,14 +16,14 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyInfoResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\VerificationKeyExtractor;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Covers the inbound CertificateExtractor: it reads the two forms that carry the certificate in the message (a
+ * Covers the inbound VerificationKeyExtractor: it reads the two forms that carry the certificate in the message (a
  * BST direct reference and an inline ds:X509Certificate), and resolves the three forms that name the certificate
  * by identifier (Subject Key Identifier, SHA-1 thumbprint, IssuerSerial) against the verifier's trust store. A
  * reference to a certificate the trust store does not hold is refused, and an ambiguous match is refused.
@@ -32,7 +32,7 @@ use VeeWee\Xml\Dom\Document;
  * a class-only assertion passes on whichever check happens to fire -- which is how a refused ValueType and a
  * merely-unknown certificate become indistinguishable to the suite.
  */
-final class CertificateExtractorTest extends TestCase
+final class VerificationKeyExtractorTest extends TestCase
 {
     private const X509_TOKEN = WsseSignatureFixture::X509_TOKEN;
     private const WSSE11 = 'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd';
@@ -323,7 +323,7 @@ final class CertificateExtractorTest extends TestCase
         $document = $this->document('', '<ds:KeyInfo><ds:X509Data/></ds:KeyInfo>');
 
         try {
-            (new CertificateExtractor($hostile, (new WsuIdConvention())->lookup()))
+            (new VerificationKeyExtractor($hostile, (new WsuIdConvention())->lookup()))
                 ->extract($document, $this->signature($document), TrustStore::fromCertificates());
             static::fail('The hostile resolver was expected to be refused.');
         } catch (SignatureVerificationFailed $failure) {
@@ -333,9 +333,9 @@ final class CertificateExtractorTest extends TestCase
         }
     }
 
-    private function extractor(): CertificateExtractor
+    private function extractor(): VerificationKeyExtractor
     {
-        return new CertificateExtractor(new WsseKeyInfoResolver(), (new WsuIdConvention())->lookup());
+        return new VerificationKeyExtractor(new WsseKeyInfoResolver(), (new WsuIdConvention())->lookup());
     }
 
     /**

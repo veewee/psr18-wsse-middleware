@@ -12,7 +12,7 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo;
  *
  * @psalm-immutable
  */
-final readonly class CertificateReference
+final readonly class CertificateReference implements KeyReference
 {
     public const FORM_CARRIED = 'carried';
     public const FORM_CARRIED_PATH = 'carriedPath';

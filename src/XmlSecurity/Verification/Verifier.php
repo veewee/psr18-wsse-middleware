@@ -4,7 +4,10 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\OpenSSL\CertificateTrust;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
@@ -17,10 +20,11 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyInfoResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\OpenSslTrustResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\TrustResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\VerificationKey;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\VerificationKeyExtractor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\X509DataKeyInfoResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\AlgorithmPolicyEnforcer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\DereferencingTransform;
@@ -47,6 +51,12 @@ use VeeWee\Xml\Dom\Document;
  * disallowed algorithm or an untrusted signer is rejected before the verifier reveals which references
  * resolved. Digests are verified before the signature value. The resolved element instances are carried
  * straight into the result so a later coverage check compares the exact objects the signature covered.
+ *
+ * A signature keyed by a symmetric secret has no signer and no chain to establish trust over: the secret is
+ * its own evidence, since only this exchange could have established it. What the two paths share is the guard
+ * between them, and it is the reason the kind of key is checked against the signature method rather than the
+ * other way round: an HMAC method answered with a certificate would be verified against public bytes anyone
+ * holds, and an asymmetric method answered with a secret would skip the trust decision entirely.
  *
  * Every detected failure, whatever its cause, surfaces as one SignatureVerificationFailed with a
  * non-identifying message, so the exception cannot be used as a forgery oracle. A canonicalization failure
@@ -80,7 +90,7 @@ final class Verifier implements XmlSignatureVerifier
             new SignatureLocator(),
             new SignedInfoParser(),
             new AlgorithmPolicyEnforcer(),
-            new CertificateExtractor($keyInfo ?? new X509DataKeyInfoResolver(), $idLookup),
+            new VerificationKeyExtractor($keyInfo ?? new X509DataKeyInfoResolver(), $idLookup),
             new ReferenceResolver($idLookup, $dereferencingTransform),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),
@@ -93,7 +103,7 @@ final class Verifier implements XmlSignatureVerifier
         private SignatureLocator $signatureLocator,
         private SignedInfoParser $signedInfoParser,
         private AlgorithmPolicyEnforcer $policyEnforcer,
-        private CertificateExtractor $certificateExtractor,
+        private VerificationKeyExtractor $verificationKeyExtractor,
         private ReferenceResolver $referenceResolver,
         private DigestVerifier $digestVerifier,
         private SignatureValidator $signatureValidator,
@@ -113,9 +123,11 @@ final class Verifier implements XmlSignatureVerifier
 
         $this->policyEnforcer->enforce($policy, $signedInfo);
 
-        $chain = $this->certificateExtractor->extract($document, $signature, $policy->trustStore);
-        $signer = $this->establishTrust($chain, $policy);
-        $this->assertKeyStrongEnough($signer, $policy);
+        $verificationKey = $this->assertKeyMatchesMethod(
+            $this->verificationKeyExtractor->extract($document, $signature, $policy->trustStore),
+            $signedInfo->signatureMethod,
+            $policy,
+        );
 
         $resolved = $this->referenceResolver->resolve(
             $document,
@@ -129,7 +141,7 @@ final class Verifier implements XmlSignatureVerifier
 
         if (!$this->signatureValidator->validate(
             $signature,
-            $signer->certificate(),
+            $verificationKey->key,
             $signedInfo->signatureMethod,
             $signedInfo->canonicalization,
             $signedInfo->canonicalizationInclusivePrefixes,
@@ -155,9 +167,45 @@ final class Verifier implements XmlSignatureVerifier
 
         return new VerifiedSignature(
             new VerifiedReferences($elements, $ids),
-            $signer,
+            $verificationKey->signer,
             ExternalPartList::of(...$externalParts),
         );
+    }
+
+    /**
+     * The kind of key the ds:KeyInfo resolved to must be the kind the signature method needs, and this is where
+     * the two are held against each other.
+     *
+     * An HMAC method verified with a certificate is the algorithm-confusion forgery: the "secret" would be the
+     * peer's public key bytes, which anyone has. An asymmetric method verified with a secret is the mirror
+     * image, and skips the trust decision entirely. Neither is a configuration mistake to be resolved in the
+     * caller's favour.
+     *
+     * A secret has no signer: it is its own evidence, because only this exchange could have established it.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function assertKeyMatchesMethod(
+        CertificateChain|SessionKey $resolved,
+        SignatureMethod $method,
+        VerificationPolicy $policy,
+    ): VerificationKey {
+        $keyed = $method->keyKind() === SignatureKeyKind::Hmac;
+
+        if ($resolved instanceof SessionKey) {
+            return $keyed
+                ? VerificationKey::ofSecret($resolved)
+                : throw SignatureVerificationFailed::withReason('The signature method does not match the key.');
+        }
+
+        if ($keyed) {
+            throw SignatureVerificationFailed::withReason('The signature method does not match the key.');
+        }
+
+        $signer = $this->establishTrust($resolved, $policy);
+        $this->assertKeyStrongEnough($signer, $policy);
+
+        return VerificationKey::ofSigner($signer);
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
@@ -14,7 +15,9 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyIdentifierKind;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyInfoResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\OnlyChild;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\SecretReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\X509DataKeyInfoResolver;
 use VeeWee\Xml\Dom\Document;
 
@@ -29,6 +32,12 @@ use VeeWee\Xml\Dom\Document;
  * reads: the one *inside* the token reference. The one directly under ds:KeyInfo is plain XML-DSig and belongs to
  * the resolver behind this one.
  *
+ * It also reads the two forms that name a symmetric session key rather than a certificate: a wsse:KeyIdentifier
+ * carrying an EncryptedKeySHA1, and a wsse:Reference naming a local xenc:EncryptedKey. Both resolve against the
+ * keys this exchange established and nowhere else, so a reference to a key the exchange never saw is refused
+ * rather than searched for. Without exchange keys neither form resolves at all, which is what keeps a
+ * deployment that establishes no secret from having a symmetric surface to attack.
+ *
  * This is where the profile's ValueType URIs are translated into what they mean, so nothing downstream has to
  * know how WS-Security spells an identifier.
  */
@@ -36,12 +45,19 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
 {
     private KeyInfoResolver $plain;
 
-    public function __construct(?KeyInfoResolver $plain = null)
-    {
+    /**
+     * @param ?ExchangeKeys $keys the symmetric keys of the exchange in flight, when there is one. Null leaves
+     *        every symmetric reference form unresolvable, which is the right answer for a direction that
+     *        established no secret
+     */
+    public function __construct(
+        ?KeyInfoResolver $plain = null,
+        private ?ExchangeKeys $keys = null,
+    ) {
         $this->plain = $plain ?? new X509DataKeyInfoResolver();
     }
 
-    public function read(Document $document, Element $signatureElement, IdLookup $idLookup): CertificateReference
+    public function read(Document $document, Element $signatureElement, IdLookup $idLookup): KeyReference
     {
         $keyInfo = OnlyChild::named($signatureElement, Namespaces::Ds, 'KeyInfo')
             ?? throw SignatureVerificationFailed::withReason('ds:KeyInfo is missing.');
@@ -67,7 +83,7 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
      * certificate, or a whole certification path when the token declares PKIPath. Null when no such reference is
      * present, so a sibling form can be tried; an unusable one is refused outright.
      */
-    private function fromDirectReference(Document $document, Element $str, IdLookup $idLookup): ?CertificateReference
+    private function fromDirectReference(Document $document, Element $str, IdLookup $idLookup): ?KeyReference
     {
         $reference = OnlyChild::named($str, WsseNamespaces::Wsse, 'Reference');
         if ($reference === null) {
@@ -81,6 +97,13 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
             $token = $idLookup->lookup($document, $tokenId);
         } catch (IdReferenceException) {
             throw SignatureVerificationFailed::withReason('The referenced security token was not found.');
+        }
+
+        // A reference to a local xenc:EncryptedKey names the session key that element carries, not a
+        // certificate. The key itself is never read out of the element: only a key this exchange established
+        // under that same reference resolves, so an injected element unlocks nothing.
+        if (ElementName::matches($token, Namespaces::Xenc, 'EncryptedKey')) {
+            return $this->establishedSecret('#'.$tokenId);
         }
 
         if (!ElementName::matches($token, WsseNamespaces::Wsse, 'BinarySecurityToken')) {
@@ -114,7 +137,7 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
      * releases of this library emitted a Thumbprint reference that way, and a response correlated to one of those
      * must still verify. Only one may be present, across both namespaces.
      */
-    private function fromKeyIdentifier(Element $str): ?CertificateReference
+    private function fromKeyIdentifier(Element $str): ?KeyReference
     {
         $wsse = OnlyChild::named($str, WsseNamespaces::Wsse, 'KeyIdentifier');
         $wsse11 = OnlyChild::named($str, WsseNamespaces::Wsse11, 'KeyIdentifier');
@@ -131,6 +154,14 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
         $reference = ElementText::trimmed($keyIdentifier);
         if ($reference === '') {
             throw SignatureVerificationFailed::withReason('The key identifier is empty.');
+        }
+
+        // The one identifier form that names a symmetric key rather than a certificate: the SHA-1 of the
+        // wrapped bytes, which both sides can compute and neither has to reveal the secret to.
+        if (WsSecurityValueType::tryFrom((string) $keyIdentifier->getAttribute('ValueType'))
+            === WsSecurityValueType::EncryptedKeySha1
+        ) {
+            return $this->establishedSecret($reference);
         }
 
         return CertificateReference::keyIdentifier(
@@ -154,10 +185,32 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
     }
 
     /**
+     * The secret this exchange established under the given wire identifier.
+     *
+     * A reference naming nothing established is refused rather than resolved elsewhere: a secret found by any
+     * other route has no provenance, and there is no second key to fall back to. The refusal is the same one
+     * every unreadable ds:KeyInfo produces, so it distinguishes nothing for a peer.
+     *
+     * @param non-empty-string $wireIdentifier
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function establishedSecret(string $wireIdentifier): SecretReference
+    {
+        $secret = $this->keys?->resolve($wireIdentifier);
+
+        return $secret === null
+            ? throw SignatureVerificationFailed::withReason(
+                'ds:KeyInfo does not carry the certificate in a supported form.',
+            )
+            : new SecretReference($secret);
+    }
+
+    /**
      * Reads the ds:X509Data > ds:X509IssuerSerial inside the token reference into its issuer DN and decimal
      * serial. Null when the reference carries no such child.
      */
-    private function fromIssuerSerial(Element $str): ?CertificateReference
+    private function fromIssuerSerial(Element $str): ?KeyReference
     {
         $x509Data = OnlyChild::named($str, Namespaces::Ds, 'X509Data');
         if ($x509Data === null) {

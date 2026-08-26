@@ -87,6 +87,20 @@ final class EncryptedKeyReader
     }
 
     /**
+     * Whether the container carries a wrapped key at all. A message encrypted under a key both sides already
+     * hold carries none, and there is nothing to unwrap for it.
+     */
+    public function isPresent(Document $document, Element $container): bool
+    {
+        return Query::elements(
+            $document,
+            './'.Namespaces::Xenc->qualify('EncryptedKey'),
+            $container,
+            [Namespaces::Xenc->prefix() => Namespaces::Xenc->uri()],
+        )->count() === 1;
+    }
+
+    /**
      * Counts the xenc:DataReference entries the message declares. The caller enforces the part-count cap with
      * this number before any unwrap or decrypt work.
      *
@@ -128,7 +142,11 @@ final class EncryptedKeyReader
      */
     private function referenceList(Document $document, Element $container): Element
     {
-        $carried = ChildElements::named($this->locate($document, $container), Namespaces::Xenc, 'ReferenceList');
+        // A message with no wrapped key has no carried form to find, and looking for one would refuse it for
+        // the wrong reason.
+        $carried = $this->isPresent($document, $container)
+            ? ChildElements::named($this->locate($document, $container), Namespaces::Xenc, 'ReferenceList')
+            : [];
         $detached = Query::elements(
             $document,
             './'.Namespaces::Xenc->qualify('ReferenceList'),

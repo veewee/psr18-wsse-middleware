@@ -3,12 +3,16 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
+use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentEncryptedDataType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricKeySource;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\EstablishedSessionKeyResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\DecryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
@@ -34,6 +38,11 @@ use Throwable;
  * header a signature may still cover, and the reference URI is a plain anyURI nothing resolves a second time,
  * so the dangling entry costs nothing while the removal risks a verification.
  *
+ * A response encrypted under a key this exchange already established carries no xenc:EncryptedKey at all: each
+ * xenc:EncryptedData names the key instead, and it is resolved from what the exchange holds. Such a deployment
+ * needs no private key here. A pre-shared secret is the one case that has to be handed over, because no
+ * outbound direction established it.
+ *
  * Every decryption failure, whatever its cause, collapses to one SecurityFault with a non-identifying
  * message. The underlying reason is chained for operator logs only and is never forwarded to a remote peer.
  * The part-count cap and the uniform internal failure live in the decryptor, so this block adds no second
@@ -44,8 +53,14 @@ final class Decrypt implements InboundAction
     private XmlDecryptor $decryptor;
     private ?ExternalParts $attachments = null;
 
+    private ?SymmetricKeySource $symmetricKey = null;
+
+    /**
+     * @param ?Key $privateKey the key that unwraps an xenc:EncryptedKey. Null for a deployment whose peer
+     *        encrypts under a key the exchange already established, which wraps nothing
+     */
     public function __construct(
-        private readonly Key $privateKey,
+        private readonly ?Key $privateKey = null,
     ) {
         // The WS-Security profile tags xenc:EncryptedData with wsu:Id, so the decryptor resolves references
         // through the wsu:Id convention (native namespace-less @Id from interop peers is still accepted too).
@@ -75,6 +90,22 @@ final class Decrypt implements InboundAction
     {
         $clone = clone $this;
         $clone->decryptor = $decryptor;
+
+        return $clone;
+    }
+
+    /**
+     * Registers the source of a secret no outbound direction established, so parts encrypted under it can be
+     * opened. Only a pre-shared key needs this: a wrapped or derived key was established while the request was
+     * written, and the exchange already holds it.
+     *
+     * The secret is registered when the block runs rather than now, because the exchange it belongs to is the
+     * one in flight. Registration is idempotent, so both inbound blocks may hold the same source.
+     */
+    public function withSymmetricKey(SymmetricKeySource $key): self
+    {
+        $clone = clone $this;
+        $clone->symmetricKey = $key;
 
         return $clone;
     }
@@ -129,6 +160,8 @@ final class Decrypt implements InboundAction
             $container = SecurityHeader::locate($document, $context->soapVersion(), $context->profile()->actorOrRole())
                 ?? throw DecryptionFailed::withReason('The message carries no Security header for this receiver.');
 
+            $this->symmetricKey?->resolve($context, KeyRequest::preferably(1));
+
             $external = $this->externalPartDecryption();
             $result = $this->decryptor->decrypt(
                 $document,
@@ -137,6 +170,7 @@ final class Decrypt implements InboundAction
                     $this->privateKey,
                     $context->profile()->crypto(),
                     $external,
+                    new EstablishedSessionKeyResolver($context->keys()),
                 ),
             );
 
@@ -145,7 +179,7 @@ final class Decrypt implements InboundAction
             // Only the parts an xenc:EncryptedData actually named come back, so an attachment that arrived in
             // the clear is absent here and is left exactly as it was rather than dropped.
             $this->attachments?->replace($result->openedParts);
-        } catch (DecryptionFailed | WsseHeaderException $exception) {
+        } catch (DecryptionFailed | WsseHeaderException | InvalidArgumentException $exception) {
             throw SecurityFault::inboundFailure($exception);
         } catch (Throwable $foreign) {
             // The decryptor is a replaceable seam, so a third-party one raises types this package never

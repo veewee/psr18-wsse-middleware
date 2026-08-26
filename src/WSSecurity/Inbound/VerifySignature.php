@@ -8,6 +8,8 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentSignatureTransform;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\KeyRequest;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricKeySource;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\Validator\RequiredPartsValidator;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -19,6 +21,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
+use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\External\ExternalPartVerification;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\VerificationPolicy;
@@ -36,11 +39,16 @@ use Throwable;
  * the signature, the canonicalization could not be produced, a required part was not signed, or a required
  * element is absent, collapses to one uniform SecurityFault carrying no step-identifying detail, so the block
  * is never a forgery or validation oracle for a peer.
+ *
+ * A signature keyed by a symmetric secret verifies against a key this exchange established and against nothing
+ * else, so a response to a request that established one needs no configuration here. A pre-shared secret is
+ * the exception: no outbound direction established it, so the source holding it is handed over.
  */
 final class VerifySignature implements InboundAction
 {
-    private XmlSignatureVerifier $verifier;
+    private ?XmlSignatureVerifier $verifier = null;
     private readonly RequiredPartsValidator $requiredParts;
+    private ?SymmetricKeySource $symmetricKey = null;
 
     /** @var (callable(TrustedSigner): void)|null */
     private $signerCheck = null;
@@ -63,15 +71,26 @@ final class VerifySignature implements InboundAction
         private readonly TrustStore $trustStore,
         private readonly ?array $signed = null,
     ) {
-        // The WS-Security profile references signed parts by wsu:Id, so both the verifier and the required-part
-        // locator resolve ids through the wsu:Id convention.
+        // The WS-Security profile references signed parts by wsu:Id, so the required-part locator resolves ids
+        // through the wsu:Id convention.
         // Only the read half is handed over: nothing inbound mints, and a class that holds no minter cannot.
-        $lookup = (new WsuIdConvention())->lookup();
-        // The profile's own key-info resolver reads the WS-Security token forms; the engine on its own understands
-        // only plain XML-DSig. The STR-Transform resolver is handed over for the same reason: a peer that covers
-        // its token through a wsse:SecurityTokenReference needs the profile's vocabulary to be dereferenced.
-        $this->verifier = Verifier::create($lookup, new WsseKeyInfoResolver(), new SecurityTokenReferenceTransform());
-        $this->requiredParts = new RequiredPartsValidator(new TargetLocator($lookup));
+        $this->requiredParts = new RequiredPartsValidator(new TargetLocator(self::idLookup()));
+    }
+
+    /**
+     * Registers the source of a secret no outbound direction established, so a symmetric signature keyed by it
+     * can be verified. Only a pre-shared key needs this: a wrapped or derived key was established while the
+     * request was written, and the exchange already holds it.
+     *
+     * The secret is registered when the block runs rather than now, because the exchange it belongs to is the
+     * one in flight.
+     */
+    public function withSymmetricKey(SymmetricKeySource $key): self
+    {
+        $clone = clone $this;
+        $clone->symmetricKey = $key;
+
+        return $clone;
     }
 
     /**
@@ -99,6 +118,28 @@ final class VerifySignature implements InboundAction
         $clone->verifier = $verifier;
 
         return $clone;
+    }
+
+    /**
+     * Built per message rather than in the constructor, because the key-info resolver reads against the keys of
+     * the exchange in flight and a block instance outlives every exchange it serves.
+     *
+     * The profile's own key-info resolver reads the WS-Security token forms; the engine on its own understands
+     * only plain XML-DSig. The STR-Transform resolver is handed over for the same reason: a peer that covers its
+     * token through a wsse:SecurityTokenReference needs the profile's vocabulary to be dereferenced.
+     */
+    private function verifier(WsseContext $context): XmlSignatureVerifier
+    {
+        return $this->verifier ?? Verifier::create(
+            self::idLookup(),
+            new WsseKeyInfoResolver(keys: $context->keys()),
+            new SecurityTokenReferenceTransform(),
+        );
+    }
+
+    private static function idLookup(): IdLookup
+    {
+        return (new WsuIdConvention())->lookup();
     }
 
     /**
@@ -131,6 +172,10 @@ final class VerifySignature implements InboundAction
         $attachments = $this->attachments;
 
         try {
+            // A pre-shared secret is registered before anything reads a ds:KeyInfo, so the reference naming it
+            // resolves. Registration is idempotent, which is what lets both inbound blocks hold one source.
+            $this->symmetricKey?->resolve($context, KeyRequest::preferably(1));
+
             // Collected inside the try, because collecting is itself work over peer-controlled bytes: under a
             // complete coverage it canonicalizes headers a peer chose, and after Decrypt ran those headers
             // came out of that peer's ciphertext. A refusal there is an inbound failure like any other and
@@ -158,7 +203,7 @@ final class VerifySignature implements InboundAction
             $scope = SecurityHeader::locate($document, $context->soapVersion(), $context->profile()->actorOrRole())
                 ?? throw SignatureVerificationFailed::withReason('The message carries no Security header for this receiver.');
 
-            $verified = $this->verifier->verify($document, $policy, $scope);
+            $verified = $this->verifier($context)->verify($document, $policy, $scope);
         } catch (SignatureVerificationFailed | CanonicalizationFailed | WsseHeaderException $exception) {
             throw SecurityFault::inboundFailure($exception);
         } catch (Throwable $foreign) {
@@ -183,8 +228,15 @@ final class VerifySignature implements InboundAction
         }
 
         if ($this->signerCheck !== null) {
+            // A symmetric signature names no signer, so a registered identity check has nothing to run against.
+            // Refused rather than skipped: a check that silently does not run is worse than none at all.
+            $signer = $verified->signer
+                ?? throw SecurityFault::inboundFailure(SignatureVerificationFailed::withReason(
+                    'The signature is keyed by a shared secret and names no signer to check.',
+                ));
+
             try {
-                ($this->signerCheck)($verified->signer);
+                ($this->signerCheck)($signer);
             } catch (Throwable $exception) {
                 throw SecurityFault::inboundFailure($exception);
             }

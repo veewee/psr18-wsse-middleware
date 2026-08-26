@@ -10,12 +10,16 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
  * The evidence a signature verification produced: which elements were signed (by exact instance) and which
  * trusted signer produced the signature. Returned instead of a bare boolean so the caller asserts coverage and
  * trust explicitly.
+ *
+ * A signature keyed by a symmetric secret has no signer: one key both produces and checks it, so it names no
+ * party. The field is null there, and a caller that wanted an identity has to notice rather than be handed a
+ * stand-in.
  */
 final readonly class VerifiedSignature
 {
     public function __construct(
         public VerifiedReferences $signedElements,
-        public TrustedSigner $signer,
+        public ?TrustedSigner $signer,
         private ?ExternalPartList $externalParts = null,
     ) {
     }

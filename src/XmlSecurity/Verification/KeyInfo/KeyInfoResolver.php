@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Reads a signature's ds:KeyInfo into a typed reference to the signer's certificate, without deciding anything
+ * Reads a signature's ds:KeyInfo into a typed reference to whatever key verifies it, without deciding anything
  * about trust. The engine ships the plain XML-DSig reader; a profile supplies its own for the shapes its spec
  * defines, which is how the WS-Security token forms stay out of the engine.
  *
@@ -27,5 +27,5 @@ interface KeyInfoResolver
      * @throws SignatureVerificationFailed when ds:KeyInfo carries no reference this resolver recognises, or
      *         carries one that is malformed
      */
-    public function read(Document $document, Element $signatureElement, IdLookup $idLookup): CertificateReference;
+    public function read(Document $document, Element $signatureElement, IdLookup $idLookup): KeyReference;
 }

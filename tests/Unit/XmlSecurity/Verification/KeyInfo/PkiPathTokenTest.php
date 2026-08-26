@@ -10,7 +10,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseKeyInfoResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\VerificationKeyExtractor;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
@@ -93,7 +93,7 @@ final class PkiPathTokenTest extends TestCase
 
     private function extract(Document $document): \Soap\Psr18WsseMiddleware\KeyStore\CertificateChain
     {
-        return (new CertificateExtractor(new WsseKeyInfoResolver(), (new WsuIdConvention())->lookup()))
+        return (new VerificationKeyExtractor(new WsseKeyInfoResolver(), (new WsuIdConvention())->lookup()))
             ->extract($document, $this->signature($document), TrustStore::fromCertificates());
     }
 
