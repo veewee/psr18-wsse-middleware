@@ -42,7 +42,9 @@ new Inbound\Decrypt($privateKey);
   Register these whenever the peer may encrypt an attachment. Unlike the in-document parts, an encrypted
   attachment is **not** quietly left alone when none are registered: a message naming one is refused, because
   otherwise it would read as fully decrypted while your code holds a file that is still ciphertext. Each opened
-  part gets the media type the sender recorded before encrypting. A part that arrived unencrypted is untouched.
+  part gets the media type the sender recorded before encrypting. Registering parts is equally the requirement
+  that they arrive encrypted, and `AttachmentParts` registers every attachment in the response, so one that
+  travelled in the clear beside encrypted ones refuses the message rather than being left alone.
 
 The wrapped session key is read from the `wsse:Security` header addressed to you. The header the profile's
 `actorOrRole` selects, the same one the signature verifier reads. A response carrying no header for you is

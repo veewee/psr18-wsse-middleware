@@ -522,8 +522,10 @@ AttachmentParts::request($attachments, ExternalPartCoverage::Complete)
 ```
 
 If you implement the `ExternalParts` seam yourself rather than using `AttachmentParts`, it has two collects.
-`collect()` is what a signature covers and `collectSealed()` is what a cipher addresses; return `collect()`
-from both unless you cover a part's metadata as well as its content, since only then do the two differ.
+`collect()` is what a signature covers and `collectSealed()` is what a cipher addresses. They return the same
+streams; they differ only in `ExternalPart::$digestPrefix`, which carries the canonical MIME header block
+under a complete coverage and is empty otherwise. Put the header block there rather than concatenating it into
+the content: the engine prepends it after the content transform, which is the order a peer composes them in.
 
 What gets digested depends on the attachment's media type, and none of it is a configuration choice. XML
 (`text/xml`, `application/xml`, or a `+xml` subtype of `application` or `image`) is canonicalized with

@@ -215,8 +215,9 @@ key reference. Use them only to widen what you are prepared to see inbound. `sp:
 
 `sp:Attachments` requires `php-soap/psr18-attachments-middleware` 0.12.0 or later and an `AttachmentStorage`
 shared with `AttachmentsMiddleware`, so importing one means adding a dependency and a second middleware, not
-just a `with*()` call. Say so when you report the mapping. Note also that a policy pairing `sp:Attachments`
-under `sp:SignedParts` with a `text/*` attachment cannot be satisfied: signing those is refused.
+just a `with*()` call. Say so when you report the mapping. A `text/*` attachment is signed over a transformed form of its
+content, XML with exclusive C14N and any other text with its line endings normalized, so the only such policy
+that cannot be satisfied is one whose XML attachment is not a well-formed document or carries a doctype.
 
 The signing default is `[Part::body(), Part::securityHeaderContents()]` and the encryption default is
 `[Part::body()]`. A policy asking for exactly the Body plus the timestamp and tokens is already the default, so

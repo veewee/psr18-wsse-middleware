@@ -188,7 +188,8 @@ transform branches three ways on the media type:
 | Any other `text/*` | The content with a CR, an LF and a CRLF each normalized to a CRLF |
 | Everything else | The octets exactly as they travel |
 
-The part itself always travels unmodified; only the digest is taken over the transformed form. Text is
+A signature never modifies the part; only the digest is taken over the transformed form. Encryption is the one
+operation that does replace it, with the sealed bytes described above. Text is
 normalized because MIME lets an intermediary rewrite line endings in text and not in binary, and XML because
 one tree has more than one spelling.
 
@@ -248,8 +249,9 @@ and a peer never validates an encryption's scope. Everywhere else, read the poli
 
 ### What a complete coverage digests
 
-The part's canonical MIME header block, followed by its octets. No blank line separates them: the bytes
-follow the last header's CRLF directly.
+The part's canonical MIME header block, followed by whatever the content transform produced for its media
+type. No blank line separates them: the transformed bytes follow the last header's CRLF directly. The header
+block itself is never put through the transform.
 
 ```text
 Content-Disposition:attachment;filename="invoice.pdf";name="invoice"\r\n
@@ -266,7 +268,9 @@ parser trimmed that separator. Nothing this side can compute predicts that, and 
 peer emits the header, so refusing costs nothing a caller did not add deliberately. `Content-Transfer-Encoding` is not among them, so it is
 neither signed nor encrypted even though the multipart carries it. Values are unfolded, stripped of leading
 whitespace, and a value carrying parameters is rewritten with its essence and parameter names lowercased, its
-parameters sorted, and their values quoted. When the header set carries no `Content-Type` at all,
+parameters sorted, and their values quoted. The values of the case-insensitive parameters are lowercased too,
+those being `charset`, `creation-date`, `filename`, `modification-date`, `padding`, `read-date`, `size` and
+`type`, so a `filename="Invoice.PDF"` is digested as `filename="invoice.pdf"`. When the header set carries no `Content-Type` at all,
 `text/plain;charset="us-ascii"` is substituted, which is what a peer does with the same absence. An
 `Attachment` always describes its media type, so that substitution is reachable only through a header set
 that came out of a peer's ciphertext or out of an adapter you wrote yourself.
@@ -300,7 +304,7 @@ never trips them.
 | Case | Behaviour |
 |---|---|
 | An XML attachment whose octets are not a document, or that carries a doctype | Refused. There is no node-set to canonicalize, so there is no digest to compute. A peer refuses a doctype in an attachment too, so this is agreement rather than a restriction invented here |
-| An attachment whose stream reads zero bytes | Refused. Encrypting nothing ships an empty file that passes every structural check on the far side. A stream that cannot rewind reads this way too |
+| An attachment whose stream reads zero bytes | Refused on both outbound operations. Signing nothing produces a digest over no file, and encrypting nothing ships an empty file that passes every structural check on the far side. A stream that cannot rewind reads this way too |
 | Encrypting an element that is or contains an `xop:Include` | Refused. See the MTOM section above |
 | A registered attachment that no `ds:Reference` covers | Refused. Registering parts on `VerifySignature` is the requirement that they be signed |
 | An encrypted attachment when none are registered on `Decrypt` | Refused, never skipped. Otherwise the message reads as decrypted while your code holds ciphertext |
@@ -312,11 +316,19 @@ never trips them.
 | Opened octets carrying no blank line, or exceeding the header caps | Refused before the bytes are handed anywhere |
 | A cipher reference declaring no transform, several, or the wrong one | Refused before any decryption |
 | A data-encryption method outside the profile's allow-list | Refused. An external part gets the same allow-list as an in-document one, CBC refusal included |
+| A registered attachment that arrived unencrypted | Refused. Registering parts on `Decrypt` is the requirement that they arrive encrypted, so one that travelled in the clear beside encrypted ones refuses the message |
+| A registered attachment a signature or an encryption did not cover | Refused outbound. Both engines report what they actually covered, so a replaceable signer or encryptor that returns less than it was handed cannot leave you sending a part you configured as protected |
+| Opened octets carrying a header line with no colon | Refused rather than skipped. A peer restores what it split, not what could be made sense of |
+| `replace()` handed a reference no attachment answers | Refused. The list it receives is the list it was built from |
+| An attachments middleware older than 0.12.0 | Refused where the adapter is built, naming the package and the version, since composer constrains none of it |
 | Two attachments sharing a `Content-ID` | Refused. One reference must address one part |
 
 Inbound, every one of these collapses into the same `SecurityFault` as the rest of the inbound path, so the
-attachment path is no more of an oracle than the body's. Outbound failures are `EncryptionFailed` or
-`SigningFailed` and do state a reason: nothing about your own outbound message is a secret from you.
+attachment path is no more of an oracle than the body's. Outbound failures do state a reason, since nothing
+about your own outbound message is a secret from you. A refusal about the message is `SigningFailed` or
+`EncryptionFailed`; a refusal about your configuration or your headers carries its own type, one of
+`UnsupportedAttachmentCoverage`, `UnsupportedAttachmentHeaderForm`, `UnsupportedAttachmentsVersion` or
+`UnknownAttachment`.
 
 ## Limits
 
@@ -352,16 +364,20 @@ Implement it if your attachments live somewhere else. Four contract points matte
 - **`coverage()` says how much of a part your compositions cover**, and the blocks read it: it decides both
   the transform they declare and what they expect from a peer. Return `ExternalPartCoverage::Content` unless
   you compose the canonical header block yourself.
-- **`collect()` returns the octets a signature covers**, which under a `Complete` coverage is that header
-  block followed by the content, and under a `Content` coverage is the content alone.
-- **`collectSealed()` returns the octets the part itself carries**, which a cipher seals on the way out and
-  opens on the way in. Return `collect()` if you compose nothing. The two differ only under a `Complete`
-  coverage: a `xenc:CipherReference` addresses the MIME part, so what sits there is the sealed form whatever
-  the coverage says about the plaintext inside it.
+- **`collect()` returns the parts a signature covers.** The content goes in `ExternalPart::$content` and,
+  under a `Complete` coverage, the canonical header block goes in `ExternalPart::$digestPrefix`. Do not
+  concatenate the two yourself: the engine applies the content transform to `$content` and prepends
+  `$digestPrefix` to the result, which is the order a peer composes them in. Joining them first puts the
+  header block through the transform, and for an XML part that means handing a canonicalizer a header block
+  to parse.
+- **`collectSealed()` returns the same parts with an empty `$digestPrefix`**, which a cipher seals on the way
+  out and opens on the way in. A `xenc:CipherReference` addresses the MIME part, so what sits there is the
+  part's own octets whatever the coverage says a signature covers. Return `collect()` if you compose nothing.
 - **`collect()` may be called more than once per message, so rewind on every collect.** Sign-then-encrypt
   collects twice: the signature digests the plaintext, then encryption seals the same plaintext. The engine
   rewinds each part before reading it as well, so a spent stream is recovered rather than sealed empty, but do
   not lean on that: it is defence in depth, and a stream that cannot rewind reads as zero bytes and is refused.
 - **`replace()` fully replaces the parts it is handed, matched by reference, and touches nothing else.**
-  Inbound it receives only the parts an `xenc:EncryptedData` actually named, so an attachment that arrived in
-  the clear is absent from the list and must be left as it is rather than dropped.
+  Inbound it receives only the parts an `xenc:EncryptedData` actually named. An attachment that arrived in the
+  clear is absent from that list and must be left as it is rather than dropped, though with the shipped
+  adapter the block has already refused the message by then: see the refusal table.
