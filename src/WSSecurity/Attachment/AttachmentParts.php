@@ -70,11 +70,29 @@ final readonly class AttachmentParts implements ExternalParts
     {
         return $this->collectEach(
             fn (Attachment $attachment, ResourceStream $content): ResourceStream => $this->coverage === ExternalPartCoverage::Complete
-                ? MemoryStream::create()
-                    ->write($this->headerBlock->canonicalize($attachment->headers()).$content->getContents())
-                    ->rewind()
+                ? $this->composed($attachment, $content)
                 : $content,
         );
+    }
+
+    /**
+     * The canonical header block followed by the part's own octets, which is what a complete coverage digests.
+     *
+     * Streamed rather than concatenated. Building the two as one PHP string would hold the whole attachment a
+     * third time, on top of the copy the stream already is and the one the caller handed in, and an
+     * attachment is the largest thing this package touches.
+     *
+     * @param ResourceStream<resource> $content
+     *
+     * @return ResourceStream<resource>
+     */
+    private function composed(Attachment $attachment, ResourceStream $content): ResourceStream
+    {
+        $composed = MemoryStream::create()->write($this->headerBlock->canonicalize($attachment->headers()));
+        $content->copyTo($composed);
+        $composed->rewind();
+
+        return $composed;
     }
 
     public function collectSealed(): ExternalPartList
