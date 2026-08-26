@@ -213,6 +213,29 @@ key reference. Use them only to widen what you are prepared to see inbound. `sp:
 | `sp13:AttachmentCompleteSignatureTransform` inside `sp:Attachments` | `ExternalPartCoverage::Complete`, the same as a bare `sp:Attachments`. Spelling it out changes nothing |
 | `sp:Attachments` under `sp:EncryptedParts` | `withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))` on `Outbound\Encryption`, plus `withAttachments(AttachmentParts::response($storage, ExternalPartCoverage::Complete))` on `Inbound\Decrypt`. **The element takes no children here**, unlike under `sp:SignedParts`, so the policy language has no way to ask for one coverage over the other and content-only always conforms. Emit the content one and accept the complete one: a default-configured CXF sender emits it |
 
+### MTOM in the policy changes the inbound list, and no security assertion says so
+
+`wsoma:OptimizedMimeSerialization` (or a CXF `mtom-enabled` property in the accompanying config) is not a
+security assertion, so it maps to nothing above. Read it anyway: a peer with MTOM enabled puts the bytes of an
+`xenc:CipherValue` in a MIME part and leaves an `xop:Include` behind, because Apache CXF turns
+`storeBytesInAttachment` on by itself in that case, and .NET and Metro do the same to any large encrypted
+content without being configured to. There is no assertion for it, nothing negotiates it, and it applies to
+every encrypted message rather than only the ones with attachments.
+
+So whenever the policy asks for encryption **and** the peer is MTOM-enabled, the import needs one more inbound
+block, first in the list:
+
+```php
+new Inbound\ResolveOptimizedBytes(
+    AttachmentParts::response($storage, ExternalPartCoverage::Content),
+),
+```
+
+Without it such a response is refused as a cipher value that will not decode, and the fault says nothing about
+why. Say so when you report the mapping, and say that it is inferred from MTOM rather than read off an
+assertion. The outbound counterpart, `withOptimizedCipherBytes()`, is never implied by a policy: no assertion
+can require it, so it stays a deployment choice about size.
+
 `sp:Attachments` requires `php-soap/psr18-attachments-middleware` 0.12.0 or later and an `AttachmentStorage`
 shared with `AttachmentsMiddleware`, so importing one means adding a dependency and a second middleware, not
 just a `with*()` call. Say so when you report the mapping. A `text/*` attachment is signed over a transformed form of its

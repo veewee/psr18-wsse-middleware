@@ -9,6 +9,53 @@ default and what it expects.
 See [Outbound blocks](outbound-blocks.md) for their request-side counterparts, and the
 [README](../README.md#the-building-blocks) for the order to list them in.
 
+## Inbound: `ResolveOptimizedBytes`
+
+Puts back the bytes a peer moved out of the document. Place it **first** in the inbound list, ahead of
+`Decrypt` and `VerifySignature`, both of which read values it restores.
+
+```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
+
+$inbound = [
+    new Inbound\ResolveOptimizedBytes(
+        AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Content),
+    ),
+    new Inbound\Decrypt($privateKey),
+    new Inbound\VerifySignature($trustStore, signed: [Part::body()]),
+];
+```
+
+A peer with MTOM enabled writes an `xop:Include` where a security value belongs and carries the raw bytes in
+a MIME part beside the envelope, skipping the 33% base64 costs. **Nothing negotiates this.** Apache CXF turns
+it on by default whenever MTOM is on, and .NET and Metro do it to any large encrypted content
+unconditionally, so the shape arrives without either side having chosen it. Without this block such a message
+is refused as a cipher value that will not decode.
+
+Three values are restored and no others: the `xenc:CipherValue` of an `xenc:EncryptedData` or an
+`xenc:EncryptedKey`, and a `wsse:BinarySecurityToken`. Those are the three a peer optimizes. An
+`xop:Include` anywhere else is ordinary MTOM content belonging to the attachments middleware, and is left
+exactly as it is.
+
+- `__construct(ExternalParts $carriers)`: where the bytes are. Pass `AttachmentParts::response(...)` for the
+  inbound side. Required, because a reference is resolved against these parts or refused: nothing is fetched,
+  whatever scheme the reference names.
+
+Registering the block does **not** require the shape to be present. The peers switch on a size threshold, so
+one message carries an optimized `xenc:EncryptedData` beside an inline `xenc:EncryptedKey`, and the next
+carries neither. Every value is decided on its own.
+
+Refused, as one uniform `SecurityFault` like everything else inbound: a reference naming no supplied part, a
+value that describes its content two ways at once (text beside a pointer, two pointers, one nested below a
+child, or one naming nothing), and a message declaring more than 32 optimized values. A part that reads
+nothing is left to the length check that already refuses it.
+
+The consumed `application/ciphervalue` parts stay in your attachment collection. Restoring a value does not
+consume the part it came from, and dropping it would need a capability the `ExternalParts` seam does not have.
+Only code that deliberately registered this block ever sees them.
+
 ## Inbound: `Decrypt`
 
 Decrypts the `xenc:EncryptedData` parts of the response with your private key. Each encrypted part is replaced
@@ -180,6 +227,14 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 new Inbound\ValidateTimestamp();
 ```
+
+**The same rule applies on the way in.** A signature over an element holding an `xop:Include` is refused
+unless that same signature also carries a `ds:Reference` digesting the bytes the pointer names. Registering
+the attachment here is what makes such a reference checkable, but registration alone is not enough: a part
+being available says it arrived, not that anything vouches for it. A default WSS4J receiver does not expand
+such an element before verifying, so a signature covering only the pointer verifies there while the file it
+stands for travels unprotected. Refusing is deliberate: matching that peer would mean reproducing the
+weakness.
 
 - No required arguments. The freshness window (clock skew and maximum age) comes from the `SecurityProfile` on
   the context: `clockSkew()` and `timestampTtl()`. Configure the window on the profile, not on this block.

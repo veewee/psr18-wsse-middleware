@@ -134,6 +134,17 @@ Two traps that have each cost real time:
 
 Reach for interop whenever the claim touches signing, verification, encryption, canonicalization or key references. If this package and WSS4J disagree, that is the finding, whichever way the spec reads.
 
+For a narrower question ("does WSS4J resolve X", "what is the default for Y") the sources are faster than the harness and already on disk, because Maven caches them beside the jars:
+
+```bash
+find ~/.m2 -name 'wss4j-*-sources.jar'
+cd "$(mktemp -d)" && unzip -q ~/.m2/repository/org/apache/wss4j/wss4j-ws-security-dom/3.0.4/wss4j-ws-security-dom-3.0.4-sources.jar
+```
+
+**Read the processors, not `ConfigurationConstants`.** Its javadoc is prose maintained separately from the code and it is wrong in places: `EXPAND_XOP_INCLUDE` documents itself as "true on the inbound side" while `RequestData.expandXopInclude` is an uninitialised `boolean` and `WSHandler` reads it with `false` as the default. A handoff quoting that javadoc sent this package's design in the opposite direction twice. Behaviour lives in `dom/.../processor/*.java` and `dom/.../util/*.java`; a config constant only says a key name.
+
+**A WSS4J default is not a peer default.** Options that are off in bare WSS4J are on in every stack anyone deploys: Apache CXF turns `storeBytesInAttachment` and `expandXopInclude` on by itself whenever MTOM is enabled, and .NET/WCF and Metro emit the same optimized shape unconditionally for large encrypted content (which is why [CXF-6409](https://issues.apache.org/jira/browse/CXF-6409) exists: CXF could not read .NET messages). So "WSS4J defaults this off" refutes nothing about what arrives on the wire. Check what CXF's binding handlers set before concluding a shape is exotic, and remember that a threshold-driven option produces *both* shapes inside one message.
+
 ## Step 3 — Ask Whether It Is In Scope
 
 A verified-real finding can still be the wrong thing to fix. Check the design record before proposing code:
@@ -174,6 +185,7 @@ State what you did *not* verify too — which runtime you were on, which suite y
 | Fixing the batch in severity order without triaging first | You implement the wrong findings first and ship a noisy PR |
 | Reading a finding's own `verification: CONFIRMED` as verification | That is the reviewer's confidence in itself, not evidence |
 | Accepting a claim about library behaviour | The top source of false findings. Read `vendor/`, or execute a probe |
+| Taking a peer's documented default as what it sends | Its own docs can contradict its code, and the stack wrapping it overrides the default anyway. Read the peer's processors, then check what CXF or WCF sets on top |
 | Turning a doc defect into a code change | Widens the API to match a sentence that was simply wrong |
 | Asserting only the exception class on an inbound test | Trust and inbound failures all share one exception type on purpose, so `expectException(SecurityFault::class)` is vacuous. Assert the message, and mutation-check the test |
 | Trusting a `@param non-empty-list` as a guard | A static constraint is not a runtime check. Psalm will call the runtime guard unreachable — that is the finding, not a reason to drop the guard |

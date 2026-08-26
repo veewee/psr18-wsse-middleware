@@ -4,9 +4,11 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Attachment;
 
 use Phpro\ResourceStream\Factory\MemoryStream;
+use Phpro\ResourceStream\ResourceStream;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Attachment\AttachmentsCollection;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Cid;
+use Soap\Psr18AttachmentsMiddleware\Attachment\IdGenerator;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorageInterface;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\MalformedAttachmentHeaders;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
@@ -100,6 +102,37 @@ final readonly class AttachmentParts implements ExternalParts
         }
 
         return ExternalPartList::of(...$parts);
+    }
+
+    /**
+     * Adds a part this message did not arrive with, under an id nothing else answers for.
+     *
+     * The id is generated rather than derived from what the part carries, because two values with the same
+     * bytes are still two parts and one id can only address one of them. It stays alphanumeric, which is what
+     * keeps a WSS4J peer able to read the reference back: it decodes a cid with a form decoder, so an id
+     * holding a plus sign reaches it as a space.
+     *
+     * The name the caller gave fills both halves of the Content-Disposition. A part added here holds bytes
+     * belonging to an element of the envelope rather than a file, so there is no filename that would be true
+     * and no second name worth asking for.
+     *
+     * @param ResourceStream<resource> $content
+     * @param non-empty-string         $mimeType
+     * @param non-empty-string         $name
+     */
+    public function add(ResourceStream $content, string $mimeType, string $name): ExternalPart
+    {
+        $attachment = Attachment::cid(
+            IdGenerator::generate(),
+            $name,
+            $name,
+            $content,
+            $mimeType,
+        );
+
+        $this->attachments()->add($attachment);
+
+        return new ExternalPart(Cid::uriFor($attachment->id), $mimeType, $attachment->content);
     }
 
     public function replace(ExternalPartList $parts): void

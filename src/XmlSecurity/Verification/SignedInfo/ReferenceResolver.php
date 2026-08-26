@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
 use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
+use Soap\Psr18WsseMiddleware\Xml\XopInclude;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
@@ -77,6 +78,11 @@ final class ReferenceResolver
             throw SignatureVerificationFailed::withReason('The signature declares too many references.');
         }
 
+        // Gathered before the loop, because a pointer may sit in an element this signature references ahead
+        // of the reference covering the bytes it names, and the order two references appear in decides
+        // nothing about what the signature covers.
+        $coveredExternally = $this->externalReferenceUris($referenceElements, $parsedReferences);
+
         $elements = [];
         $externalReferences = [];
         foreach ($referenceElements as $index => $referenceElement) {
@@ -107,6 +113,10 @@ final class ReferenceResolver
                 $this->assertNotSignatureInfrastructure($element, $signatureElement);
             }
 
+            $dereferenced = $this->dereference($document, $referenceElement, $parsed, $element, $signatureElement);
+
+            $this->assertCoversItsOwnContent($document, $dereferenced ?? $element, $coveredExternally);
+
             $elements[] = new ResolvedVerificationReference(
                 $parsed,
                 $element,
@@ -114,11 +124,70 @@ final class ReferenceResolver
                 $this->declaresEnvelopedSignature($referenceElement)
                     ? $this->signatureToStrip($document, $element, $signatureElement)
                     : null,
-                $this->dereference($document, $referenceElement, $parsed, $element, $signatureElement),
+                $dereferenced,
             );
         }
 
         return new ResolvedReferences($elements, $externalReferences);
+    }
+
+    /**
+     * Refuses an element that stands in for bytes this signature says nothing about.
+     *
+     * An xop:Include is a pointer. Digesting the element that holds one covers the pointer while the bytes it
+     * names travel in their own MIME part, so the message satisfies a policy check for that element being
+     * signed while an intermediary is free to replace the file. Every reference under the element must
+     * therefore be one this ds:SignedInfo also digests in its own right.
+     *
+     * Declared here, not merely available: a part being in the list the caller supplied says it arrived, not
+     * that anything vouches for it. Asking what the signature covers is the question the rule is actually
+     * about, and it makes this guard answerable from the signature alone rather than from what a block above
+     * happens to require afterwards.
+     *
+     * A signature declaring no external reference therefore refuses every pointer, which is the standing rule
+     * for a message whose caller supplied no parts at all.
+     *
+     * @param list<string> $coveredExternally the reference URIs this ds:SignedInfo digests as external octets
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function assertCoversItsOwnContent(
+        Document $document,
+        Element $element,
+        array $coveredExternally,
+    ): void {
+        foreach (XopInclude::hrefsIn($document, $element) as $href) {
+            if (!in_array($href, $coveredExternally, true)) {
+                throw SignatureVerificationFailed::withReason(
+                    'A signed element points at content the signature does not cover.',
+                );
+            }
+        }
+    }
+
+    /**
+     * The URIs this ds:SignedInfo declares as external references, read from the reference elements themselves
+     * because that is where the URI lives and where locateExternalPart() reads it too.
+     *
+     * Each of these still has to resolve to a supplied part, which the external branch of the loop enforces on
+     * the same pass. So a URI appearing here and a URI naming bytes this verification can check are the same
+     * set by the time resolve() returns.
+     *
+     * @param non-empty-list<Element>         $referenceElements
+     * @param non-empty-list<ParsedReference> $parsedReferences
+     *
+     * @return list<string>
+     */
+    private function externalReferenceUris(array $referenceElements, array $parsedReferences): array
+    {
+        $uris = [];
+        foreach ($referenceElements as $index => $referenceElement) {
+            if ($parsedReferences[$index]->isExternal()) {
+                $uris[] = (string) $referenceElement->getAttribute('URI');
+            }
+        }
+
+        return $uris;
     }
 
     /**

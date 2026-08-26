@@ -8,6 +8,7 @@ use Dom\Node;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
+use Soap\Psr18WsseMiddleware\Xml\XopInclude;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
@@ -36,19 +37,27 @@ final class Encryptor implements XmlEncryptor
      * The id convention is taken as a pair: the minter stamps the xenc:EncryptedData id and the lookup resolves
      * a by-id encryption target, so two that disagree would leave a DataReference pointing at nothing. Defaults
      * to the engine's xml:id; the WS-Security profile hands over its wsu:Id convention.
+     *
+     * A sink moves the cipher bytes out of the document and leaves a pointer at them. Without one, which is
+     * the default, both cipher values are base64 in the document as they always were.
      */
-    public static function create(?IdConvention $idConvention = null): self
-    {
+    public static function create(
+        ?IdConvention $idConvention = null,
+        ?CipherValueSink $cipherValueSink = null,
+    ): self {
         $idConvention ??= AttributeIdConvention::xmlId();
         $cipher = new Cipher();
+        // One instance for both builders, so the wrapped key and the content cannot end up in different
+        // shapes within one message.
+        $cipherValueElement = new CipherValueElement($cipherValueSink);
 
         return new self(
             new TargetLocator($idConvention->lookup()),
             new SessionKeyFactory(),
             $cipher,
-            new EncryptedDataBuilder($idConvention->minter()),
+            new EncryptedDataBuilder($idConvention->minter(), $cipherValueElement),
             new KeyTransport(),
-            new EncryptedKeyBuilder(),
+            new EncryptedKeyBuilder($cipherValueElement),
             new ExternalPartSealer($cipher, new ExternalEncryptedDataBuilder($idConvention->minter())),
         );
     }
@@ -155,6 +164,17 @@ final class Encryptor implements XmlEncryptor
                 $element = $this->targetLocator->locate($document, $encryptionTarget->target);
             } catch (IdReferenceException $exception) {
                 throw EncryptionFailed::withReason($exception->getMessage());
+            }
+
+            // An element whose content is a pointer cannot be encrypted: the ciphertext would cover the
+            // reference while the bytes it names travel in the clear in their own MIME part, and the message
+            // would still satisfy a policy check for that element being encrypted. Encrypting the part the
+            // pointer names is the supported path, which is what external parts are for.
+            if (XopInclude::hrefsIn($document, $element) !== []) {
+                throw EncryptionFailed::withReason(
+                    'An element carrying an xop:Include cannot be encrypted: that would protect the reference '
+                    .'while the referenced bytes travel in the clear. Encrypt the attachment instead.',
+                );
             }
 
             $resolved[] = [$element, $encryptionTarget->mode];

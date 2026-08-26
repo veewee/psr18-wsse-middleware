@@ -99,6 +99,10 @@ response.
 SwA and MTOM/XOP are one mechanism here. Both put the bytes in a MIME part addressed by `cid:`, and this
 feature encrypts and signs MIME parts addressed by `cid:`. Nothing branches on `AttachmentType`.
 
+One thing does need the extra, and it is not this feature: a peer that also moves its *cipher* bytes into MIME
+parts. See [Cipher bytes in MIME parts](#cipher-bytes-in-mime-parts) below, which is where the "nothing extra"
+stops holding.
+
 That works because the attachments middleware owns both the attachment and the `xop:Include` tag and never
 inlines base64. Outbound, the encoder puts the plaintext in the storage and an `<xop:Include href="cid:..."/>`
 in the XML; this package encrypts the part in the storage and leaves the include alone. Inbound, the response
@@ -120,6 +124,42 @@ processing happens. Pair `AttachmentType::Mtom` with a SOAP 1.2 envelope.
 ciphertext would cover the pointer while the file itself travelled in the clear in its own part, and the
 message would still satisfy a policy check for that element being encrypted. Encrypting the *part* an include
 points at is the supported path, and that is what `withAttachments()` does.
+
+## Cipher bytes in MIME parts
+
+This is a different mechanism from everything above, and it needs its own block. A peer may put the bytes of
+an `xenc:CipherValue` or a `wsse:BinarySecurityToken` in a MIME part and leave an `xop:Include` behind, which
+skips the 33% base64 costs. WSS4J calls it `storeBytesInAttachment`.
+
+**It is not an attachment feature and it is not negotiated.** It applies to every encrypted message, whether
+or not attachments are involved, and no WS-SecurityPolicy assertion expresses it. It is also not exotic:
+
+- Apache CXF turns it on by default whenever MTOM is enabled, along with `expandXopInclude`.
+- .NET/WCF and Metro do it to any large encrypted content unconditionally. Apache's
+  [CXF-6409](https://issues.apache.org/jira/browse/CXF-6409) exists because CXF itself could not read .NET and
+  Metro messages for exactly this reason.
+
+So this arrives whether or not anyone chose it. Because the peers switch on a size threshold, one message
+routinely mixes both shapes: a small wrapped key stays inline base64 while the body's cipher value moves to a
+part.
+
+Inbound, put `Inbound\ResolveOptimizedBytes` first in the list and everything after it sees an ordinary
+message. Outbound, `Outbound\Encryption::withOptimizedCipherBytes()` emits the same shape. Both are covered
+in the block references: [inbound](inbound-blocks.md#inbound-resolveoptimizedbytes) and
+[outbound](outbound-blocks.md#outbound-encryption).
+
+```php
+$inbound = [
+    new Inbound\ResolveOptimizedBytes(
+        AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Content),
+    ),
+    new Inbound\Decrypt($privateKey),
+    // ...
+];
+```
+
+Measured against a live WSS4J peer in both directions, including a `wsse:BinarySecurityToken` moved the same
+way, so the packaging is not read off the sources.
 
 ## Wire format
 
@@ -306,6 +346,9 @@ never trips them.
 | An XML attachment whose octets are not a document, or that carries a doctype | Refused. There is no node-set to canonicalize, so there is no digest to compute. A peer refuses a doctype in an attachment too, so this is agreement rather than a restriction invented here |
 | An attachment whose stream reads zero bytes | Refused on both outbound operations. Signing nothing produces a digest over no file, and encrypting nothing ships an empty file that passes every structural check on the far side. A stream that cannot rewind reads this way too |
 | Encrypting an element that is or contains an `xop:Include` | Refused. See the MTOM section above |
+| Signing an element containing an `xop:Include` whose `cid:` you did not register | Refused. The signature would cover the pointer while the file travels unprotected, and the message would still satisfy a policy check for that element being signed |
+| Verifying a signature over an element containing an `xop:Include` that the same signature does not also digest | Refused. Being supplied says the part arrived, not that the signature vouches for it, so the question asked is what this `ds:SignedInfo` covers |
+| A security value describing its content two ways at once (text beside an `xop:Include`, two of them, one nested deeper, one naming nothing) | Refused rather than read either way. Whichever reading was picked, the other is the one an attacker would have chosen |
 | A registered attachment that no `ds:Reference` covers | Refused. Registering parts on `VerifySignature` is the requirement that they be signed |
 | An encrypted attachment when none are registered on `Decrypt` | Refused, never skipped. Otherwise the message reads as decrypted while your code holds ciphertext |
 | A `cid:` reference naming a part you did not supply | Refused. Never resolved, never fetched, under any circumstance |
@@ -335,10 +378,22 @@ about your own outbound message is a secret from you. A refusal about the messag
 - **Whole parts are buffered.** The cipher takes and returns strings, so an attachment is held in memory around
   twice at peak. That matches what the attachments middleware already implies by building the multipart body in
   memory. Attachments comfortably smaller than available memory are the supported case.
+
+  This applies to cipher bytes in MIME parts too, and it bites harder there, because size is the only reason a
+  peer sends that shape at all: the part is read whole, base64-encoded, and put in the document, so peak is
+  nearer three times its size. Streaming it would not help on its own. The whole decryption path is
+  string-based, from the cipher value through `CipherText` to the cipher itself, so the document is not the
+  bottleneck and this is a property of the engine rather than of this feature.
 - **Emitting `Attachment-Complete` ciphertext is not implemented.** Signing, verification and decryption all
   support the complete coverage; outbound encryption does not, and no policy can require it. What it would
   buy is hiding the filename and media type from an intermediary that terminates TLS, which content-only
   leaves readable in the MIME headers. Nobody has asked for it.
+- **Emitting a `wsse:BinarySecurityToken` into a MIME part is not implemented.** WSS4J moves the token's bytes
+  out too when `storeBytesInAttachment` is on, and this package reads that shape but does not produce it. A
+  certificate is around 1.5 KB, so the saving is a few hundred bytes, and it collides with the default signed
+  parts: `Part::securityHeaderContents()` covers the token, and signing an element whose content is a pointer
+  is refused unless the same signature covers those bytes. WSS4J resolves that by always expanding a signed
+  token; matching it would mean an exception to the coverage rule for one element, to save nothing.
 - **An XML attachment must be a well-formed document with no doctype.** Its content is canonicalized before
   digesting, so there has to be something to canonicalize. Both limits match what a peer does with the same
   bytes.
@@ -347,12 +402,9 @@ about your own outbound message is a secret from you. A refusal about the messag
   so turns a `+` into a space. It emits those references unencoded, so the same id breaks its own round trip
   and no peer can be using one; the exposure is only an id you choose here. The generated ids are
   alphanumeric, so this reaches you only if you name attachments yourself.
-- **`storeBytesInAttachment` peers are not supported.** A CXF or WSS4J peer can be configured to put cipher
-  bytes in a MIME part and leave an `xop:Include` in the `xenc:CipherValue` rather than base64 inline. Nothing
-  negotiates that, it is not part of this profile, and it changes every encrypted message rather than only the
-  attachment ones. Messages from such a peer are refused, not misread.
-- **WCF and .NET cannot be the peer.** There is no SwA support in WCF, only MTOM. A .NET peer that wants
-  attachment security is not a case this feature serves.
+- **WCF and .NET cannot be the peer for SwA.** There is no SwA support in WCF, only MTOM. A .NET peer that
+  wants *attachment* security is not a case this feature serves. It is very much the peer for the section
+  below, though: cipher bytes in MIME parts is what .NET does by default.
 
 ## Writing your own adapter
 
@@ -364,11 +416,12 @@ interface ExternalParts
     public function coverage(): ExternalPartCoverage;
     public function collect(): ExternalPartList;
     public function collectSealed(): ExternalPartList;
+    public function add(ResourceStream $content, string $mimeType, string $name): ExternalPart;
     public function replace(ExternalPartList $parts): void;
 }
 ```
 
-Implement it if your attachments live somewhere else. Four contract points matter:
+Implement it if your attachments live somewhere else. Five contract points matter:
 
 - **`coverage()` says how much of a part your compositions cover**, and the blocks read it: it decides both
   the transform they declare and what they expect from a peer. Return `ExternalPartCoverage::Content` unless
@@ -379,6 +432,13 @@ Implement it if your attachments live somewhere else. Four contract points matte
   `$digestPrefix` to the result, which is the order a peer composes them in. Joining them first puts the
   header block through the transform, and for an XML part that means handing a canonicalizer a header block
   to parse.
+- **`add()` adds a part the message did not arrive with**, and returns it carrying the reference that now
+  addresses it. The reference is yours to choose: nothing above this decides what addresses a part, so an
+  adapter over something other than MIME need not produce anything resembling a Content-ID. The `$name` goes
+  the other way, because it is the one thing about the part you cannot work out: the bytes mean something to
+  whoever handed them over and nothing to you. Several parts may share a name; the reference is what tells
+  them apart. Only `Outbound\Encryption::withOptimizedCipherBytes()` reaches this, and only when a caller
+  asked for it.
 - **`collectSealed()` returns the same parts with an empty `$digestPrefix`**, which a cipher seals on the way
   out and opens on the way in. A `xenc:CipherReference` addresses the MIME part, so what sits there is the
   part's own octets whatever the coverage says a signature covers. Return `collect()` if you compose nothing.

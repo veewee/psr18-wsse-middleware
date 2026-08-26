@@ -33,6 +33,22 @@ final class SigningFailed extends RuntimeException
     }
 
     /**
+     * An element whose content is a pointer at bytes this signature does not cover.
+     *
+     * Signing it would protect the reference while the file it names travels in its own MIME part, and the
+     * message would still satisfy a policy check for that element being signed. Naming the reference, because
+     * outbound this is the caller's own message and nothing about it is a secret from them.
+     */
+    public static function uncoveredOptimizedContent(string $reference): self
+    {
+        return new self(sprintf(
+            'A signed element points at content the signature does not cover: "%s". Register the attachment '
+            .'it names so the bytes are signed too, rather than only the reference to them.',
+            $reference,
+        ));
+    }
+
+    /**
      * A part whose stream reads nothing.
      *
      * Signing nothing produces a signature that verifies, so the caller ships an empty file believing it was

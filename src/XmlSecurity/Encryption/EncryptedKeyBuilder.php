@@ -14,7 +14,6 @@ use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
 use function VeeWee\Xml\Dom\Builder\children;
 use function VeeWee\Xml\Dom\Builder\namespaced_element;
-use function VeeWee\Xml\Dom\Builder\value;
 
 /**
  * Builds the xenc:EncryptedKey element wrapping the session key under the recipient's public key and carrying
@@ -24,7 +23,7 @@ use function VeeWee\Xml\Dom\Builder\value;
  *     xenc:EncryptionMethod Algorithm="<keyEncryptionMethod>"
  *     ds:KeyInfo            [result of the KeyIdentifier strategy]
  *     xenc:CipherData
- *       xenc:CipherValue    [base64 of the wrapped key]
+ *       xenc:CipherValue    [base64 of the wrapped key, or a pointer at wherever a sink put it]
  *     xenc:ReferenceList
  *       xenc:DataReference URI="#<id>" [one per encrypted part]
  *
@@ -33,6 +32,11 @@ use function VeeWee\Xml\Dom\Builder\value;
  */
 final class EncryptedKeyBuilder
 {
+    public function __construct(
+        private readonly CipherValueElement $cipherValueElement = new CipherValueElement(),
+    ) {
+    }
+
     /**
      * @param non-empty-list<non-empty-string> $encryptedPartIds
      */
@@ -52,15 +56,11 @@ final class EncryptedKeyBuilder
             children(
                 fn (): Element => $this->buildEncryptionMethod($document, $keyTransportAlgorithm),
                 static fn (): Element => $keyInfo,
-                static fn (): Element => $document->map(namespaced_element(
+                fn (): Element => $document->map(namespaced_element(
                     Namespaces::Xenc->value,
                     Namespaces::Xenc->qualify('CipherData'),
                     children(
-                        static fn (): Element => $document->map(namespaced_element(
-                            Namespaces::Xenc->value,
-                            Namespaces::Xenc->qualify('CipherValue'),
-                            value(base64_encode($wrappedKey)),
-                        )),
+                        fn (): Element => $this->cipherValueElement->build($document, $wrappedKey),
                     ),
                 )),
                 fn (): Element => $this->buildReferenceList($document, $encryptedPartIds),

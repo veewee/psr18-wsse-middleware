@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentEncryptedDataType;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\CipherValueParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentCoverage;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
@@ -19,8 +20,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
-use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\Xml\XopInclude;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
@@ -31,7 +30,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -63,29 +61,65 @@ final class Encryption implements OutboundAction
     private ?KeyEncryptionMethod $keyEncryptionMethod = null;
     private ?KeyTransportAlgorithm $keyTransportAlgorithm = null;
     private ?ExternalParts $attachments = null;
+    private ?ExternalParts $cipherCarriers = null;
 
-    private XmlEncryptor $encryptor;
-    private readonly TargetLocator $targetLocator;
+    private ?XmlEncryptor $encryptor = null;
 
     public function __construct(
         private readonly Certificate $recipientCertificate,
         private readonly EncKeyRef $encKeyRef = EncKeyRef::SubjectKeyIdentifier,
     ) {
-        // The WS-Security profile mandates wsu:Id on the xenc:EncryptedData, so the block injects the wsu:Id
-        // convention on both sides. The engine's own default (xml:id) would break the WSSE wire format.
-        $convention = new WsuIdConvention();
-        $this->encryptor = Encryptor::create($convention);
-        // Only the read half, and only for the XOP guard: this block resolves a target to inspect it, never
-        // to stamp anything. The engine resolves them again for the encryption itself.
-        $this->targetLocator = new TargetLocator($convention->lookup());
     }
 
+    /**
+     * A caller replacing the encryptor owns everything the default one does, withOptimizedCipherBytes()
+     * included: the replacement is used exactly as given.
+     */
     public function withEncryptor(XmlEncryptor $encryptor): self
     {
         $clone = clone $this;
         $clone->encryptor = $encryptor;
 
         return $clone;
+    }
+
+    /**
+     * Writes the cipher bytes into MIME parts and leaves an xop:Include in each xenc:CipherValue, instead of
+     * base64 in the document.
+     *
+     * Off by default and nothing negotiates it. It buys the 33% that base64 costs, which is worth having on
+     * large payloads and worth nothing on small ones, and no policy assertion can require it of either side.
+     * A WSS4J or CXF peer reads this shape whatever its own configuration says, because resolving a cipher
+     * value's pointer is not something those peers made optional.
+     *
+     * Pass AttachmentParts::request() for the outbound side. The request becomes a multipart one, so the
+     * attachments middleware has to be in the pipeline, and under MTOM that means a SOAP 1.2 envelope.
+     *
+     * Not to be combined with encrypt-then-sign: the minted parts are not registered on the signing block, so
+     * signing an element that now holds a pointer is refused. WSS4J silently disables this option in that
+     * case instead; a security-relevant setting that turns itself off is not a behaviour to copy.
+     */
+    public function withOptimizedCipherBytes(ExternalParts $carriers): self
+    {
+        $clone = clone $this;
+        $clone->cipherCarriers = $carriers;
+
+        return $clone;
+    }
+
+    /**
+     * Built per message rather than in the constructor, so an explicit encryptor and an optimized-bytes
+     * registration cannot depend on which was configured first.
+     *
+     * The WS-Security profile mandates wsu:Id on the xenc:EncryptedData, so the block injects the wsu:Id
+     * convention. The engine's own default (xml:id) would break the WSSE wire format.
+     */
+    private function encryptor(): XmlEncryptor
+    {
+        return $this->encryptor ?? Encryptor::create(
+            new WsuIdConvention(),
+            $this->cipherCarriers === null ? null : new CipherValueParts($this->cipherCarriers),
+        );
     }
 
     /**
@@ -206,9 +240,7 @@ final class Encryption implements OutboundAction
             externalParts: $external,
         );
 
-        $this->assertNoOptimizedContent($document, $request);
-
-        $result = $this->encryptor->encrypt($document, $request);
+        $result = $this->encryptor()->encrypt($document, $request);
         $this->assertEveryRegisteredPartSealed($external?->parts, $result->sealedParts);
 
         if ($this->attachments !== null) {
@@ -279,37 +311,6 @@ final class Encryption implements OutboundAction
         }
 
         return ExternalPartList::of(...$opaque);
-    }
-
-    /**
-     * Refuses to encrypt an element whose content is, or contains, an xop:Include.
-     *
-     * A disclosure guard rather than a convenience check. The include is only a pointer: encrypting the
-     * element that holds it produces ciphertext over the pointer while the bytes themselves travel in the
-     * clear in their own MIME part, and the message still satisfies a policy check for "that element is
-     * encrypted". Encrypting the part an include points at is the supported path and is what
-     * withAttachments() does.
-     *
-     * @throws EncryptionFailed
-     */
-    private function assertNoOptimizedContent(Document $document, EncryptionRequest $request): void
-    {
-        foreach ($request->targets as $target) {
-            try {
-                $element = $this->targetLocator->locate($document, $target->target);
-            } catch (IdReferenceException) {
-                // Not this guard's verdict to give. The engine resolves every target itself and refuses the
-                // whole operation when one is missing, so nothing gets encrypted either way.
-                continue;
-            }
-
-            if (XopInclude::presentIn($document, $element)) {
-                throw EncryptionFailed::withReason(
-                    'An element carrying an xop:Include cannot be encrypted: that would protect the reference '
-                    .'while the referenced bytes travel in the clear. Encrypt the attachment instead.',
-                );
-            }
-        }
     }
 
     private function resolveKeyIdentifier(WsseContext $context): KeyIdentifier

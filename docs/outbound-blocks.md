@@ -141,6 +141,13 @@ new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef:
   Adds coverage rather than replacing it: an attachment reference sits alongside whatever `withParts()` asks
   for. What gets digested depends on the media type: XML is canonicalized, other text has its line endings
   normalized, and everything else is digested as it travels; see [Attachment security](attachments.md).
+**A signed element may not stand in for content the signature leaves out.** An `xop:Include` in a signed
+element is a pointer: digesting the element covers the reference while the bytes it names travel in their own
+MIME part, and the message still satisfies a far-side policy check for that element being signed. So an
+include under a signing target is accepted only when the reference it names is one of the attachments this
+same signature covers, which is the ordinary MTOM shape. Otherwise the signature is refused before it is made.
+Register the attachment with `withAttachments()` and both the pointer and the bytes are protected.
+
 - `withCertificatePath(CertificateChain $path): self`: send your whole certificate chain in the token (a
   `#X509PKIPathv1` `wsse:BinarySecurityToken`) instead of the leaf certificate alone. Off by default. Turn it on
   for a server that will not complete the chain from its own store and needs the intermediates handed to it:
@@ -254,6 +261,29 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
   on the `xenc:EncryptedData`, so the far side can restore it. An element whose content is or contains an
   `xop:Include` cannot be encrypted at all: that would protect the pointer while the bytes travel in the clear.
   Encrypt the attachment instead.
+- `withOptimizedCipherBytes(ExternalParts $carriers): self`: write each cipher value's bytes into a MIME
+  part of its own and leave an `xop:Include` in the `xenc:CipherValue`, instead of base64 in the document.
+  Off by default.
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
+  use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
+
+  (new Outbound\Encryption($recipient))
+      ->withOptimizedCipherBytes(AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Content));
+  ```
+  This is WSS4J's `storeBytesInAttachment`. It buys the 33% that base64 costs, which is worth having on large
+  payloads and nothing on small ones, and **no policy assertion can require it of either side**. It is
+  supported because a WSS4J or CXF peer reads this shape whatever its own configuration says: resolving a
+  cipher value's pointer is not something those peers made optional.
+
+  Both values move: the wrapped key in the header and the encrypted content in the body. Each minted part
+  carries `Content-Type: application/ciphervalue` and the raw bytes, not base64.
+
+  Two consequences worth knowing before you turn it on. The request becomes a multipart one, so the
+  attachments middleware has to be in the pipeline, and under MTOM that means a SOAP 1.2 envelope. And it
+  cannot be combined with encrypt-then-sign: the minted parts are not registered on the signing block, so
+  signing an element that now holds a pointer is refused. WSS4J silently disables the option in that case; we
+  do not, because a security-relevant setting that turns itself off leaves nothing downstream able to tell.
 - `withDataEncryptionMethod(DataEncryptionMethod $method): self`: the bulk-data cipher. Default: the profile's
   `dataEncryptionMethod()` (AES-256-GCM).
 - `withKeyEncryptionMethod(KeyEncryptionMethod $method): self`: the key-transport method that wraps the
