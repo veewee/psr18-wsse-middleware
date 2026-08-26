@@ -303,7 +303,7 @@ final class Encryption implements OutboundAction
                 continue;
             }
 
-            if (XopInclude::presentIn($document, $element)) {
+            if (XopInclude::hrefsIn($document, $element) !== []) {
                 throw EncryptionFailed::withReason(
                     'An element carrying an xop:Include cannot be encrypted: that would protect the reference '
                     .'while the referenced bytes travel in the clear. Encrypt the attachment instead.',
