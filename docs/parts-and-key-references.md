@@ -96,13 +96,15 @@ every such element to have been signed.
 Two more reference types exist for a symmetric key, and neither names a certificate:
 
 - `Outbound\KeyReference\EncryptedKeySha1KeyIdentifier`: the WSS 1.1 `EncryptedKeySHA1` form, carrying
-  `base64(SHA-1(wrapped cipher bytes))`. It names the key itself rather than any element, so it stays valid
-  however the key travels and across a correlated response. This is what a symmetric signature uses by default;
-  `Keys\SymmetricKeyReference` on the key source chooses it.
-- `Outbound\KeyReference\LocalTokenKeyIdentifier`: a `wsse:Reference URI="#..."` naming an element this same
-  Security header carries, with no `ValueType`, because the referenced element says what it is. Used for a local
-  `xenc:EncryptedKey` and for a local `wsc:DerivedKeyToken`. Every `xenc:EncryptedData` uses this form, which is
-  what receivers read.
+  `base64(SHA-1(wrapped cipher bytes))` and a `wsse11:TokenType` saying it points at a session key. It names the
+  key itself rather than any element, so it stays valid however the key travels and across a correlated response.
+  Everything keyed by a wrapped session key uses this, in both wire positions.
+- `Outbound\KeyReference\LocalTokenKeyIdentifier`: a `wsse:Reference URI="#..."` naming the
+  `wsc:DerivedKeyToken` this same Security header carries, declaring that token's dialect-specific `ValueType`.
+
+Both declare what they point at, and that is not cosmetic: a receiver enforcing the Basic Security Profile
+classifies a reference by the type it declares and refuses one it cannot classify, reporting whatever shape it
+guessed at rather than what was wrong.
 
 Inbound, both forms resolve against the keys the exchange established and against nothing else. A reference
 naming a key this exchange never saw is refused rather than searched for; see

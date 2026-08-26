@@ -202,14 +202,11 @@ no secret.
   width from the first block that asks for the key. State it when your blocks disagree: the wrapped bytes are
   fixed once written, so a later block needing a different exact width is refused rather than served a key its
   cipher cannot use.
-- `SymmetricKeyReference $referencedAs = SymmetricKeyReference::EncryptedKeySha1`: how a signature keyed by this
-  key names it. The default is the WSS 1.1 `EncryptedKeySHA1` identifier, which every stack emitting this shape
-  uses; `DirectReference` names the local `xenc:EncryptedKey` by `wsu:Id` instead. An `xenc:EncryptedData` always
-  uses the local reference, whatever this says, because that is what a receiver reads.
-
-  This governs what is **emitted** only. Both forms are established as names for the key, so a response may
-  reference it by either one: which of the two a peer echoes is not something a client gets to constrain, and
-  refusing the form we happened not to emit would refuse a conformant answer.
+Every consumer of the key names it by the WSS 1.1 `EncryptedKeySHA1` identifier, which names the key itself
+rather than the element carrying it. Naming the element is representable in the format and is not offered here:
+an `xenc:EncryptedData` naming its key that way is one WSS4J cannot resolve, so the option would work for a
+signature and not for an encryption. Inbound, both forms are accepted, because which one a peer echoes is not
+something a client gets to constrain.
 - `?KeyTransportAlgorithm $keyTransportAlgorithm = null`: the whole key-transport choice (method plus OAEP hash)
   in one atomic value, so an invalid pairing cannot be expressed. `null` takes it from the profile. See
   [Security profile and defaults](security-profile.md).

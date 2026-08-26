@@ -65,18 +65,16 @@ final readonly class SecurityTokenReference
      * own profile defines one: a receiver enforcing the Basic Security Profile classifies a reference by its
      * declared type, and refuses one it cannot classify rather than looking at what it points at.
      *
-     * @param non-empty-string      $uri       the wsu:Id of the referenced element, without the '#'
-     * @param non-empty-string|null $valueType the referenced element's own type URI, when its profile names one
+     * @param non-empty-string $uri       the wsu:Id of the referenced element, without the '#'
+     * @param non-empty-string $valueType the referenced element's own type URI
      */
-    public static function localReference(string $uri, ?string $valueType = null): self
+    public static function localReference(string $uri, string $valueType): self
     {
         return new self(namespaced_element(
             WsseNamespaces::Wsse->value,
             WsseNamespaces::Wsse->qualify('Reference'),
             attribute('URI', '#'.$uri),
-            $valueType === null
-                ? static fn (Element $reference): Element => $reference
-                : attribute('ValueType', $valueType),
+            attribute('ValueType', $valueType),
         ));
     }
 

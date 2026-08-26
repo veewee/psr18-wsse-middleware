@@ -89,6 +89,18 @@ final class ExchangeKeys
     }
 
     /**
+     * Whether this exchange has established any secret at all.
+     *
+     * The inbound resolvers ask before reading a reference as a symmetric one, so a deployment that never
+     * establishes a secret does no symmetric work: the certificate forms are read exactly as they were, with no
+     * extra lookup per signature.
+     */
+    public function hasEstablished(): bool
+    {
+        return $this->established !== [];
+    }
+
+    /**
      * The secret an inbound reference names, or null when this exchange established none under that
      * identifier. Null rather than an exception: what an unresolvable reference means is the calling block's
      * decision, and every such refusal collapses into its one uniform failure.

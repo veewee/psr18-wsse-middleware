@@ -387,10 +387,10 @@ new Outbound\Encryption(new Keys\WrappedSessionKey($recipientCertificate, EncKey
 ```
 
 Two reference types name a symmetric key rather than a certificate, and neither has an enum case because neither
-describes a certificate: `EncryptedKeySha1KeyIdentifier` (the WSS 1.1 form a symmetric signature uses) and
-`LocalTokenKeyIdentifier` (a `wsse:Reference` to an element in the same header, which every
-`xenc:EncryptedData` uses). The `Keys\SymmetricKeyReference` enum on the key source chooses between them for a
-signature. See [Choosing parts and key references](docs/parts-and-key-references.md).
+describes a certificate: `EncryptedKeySha1KeyIdentifier`, which everything keyed by a wrapped session key uses,
+and `LocalTokenKeyIdentifier`, which names a `wsc:DerivedKeyToken`. Both declare what they point at, because a
+receiver enforcing the Basic Security Profile classifies a reference by that and refuses one it cannot classify.
+See [Choosing parts and key references](docs/parts-and-key-references.md).
 
 If you implement `XmlSecurity\KeyIdentifier` yourself, `apply()` now takes only the `Document`: a symmetric
 reference has no certificate to be handed one, and every certificate-based strategy takes its certificate at

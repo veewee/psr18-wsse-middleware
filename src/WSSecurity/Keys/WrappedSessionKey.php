@@ -15,7 +15,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\BinarySecurityToken;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncryptedKeySha1KeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
-use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\LocalTokenKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\ThumbprintKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -40,6 +39,10 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
  *
  * The key is minted on the first resolve() and the xenc:EncryptedKey written then, so its position in the header
  * follows whichever block asked first and a message with no symmetric block writes nothing.
+ *
+ * Every consumer names the key by the WSS 1.1 EncryptedKeySHA1 identifier, which names the key itself rather
+ * than the element carrying it. Naming the element is representable in the format and is not offered here,
+ * because an xenc:EncryptedData naming its key that way is one the reference implementation cannot resolve.
  */
 final class WrappedSessionKey implements SymmetricKeySource
 {
@@ -62,7 +65,6 @@ final class WrappedSessionKey implements SymmetricKeySource
         private readonly Certificate $recipient,
         private readonly EncKeyRef $keyRef = EncKeyRef::SubjectKeyIdentifier,
         private readonly ?DataEncryptionMethod $keyLength = null,
-        private readonly SymmetricKeyReference $referencedAs = SymmetricKeyReference::EncryptedKeySha1,
         private readonly ?KeyTransportAlgorithm $keyTransportAlgorithm = null,
         ?ExternalParts $optimizedCipherBytes = null,
     ) {
@@ -120,9 +122,7 @@ final class WrappedSessionKey implements SymmetricKeySource
 
         return new SymmetricKey(
             $sessionKey,
-            $this->referencedAs === SymmetricKeyReference::EncryptedKeySha1
-                ? new EncryptedKeySha1KeyIdentifier($sha1)
-                : new LocalTokenKeyIdentifier($wsuId),
+            new EncryptedKeySha1KeyIdentifier($sha1),
             // Both forms, whichever this message emits: a peer may name the key by either in its response, and
             // which one it picks is not ours to constrain.
             [$sha1, '#'.$wsuId],

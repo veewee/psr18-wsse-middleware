@@ -45,6 +45,12 @@ final readonly class EstablishedSecrets
         IdLookup $idLookup,
         bool $allowDerivation = true,
     ): ?SessionKey {
+        // Nothing established means no reference here can be a symmetric one, so a deployment that never
+        // establishes a secret reads its certificate references with no extra work.
+        if (!$this->keys->hasEstablished()) {
+            return null;
+        }
+
         $reference = OnlyChild::named($securityTokenReference, WsseNamespaces::Wsse, 'Reference');
         if ($reference !== null) {
             return $this->forLocalReference($document, $reference, $idLookup, $allowDerivation);

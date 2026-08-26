@@ -9,7 +9,6 @@ use PHPUnit\Framework\Attributes\RequiresPhp;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\WSSecurity\Keys\SymmetricKeyReference;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\CertificateSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
@@ -100,27 +99,6 @@ final class SymmetricBindingTest extends OutboundTestCase
         $decoded = base64_decode($keyIdentifier->textContent, true);
         static::assertIsString($decoded);
         static::assertSame(20, strlen($decoded));
-    }
-
-    public function test_the_signature_can_name_the_key_by_a_local_reference_instead(): void
-    {
-        $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $this->signableEnvelope();
-        $key = new WrappedSessionKey(
-            $fixture->leafCertificate,
-            referencedAs: SymmetricKeyReference::DirectReference,
-        );
-
-        (new Signature(new SymmetricSigningKey($key)))
-            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
-            ->withParts([Part::body()])($this->symmetricContext($document));
-
-        $encryptedKeyId = $this->only($document, self::XENC, 'EncryptedKey')->getAttributeNS(self::WSU, 'Id');
-        $reference = $this->only($document, self::DS, 'Signature')
-            ->getElementsByTagNameNS(self::WSSE, 'Reference')
-            ->item(0);
-        static::assertInstanceOf(Element::class, $reference);
-        static::assertSame('#'.$encryptedKeyId, $reference->getAttribute('URI'));
     }
 
     public function test_a_symmetric_signature_needs_no_encryption_to_carry_its_key(): void

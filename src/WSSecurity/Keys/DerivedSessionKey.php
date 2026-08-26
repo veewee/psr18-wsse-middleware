@@ -122,9 +122,7 @@ final class DerivedSessionKey implements SymmetricKeySource
         $header->appendChildren(static fn (): Element => $token);
         $wsuId = (new WsuIdConvention())->minter()->mint($token, $document);
 
-        // The token's own type is declared on the reference, because a receiver enforcing the Basic Security
-        // Profile classifies a reference by what it says rather than by what it points at.
-        $reference = new LocalTokenKeyIdentifier($wsuId, $version->derivedKeyTokenType());
+        $reference = new LocalTokenKeyIdentifier($wsuId, $version);
 
         return new SymmetricKey($derived, $reference, ['#'.$wsuId]);
     }
