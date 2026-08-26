@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentEncryptedDataType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentCoverage;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
@@ -53,19 +54,7 @@ use VeeWee\Xml\Dom\Document;
  */
 final class Encryption implements OutboundAction
 {
-    /**
-     * The only encryption mode this package emits: an attachment's content is encrypted while its MIME
-     * headers stay readable. Attachment-Complete also encrypts the headers, and no policy can require it,
-     * since a peer validates the coverage of a signature and never of an encryption. Inbound is another
-     * matter, and Decrypt accepts both.
-     */
-    private const SWA_CONTENT_ONLY_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Only';
 
-    /**
-     * Declared inside the CipherReference so a receiver knows the referenced part holds ciphertext rather than
-     * the original bytes.
-     */
-    private const SWA_CIPHERTEXT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Ciphertext-Transform';
 
     private const OPAQUE_MEDIA_TYPE = 'application/octet-stream';
 
@@ -252,8 +241,8 @@ final class Encryption implements OutboundAction
 
         return new ExternalPartEncryption(
             $this->attachments->collectSealed(),
-            self::SWA_CONTENT_ONLY_TYPE,
-            self::SWA_CIPHERTEXT_TRANSFORM,
+            AttachmentEncryptedDataType::ContentOnly->value,
+            AttachmentEncryptedDataType::CIPHERTEXT_TRANSFORM,
         );
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentEncryptedDataType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -14,7 +15,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Decryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartDecryption;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\XmlDecryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Throwable;
 
@@ -40,25 +40,8 @@ use Throwable;
  */
 final class Decrypt implements InboundAction
 {
-    /**
-     * The part's content is encrypted while its MIME headers stay readable.
-     */
-    private const SWA_CONTENT_ONLY_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Only';
 
-    /**
-     * The part's MIME headers are encrypted alongside its content and travel inside the ciphertext, which is
-     * what a default-configured Java sender emits.
-     *
-     * The adapter's coverage decides which of the two an element must declare, and the other is refused
-     * before any decryption. A peer may not decide to cover less than it was asked to.
-     */
-    private const SWA_COMPLETE_TYPE = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Complete';
 
-    /**
-     * Required inside every CipherReference, so a part claiming to hold the original bytes is not decrypted as
-     * though it held ciphertext.
-     */
-    private const SWA_CIPHERTEXT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Ciphertext-Transform';
 
     private XmlDecryptor $decryptor;
     private ?ExternalParts $attachments = null;
@@ -111,11 +94,8 @@ final class Decrypt implements InboundAction
 
         return new ExternalPartDecryption(
             $attachments->collectSealed(),
-            match ($attachments->coverage()) {
-                ExternalPartCoverage::Content => self::SWA_CONTENT_ONLY_TYPE,
-                ExternalPartCoverage::Complete => self::SWA_COMPLETE_TYPE,
-            },
-            self::SWA_CIPHERTEXT_TRANSFORM,
+            AttachmentEncryptedDataType::for($attachments->coverage())->value,
+            AttachmentEncryptedDataType::CIPHERTEXT_TRANSFORM,
         );
     }
 

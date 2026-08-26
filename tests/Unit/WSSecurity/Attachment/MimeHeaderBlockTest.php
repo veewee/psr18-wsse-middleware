@@ -66,13 +66,12 @@ final class MimeHeaderBlockTest extends TestCase
         );
     }
 
-    public function test_it_emits_the_five_headers_in_ascending_name_order(): void
+    public function test_it_emits_the_headers_it_covers_in_ascending_name_order(): void
     {
         $block = new MimeHeaderBlock();
 
         static::assertSame(
-            "Content-Description:a description\r\n"
-            ."Content-Disposition:attachment\r\n"
+            "Content-Disposition:attachment\r\n"
             ."Content-ID:<invoice@example.com>\r\n"
             ."Content-Location:http://example.com/invoice.pdf\r\n"
             ."Content-Type:application/pdf\r\n",
@@ -81,7 +80,6 @@ final class MimeHeaderBlockTest extends TestCase
                 ['Content-Location', 'http://example.com/invoice.pdf'],
                 ['Content-ID', '<invoice@example.com>'],
                 ['Content-Disposition', 'attachment'],
-                ['Content-Description', 'a description'],
             ]))
         );
     }
@@ -182,6 +180,19 @@ final class MimeHeaderBlockTest extends TestCase
         );
     }
 
+    public function test_it_refuses_a_content_description(): void
+    {
+        $block = new MimeHeaderBlock();
+
+        $this->expectException(UnsupportedAttachmentHeaderForm::class);
+        $this->expectExceptionMessage('"Content-Description" is the one header');
+
+        $block->canonicalize(Headers::fromPairs([
+            ['Content-Type', 'application/pdf'],
+            ['Content-Description', 'an invoice'],
+        ]));
+    }
+
     public function test_it_refuses_a_header_carrying_a_comment(): void
     {
         $block = new MimeHeaderBlock();
@@ -200,18 +211,6 @@ final class MimeHeaderBlockTest extends TestCase
             "Content-Type:application/pdf;name=\"a (b)\"\r\n",
             $block->canonicalize(Headers::fromPairs([['Content-Type', 'application/pdf; name="a (b)"']]))
         );
-    }
-
-    public function test_it_refuses_an_encoded_word_in_a_description(): void
-    {
-        $block = new MimeHeaderBlock();
-
-        $this->expectException(UnsupportedAttachmentHeaderForm::class);
-        $this->expectExceptionMessage('"Content-Description" carries an encoded word');
-
-        $block->canonicalize(Headers::fromPairs([
-            ['Content-Description', '=?utf-8?q?facture?='],
-        ]));
     }
 
     public function test_it_refuses_a_parameter_continuation(): void

@@ -30,18 +30,25 @@ final class UnsupportedAttachmentHeaderForm extends RuntimeException
         ));
     }
 
+    /**
+     * A peer strips the whitespace a MIME parser leaves after the colon from every one of these headers
+     * except this one, so what it digests for a Content-Description depends on whether its own parser
+     * trimmed the separator. Nothing this side can compute predicts that.
+     */
+    public static function contentDescription(): self
+    {
+        return new self(
+            'The attachment header "Content-Description" is the one header a peer canonicalizes without '
+            .'stripping its leading whitespace, so a digest over it is not reproducible. Remove it from the '
+            .'attachment to cover the part completely.'
+        );
+    }
+
     public static function comment(string $header): self
     {
         return new self(sprintf('The attachment header "%s" carries a comment, which is not supported.', $header));
     }
 
-    public static function encodedWord(string $header): self
-    {
-        return new self(sprintf(
-            'The attachment header "%s" carries an encoded word, which is not supported.',
-            $header
-        ));
-    }
 
     public static function continuedParameter(string $header): self
     {

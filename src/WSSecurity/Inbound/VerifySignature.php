@@ -5,6 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentSignatureTransform;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
@@ -38,19 +39,7 @@ use Throwable;
  */
 final class VerifySignature implements InboundAction
 {
-    /**
-     * Covers an attachment's content and none of its MIME headers.
-     */
-    private const SWA_CONTENT_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Content-Signature-Transform';
 
-    /**
-     * Covers an attachment's canonicalized MIME headers as well as its content.
-     *
-     * The adapter's coverage decides which of the two a reference must declare, and the other is refused.
-     * Coverage is a requirement rather than a hint: a peer may not decide to cover less than it was asked
-     * to, which is exactly what the Java side does to us in the other direction.
-     */
-    private const SWA_COMPLETE_TRANSFORM = 'http://docs.oasis-open.org/wss/oasis-wss-SwAProfile-1.1#Attachment-Complete-Signature-Transform';
 
     private XmlSignatureVerifier $verifier;
     private readonly RequiredPartsValidator $requiredParts;
@@ -146,10 +135,12 @@ final class VerifySignature implements InboundAction
         $policy = new VerificationPolicy(
             $this->trustStore,
             $context->profile()->crypto(),
-            $required === null ? null : new ExternalPartVerification($required, match ($this->attachments?->coverage()) {
-                ExternalPartCoverage::Complete => self::SWA_COMPLETE_TRANSFORM,
-                default => self::SWA_CONTENT_TRANSFORM,
-            }),
+            $required === null ? null : new ExternalPartVerification(
+                $required,
+                AttachmentSignatureTransform::for(
+                    $this->attachments?->coverage() ?? ExternalPartCoverage::Content
+                )->value,
+            ),
         );
 
         try {

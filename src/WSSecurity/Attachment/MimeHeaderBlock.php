@@ -147,13 +147,7 @@ final readonly class MimeHeaderBlock
         $value = $this->unfold($value);
 
         if ($name === 'Content-Description') {
-            if (str_contains($value, '=?')) {
-                throw UnsupportedAttachmentHeaderForm::encodedWord($name);
-            }
-
-            $this->refuseComment($name, $value);
-
-            return $value;
+            throw UnsupportedAttachmentHeaderForm::contentDescription();
         }
 
         $value = ltrim($value, " \t");

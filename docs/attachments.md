@@ -241,8 +241,12 @@ Content-Type:application/pdf\r\n
 <the attachment bytes>
 ```
 
-Only five headers are considered, ascending by name: `Content-Description`, `Content-Disposition`,
-`Content-ID`, `Content-Location` and `Content-Type`. `Content-Transfer-Encoding` is not among them, so it is
+Four headers are covered, ascending by name: `Content-Disposition`, `Content-ID`, `Content-Location` and
+`Content-Type`. The profile names a fifth, `Content-Description`, and this package refuses a part carrying
+one. Measured against a live peer: it is the only one of the five that a peer canonicalizes *without*
+stripping the whitespace a MIME parser leaves after the colon, so what it digests depends on whether its own
+parser trimmed that separator. Nothing this side can compute predicts that, and neither this package nor the
+peer emits the header, so refusing costs nothing a caller did not add deliberately. `Content-Transfer-Encoding` is not among them, so it is
 neither signed nor encrypted even though the multipart carries it. Values are unfolded, stripped of leading
 whitespace, and a value carrying parameters is rewritten with its essence and parameter names lowercased, its
 parameters sorted, and their values quoted. When the header set carries no `Content-Type` at all,
@@ -260,8 +264,8 @@ report the header block it computed and compares it against the one this package
 
 | Construct | Detected by |
 |---|---|
-| A comment | an unquoted `(` in one of the five headers |
-| An RFC 2047 encoded word | `=?` in `Content-Description` |
+| A `Content-Description` at all | the header being present |
+| A comment | an unquoted `(` in one of the four remaining headers |
 | An RFC 2184 continued or charset-tagged parameter | a parameter name containing `*` |
 | A parameter with no `=`, or an empty value | the parameter itself |
 
