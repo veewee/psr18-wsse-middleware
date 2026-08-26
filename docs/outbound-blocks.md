@@ -151,7 +151,15 @@ public key bytes, which anyone holding the certificate has.
 
 The signature method has to be one of the HMAC ones; an asymmetric method throws, because a symmetric secret
 cannot provide private key material. The block asks the source for the digest-length key its method prefers, and
-a source already carrying a key of another width still serves it: HMAC pads a short key and hashes a long one.
+a source already carrying a key of another width still serves it: HMAC pads a short key and hashes a long one, so
+any length works.
+
+**A shared key's width is the MAC's real strength, whatever the method is called.** Pair `HMAC_SHA256` with a key
+source minted for AES-128 and the MAC is keyed with 16 bytes, not the 32 its name implies. That is not a defect
+and nothing refuses it, because refusing would mean a cipher and a MAC could never share a key at all; it is
+simply worth knowing before you read the method name as a strength. Give each a
+[derived key](#derivedsessionkey) of its own, or state the width you want on the
+[key source](#wrappedsessionkey), when the two disagree and you care.
 
 ## Symmetric key sources
 
@@ -198,6 +206,10 @@ no secret.
   key names it. The default is the WSS 1.1 `EncryptedKeySHA1` identifier, which every stack emitting this shape
   uses; `DirectReference` names the local `xenc:EncryptedKey` by `wsu:Id` instead. An `xenc:EncryptedData` always
   uses the local reference, whatever this says, because that is what a receiver reads.
+
+  This governs what is **emitted** only. Both forms are established as names for the key, so a response may
+  reference it by either one: which of the two a peer echoes is not something a client gets to constrain, and
+  refusing the form we happened not to emit would refuse a conformant answer.
 - `?KeyTransportAlgorithm $keyTransportAlgorithm = null`: the whole key-transport choice (method plus OAEP hash)
   in one atomic value, so an invalid pairing cannot be expressed. `null` takes it from the profile. See
   [Security profile and defaults](security-profile.md).
