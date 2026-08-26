@@ -45,8 +45,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Signing\XmlSigner;
  */
 final class Signature implements OutboundAction
 {
-
-
     /** @var non-empty-list<Part>|null */
     private ?array $parts = null;
 

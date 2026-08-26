@@ -40,9 +40,6 @@ use Throwable;
  */
 final class Decrypt implements InboundAction
 {
-
-
-
     private XmlDecryptor $decryptor;
     private ?ExternalParts $attachments = null;
 

@@ -54,8 +54,6 @@ use VeeWee\Xml\Dom\Document;
  */
 final class Encryption implements OutboundAction
 {
-
-
     private const OPAQUE_MEDIA_TYPE = 'application/octet-stream';
 
     private const XOP_NAMESPACE = 'http://www.w3.org/2004/08/xop/include';

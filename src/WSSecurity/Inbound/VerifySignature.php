@@ -40,8 +40,6 @@ use Throwable;
  */
 final class VerifySignature implements InboundAction
 {
-
-
     private XmlSignatureVerifier $verifier;
     private readonly RequiredPartsValidator $requiredParts;
 
@@ -133,12 +131,12 @@ final class VerifySignature implements InboundAction
 
         // Collected before the verifier runs, and the same list is used to check coverage afterwards, so the
         // parts the signature was checked against are exactly the parts the requirement is asserted over.
-        $required = $this->attachments?->collect();
+        $registered = $this->attachments?->collect();
         $policy = new VerificationPolicy(
             $this->trustStore,
             $context->profile()->crypto(),
-            $required === null ? null : new ExternalPartVerification(
-                $required,
+            $registered === null ? null : new ExternalPartVerification(
+                $registered,
                 AttachmentSignatureTransform::for(
                     $this->attachments?->coverage() ?? ExternalPartCoverage::Content
                 )->value,
@@ -173,8 +171,8 @@ final class VerifySignature implements InboundAction
             $context->profile()->actorOrRole(),
         );
 
-        if ($required !== null) {
-            $this->assertEveryAttachmentSigned($required, $verified->signedExternalParts());
+        if ($registered !== null) {
+            $this->assertEveryAttachmentSigned($registered, $verified->signedExternalParts());
         }
 
         if ($this->signerCheck !== null) {
@@ -196,9 +194,9 @@ final class VerifySignature implements InboundAction
      *
      * @throws SecurityFault
      */
-    private function assertEveryAttachmentSigned(ExternalPartList $required, ExternalPartList $covered): void
+    private function assertEveryAttachmentSigned(ExternalPartList $registered, ExternalPartList $covered): void
     {
-        foreach ($required as $part) {
+        foreach ($registered as $part) {
             if ($covered->byReference($part->reference) === null) {
                 throw SecurityFault::inboundFailure(SignatureVerificationFailed::withReason(
                     'A registered attachment is not covered by the signature.',

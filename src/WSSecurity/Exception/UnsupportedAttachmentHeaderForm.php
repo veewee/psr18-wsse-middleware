@@ -49,7 +49,6 @@ final class UnsupportedAttachmentHeaderForm extends RuntimeException
         return new self(sprintf('The attachment header "%s" carries a comment, which is not supported.', $header));
     }
 
-
     public static function continuedParameter(string $header): self
     {
         return new self(sprintf(

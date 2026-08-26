@@ -527,4 +527,3 @@ the part's own octets: a cipher addresses the MIME part, while a signature cover
 
 Read [docs/attachments.md](docs/attachments.md) before turning it on. It carries the wire format, the ordering
 rules, and the list of what is refused, including the media types this release will not sign.
-
