@@ -465,8 +465,19 @@ does.
   supported because a WSS4J or CXF peer reads this shape whatever its own configuration says: resolving a
   cipher value's pointer is not something those peers made optional.
 
-  Both values move: the wrapped key in the header and the encrypted content in the body. Each minted part
-  carries `Content-Type: application/ciphervalue` and the raw bytes, not base64.
+  This moves the encrypted **content**. The wrapped key in the header is written by the
+  [key source](#symmetric-key-sources), so it moves when you give that source the same registration:
+
+  ```php
+  $carriers = AttachmentParts::request($attachmentStorage, ExternalPartCoverage::Content);
+
+  (new Outbound\Encryption(new Keys\WrappedSessionKey($recipient, optimizedCipherBytes: $carriers)))
+      ->withOptimizedCipherBytes($carriers);
+  ```
+
+  Two registrations rather than one because whether a cipher value is optimized is decided per element, and the
+  two elements have different authors. Each minted part carries `Content-Type: application/ciphervalue` and the
+  raw bytes, not base64.
 
   Two consequences worth knowing before you turn it on. The request becomes a multipart one, so the
   attachments middleware has to be in the pipeline, and under MTOM that means a SOAP 1.2 envelope. And it
