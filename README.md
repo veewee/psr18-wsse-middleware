@@ -115,7 +115,7 @@ default you are about to change, drop one level down:
 | Take a closer look at | For |
 |---|---|
 | [Outbound blocks](docs/outbound-blocks.md) | Every argument and `with*()` method of `Timestamp`, `Username`, `BinarySecurityToken`, `Signature`, `Encryption`, `SamlAssertion` |
-| [Inbound blocks](docs/inbound-blocks.md) | The same for `Decrypt`, `VerifySignature`, `ValidateTimestamp` |
+| [Inbound blocks](docs/inbound-blocks.md) | The same for `Decrypt`, `VerifySignature`, `ValidateTimestamp`, and what a `soap:Fault` reply gives you |
 | [Choosing parts and key references](docs/parts-and-key-references.md) | `Part`, the dynamic parts, `KeyRef` and `EncKeyRef` |
 | [Key stores](docs/key-stores.md) | Loading certificates, private keys, PEM bundles and `.p12` / `.pfx` files |
 | [Trust](docs/trust.md) | Why a verified signature is not an authenticated peer, pinning, and opt-in revocation checking |
@@ -140,7 +140,7 @@ Every block is a small, immutable value object you drop into the `outbound` or `
 | Inbound | Checks |
 |---|---|
 | [`Decrypt`](docs/inbound-blocks.md#inbound-decrypt) | Decrypts the `xenc:EncryptedData` parts, and optionally the attachments, with your private key |
-| [`VerifySignature`](docs/inbound-blocks.md#inbound-verifysignature) | The signature verifies, and the parts and attachments you require were covered by a trusted signer |
+| [`VerifySignature`](docs/inbound-blocks.md#inbound-verifysignature) | The signature verifies, and the parts and attachments you require were covered by a trusted signer (including a token covered through `#STR-Transform`) |
 | [`ValidateTimestamp`](docs/inbound-blocks.md#inbound-validatetimestamp) | The response is not stale, future-dated, or past its own `Expires` |
 
 ### The order to list them in

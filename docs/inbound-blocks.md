@@ -123,6 +123,23 @@ The signer's certificate must be trusted by the store, be within its validity wi
 certificate with no `keyUsage` extension is not refused on that ground. No Extended Key Usage is required: the
 X.509 Token Profile mandates none, and no registered EKU describes WS-Security message signing.
 
+**A token covered through its reference verifies.** A peer may cover its signing token by pointing a
+`ds:Reference` at the `wsse:SecurityTokenReference` that names it, with the WS-Security `#STR-Transform`
+telling the verifier to substitute the token before digesting. WSS4J and CXF emit this routinely, and it is
+accepted here with no configuration: the transform's own canonicalization still goes through the profile's
+`acceptedCanonicalizations` allow-list, so an inclusive method named inside it is refused by default like any
+other. What the verifier reports as signed is the **token**, not the reference that named it, which is what
+makes `Part::securityHeaderContents()` mean what you would expect.
+
+Two of the reference forms are dereferenced: a `wsse:Reference` to a token by id, and a `wsse:KeyIdentifier`
+naming a SAML assertion. Both name an element the message actually carries. A reference that instead names a
+certificate: a `wsse:KeyIdentifier` holding a Subject Key Identifier or a thumbprint, or a
+`ds:X509IssuerSerial`, is **refused**. A signer using one of those digested a `wsse:BinarySecurityToken` it
+built from its own keystore, an element that never travelled, and reproducing that byte-for-byte from a
+certificate found locally is guesswork. A digest over an approximation of what the signer digested proves
+nothing, so this fails closed rather than nearly verifying. If you meet such a peer, the fix is for it to
+reference its token directly.
+
 **A trusted certificate is not your peer.** If you anchor a CA here, every certificate that CA ever issued
 verifies. Read [Trust: what a verified signature proves](trust.md) for what to do about that, and for
 opt-in [revocation checking](trust.md#revocation-checking-opt-in).
@@ -166,3 +183,43 @@ new Inbound\ValidateTimestamp();
 Dates are parsed strictly: only the exact instant formats a conforming peer emits are accepted. Every failure
 collapses to one uniform `SecurityFault`.
 
+## When the response is a SOAP fault
+
+The inbound list runs on **every** response, a fault included. A service that answers with an unsigned,
+unencrypted `soap:Fault` therefore fails whatever you registered (`VerifySignature` finds no signature,
+`ValidateTimestamp` finds no timestamp) and you get the same uniform `SecurityFault` as any other refusal.
+That is deliberate: skipping the checks for a fault-shaped body would let anyone who can inject a response
+bypass every one of them by wrapping the payload in a fault.
+
+What it should not cost you is the diagnosis. So when the failing response *is* a fault, the reason the peer
+gave is chained into the refusal as a `PeerReportedFault`:
+
+```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\PeerReportedFault;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
+
+try {
+    $result = $client->call('...');
+} catch (SecurityFault $fault) {
+    $reported = $fault->getPrevious();
+    if ($reported instanceof PeerReportedFault) {
+        // "The peer returned a SOAP fault [soap:Sender]: Invalid security token"
+        $logger->error($reported->getMessage(), ['exception' => $fault]);
+    }
+}
+```
+
+Both SOAP versions are read: `faultcode`/`faultstring` in 1.1, `Code/Value` and `Reason/Text` in 1.2. The
+original cause stays reachable behind the `PeerReportedFault`, so nothing you had before is lost.
+
+**This only fires when a check fails.** A fault reply that passes your inbound list is handed on untouched, and
+`php-soap/encoding` raises its own `SoapFaultException` for it further up, carrying the fault in full including
+the `detail` element. So the rule is: a fault you can act on programmatically arrives as `SoapFaultException`,
+and a fault that arrived alongside a security failure arrives as a log line inside `SecurityFault`. The wording
+of the two messages is deliberately identical, so one search of your logs finds either.
+
+Three things this deliberately does not do. `SecurityFault`'s own message never changes, so the no-oracle
+guarantee is untouched and nothing about which check failed leaks. The fault text is peer-supplied and
+**unverified**, since nobody signed it, so it belongs in your log and nowhere near a decision your code makes;
+it is stripped of control characters and capped in length for exactly that reason. And a fault is still a
+refusal: no response, no configuration to change that.

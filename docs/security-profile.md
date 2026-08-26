@@ -140,6 +140,16 @@ algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMeth
   which no chain validation checks for you. The floor is fail-closed: a key whose family or size cannot be read
   is refused rather than waved through, because the verdict comes from `ext-openssl` while the signature is
   verified with phpseclib, and a key one cannot read is not thereby a key the other cannot use.
+- **Reference transforms:** the enveloped-signature transform, the four canonicalizations below, and the
+  WS-Security `#STR-Transform`, which digests the token a `wsse:SecurityTokenReference` names instead of the
+  reference element. Its digest input states the empty default namespace on the token, whatever default was
+  in scope, which is what the peers emitting it produce; a token inheriting a default namespace is therefore
+  digested as though none applied. The last is accepted without opting in, because it is neither weak nor unauthenticated:
+  the canonicalization it names inside its own parameters is still gated by the allow-list below. Its
+  certificate-naming forms (Subject Key Identifier, thumbprint, issuer and serial) are refused; see
+  [Inbound blocks](inbound-blocks.md#inbound-verifysignature). No other transform is accepted: an XPath or
+  XSLT transform lets a signature cover something other than the element it points at, and neither is a
+  WS-Security norm.
 - **Canonicalization:** exclusive C14N (`EXC_C14N`, `EXC_C14N_COMMENTS`) is the default and the only form
   accepted inbound unless you opt in. Inclusive Canonical XML 1.0 (`C14N`, `C14N_COMMENTS`) is supported as an
   opt-in. Canonical XML 1.1 is **not** supported: the underlying platform does not provide it.

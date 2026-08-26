@@ -12,6 +12,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
+use Soap\Psr18WsseMiddleware\WSSecurity\Exception\PeerReportedFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\InboundAction;
@@ -245,6 +246,95 @@ final class WsseMiddlewareTest extends TestCase
         )->wait();
     }
 
+    public function test_an_inbound_failure_on_a_fault_response_chains_what_the_peer_reported(): void
+    {
+        $cause = SecurityFault::inboundFailure();
+        $block = $this->throwingInboundBlock($cause);
+        $middleware = new WsseMiddleware(new SecurityProfile(), [], [$block]);
+
+        try {
+            $middleware->handleRequest(
+                $this->soapRequest(self::SOAP12_NS),
+                $this->next($sentRequest, new Response(500, [], $this->soapFaultEnvelope(self::SOAP12_NS))),
+                $this->first(),
+            )->wait();
+        } catch (SecurityFault $fault) {
+            // The message is the no-oracle guarantee and must not move, whatever the peer put in its fault.
+            static::assertSame('The inbound security header could not be processed.', $fault->getMessage());
+
+            $reported = $fault->getPrevious();
+            static::assertInstanceOf(PeerReportedFault::class, $reported);
+            static::assertStringContainsString('soap:Sender', $reported->getMessage());
+            static::assertStringContainsString('Invalid security token', $reported->getMessage());
+
+            // The original cause stays reachable behind it, so nothing an operator had before is lost.
+            static::assertSame($cause, $reported->getPrevious());
+
+            return;
+        }
+
+        static::fail('Expected a SecurityFault for a failing inbound block.');
+    }
+
+    public function test_an_inbound_failure_on_a_response_that_is_not_a_fault_is_left_exactly_as_it_was(): void
+    {
+        $cause = SecurityFault::inboundFailure();
+        $block = $this->throwingInboundBlock($cause);
+        $middleware = new WsseMiddleware(new SecurityProfile(), [], [$block]);
+
+        try {
+            $middleware->handleRequest(
+                $this->soapRequest(self::SOAP12_NS),
+                $this->next($sentRequest, new Response(200, [], $this->soapEnvelope(self::SOAP12_NS))),
+                $this->first(),
+            )->wait();
+        } catch (SecurityFault $fault) {
+            static::assertSame($cause, $fault);
+            static::assertNull($fault->getPrevious());
+
+            return;
+        }
+
+        static::fail('Expected a SecurityFault for a failing inbound block.');
+    }
+
+    public function test_it_reports_a_soap11_fault_a_peer_returned(): void
+    {
+        $block = $this->throwingInboundBlock(SecurityFault::inboundFailure());
+        $middleware = new WsseMiddleware(new SecurityProfile(), [], [$block]);
+
+        try {
+            $middleware->handleRequest(
+                $this->soapRequest(self::SOAP11_NS),
+                $this->next($sentRequest, new Response(500, [], $this->soapFaultEnvelope(self::SOAP11_NS))),
+                $this->first(),
+            )->wait();
+        } catch (SecurityFault $fault) {
+            $reported = $fault->getPrevious();
+            static::assertInstanceOf(PeerReportedFault::class, $reported);
+            static::assertStringContainsString('soap:Client', $reported->getMessage());
+            static::assertStringContainsString('Invalid security token', $reported->getMessage());
+
+            return;
+        }
+
+        static::fail('Expected a SecurityFault for a failing inbound block.');
+    }
+
+    private function throwingInboundBlock(SecurityFault $cause): InboundAction
+    {
+        return new class($cause) implements InboundAction {
+            public function __construct(private readonly SecurityFault $cause)
+            {
+            }
+
+            public function __invoke(WsseContext $context): void
+            {
+                throw $this->cause;
+            }
+        };
+    }
+
     public function test_an_outbound_block_failure_propagates(): void
     {
         $failure = new RuntimeException('outbound block failed');
@@ -374,5 +464,18 @@ final class WsseMiddlewareTest extends TestCase
 
         return '<?xml version="1.0"?>'.$doctype
             .'<soap:Envelope xmlns:soap="'.$namespace.'">'.$header.'<soap:Body></soap:Body></soap:Envelope>';
+    }
+
+    private function soapFaultEnvelope(string $namespace): string
+    {
+        $fault = $namespace === self::SOAP11_NS
+            ? '<soap:Fault><faultcode>soap:Client</faultcode>'
+                .'<faultstring>Invalid security token</faultstring></soap:Fault>'
+            : '<soap:Fault><soap:Code><soap:Value>soap:Sender</soap:Value></soap:Code>'
+                .'<soap:Reason><soap:Text xml:lang="en">Invalid security token</soap:Text></soap:Reason>'
+                .'</soap:Fault>';
+
+        return '<?xml version="1.0"?><soap:Envelope xmlns:soap="'.$namespace.'">'
+            .'<soap:Body>'.$fault.'</soap:Body></soap:Envelope>';
     }
 }

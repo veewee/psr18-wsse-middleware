@@ -26,6 +26,15 @@ final class CanonicalizationFailed extends RuntimeException
         ));
     }
 
+    /**
+     * A canonical form that is not an element start tag. No canonicalization of an element produces one, so
+     * this is a broken primitive rather than a message a peer can send.
+     */
+    public static function apexIsNotAnElement(): self
+    {
+        return new self('A canonical form did not open with an element start tag.');
+    }
+
     public static function excludesEverything(Node $node): self
     {
         return new self(sprintf(
