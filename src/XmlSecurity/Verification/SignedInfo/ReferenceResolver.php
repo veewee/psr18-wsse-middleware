@@ -81,7 +81,15 @@ final class ReferenceResolver
 
             $id = $this->referenceId($referenceElement);
             $element = $this->locate($document, $id);
-            $this->assertNotSignatureInfrastructure($element, $signatureElement);
+
+            // An ordinary reference resolving into the signature is signature wrapping, and refused. A
+            // dereferencing one is different: what gets digested is the element the indirection names, and
+            // WS-Security puts that indirection in the signature's own ds:KeyInfo, which is where WSS4J
+            // points such a reference. So the indirection may live there, and it is what it resolves to that
+            // must not, which dereference() below asserts on the element it actually digests.
+            if ($parsed->dereferencingTransform === null) {
+                $this->assertNotSignatureInfrastructure($element, $signatureElement);
+            }
 
             $resolved[] = new ResolvedVerificationReference(
                 $parsed,

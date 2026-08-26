@@ -101,6 +101,29 @@ final class DereferencingTransformTest extends TestCase
         static::assertSame($this->byId($document, 'str-1'), $resolved->element);
     }
 
+    public function test_the_resolver_accepts_an_indirection_inside_the_signature(): void
+    {
+        // This is the shape WSS4J actually emits: it points the reference at the
+        // wsse:SecurityTokenReference it built inside its own ds:KeyInfo, not at a standalone one in the
+        // header. An ordinary reference resolving inside the signature is signature-wrapping and stays
+        // refused, but here the digested bytes are the dereferenced token's, which is checked separately,
+        // so the indirection itself sitting in ds:KeyInfo is exactly correct.
+        $document = $this->wss4jShapedDocument();
+        $resolved = $this->resolve($document, signature: $this->signature($document));
+
+        static::assertSame($this->byId($document, 'bst-1'), $resolved->dereferenced);
+    }
+
+    public function test_the_resolver_still_refuses_a_dereferenced_token_inside_the_signature(): void
+    {
+        // The relaxation above covers the indirection only. A token that resolves into the signature would
+        // be the signature vouching for its own bytes.
+        $document = $this->wss4jShapedDocument(tokenInsideSignature: true);
+
+        $this->expectException(SignatureVerificationFailed::class);
+        $this->resolve($document, signature: $this->signature($document));
+    }
+
     public function test_the_resolver_refuses_the_transform_when_none_is_registered(): void
     {
         $document = $this->document();
@@ -137,6 +160,7 @@ final class DereferencingTransformTest extends TestCase
         Document $document,
         ?SecurityTokenReferenceTransform $transform = new SecurityTokenReferenceTransform(),
         ?Element $expectedDigestOf = null,
+        ?Element $signature = null,
     ): ResolvedVerificationReference {
         $parsed = (new SignedInfoParser())->parse($this->signature($document), new SecurityTokenReferenceTransform());
         $references = $parsed->references;
@@ -149,7 +173,7 @@ final class DereferencingTransformTest extends TestCase
             $document,
             $parsed->referenceElements,
             $references,
-            $this->signature($document),
+            $signature ?? $this->signature($document),
         );
 
         return $resolved[0];
@@ -198,6 +222,42 @@ final class DereferencingTransformTest extends TestCase
             .'<ds:DigestValue>'.base64_encode('not-the-digest').'</ds:DigestValue>'
             .'</ds:Reference>'
             .'</ds:SignedInfo><ds:SignatureValue>AA==</ds:SignatureValue></ds:Signature>'
+            .'</wsse:Security></soap:Header>'
+            .'<soap:Body wsu:Id="Body"><data>x</data></soap:Body></soap:Envelope>',
+        );
+    }
+
+
+    /**
+     * The envelope WSS4J emits for a token covered through STR-Transform: the ds:Reference points at the
+     * wsse:SecurityTokenReference that lives inside the signature's own ds:KeyInfo.
+     */
+    private function wss4jShapedDocument(bool $tokenInsideSignature = false): Document
+    {
+        $token = '<wsse:BinarySecurityToken wsu:Id="bst-1">Y2VydGlmaWNhdGU=</wsse:BinarySecurityToken>';
+
+        return Document::fromXmlString(
+            '<soap:Envelope xmlns:soap="'.self::SOAP.'" xmlns:wsse="'.self::WSSE.'" xmlns:wsu="'.self::WSU.'">'
+            .'<soap:Header><wsse:Security>'
+            .($tokenInsideSignature ? '' : $token)
+            .'<ds:Signature xmlns:ds="'.self::DS.'"><ds:SignedInfo>'
+            .'<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>'
+            .'<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>'
+            .'<ds:Reference URI="#str-1"><ds:Transforms>'
+            .'<ds:Transform Algorithm="'.self::STR_TRANSFORM.'">'
+            .'<wsse:TransformationParameters>'
+            .'<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>'
+            .'</wsse:TransformationParameters>'
+            .'</ds:Transform></ds:Transforms>'
+            .'<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>'
+            .'<ds:DigestValue>'.base64_encode('not-the-digest').'</ds:DigestValue>'
+            .'</ds:Reference>'
+            .'</ds:SignedInfo><ds:SignatureValue>AA==</ds:SignatureValue>'
+            .'<ds:KeyInfo>'
+            .'<wsse:SecurityTokenReference wsu:Id="str-1"><wsse:Reference URI="#bst-1"/></wsse:SecurityTokenReference>'
+            .($tokenInsideSignature ? $token : '')
+            .'</ds:KeyInfo>'
+            .'</ds:Signature>'
             .'</wsse:Security></soap:Header>'
             .'<soap:Body wsu:Id="Body"><data>x</data></soap:Body></soap:Envelope>',
         );
