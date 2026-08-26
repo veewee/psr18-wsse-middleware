@@ -510,6 +510,13 @@ throws too: which of them a reader treats as primary is not something document o
 excludes every `ds:Signature` in both directions, because a signature is never one of the parts it covers and
 outbound it does not yet exist when the parts are resolved.
 
+**This is outbound only.** `Inbound\VerifySignature` requires exactly one `ds:Signature` directly inside the
+header it scopes to, so that a second injected one cannot offer the verifier an alternative to validate. An
+endorsed message a *peer* sent you is refused by that same rule. Verifying one would mean deciding which of two
+signatures is the primary and which the endorsement, from a message an attacker also gets to shape, and that
+decision has no safe default. Same shape as the Holder-of-Key flow below, which is outbound only for its own
+reasons.
+
 ## Outbound: `SamlAssertion`
 
 Imports a SAML 1.1 or 2.0 assertion you already obtained (from an STS) into the Security header. The assertion

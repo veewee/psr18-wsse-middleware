@@ -68,7 +68,37 @@ final class EndorsingSignatureTest extends TestCase
         );
     }
 
-    public function test_the_primary_signature_still_verifies_after_being_endorsed(): void
+    /**
+     * Being endorsed stamps a wsu:Id on the primary ds:Signature. That attribute is inside the element the
+     * endorsement digests and outside everything the primary signature covers, so the primary value must come
+     * out unchanged.
+     */
+    public function test_endorsing_does_not_alter_the_primary_signature_value(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $document = $fixture->envelope();
+        $context = $this->context($document);
+
+        (new Signature(new SymmetricSigningKey(new WrappedSessionKey($fixture->leafCertificate))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($context);
+
+        $before = $this->signatureValue($this->signatures($document)[0]);
+
+        (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
+            ->withParts([Part::primarySignature()])($context);
+
+        $primary = $this->signatures($document)[0];
+        static::assertNotSame('', $primary->getAttributeNS(self::WSU, 'Id'));
+        static::assertSame($before, $this->signatureValue($primary));
+    }
+
+    /**
+     * Endorsing is outbound only. The verifier requires exactly one ds:Signature directly inside the header it
+     * scopes to, so that a second injected one cannot offer it an alternative to validate, and an endorsed
+     * message a peer sent is refused by that same rule. This pins the limitation rather than the wish.
+     */
+    public function test_an_endorsed_message_cannot_be_verified_inbound(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
         $keys = new ExchangeKeys();
@@ -81,9 +111,6 @@ final class EndorsingSignatureTest extends TestCase
         (new Signature(new CertificateSigningKey($this->identity($fixture), KeyRef::BinarySecurityToken)))
             ->withParts([Part::primarySignature()])($context);
 
-        // Two signatures in one header is a shape the verifier refuses to pick between, so the point being
-        // pinned is that stamping a wsu:Id on the primary signature did not break what it covers: the endorsing
-        // signature's own digest over it is verified by the engine, and the message is otherwise unchanged.
         $this->expectException(SecurityFault::class);
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))(
             $this->context($document, $keys),
@@ -156,6 +183,14 @@ final class EndorsingSignatureTest extends TestCase
         $this->expectException(LogicException::class);
         (new Encryption(new WrappedSessionKey($fixture->leafCertificate)))
             ->withParts([Part::primarySignature()])($this->context($document));
+    }
+
+    private function signatureValue(Element $signature): string
+    {
+        $value = $signature->getElementsByTagNameNS(self::DS, 'SignatureValue')->item(0);
+        static::assertInstanceOf(Element::class, $value);
+
+        return trim($value->textContent);
     }
 
     private function identity(WsseSignatureFixture $fixture): ClientCertificate

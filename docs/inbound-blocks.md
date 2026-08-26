@@ -173,6 +173,13 @@ new Inbound\VerifySignature(
   Pass `null` (or omit the argument) if you want the default; pass a list only when you mean every part in it.
 - `withPreSharedKey(PreSharedSessionKey $key): self`: register a secret no outbound direction established, so a
   symmetric signature keyed by it can be verified. Same source and same reasoning as on `Decrypt`.
+
+A response is verified against **one** signature: exactly one `ds:Signature` directly inside the header
+addressed to you. A second one is refused rather than chosen between, which is what stops an injected signature
+offering the verifier an alternative to validate. So a peer that endorses its own response signature the way
+[the outbound side can](outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control) sends something
+this block refuses. Deciding which of two signatures is primary, from a message an attacker also gets to shape,
+has no safe default.
 - `withAttachments(ExternalParts $attachments): self`: require the response's attachments to be covered by the
   verified signature. Off by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).
