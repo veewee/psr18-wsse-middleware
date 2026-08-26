@@ -9,7 +9,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "SoapTest\\Psr18WsseMiddleware\\": "src/"
+            "SoapTest\\Psr18WsseMiddleware\\": "tests/"
         }
     },
     "authors": [
@@ -19,18 +19,29 @@
         }
     ],
     "require": {
-        "php": "~8.4.0 || ~8.5.0",
+        "php": "~8.4.21 || ~8.5.0",
         "ext-dom": "*",
+        "ext-intl": "*",
         "ext-openssl": "*",
+        "php-standard-library/date-time": "^6.1",
         "php-standard-library/file": "^6.1",
         "php-standard-library/foundation": "^6.1",
         "php-standard-library/type": "^6.1",
         "paragonie/hidden-string": "^2.0",
         "php-soap/psr18-transport": "^2.0",
         "php-soap/engine": "^2.20",
-        "php-soap/xml": "^1.10",
+        "php-soap/xml": "^1.11",
+        "veewee/xml": "^4.12.0",
         "php-http/client-common": "^2.7",
-        "robrichards/wse-php": "^2.0"
+        "symfony/uid": "^7.4 || ^8.0",
+        "php-standard-library/secure-random": "^6.1",
+        "php-standard-library/hash": "^6.1",
+        "phpro/resource-stream": "^1.4",
+        "phpseclib/phpseclib": "^3.0"
+    },
+    "suggest": {
+        "ext-gmp": "For native-speed RSA and ECDSA (key transport and signatures); phpseclib uses it when present",
+        "ext-bcmath": "Faster RSA and ECDSA than the pure-PHP fallback when ext-gmp is absent (already quick on PHP 8.4)"
     },
     "require-dev": {
         "nyholm/psr7": "^1.5",
@@ -39,18 +50,11 @@
         "phpunit/phpunit": "~12.3",
         "vimeo/psalm": "~6.13",
         "php-cs-fixer/shim": "~3.88",
-        "cweagans/composer-patches": "^1.7"
-    },
-    "extra": {
-        "patches": {
-            "robrichards/wse-php": {
-                "Fix encryption bug": "https://patch-diff.githubusercontent.com/raw/robrichards/wse-php/pull/67.diff"
-            }
-        }
+        "php-standard-library/psalm-plugin": "^2.4",
+        "carthage-software/mago": "^1.43"
     },
     "config": {
         "allow-plugins": {
-            "cweagans/composer-patches": true,
             "php-http/discovery": true
         }
     }

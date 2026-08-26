@@ -19,9 +19,11 @@ jobs:
               with:
                   php-version: ${{ matrix.php-versions }}
                   tools: 'composer:v2'
-                  extensions: pcov, mbstring, posix, dom, soap
+                  extensions: pcov, mbstring, posix, dom, soap, intl
             - name: Install dependencies
               run: composer update --prefer-dist --no-progress --no-suggest ${{ matrix.composer-options }}
             - name: Run the tests
               run: ./vendor/bin/psalm
               continue-on-error: ${{ matrix.php-versions == '8.5' }}
+            - name: Enforce the layering (architecture guard)
+              run: ./vendor/bin/mago guard --perimeter

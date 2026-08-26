@@ -1,0 +1,43 @@
+<?php
+declare(strict_types=1);
+
+namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound\KeyReference;
+
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\IssuerSerialKeyIdentifier;
+
+final class IssuerSerialKeyIdentifierTest extends KeyIdentifierTestCase
+{
+    public function test_it_emits_a_key_info_with_a_security_token_reference_wrapping_issuer_name_and_serial_number(): void
+    {
+        $document = $this->document();
+        $certificate = $this->certificate();
+        $expected = $certificate->info()->issuerSerial();
+
+        $keyInfo = (new IssuerSerialKeyIdentifier())
+            ->apply($document, $certificate);
+
+        static::assertSame('KeyInfo', $keyInfo->localName);
+        static::assertSame(self::DS, $keyInfo->namespaceURI);
+
+        $reference = $this->firstChildElement($keyInfo);
+        static::assertSame('SecurityTokenReference', $reference->localName);
+        static::assertSame(self::WSSE, $reference->namespaceURI);
+
+        $x509Data = $this->firstChildElement($reference);
+        static::assertSame('X509Data', $x509Data->localName);
+        static::assertSame(self::DS, $x509Data->namespaceURI);
+
+        $issuerSerial = $this->firstChildElement($x509Data);
+        static::assertSame('X509IssuerSerial', $issuerSerial->localName);
+        static::assertSame(self::DS, $issuerSerial->namespaceURI);
+
+        $issuerName = $this->childByLocalName($issuerSerial, 'X509IssuerName');
+        static::assertSame(self::DS, $issuerName->namespaceURI);
+        static::assertSame($expected->issuer->toString(), $issuerName->textContent);
+
+        $serialNumber = $this->childByLocalName($issuerSerial, 'X509SerialNumber');
+        static::assertSame(self::DS, $serialNumber->namespaceURI);
+        static::assertSame($expected->serialNumber->toString(), $serialNumber->textContent);
+        static::assertSame('4242', $serialNumber->textContent);
+    }
+}

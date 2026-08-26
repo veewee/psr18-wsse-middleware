@@ -5,9 +5,9 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL\Parser;
 
 use ParagonIE\HiddenString\HiddenString;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\InvalidKeyException;
 use Soap\Psr18WsseMiddleware\OpenSSL\Parser\PrivateKeyParser;
-use Soap\Psr18WsseMiddleware\WSSecurity\KeyStore\Key;
 use function Psl\File\read;
 
 final class PrivateKeyParserTest extends TestCase

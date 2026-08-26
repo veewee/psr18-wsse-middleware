@@ -1,7 +1,9 @@
-<?php declare(strict_types=1);
+<?php
+declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\Middleware;
 
+use Dom\Element;
 use Http\Client\Common\Plugin;
 use Http\Client\Common\PluginClient;
 use Http\Discovery\Psr17FactoryDiscovery;
@@ -9,80 +11,131 @@ use Http\Mock\Client;
 use Nyholm\Psr7\Request;
 use Nyholm\Psr7\Response;
 use PHPUnit\Framework\TestCase;
-use RobRichards\WsePhp\WSASoap;
+use Soap\Psr18WsseMiddleware\Wsa\WsaNamespace;
+use Soap\Psr18WsseMiddleware\Wsa\WsaOptions;
 use Soap\Psr18WsseMiddleware\WsaMiddleware;
-use Soap\Xml\Xpath\EnvelopePreset;
 use VeeWee\Xml\Dom\Document;
-use VeeWee\Xml\Dom\Xpath;
+use VeeWee\Xml\Exception\DoctypeNotAllowedException;
 
 final class WsaMiddlewareTest extends TestCase
 {
-    private PluginClient $client;
-    private Client $mockClient;
-    private WsaMiddleware $middleware;
-
-    protected function setUp(): void
+    public function test_it_is_a_middleware(): void
     {
-        $this->middleware = new WsaMiddleware();
-        $this->mockClient = new Client(Psr17FactoryDiscovery::findResponseFactory());
-        $this->client = new PluginClient($this->mockClient, [$this->middleware]);
+        static::assertInstanceOf(Plugin::class, new WsaMiddleware());
     }
 
-    
-    public function test_it_is_a_middleware()
+    public function test_it_adds_2005_addressing_headers_by_default(): void
     {
-        static::assertInstanceOf(Plugin::class, $this->middleware);
-    }
+        $body = $this->sendThrough(new WsaMiddleware());
 
-    
-    public function test_it_adds_wsa_to_the_request_xml()
-    {
-        $soapRequest = file_get_contents(FIXTURE_DIR . '/soap/empty-request.xml');
-        $this->mockClient->addResponse($response = new Response(200));
-        $result = $this->client->sendRequest(
-            $request = new Request(
-                'POST',
-                '/endpoint',
-                ['SOAPAction' => 'myaction'],
-                $soapRequest
-            )
-        );
-
-        $soapBody = (string)$this->mockClient->getRequests()[0]->getBody();
-        $xpath = $this->fetchEnvelopeXpath($soapBody);
-
-        // Make sure the response is available:
-        static::assertEquals($response, $result);
-
-        // Check structure
-        static::assertEquals(1, $xpath->query('//soap:Header/wsa:Action')->count(), 'No WSA Action tag');
-        static::assertEquals(1, $xpath->query('//soap:Header/wsa:To')->count(), 'No WSA To tag');
-        static::assertEquals(1, $xpath->query('//soap:Header/wsa:MessageID')->count(), 'No WSA MessageID tag');
-        static::assertEquals(1, $xpath->query('//soap:Header/wsa:ReplyTo')->count(), 'No WSA ReplyTo tag');
-        static::assertEquals(1, $xpath->query('//soap:Header/wsa:ReplyTo/wsa:Address')->count(), 'No WSA ReplyTo Address tag');
-
-        // Check defaults:
-        static::assertEquals('myaction', $xpath->query('//soap:Header/wsa:Action')->item(0)->textContent);
-        static::assertEquals('/endpoint', $xpath->query('//soap:Header/wsa:To')->item(0)->textContent);
+        $ns = WsaNamespace::W3c200508->value;
+        static::assertSame('myaction', $this->single($body, $ns, 'Action')->textContent);
+        static::assertSame('/endpoint', $this->single($body, $ns, 'To')->textContent);
         static::assertMatchesRegularExpression(
-            '/^uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i',
-            $xpath->query('//soap:Header/wsa:MessageID')->item(0)->textContent
+            '/^uuid:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',
+            $this->single($body, $ns, 'MessageID')->textContent
         );
-        static::assertEquals(
-            WsaMiddleware::WSA_ADDRESS_ANONYMOUS,
-            $xpath->query('//soap:Header/wsa:ReplyTo/wsa:Address')->item(0)->textContent
+        static::assertSame(
+            WsaNamespace::W3c200508->anonymousUri(),
+            $this->single($body, $ns, 'Address')->textContent
         );
     }
 
-    private function fetchEnvelopeXpath(string $soapBody): Xpath
+    public function test_it_can_emit_2004_addressing_headers(): void
     {
-        $document = Document::fromXmlString($soapBody);
+        $body = $this->sendThrough(new WsaMiddleware(new WsaOptions(WsaNamespace::Submission200408)));
 
-        return $document->xpath(
-            new EnvelopePreset($document),
-            Xpath\Configurator\namespaces([
-                'wsa' => WSASoap::WSANS_2005
-            ])
+        $ns = WsaNamespace::Submission200408->value;
+        static::assertCount(1, $this->all($body, $ns, 'Action'));
+        static::assertCount(0, $this->all($body, WsaNamespace::W3c200508->value, 'Action'));
+        static::assertSame(
+            WsaNamespace::Submission200408->anonymousUri(),
+            $this->single($body, $ns, 'Address')->textContent
         );
+    }
+
+    public function test_a_custom_reply_to_address_is_honoured(): void
+    {
+        $body = $this->sendThrough(new WsaMiddleware(new WsaOptions(replyTo: 'https://example.test/reply')));
+
+        static::assertSame(
+            'https://example.test/reply',
+            $this->single($body, WsaNamespace::W3c200508->value, 'Address')->textContent
+        );
+    }
+
+    public function test_an_explicit_action_overrides_the_detected_soap_action(): void
+    {
+        $body = $this->sendThrough(new WsaMiddleware(new WsaOptions(action: 'urn:explicit:Action')));
+
+        static::assertSame('urn:explicit:Action', $this->single($body, WsaNamespace::W3c200508->value, 'Action')->textContent);
+    }
+
+    public function test_an_explicit_to_overrides_the_request_uri(): void
+    {
+        $body = $this->sendThrough(new WsaMiddleware(new WsaOptions(to: 'https://example.test/override')));
+
+        static::assertSame('https://example.test/override', $this->single($body, WsaNamespace::W3c200508->value, 'To')->textContent);
+    }
+
+    public function test_from_and_fault_to_are_emitted_only_when_configured(): void
+    {
+        $ns = WsaNamespace::W3c200508->value;
+
+        $plain = $this->sendThrough(new WsaMiddleware());
+        static::assertCount(0, $this->all($plain, $ns, 'From'));
+        static::assertCount(0, $this->all($plain, $ns, 'FaultTo'));
+
+        $configured = $this->sendThrough(new WsaMiddleware(new WsaOptions(
+            from: 'https://example.test/me',
+            faultTo: 'https://example.test/faults',
+        )));
+
+        static::assertSame('https://example.test/me', $this->single($configured, $ns, 'From')->firstElementChild?->textContent);
+        static::assertSame('https://example.test/faults', $this->single($configured, $ns, 'FaultTo')->firstElementChild?->textContent);
+    }
+
+    public function test_it_rejects_a_request_body_carrying_a_doctype(): void
+    {
+        $mockClient = new Client(Psr17FactoryDiscovery::findResponseFactory());
+        $client = new PluginClient($mockClient, [new WsaMiddleware()]);
+        $mockClient->addResponse(new Response(200));
+        $body = '<?xml version="1.0"?><!DOCTYPE x>'
+            .'<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"><soap:Body/></soap:Envelope>';
+
+        $this->expectException(DoctypeNotAllowedException::class);
+        $client->sendRequest(new Request('POST', '/endpoint', ['SOAPAction' => 'a'], $body));
+    }
+
+    private function sendThrough(WsaMiddleware $middleware): string
+    {
+        $mockClient = new Client(Psr17FactoryDiscovery::findResponseFactory());
+        $client = new PluginClient($mockClient, [$middleware]);
+        $mockClient->addResponse(new Response(200));
+        $soapRequest = (string) file_get_contents(FIXTURE_DIR.'/soap/empty-request.xml');
+
+        $client->sendRequest(new Request('POST', '/endpoint', ['SOAPAction' => 'myaction'], $soapRequest));
+
+        return (string) $mockClient->getRequests()[0]->getBody();
+    }
+
+    /** @return list<Element> */
+    private function all(string $body, string $namespace, string $localName): array
+    {
+        $document = Document::fromXmlString($body);
+        $found = [];
+        foreach ($document->toUnsafeDocument()->getElementsByTagNameNS($namespace, $localName) as $element) {
+            $found[] = $element;
+        }
+
+        return $found;
+    }
+
+    private function single(string $body, string $namespace, string $localName): Element
+    {
+        $elements = $this->all($body, $namespace, $localName);
+        static::assertCount(1, $elements, "Expected exactly one {$localName} in {$namespace}");
+
+        return $elements[0];
     }
 }
