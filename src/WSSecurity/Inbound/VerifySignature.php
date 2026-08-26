@@ -129,21 +129,28 @@ final class VerifySignature implements InboundAction
         $document = $context->document();
 
         $attachments = $this->attachments;
-        // Collected before the verifier runs, and the same list is used to check coverage afterwards, so the
-        // parts the signature was checked against are exactly the parts the requirement is asserted over.
-        $registeredAttachments = $attachments?->collect();
-        $policy = new VerificationPolicy(
-            $this->trustStore,
-            $context->profile()->crypto(),
-            $attachments !== null && $registeredAttachments !== null
-                ? new ExternalPartVerification(
-                    $registeredAttachments,
-                    AttachmentSignatureTransform::for($attachments->coverage())->value,
-                )
-                : null,
-        );
 
         try {
+            // Collected inside the try, because collecting is itself work over peer-controlled bytes: under a
+            // complete coverage it canonicalizes headers a peer chose, and after Decrypt ran those headers
+            // came out of that peer's ciphertext. A refusal there is an inbound failure like any other and
+            // must not reach the caller as a different exception.
+            //
+            // Collected before the verifier runs, and the same list is used to check coverage afterwards, so
+            // the parts the signature was checked against are exactly the parts the requirement is asserted
+            // over.
+            $registeredAttachments = $attachments?->collect();
+            $policy = new VerificationPolicy(
+                $this->trustStore,
+                $context->profile()->crypto(),
+                $attachments !== null && $registeredAttachments !== null
+                    ? new ExternalPartVerification(
+                        $registeredAttachments,
+                        AttachmentSignatureTransform::for($attachments->coverage())->value,
+                    )
+                    : null,
+            );
+
             // The signature is read out of the Security header addressed to this receiver, not searched for
             // across the envelope: a signature in another hop's header covers that hop's requirements, not
             // ours, and one planted elsewhere is not a candidate at all. A message carrying no header for us

@@ -306,7 +306,7 @@ never trips them.
 | An encrypted attachment when none are registered on `Decrypt` | Refused, never skipped. Otherwise the message reads as decrypted while your code holds ciphertext |
 | A `cid:` reference naming a part you did not supply | Refused. Never resolved, never fetched, under any circumstance |
 | Emitting `Attachment-Complete` ciphertext | Refused. No policy can require it, because a peer validates the coverage of a signature and never of an encryption, so content-only always satisfies the far side. Accepting it inbound is supported |
-| A header carrying a comment, an encoded word or a continued parameter, under a complete coverage | Refused rather than canonicalized by guesswork. See the table above |
+| A header carrying a comment or a continued parameter, under a complete coverage | Refused rather than canonicalized by guesswork. See the table above |
 | The same profile header twice, under a complete coverage | Refused. Canonicalization has no defined answer, and a peer silently keeps one of the two |
 | Restored headers naming a different `Content-ID` than the part they arrived in | Refused. The `Content-ID` is how a reference bound the digest to this part, so letting the ciphertext rewrite it would undo that binding |
 | Opened octets carrying no blank line, or exceeding the header caps | Refused before the bytes are handed anywhere |

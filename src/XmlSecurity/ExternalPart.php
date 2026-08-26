@@ -16,6 +16,10 @@ use Phpro\ResourceStream\ResourceStream;
  *
  * The same shape serves both directions and both operations. Outbound the content is plaintext, inbound it is
  * ciphertext, and a signature reads it without replacing it.
+ *
+ * The content and the metadata a signature may cover are kept apart rather than handed over pre-joined,
+ * because only the content goes through the transform. Joining them first would put the metadata through it
+ * too, and for a part whose transform parses its content that is not the same answer.
  */
 final readonly class ExternalPart
 {
@@ -23,11 +27,15 @@ final readonly class ExternalPart
      * @param non-empty-string         $reference
      * @param non-empty-string         $mimeType
      * @param ResourceStream<resource> $content
+     * @param string                   $digestPrefix bytes a signature digests ahead of the content, untouched
+     *        by whatever transform the content itself goes through. Empty unless the profile above covers
+     *        metadata as well as content
      */
     public function __construct(
         public string $reference,
         public string $mimeType,
         public ResourceStream $content,
+        public string $digestPrefix = '',
     ) {
     }
 
@@ -40,6 +48,6 @@ final readonly class ExternalPart
      */
     public function withContent(ResourceStream $content, string $mimeType): self
     {
-        return new self($this->reference, $mimeType, $content);
+        return new self($this->reference, $mimeType, $content, $this->digestPrefix);
     }
 }

@@ -14,12 +14,13 @@ use RuntimeException;
  */
 final class MalformedAttachmentHeaders extends RuntimeException
 {
-    public static function withoutBlankLine(int $maximumHeaders): self
+    /**
+     * Opened octets holding no CRLF at all, so there is no header line to read and no blank line to stop at.
+     * A separate failure from running past the caps, which is what the other two report.
+     */
+    public static function withoutBlankLine(): self
     {
-        return new self(sprintf(
-            'The opened attachment carries no blank line within its first %d headers.',
-            $maximumHeaders
-        ));
+        return new self('The opened attachment carries no blank line separating its headers from its content.');
     }
 
     public static function lineTooLong(int $maximumLength): self

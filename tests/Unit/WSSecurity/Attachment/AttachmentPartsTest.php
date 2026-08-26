@@ -142,6 +142,45 @@ final class AttachmentPartsTest extends TestCase
         );
     }
 
+    public function test_a_complete_coverage_digests_the_headers_ahead_of_the_transformed_content(): void
+    {
+        // The peer writes the canonical header block and then the content the transform produced, in that
+        // order. Transforming the two together instead would hand an XML canonicalizer a header block to
+        // parse, which is not a document, and would digest bytes no peer computes.
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<doc@example.com>',
+            'doc',
+            'doc.xml',
+            'application/xml',
+            $this->stream('<a  b="1"/>'),
+        ));
+
+        $part = AttachmentParts::request($storage, ExternalPartCoverage::Complete)->collect()->byReference(
+            'cid:doc@example.com',
+        );
+
+        static::assertNotNull($part);
+        static::assertSame('<a  b="1"/>', $part->content->rewind()->getContents());
+        static::assertStringStartsWith('Content-Disposition:', $part->digestPrefix);
+        static::assertStringEndsWith("Content-Type:application/xml\r\n", $part->digestPrefix);
+    }
+
+    public function test_a_content_coverage_digests_the_content_alone(): void
+    {
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(
+            Attachment::cid('invoice@example.com', 'file', 'invoice.pdf', $this->stream('%PDF-1.7'))
+        );
+
+        $part = AttachmentParts::request($storage, ExternalPartCoverage::Content)->collect()->byReference(
+            'cid:invoice@example.com',
+        );
+
+        static::assertNotNull($part);
+        static::assertSame('', $part->digestPrefix);
+    }
+
     public function test_it_leaves_an_attachment_it_was_not_handed_alone(): void
     {
         $storage = new AttachmentStorage();
@@ -225,12 +264,13 @@ final class AttachmentPartsTest extends TestCase
             ->byReference('cid:invoice@example.com');
 
         static::assertNotNull($part);
+        // A binary part's transform is the identity, so its digest input is the prefix followed by the bytes.
         static::assertSame(
             "Content-Disposition:attachment;filename=\"invoice.pdf\";name=\"invoice\"\r\n"
             ."Content-ID:<invoice@example.com>\r\n"
             ."Content-Type:application/pdf\r\n"
             .'%PDF-1.7',
-            $part->content->getContents()
+            $part->digestPrefix.$part->content->getContents()
         );
     }
 

@@ -80,10 +80,6 @@ final class Decrypt implements InboundAction
     }
 
     /**
-     * The two SwA URIs are this block's to require, exactly as the outbound twin owns emitting them. The
-     * engine is told what to demand and never learns these are attachments.
-     */
-    /**
      * Every part registered on this block must come back opened.
      *
      * Registering an attachment here is the requirement that it arrive encrypted, the same way registering
@@ -104,6 +100,10 @@ final class Decrypt implements InboundAction
         }
     }
 
+    /**
+     * The two SwA URIs are this block's to require, exactly as the outbound twin owns emitting them. The
+     * engine is told what to demand and never learns these are attachments.
+     */
     private function externalPartDecryption(): ?ExternalPartDecryption
     {
         $attachments = $this->attachments;

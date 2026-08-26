@@ -185,6 +185,20 @@ final class DigestCalculatorTest extends TestCase
         );
     }
 
+    public function test_it_refuses_a_part_that_reads_zero_bytes(): void
+    {
+        // The same reason the sealer refuses one: the caller ships an empty file believing it was protected,
+        // and a stream that cannot rewind reads this way too. A signature over nothing is still a valid
+        // signature, so nothing downstream notices.
+        $part = new ExternalPart('cid:empty@example.com', 'application/pdf', $this->stream(''));
+
+        $this->expectException(SigningFailed::class);
+        $this->expectExceptionMessage('The external part "cid:empty@example.com" read zero bytes.');
+
+        (new DigestCalculator(new DomCanonicalizer(), new Digest()))
+            ->forExternalPart($part, DigestMethod::SHA256, self::SWA_CONTENT);
+    }
+
     public function test_it_refuses_an_xml_part_whose_octets_are_not_a_document(): void
     {
         // There is no node-set to canonicalize, so there is no digest to compute. Outbound this names the

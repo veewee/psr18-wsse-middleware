@@ -209,6 +209,7 @@ final class Encryption implements OutboundAction
         $this->assertNoOptimizedContent($document, $request);
 
         $result = $this->encryptor->encrypt($document, $request);
+        $this->assertEveryRegisteredPartSealed($external?->parts, $result->sealedParts);
 
         if ($this->attachments !== null) {
             $this->attachments->replace($this->opaque($result->sealedParts));
@@ -216,6 +217,30 @@ final class Encryption implements OutboundAction
 
         // The engine appends the encrypted key; which order this header must be in is the profile's rule.
         $security->sort();
+    }
+
+    /**
+     * Every part handed to the encryptor must come back sealed.
+     *
+     * The encryptor reports what it sealed instead of the block trusting the request it sent, because the
+     * encryptor is a seam a caller may replace. One that returns less than it was handed would leave the
+     * attachment in the storage as plaintext under a message that carries an xenc:EncryptedKey and reads as
+     * encrypted in every log and packet capture of it.
+     *
+     * @throws EncryptionFailed
+     */
+    private function assertEveryRegisteredPartSealed(
+        ?ExternalPartList $registeredAttachments,
+        ExternalPartList $sealed,
+    ): void {
+        foreach ($registeredAttachments ?? ExternalPartList::of() as $part) {
+            if ($sealed->byReference($part->reference) === null) {
+                throw EncryptionFailed::withReason(sprintf(
+                    'The encryption does not cover the external part "%s", which was registered.',
+                    $part->reference,
+                ));
+            }
+        }
     }
 
     /**

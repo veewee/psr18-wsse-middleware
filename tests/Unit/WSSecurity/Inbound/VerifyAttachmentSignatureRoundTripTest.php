@@ -187,6 +187,30 @@ final class VerifyAttachmentSignatureRoundTripTest extends TestCase
         $this->verify($fixture, $document, $storage, ExternalPartCoverage::Complete);
     }
 
+    public function test_a_response_header_this_package_will_not_canonicalize_is_a_security_fault(): void
+    {
+        // Composing the digest input under a complete coverage is itself work over peer-controlled bytes, and
+        // after Decrypt has run those headers came out of the peer's own ciphertext. A refusal there is an
+        // inbound failure like any other: letting it out as its own exception type would hand a peer one
+        // distinguishable outcome, which is the oracle the uniform fault exists to deny.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = $this->storage('%PDF-1.7 invoice bytes');
+        $document = $this->signWith($fixture, $storage, ExternalPartCoverage::Complete);
+
+        $storage->responseAttachments()->replace(
+            $storage->responseAttachments()->findById('<'.self::CID.'>')
+                ->withHeaders(Headers::fromPairs([
+                    ['Content-ID', '<'.self::CID.'>'],
+                    ['Content-Type', 'application/pdf (a comment)'],
+                ])),
+        );
+
+        $this->assertRefusedBecause(
+            'The attachment header "Content-Type" carries a comment, which is not supported.',
+            fn () => $this->verify($fixture, $document, $storage, ExternalPartCoverage::Complete),
+        );
+    }
+
     public function test_a_content_only_reference_is_refused_by_a_complete_adapter(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();

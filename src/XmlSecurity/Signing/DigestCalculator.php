@@ -19,8 +19,8 @@ use function Psl\Type\non_empty_string;
  *
  * Two entry points, because there are two kinds of thing to digest and only one kind of answer.
  * forElement canonicalizes a node-set first, since XML has more than one byte representation of the same
- * tree. forExternalPart canonicalizes nothing: an attachment's octets are already the bytes both sides
- * agree on, and inventing a normalization step is how a digest stops matching.
+ * tree. forExternalPart applies whatever the external transform says for the part's media type, which is the
+ * identity only for the binary case.
  */
 final class DigestCalculator
 {
@@ -81,9 +81,16 @@ final class DigestCalculator
         DigestMethod $digestMethod,
         string $transform,
     ): SignedReference {
+        $content = $part->content->rewind()->getContents();
+        if ($content === '') {
+            throw SigningFailed::emptyExternalPart($part->reference);
+        }
+
         try {
-            $octets = (new ExternalPartContent($this->canonicalizer))
-                ->canonicalize($part->mimeType, $part->content->rewind()->getContents());
+            // The prefix is prepended after the transform, never put through it: a peer writes the metadata
+            // it covers and then the content the transform produced, in that order.
+            $octets = $part->digestPrefix.(new ExternalPartContent($this->canonicalizer))
+                ->canonicalize($part->mimeType, $content);
         } catch (CanonicalizationFailed $exception) {
             throw SigningFailed::unreadableExternalPart($part->reference, $part->mimeType, $exception);
         }

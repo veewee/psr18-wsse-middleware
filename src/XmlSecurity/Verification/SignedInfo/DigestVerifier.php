@@ -87,7 +87,9 @@ final class DigestVerifier
 
         $part = $reference->part;
         try {
-            $octets = (new ExternalPartContent($this->canonicalizer))
+            // Prepended after the transform, matching what the signer did: the metadata a coverage includes
+            // is written as it stands and the content is written as the transform produced it.
+            $octets = $part->digestPrefix.(new ExternalPartContent($this->canonicalizer))
                 ->canonicalize($part->mimeType, $part->content->rewind()->getContents());
         } catch (CanonicalizationFailed $exception) {
             throw SignatureVerificationFailed::withReason(

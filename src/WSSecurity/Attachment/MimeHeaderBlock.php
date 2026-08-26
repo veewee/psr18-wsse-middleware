@@ -112,7 +112,7 @@ final readonly class MimeHeaderBlock
         while (true) {
             $end = strpos($octets, "\r\n", $offset);
             if ($end === false) {
-                throw MalformedAttachmentHeaders::withoutBlankLine(self::MAX_HEADERS);
+                throw MalformedAttachmentHeaders::withoutBlankLine();
             }
 
             if ($end - $offset > self::MAX_LINE_LENGTH) {

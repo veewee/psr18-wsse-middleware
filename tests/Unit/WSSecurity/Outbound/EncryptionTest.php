@@ -47,6 +47,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDa
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
@@ -60,6 +61,32 @@ use VeeWee\Xml\Dom\Document;
 final class EncryptionTest extends OutboundTestCase
 {
     private const XENC = 'http://www.w3.org/2001/04/xmlenc#';
+
+    public function test_it_refuses_an_encryption_that_left_a_registered_attachment_unsealed(): void
+    {
+        // The encryptor reports what it sealed rather than the block assuming it. One that returns less than
+        // it was handed would leave the attachment in the storage as plaintext under a message carrying an
+        // xenc:EncryptedKey, which reads as encrypted in every log and packet capture of it.
+        $this->expectException(EncryptionFailed::class);
+        $this->expectExceptionMessage(
+            'The encryption does not cover the external part "cid:invoice@example.com", which was registered.',
+        );
+
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<invoice@example.com>',
+            'file',
+            'invoice.pdf',
+            'application/pdf',
+            MemoryStream::create()->write('%PDF-1.7')->rewind(),
+        ));
+
+        (new Encryption($this->recipientCertificate()))
+            ->withEncryptor(new SealingNothingEncryptor())
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
+                $this->context($this->envelope()),
+            );
+    }
 
     public function test_it_rejects_a_dynamic_signing_only_part(): void
     {

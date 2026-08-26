@@ -33,6 +33,18 @@ final class SigningFailed extends RuntimeException
     }
 
     /**
+     * A part whose stream reads nothing.
+     *
+     * Signing nothing produces a signature that verifies, so the caller ships an empty file believing it was
+     * protected and nothing downstream notices. A part whose stream cannot rewind reads this way too. The
+     * encryption side refuses the same part for the same reason.
+     */
+    public static function emptyExternalPart(string $reference): self
+    {
+        return new self(sprintf('The external part "%s" read zero bytes.', $reference));
+    }
+
+    /**
      * A part declaring an XML media type whose octets are not a document.
      *
      * The transform canonicalizes XML content before digesting, so there has to be a node-set to canonicalize.

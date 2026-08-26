@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Attachment;
 
 use Phpro\ResourceStream\Factory\MemoryStream;
-use Phpro\ResourceStream\ResourceStream;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Attachment\AttachmentsCollection;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Cid;
@@ -69,43 +68,24 @@ final readonly class AttachmentParts implements ExternalParts
     public function collect(): ExternalPartList
     {
         return $this->collectEach(
-            fn (Attachment $attachment, ResourceStream $content): ResourceStream => $this->coverage === ExternalPartCoverage::Complete
-                ? $this->composed($attachment, $content)
-                : $content,
+            fn (Attachment $attachment): string => $this->coverage === ExternalPartCoverage::Complete
+                ? $this->headerBlock->canonicalize($attachment->headers())
+                : '',
         );
-    }
-
-    /**
-     * The canonical header block followed by the part's own octets, which is what a complete coverage digests.
-     *
-     * Streamed rather than concatenated. Building the two as one PHP string would hold the whole attachment a
-     * third time, on top of the copy the stream already is and the one the caller handed in, and an
-     * attachment is the largest thing this package touches.
-     *
-     * @param ResourceStream<resource> $content
-     *
-     * @return ResourceStream<resource>
-     */
-    private function composed(Attachment $attachment, ResourceStream $content): ResourceStream
-    {
-        $composed = MemoryStream::create()->write($this->headerBlock->canonicalize($attachment->headers()));
-        $content->copyTo($composed);
-        $composed->rewind();
-
-        return $composed;
     }
 
     public function collectSealed(): ExternalPartList
     {
-        return $this->collectEach(
-            static fn (Attachment $attachment, ResourceStream $content): ResourceStream => $content,
-        );
+        return $this->collectEach(static fn (Attachment $attachment): string => '');
     }
 
     /**
-     * @param callable(Attachment, ResourceStream<resource>): ResourceStream<resource> $octets
+     * The two collects differ only in what a signature covers besides the content, so they share everything
+     * else: the same references, the same media types, and the same rewound streams.
+     *
+     * @param callable(Attachment): string $digestPrefix
      */
-    private function collectEach(callable $octets): ExternalPartList
+    private function collectEach(callable $digestPrefix): ExternalPartList
     {
         $parts = [];
         foreach ($this->attachments() as $attachment) {
@@ -114,7 +94,8 @@ final readonly class AttachmentParts implements ExternalParts
                 mimeType: $this->declaredMediaType($attachment),
                 // Rewound because a message may be collected twice: sign-then-encrypt digests the plaintext
                 // and then seals the same plaintext, and a stream is single-use.
-                content: $octets($attachment, $attachment->content->rewind()),
+                content: $attachment->content->rewind(),
+                digestPrefix: $digestPrefix($attachment),
             );
         }
 

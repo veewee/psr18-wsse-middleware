@@ -521,9 +521,9 @@ coverage where the adapter is built:
 AttachmentParts::request($attachments, ExternalPartCoverage::Complete)
 ```
 
-If you implemented the `ExternalParts` seam yourself rather than using `AttachmentParts`, add
-`collectSealed()` to it. Return `collect()` unless you compose a canonical header block, in which case return
-the part's own octets: a cipher addresses the MIME part, while a signature covers the composition.
+If you implement the `ExternalParts` seam yourself rather than using `AttachmentParts`, it has two collects.
+`collect()` is what a signature covers and `collectSealed()` is what a cipher addresses; return `collect()`
+from both unless you cover a part's metadata as well as its content, since only then do the two differ.
 
 What gets digested depends on the attachment's media type, and none of it is a configuration choice. XML
 (`text/xml`, `application/xml`, or a `+xml` subtype of `application` or `image`) is canonicalized with
