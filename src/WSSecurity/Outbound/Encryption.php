@@ -20,7 +20,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityHeader;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
-use Soap\Psr18WsseMiddleware\Xml\Query;
+use Soap\Psr18WsseMiddleware\Xml\XopInclude;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionRequest;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptionTarget;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
@@ -55,8 +55,6 @@ use VeeWee\Xml\Dom\Document;
 final class Encryption implements OutboundAction
 {
     private const OPAQUE_MEDIA_TYPE = 'application/octet-stream';
-
-    private const XOP_NAMESPACE = 'http://www.w3.org/2004/08/xop/include';
 
     /** @var list<Part>|null */
     private ?array $parts = null;
@@ -280,14 +278,7 @@ final class Encryption implements OutboundAction
                 continue;
             }
 
-            $includes = Query::elements(
-                $document,
-                './/xop:Include | self::xop:Include',
-                $element,
-                ['xop' => self::XOP_NAMESPACE],
-            );
-
-            if (count($includes) > 0) {
+            if (XopInclude::presentIn($document, $element)) {
                 throw EncryptionFailed::withReason(
                     'An element carrying an xop:Include cannot be encrypted: that would protect the reference '
                     .'while the referenced bytes travel in the clear. Encrypt the attachment instead.',

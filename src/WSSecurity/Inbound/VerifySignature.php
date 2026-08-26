@@ -17,7 +17,6 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsseKeyInfoResolver;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
-use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\TargetLocator;
@@ -129,18 +128,19 @@ final class VerifySignature implements InboundAction
     {
         $document = $context->document();
 
+        $attachments = $this->attachments;
         // Collected before the verifier runs, and the same list is used to check coverage afterwards, so the
         // parts the signature was checked against are exactly the parts the requirement is asserted over.
-        $registered = $this->attachments?->collect();
+        $registered = $attachments?->collect();
         $policy = new VerificationPolicy(
             $this->trustStore,
             $context->profile()->crypto(),
-            $registered === null ? null : new ExternalPartVerification(
-                $registered,
-                AttachmentSignatureTransform::for(
-                    $this->attachments?->coverage() ?? ExternalPartCoverage::Content
-                )->value,
-            ),
+            $attachments !== null && $registered !== null
+                ? new ExternalPartVerification(
+                    $registered,
+                    AttachmentSignatureTransform::for($attachments->coverage())->value,
+                )
+                : null,
         );
 
         try {

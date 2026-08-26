@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Attachment;
 
-use Composer\InstalledVersions;
 use Phpro\ResourceStream\Factory\MemoryStream;
 use Phpro\ResourceStream\ResourceStream;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
@@ -12,7 +11,6 @@ use Soap\Psr18AttachmentsMiddleware\Attachment\Cid;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorageInterface;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\MalformedAttachmentHeaders;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
-use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnsupportedAttachmentsVersion;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
@@ -35,8 +33,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
  */
 final readonly class AttachmentParts implements ExternalParts
 {
-    private const PACKAGE = 'php-soap/psr18-attachments-middleware';
-    private const MINIMUM_VERSION = '0.12.0';
     private const OPAQUE_MEDIA_TYPE = 'application/octet-stream';
 
     private function __construct(
@@ -51,7 +47,7 @@ final readonly class AttachmentParts implements ExternalParts
         AttachmentStorageInterface $storage,
         ExternalPartCoverage $coverage,
     ): self {
-        self::assertSupported();
+        AttachmentsPackage::assertSupported();
 
         return new self($storage, AttachmentSide::Request, $coverage, new MimeHeaderBlock());
     }
@@ -60,7 +56,7 @@ final readonly class AttachmentParts implements ExternalParts
         AttachmentStorageInterface $storage,
         ExternalPartCoverage $coverage,
     ): self {
-        self::assertSupported();
+        AttachmentsPackage::assertSupported();
 
         return new self($storage, AttachmentSide::Response, $coverage, new MimeHeaderBlock());
     }
@@ -180,24 +176,5 @@ final readonly class AttachmentParts implements ExternalParts
         return $this->side === AttachmentSide::Request
             ? $this->storage->requestAttachments()
             : $this->storage->responseAttachments();
-    }
-
-    /**
-     * The header set an attachment carries is the newest thing this adapter needs from that package, so the
-     * named constructors that go with it answer for the rest. A version string cannot be the gate: a path
-     * repository or a dev branch has no order against a floor, and the interop harness installs exactly that
-     * way.
-     */
-    private static function assertSupported(): void
-    {
-        if (method_exists(Attachment::class, 'fromHeaders') && method_exists(Attachment::class, 'withHeaders')) {
-            return;
-        }
-
-        throw UnsupportedAttachmentsVersion::requiresAtLeast(
-            self::PACKAGE,
-            self::MINIMUM_VERSION,
-            InstalledVersions::getPrettyVersion(self::PACKAGE) ?? 'an unknown version',
-        );
     }
 }

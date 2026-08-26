@@ -514,8 +514,8 @@ Choose how much of each part a protection covers, which is decidable from the pe
 | `<sp:EncryptedParts><sp:Attachments/></sp:EncryptedParts>` | Either satisfies the policy. `Content` outbound; be ready to accept `Complete` inbound |
 | Nothing about attachments | Neither. Do not register attachment parts on the blocks |
 
-A bare `<sp:Attachments/>` means `Complete`: content-only is the opt-in. The argument defaults to `Content`,
-so pass it where the adapter is built:
+A bare `<sp:Attachments/>` means `Complete`: content-only is the opt-in. There is no default, so name the
+coverage where the adapter is built:
 
 ```php
 AttachmentParts::request($attachments, ExternalPartCoverage::Complete)
