@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\Algorithm;
 
+use LogicException;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 
 final class SignatureMethodTest extends TestCase
@@ -18,16 +20,45 @@ final class SignatureMethodTest extends TestCase
         static::assertSame('http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256', SignatureMethod::ECDSA_SHA256->value);
         static::assertSame('http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha384', SignatureMethod::ECDSA_SHA384->value);
         static::assertSame('http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512', SignatureMethod::ECDSA_SHA512->value);
+        static::assertSame('http://www.w3.org/2000/09/xmldsig#hmac-sha1', SignatureMethod::HMAC_SHA1->value);
+        static::assertSame('http://www.w3.org/2001/04/xmldsig-more#hmac-sha224', SignatureMethod::HMAC_SHA224->value);
+        static::assertSame('http://www.w3.org/2001/04/xmldsig-more#hmac-sha256', SignatureMethod::HMAC_SHA256->value);
+        static::assertSame('http://www.w3.org/2001/04/xmldsig-more#hmac-sha384', SignatureMethod::HMAC_SHA384->value);
+        static::assertSame('http://www.w3.org/2001/04/xmldsig-more#hmac-sha512', SignatureMethod::HMAC_SHA512->value);
     }
 
-    public function test_only_the_ecdsa_methods_report_as_ecdsa(): void
+    public function test_every_method_reports_the_kind_of_key_it_needs(): void
     {
-        static::assertTrue(SignatureMethod::ECDSA_SHA256->isEcdsa());
-        static::assertTrue(SignatureMethod::ECDSA_SHA384->isEcdsa());
-        static::assertTrue(SignatureMethod::ECDSA_SHA512->isEcdsa());
+        static::assertSame(SignatureKeyKind::Rsa, SignatureMethod::RSA_SHA1->keyKind());
+        static::assertSame(SignatureKeyKind::Rsa, SignatureMethod::RSA_SHA256->keyKind());
+        static::assertSame(SignatureKeyKind::Rsa, SignatureMethod::RSA_SHA384->keyKind());
+        static::assertSame(SignatureKeyKind::Rsa, SignatureMethod::RSA_SHA512->keyKind());
+        static::assertSame(SignatureKeyKind::Dsa, SignatureMethod::DSA_SHA1->keyKind());
+        static::assertSame(SignatureKeyKind::Ecdsa, SignatureMethod::ECDSA_SHA256->keyKind());
+        static::assertSame(SignatureKeyKind::Ecdsa, SignatureMethod::ECDSA_SHA384->keyKind());
+        static::assertSame(SignatureKeyKind::Ecdsa, SignatureMethod::ECDSA_SHA512->keyKind());
+        static::assertSame(SignatureKeyKind::Hmac, SignatureMethod::HMAC_SHA1->keyKind());
+        static::assertSame(SignatureKeyKind::Hmac, SignatureMethod::HMAC_SHA224->keyKind());
+        static::assertSame(SignatureKeyKind::Hmac, SignatureMethod::HMAC_SHA256->keyKind());
+        static::assertSame(SignatureKeyKind::Hmac, SignatureMethod::HMAC_SHA384->keyKind());
+        static::assertSame(SignatureKeyKind::Hmac, SignatureMethod::HMAC_SHA512->keyKind());
+    }
 
-        static::assertFalse(SignatureMethod::RSA_SHA256->isEcdsa());
-        static::assertFalse(SignatureMethod::DSA_SHA1->isEcdsa());
+    public function test_an_hmac_method_states_the_key_length_it_prefers(): void
+    {
+        static::assertSame(20, SignatureMethod::HMAC_SHA1->hmacKeyLength());
+        static::assertSame(28, SignatureMethod::HMAC_SHA224->hmacKeyLength());
+        static::assertSame(32, SignatureMethod::HMAC_SHA256->hmacKeyLength());
+        static::assertSame(48, SignatureMethod::HMAC_SHA384->hmacKeyLength());
+        static::assertSame(64, SignatureMethod::HMAC_SHA512->hmacKeyLength());
+    }
+
+    public function test_asking_a_non_hmac_method_for_an_hmac_key_length_is_a_programming_error(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('RSA_SHA256');
+
+        SignatureMethod::RSA_SHA256->hmacKeyLength();
     }
 
     public function test_the_secure_default_is_rsa_sha256(): void

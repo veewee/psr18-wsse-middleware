@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\OpenSSL;
 
+use LogicException;
 use phpseclib3\Crypt\Common\PrivateKey;
 use phpseclib3\Crypt\Common\PublicKey;
 use phpseclib3\Crypt\DSA;
@@ -11,6 +12,7 @@ use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Crypt\RSA;
 use phpseclib3\Math\BigInteger;
 use SensitiveParameter;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
@@ -25,6 +27,8 @@ use Throwable;
  * ECDSA and DSA carry the SignatureValue as a fixed-width r||s pair. The library produces that directly for EC
  * (its IEEE format), and for DSA the two coordinates are padded to the subgroup width, so neither needs a DER
  * conversion around the crypto boundary.
+ *
+ * The HMAC methods are keyed by a secret rather than by a key pair and belong to the Mac class beside this one.
  */
 final class Signer
 {
@@ -157,10 +161,11 @@ final class Signer
 
     private function matchesType(PrivateKey|PublicKey $key, SignatureMethod $method): bool
     {
-        return match (true) {
-            $method->isEcdsa() => $key instanceof EC,
-            $method === SignatureMethod::DSA_SHA1 => $key instanceof DSA,
-            default => $key instanceof RSA,
+        return match ($method->keyKind()) {
+            SignatureKeyKind::Ecdsa => $key instanceof EC,
+            SignatureKeyKind::Dsa => $key instanceof DSA,
+            SignatureKeyKind::Rsa => $key instanceof RSA,
+            SignatureKeyKind::Hmac => throw self::notAsymmetric($method),
         };
     }
 
@@ -171,16 +176,30 @@ final class Signer
             SignatureMethod::RSA_SHA256, SignatureMethod::ECDSA_SHA256 => 'sha256',
             SignatureMethod::RSA_SHA384, SignatureMethod::ECDSA_SHA384 => 'sha384',
             SignatureMethod::RSA_SHA512, SignatureMethod::ECDSA_SHA512 => 'sha512',
+            SignatureMethod::HMAC_SHA1,
+            SignatureMethod::HMAC_SHA224,
+            SignatureMethod::HMAC_SHA256,
+            SignatureMethod::HMAC_SHA384,
+            SignatureMethod::HMAC_SHA512 => throw self::notAsymmetric($method),
         };
     }
 
     private function keyName(SignatureMethod $method): string
     {
-        return match (true) {
-            $method->isEcdsa() => 'EC',
-            $method === SignatureMethod::DSA_SHA1 => 'DSA',
-            default => 'RSA',
+        return match ($method->keyKind()) {
+            SignatureKeyKind::Ecdsa => 'EC',
+            SignatureKeyKind::Dsa => 'DSA',
+            SignatureKeyKind::Rsa => 'RSA',
+            SignatureKeyKind::Hmac => throw self::notAsymmetric($method),
         };
+    }
+
+    private static function notAsymmetric(SignatureMethod $method): LogicException
+    {
+        return new LogicException(sprintf(
+            '%s is keyed by a shared secret and is computed by the Mac class, not by the Signer.',
+            $method->name,
+        ));
     }
 
     /**

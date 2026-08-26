@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
@@ -58,13 +59,19 @@ final class VerifierTest extends TestCase
 
     /**
      * The matrix is derived from the default allow-list, so admitting a new signature method to the default
-     * policy forces a round-trip row for it here (an unmapped case fails loudly in the pairing helpers).
+     * policy forces a round-trip row for it here (an unmapped case fails loudly in the pairing helpers). The
+     * keyed-MAC methods are excluded because they verify against an established secret rather than against a
+     * certificate; SymmetricSignatureVerificationTest covers their round trip.
      *
      * @return iterable<string, array{0: SignatureMethod, 1: DigestMethod}>
      */
     public static function algorithmProvider(): iterable
     {
         foreach (SignatureMethod::cases() as $signatureMethod) {
+            if ($signatureMethod->keyKind() === SignatureKeyKind::Hmac) {
+                continue;
+            }
+
             if (CryptoPolicy::default()->acceptsSignatureMethod($signatureMethod)) {
                 yield $signatureMethod->name => [$signatureMethod, self::pairedDigest($signatureMethod)];
             }
@@ -76,7 +83,7 @@ final class VerifierTest extends TestCase
         SignatureMethod $signatureMethod,
         DigestMethod $digestMethod,
     ): void {
-        $fixture = $signatureMethod->isEcdsa()
+        $fixture = $signatureMethod->keyKind() === SignatureKeyKind::Ecdsa
             ? WsseSignatureFixture::ecCaSignedLeaf(self::pairedCurve($signatureMethod))
             : WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget()], signatureMethod: $signatureMethod, digestMethod: $digestMethod);

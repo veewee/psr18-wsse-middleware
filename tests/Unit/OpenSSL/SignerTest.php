@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 namespace SoapTest\Psr18WsseMiddleware\Unit\OpenSSL;
 
+use LogicException;
 use OpenSSLAsymmetricKey;
 use phpseclib3\Crypt\DSA;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
@@ -151,18 +153,32 @@ final class SignerTest extends TestCase
     }
 
     /**
-     * Every signature method the enum advertises must be executable by the signer: none may map to an
-     * unsupported algorithm. This guards the enum against re-introducing a case the engine cannot apply.
+     * Every asymmetric signature method the enum advertises must be executable by the signer: none may map to
+     * an unsupported algorithm. This guards the enum against re-introducing a case the engine cannot apply.
      */
-    public function test_every_signature_method_is_executable(): void
+    public function test_every_asymmetric_signature_method_is_executable(): void
     {
         $signer = new Signer();
 
         foreach (SignatureMethod::cases() as $method) {
+            if ($method->keyKind() === SignatureKeyKind::Hmac) {
+                continue;
+            }
+
             [$private] = $this->keyForMethod($method);
             $signature = $signer->sign($private, 'payload', $method);
             static::assertNotSame('', $signature);
         }
+    }
+
+    public function test_a_keyed_mac_method_is_not_the_signers_business(): void
+    {
+        [$private] = $this->keyAndCertificate();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Mac');
+
+        (new Signer())->sign($private, 'payload', SignatureMethod::HMAC_SHA256);
     }
 
     /**
@@ -171,7 +187,7 @@ final class SignerTest extends TestCase
     private function keyForMethod(SignatureMethod $method): array
     {
         return match (true) {
-            $method->isEcdsa() => $this->ecKeyAndCertificate('prime256v1'),
+            $method->keyKind() === SignatureKeyKind::Ecdsa => $this->ecKeyAndCertificate('prime256v1'),
             $method === SignatureMethod::DSA_SHA1 => $this->dsaKeyAndCertificate(),
             default => $this->keyAndCertificate(),
         };

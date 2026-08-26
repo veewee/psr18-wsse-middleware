@@ -6,6 +6,7 @@ namespace SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\Verification\SignedInfo;
 use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\SignedInfoParser;
 use VeeWee\Xml\Dom\Document;
@@ -128,19 +129,34 @@ final class SignedInfoParserTest extends TestCase
         (new SignedInfoParser())->parse($signedInfo);
     }
 
-    public function test_an_hmac_signature_method_is_refused(): void
+    public function test_a_truncated_mac_length_is_refused(): void
     {
-        // HMAC is symmetric: accepting it would let a peer that knows or can guess the shared secret forge a
-        // signature this library would then report as valid. No HMAC URI is representable, so substituting one
-        // resolves to nothing -- this pins that, so adding HMAC to the enum for parity cannot quietly admit it.
+        // Truncating the MAC shrinks the value a forgery has to hit: at one bit it is a coin flip. The element
+        // is refused before anything is computed, whatever length it names.
         $signedInfo = $this->signedInfo(
             canonicalization: '<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>',
             references: $this->reference('#Body', self::EXC_C14N, null),
-            signatureMethod: '<ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#hmac-sha1"/>',
+            signatureMethod: '<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#hmac-sha256">'
+                .'<ds:HMACOutputLength>8</ds:HMACOutputLength>'
+                .'</ds:SignatureMethod>',
         );
 
         $this->expectException(SignatureVerificationFailed::class);
+        $this->expectExceptionMessage('ds:HMACOutputLength is not accepted.');
         (new SignedInfoParser())->parse($signedInfo);
+    }
+
+    public function test_a_keyed_mac_signature_method_is_read_as_such(): void
+    {
+        $signedInfo = $this->signedInfo(
+            canonicalization: '<ds:CanonicalizationMethod Algorithm="'.self::EXC_C14N.'"/>',
+            references: $this->reference('#Body', self::EXC_C14N, null),
+            signatureMethod: '<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#hmac-sha256"/>',
+        );
+
+        $parsed = (new SignedInfoParser())->parse($signedInfo);
+
+        static::assertSame(SignatureMethod::HMAC_SHA256, $parsed->signatureMethod);
     }
 
     public function test_a_reference_without_transforms_digests_under_inclusive_c14n(): void
