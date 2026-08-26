@@ -127,7 +127,7 @@ final class PreSharedSessionKeyTest extends TestCase
         static::assertCount(1, $this->elements($document, self::XENC, 'EncryptedData'));
 
         // No private key: there is nothing wrapped to unwrap, in either direction.
-        (Decrypt::fromEstablishedKeys())->withPreSharedKey($this->key())($this->context($document, new ExchangeKeys()));
+        (new Decrypt($this->key()))($this->context($document, new ExchangeKeys()));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertStringContainsString('<data>secret</data>', $document->toXmlString());

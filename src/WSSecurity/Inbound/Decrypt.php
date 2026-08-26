@@ -40,8 +40,8 @@ use Throwable;
  *
  * A response encrypted under a key this exchange already established carries no xenc:EncryptedKey at all: each
  * xenc:EncryptedData names the key instead, and it is resolved from what the exchange holds. Such a deployment
- * needs no private key here. A pre-shared secret is the one case that has to be handed over, because no
- * outbound direction established it.
+ * needs no private key here, which is what fromEstablishedKeys() states. A pre-shared secret is the one case
+ * that has to be handed over, because no outbound direction established it.
  *
  * Every decryption failure, whatever its cause, collapses to one SecurityFault with a non-identifying
  * message. The underlying reason is chained for operator logs only and is never forwarded to a remote peer.
@@ -53,13 +53,13 @@ final class Decrypt implements InboundAction
     private XmlDecryptor $decryptor;
     private ?ExternalParts $attachments = null;
 
-    private ?PreSharedSessionKey $preSharedKey = null;
-
     /**
-     * @param Key $privateKey the key that unwraps an xenc:EncryptedKey a peer wrapped for this recipient
+     * @param Key|PreSharedSessionKey $key what this receiver decrypts with. A Key unwraps an xenc:EncryptedKey
+     *        a peer wrapped for it; a pre-shared secret opens parts encrypted under a key both sides already
+     *        hold. A key this exchange established for itself needs neither, which fromEstablishedKeys() says
      */
     public function __construct(
-        private readonly ?Key $privateKey,
+        private readonly Key|PreSharedSessionKey|null $key,
     ) {
         // The WS-Security profile tags xenc:EncryptedData with wsu:Id, so the decryptor resolves references
         // through the wsu:Id convention (native namespace-less @Id from interop peers is still accepted too).
@@ -68,12 +68,11 @@ final class Decrypt implements InboundAction
     }
 
     /**
-     * Decrypts without a private key, for a deployment whose peer encrypts under a key this exchange already
-     * established and so wraps nothing for it to unwrap.
+     * Decrypts with the key this exchange established for itself, which a correlated response is keyed by and
+     * conveys nothing for.
      *
-     * Named rather than expressed by omitting the key: "this deployment holds no private key" is a decision
-     * about the whole exchange, and a message that turns out to carry an xenc:EncryptedKey after all is
-     * refused here rather than silently left encrypted.
+     * Named rather than expressed by passing nothing, because holding no key of your own is a decision about
+     * the deployment rather than an argument left out.
      */
     public static function fromEstablishedKeys(): self
     {
@@ -106,21 +105,6 @@ final class Decrypt implements InboundAction
         return $clone;
     }
 
-    /**
-     * Registers a secret no outbound direction established, so parts encrypted under it can be opened. Only a
-     * pre-shared key needs this: a wrapped or derived key was established while the request was written, and
-     * the exchange already holds it.
-     *
-     * The secret is registered when the block runs rather than now, because the exchange it belongs to is the
-     * one in flight. Registration is idempotent, so both inbound blocks may hold the same source.
-     */
-    public function withPreSharedKey(PreSharedSessionKey $key): self
-    {
-        $clone = clone $this;
-        $clone->preSharedKey = $key;
-
-        return $clone;
-    }
 
     /**
      * Every part registered on this block must come back opened.
@@ -172,14 +156,18 @@ final class Decrypt implements InboundAction
             $container = SecurityHeader::locate($document, $context->soapVersion(), $context->profile()->actorOrRole())
                 ?? throw DecryptionFailed::withReason('The message carries no Security header for this receiver.');
 
-            $this->preSharedKey?->resolve($context, KeyRequest::any());
+            // A pre-shared secret is registered when the block runs rather than at construction, because the
+            // exchange it belongs to is the one in flight.
+            if ($this->key instanceof PreSharedSessionKey) {
+                $this->key->resolve($context, KeyRequest::any());
+            }
 
             $external = $this->externalPartDecryption();
             $result = $this->decryptor->decrypt(
                 $document,
                 new DecryptionRequest(
                     $container,
-                    $this->privateKey,
+                    $this->key instanceof Key ? $this->key : null,
                     $context->profile()->crypto(),
                     $external,
                     new EstablishedSessionKeyResolver($context->keys(), (new WsuIdConvention())->lookup()),

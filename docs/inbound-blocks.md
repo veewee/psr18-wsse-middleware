@@ -71,19 +71,22 @@ $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 new Inbound\Decrypt($privateKey);
 ```
 
-- `?Key $privateKey = null`: your recipient private key as a `KeyStore\Key`. `null` for a deployment whose
-  peer encrypts under a key the exchange already established, which wraps nothing and so has nothing to unwrap.
-- `withPreSharedKey(PreSharedSessionKey $key): self`: register a secret no outbound direction established, so
-  parts encrypted under it can be opened. Only a pre-shared key needs this; a wrapped or derived key was
-  established while the request was written and the exchange already holds it. Registering is idempotent, so
-  the same source can be handed to this block and to `VerifySignature`.
+- `Key|PreSharedSessionKey $key`: **what this receiver decrypts with**, in one argument. There are three ways
+  a key reaches an inbound message and each is stated the same way:
   ```php
   use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
-  $secret = new Keys\PreSharedSessionKey($sessionKey, 'the-agreed-name', 'urn:example:pre-shared-key');
+  // The peer wrapped a key under our certificate: our private key unwraps it.
+  new Inbound\Decrypt($privateKey);
 
-  (Inbound\Decrypt::fromEstablishedKeys())->withPreSharedKey($secret);
+  // A secret both sides already hold, which no outbound direction established.
+  new Inbound\Decrypt(new Keys\PreSharedSessionKey($sessionKey, 'the-agreed-name', 'urn:example:psk'));
+
+  // The response is keyed by what our own request conveyed, so there is nothing to hand over.
+  Inbound\Decrypt::fromEstablishedKeys();
   ```
+  A wrapped or derived key is never passed here: it was established while the request was written, and the
+  exchange already holds it.
 - `withAttachments(ExternalParts $attachments): self`: also decrypt the response's encrypted attachments. Off
   by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).

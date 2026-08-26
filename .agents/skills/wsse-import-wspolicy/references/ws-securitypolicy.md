@@ -294,4 +294,5 @@ Three rules to carry into the draft:
 
 The inbound direction usually needs nothing extra: a response keyed by the same key resolves it from the
 exchange. A `PreSharedSessionKey` is the exception, and has to be handed to the inbound blocks with
-`withPreSharedKey($secret)`, because no outbound direction established it.
+`new Inbound\Decrypt($secret)` and `VerifySignature::withPreSharedKey($secret)`, because no outbound
+direction established it.

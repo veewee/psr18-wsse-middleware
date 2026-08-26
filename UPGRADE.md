@@ -314,7 +314,9 @@ new Outbound\Encryption(new Keys\GeneratedSessionKey(
 ));
 ```
 
-`Inbound\Decrypt`'s private key is now optional, and both inbound blocks gained `withPreSharedKey()`. A
+`Inbound\Decrypt` now takes **what it decrypts with** as its one argument, a `KeyStore\Key` or a
+`Keys\PreSharedSessionKey`, with `Decrypt::fromEstablishedKeys()` for a response keyed by what the request
+itself conveyed. `Inbound\VerifySignature` gained `withPreSharedKey()`. A
 deployment whose peer encrypts under a key the exchange already established wraps nothing, so there is nothing
 to unwrap; see [Inbound blocks](docs/inbound-blocks.md).
 
