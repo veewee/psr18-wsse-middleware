@@ -29,7 +29,7 @@ use Soap\Psr18AttachmentsMiddleware\Multipart\AttachmentType;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
-use Soap\Psr18WsseMiddleware\WSSecurity\{Inbound, Keys, Outbound, Part, SecurityProfile};
+use Soap\Psr18WsseMiddleware\WSSecurity\{Inbound, Keys, Outbound, Part, SecurityProfile, Signing};
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 

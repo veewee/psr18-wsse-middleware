@@ -394,7 +394,6 @@ use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
-use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
@@ -403,11 +402,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
 $recipient = Certificate::fromFile('service.pub');
-$ourPrivateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 $trustStore = TrustStore::fromCertificates(Certificate::fromFile('service-ca.pub'));
 
 // One session key, shared by being the same object. Add a Keys\DerivedSessionKey per block when the policy
@@ -430,8 +429,9 @@ $transport = Psr18Transport::createForClient(
                     ->withParts([Part::primarySignature()]),
             ],
             inbound: [
-                // The response is keyed by the same session key, resolved from the exchange. Nothing to configure.
-                new Inbound\Decrypt($ourPrivateKey),
+                // The response is keyed by the same session key, resolved from the exchange, so there is no
+                // private key to unwrap anything with and nothing to hand over.
+                Inbound\Decrypt::fromEstablishedKeys(),
                 new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]),
                 new Inbound\ValidateTimestamp(),
             ],
