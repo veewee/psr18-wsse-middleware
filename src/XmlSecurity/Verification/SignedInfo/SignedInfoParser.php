@@ -8,12 +8,11 @@ use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
-use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\SameDocumentId;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\PrefixList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
-use function VeeWee\Xml\Dom\Locator\Element\children;
 
 /**
  * Reads the ds:SignedInfo of a located ds:Signature into a structured ParsedSignedInfo: its
@@ -32,17 +31,20 @@ final class SignedInfoParser
     private const ENVELOPED_SIGNATURE = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature';
 
     /**
+     * @param DereferencingTransform|null $dereferencingTransform the one transform a reference may declare in
+     *        place of a canonicalization, when the caller registered one
+     *
      * @throws SignatureVerificationFailed
      */
-    public function parse(Element $signature): ParsedSignedInfo
+    public function parse(Element $signature, ?DereferencingTransform $dereferencingTransform = null): ParsedSignedInfo
     {
         $signedInfo = $this->requireDsChild($signature, 'SignedInfo');
 
         $canonicalizationMethod = $this->requireDsChild($signedInfo, 'CanonicalizationMethod');
         $canonicalization = $this->canonicalizationAlgorithm($canonicalizationMethod);
-        $canonicalizationPrefixes = $this->inclusivePrefixes($canonicalizationMethod);
+        $canonicalizationPrefixes = PrefixList::read($canonicalizationMethod);
         $signatureMethod = $this->signatureMethod($signedInfo);
-        [$referenceElements, $parsedReferences] = $this->parseReferences($signedInfo);
+        [$referenceElements, $parsedReferences] = $this->parseReferences($signedInfo, $dereferencingTransform);
 
         return new ParsedSignedInfo(
             $canonicalization,
@@ -58,13 +60,13 @@ final class SignedInfoParser
      *
      * @throws SignatureVerificationFailed
      */
-    private function parseReferences(Element $signedInfo): array
+    private function parseReferences(Element $signedInfo, ?DereferencingTransform $transform): array
     {
         $elements = [];
         $parsed = [];
         foreach (ChildElements::named($signedInfo, Namespaces::Ds, 'Reference') as $child) {
             $elements[] = $child;
-            $parsed[] = $this->parseReference($child);
+            $parsed[] = $this->parseReference($child, $transform);
         }
 
         if ($elements === [] || $parsed === []) {
@@ -77,7 +79,7 @@ final class SignedInfoParser
     /**
      * @throws SignatureVerificationFailed
      */
-    private function parseReference(Element $reference): ParsedReference
+    private function parseReference(Element $reference, ?DereferencingTransform $transform): ParsedReference
     {
         // The id itself is re-read from the element by the resolver; here it only has to be well-formed.
         if (SameDocumentId::parse((string) $reference->getAttribute('URI')) === null) {
@@ -86,13 +88,28 @@ final class SignedInfoParser
 
         $digestMethod = $this->digestMethod($reference);
         $digestValue = $this->requireDsChild($reference, 'DigestValue');
-        [$canonicalization, $inclusivePrefixes] = $this->referenceCanonicalization($reference);
+        // A reference declaring the registered indirection is canonicalized the way that transform says, and
+        // records which one it was. Every other reference keeps the ordinary pipeline the engine already reads.
+        $dereferencing = $this->declaredDereferencingTransform($reference, $transform);
+        if ($transform === null || $dereferencing === null) {
+            $ordinary = $this->referenceCanonicalization($reference);
+
+            return new ParsedReference(
+                $digestMethod,
+                ElementText::trimmed($digestValue),
+                $ordinary->canonicalization,
+                $ordinary->inclusivePrefixes,
+            );
+        }
+
+        $how = $transform->canonicalization($dereferencing);
 
         return new ParsedReference(
             $digestMethod,
             ElementText::trimmed($digestValue),
-            $canonicalization,
-            $inclusivePrefixes,
+            $how->canonicalization,
+            $how->inclusivePrefixes,
+            $transform->algorithm(),
         );
     }
 
@@ -106,11 +123,9 @@ final class SignedInfoParser
      * allow-list is exclusive-only, so a transform-less reference is refused there unless a deployment opts
      * inclusive c14n in.
      *
-     * @return array{0: SignatureCanonicalization, 1: list<string>}
-     *
      * @throws SignatureVerificationFailed
      */
-    private function referenceCanonicalization(Element $reference): array
+    private function referenceCanonicalization(Element $reference): TransformCanonicalization
     {
         $transformsMatches = ChildElements::named($reference, Namespaces::Ds, 'Transforms');
         if (count($transformsMatches) > 1) {
@@ -119,7 +134,7 @@ final class SignedInfoParser
 
         $transforms = $transformsMatches[0] ?? null;
         if ($transforms === null) {
-            return [SignatureCanonicalization::C14N, []];
+            return new TransformCanonicalization(SignatureCanonicalization::C14N, []);
         }
 
         // The pipeline may open with the enveloped-signature transform, which names no canonicalization of its
@@ -134,7 +149,7 @@ final class SignedInfoParser
 
         if ($candidates === []) {
             // Enveloped-signature alone: the default canonicalization applies, as for an absent ds:Transforms.
-            return [SignatureCanonicalization::C14N, []];
+            return new TransformCanonicalization(SignatureCanonicalization::C14N, []);
         }
 
         $transform = count($candidates) === 1
@@ -146,7 +161,7 @@ final class SignedInfoParser
             throw SignatureVerificationFailed::withReason('A reference transform is not a known canonicalization.');
         }
 
-        return [$algorithm, $this->inclusivePrefixes($transform)];
+        return new TransformCanonicalization($algorithm, PrefixList::read($transform));
     }
 
     /**
@@ -161,42 +176,44 @@ final class SignedInfoParser
     }
 
     /**
-     * Reads the optional exclusive-c14n InclusiveNamespaces PrefixList carried as a direct child of a
-     * canonicalization element, split on whitespace. An absent or empty list yields an empty list.
-     *
-     * @return list<string>
+     * The ds:Transform declaring the registered transform's algorithm, or null when the reference declares an
+     * ordinary canonicalization pipeline. A reference may declare it only once and alone: pairing an
+     * indirection with another transform describes two different computations, and picking one is a choice a
+     * signer must not get to make for the verifier.
      *
      * @throws SignatureVerificationFailed
      */
-    private function inclusivePrefixes(Element $canonicalizationElement): array
-    {
-        $matches = children($canonicalizationElement)
-            ->filter(
-                static fn (Element $child): bool => ElementName::matchesUri(
-                    $child,
-                    SignatureCanonicalization::EXC_C14N->value,
-                    'InclusiveNamespaces',
-                ),
-            );
-
-        if ($matches->count() > 1) {
-            throw SignatureVerificationFailed::withReason('ec:InclusiveNamespaces must appear at most once.');
+    private function declaredDereferencingTransform(
+        Element $reference,
+        ?DereferencingTransform $transform,
+    ): ?Element {
+        if ($transform === null) {
+            return null;
         }
 
-        $inclusiveNamespaces = $matches->first();
-        if ($inclusiveNamespaces === null) {
-            return [];
+        $transforms = ChildElements::named($reference, Namespaces::Ds, 'Transforms');
+        if (count($transforms) !== 1) {
+            return null;
         }
 
-        $prefixList = trim((string) $inclusiveNamespaces->getAttribute('PrefixList'));
-        if ($prefixList === '') {
-            return [];
-        }
-
-        return array_values(array_filter(
-            preg_split('/\s+/', $prefixList) ?: [],
-            static fn (string $prefix): bool => $prefix !== '',
+        $declared = ChildElements::named($transforms[0], Namespaces::Ds, 'Transform');
+        $matching = array_values(array_filter(
+            $declared,
+            static fn (Element $candidate): bool =>
+                (string) $candidate->getAttribute('Algorithm') === $transform->algorithm(),
         ));
+
+        if ($matching === []) {
+            return null;
+        }
+
+        if (count($declared) !== 1) {
+            throw SignatureVerificationFailed::withReason(
+                'A dereferencing transform must be the only transform a reference declares.',
+            );
+        }
+
+        return $matching[0];
     }
 
     /**

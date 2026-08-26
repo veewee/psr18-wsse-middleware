@@ -47,6 +47,7 @@ final class ReferenceResolver
 
     public function __construct(
         private IdLookup $idLookup,
+        private ?DereferencingTransform $dereferencingTransform = null,
     ) {
     }
 
@@ -74,7 +75,9 @@ final class ReferenceResolver
         $resolved = [];
         foreach ($referenceElements as $index => $referenceElement) {
             $parsed = $parsedReferences[$index];
-            $this->assertSingleKnownC14nTransform($referenceElement);
+            if ($parsed->dereferencingTransform === null) {
+                $this->assertSingleKnownC14nTransform($referenceElement);
+            }
 
             $id = $this->referenceId($referenceElement);
             $element = $this->locate($document, $id);
@@ -87,10 +90,74 @@ final class ReferenceResolver
                 $this->declaresEnvelopedSignature($referenceElement)
                     ? $this->signatureToStrip($document, $element, $signatureElement)
                     : null,
+                $this->dereference($document, $referenceElement, $parsed, $element, $signatureElement),
             );
         }
 
         return $resolved;
+    }
+
+    /**
+     * Hands a reference that declared the registered indirection to it, and returns the element it resolved to.
+     * Null for every ordinary reference, which is digested as it stands.
+     *
+     * The transform's answer is checked here rather than trusted, because the engine owns what a reference may
+     * cover whoever resolved it: an element outside this document was never in the message, and one inside the
+     * signature is the signature vouching for itself. The transform decides which element the profile's
+     * indirection names; it does not get to widen what a signature may claim.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function dereference(
+        Document $document,
+        Element $referenceElement,
+        ParsedReference $parsed,
+        Element $element,
+        Element $signatureElement,
+    ): ?Element {
+        if ($parsed->dereferencingTransform === null) {
+            return null;
+        }
+
+        $transform = $this->dereferencingTransform;
+        if ($transform === null) {
+            // The parser only records a transform a caller registered, so the two disagreeing means this
+            // resolver was built without it. Digesting the reference element as it stands would verify a
+            // signature against bytes the signer never digested.
+            throw SignatureVerificationFailed::withReason('No transform can resolve this reference.');
+        }
+
+        $dereferenced = $transform->dereference(
+            $document,
+            $element,
+            $this->transformElement($referenceElement),
+            $this->idLookup,
+        );
+
+        if (!$document->toUnsafeDocument()->contains($dereferenced)) {
+            throw SignatureVerificationFailed::withReason('A dereferenced reference left the document.');
+        }
+
+        $this->assertNotSignatureInfrastructure($dereferenced, $signatureElement);
+
+        return $dereferenced;
+    }
+
+    /**
+     * The single ds:Transform of a reference the parser already established declares the indirection alone.
+     *
+     * @throws SignatureVerificationFailed
+     */
+    private function transformElement(Element $referenceElement): Element
+    {
+        $transforms = $this->onlyDsChild($referenceElement, 'Transforms');
+        $declared = $transforms === null ? [] : ChildElements::named($transforms, Namespaces::Ds, 'Transform');
+
+        return count($declared) === 1
+            ? $declared[0]
+            : throw SignatureVerificationFailed::withReason(
+                'A dereferencing reference must declare exactly one transform.',
+            );
     }
 
     /**

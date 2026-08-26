@@ -50,6 +50,23 @@ part of this package that knows what a SOAP envelope is.
 
   Verifier::create($ids->lookup(), new WsseKeyInfoResolver());
   ```
+- **A transform that substitutes what gets digested is an input as well.** XML-DSig transforms canonicalize the
+  element a `ds:Reference` points at. WS-Security defines one that resolves it first: `#STR-Transform` digests
+  the token a `wsse:SecurityTokenReference` names rather than the reference element. Standalone, the layer has
+  never heard of it and refuses it as an unknown transform; pass the profile's implementation to verify such a
+  signature outside the middleware:
+  ```php
+  use Soap\Psr18WsseMiddleware\WSSecurity\Xml\SecurityTokenReferenceTransform;
+
+  Verifier::create($ids->lookup(), new WsseKeyInfoResolver(), new SecurityTokenReferenceTransform());
+  ```
+  A `DereferencingTransform` answers two questions, at the two moments the verifier needs them: which
+  canonicalization the transform's own parameters name, read before anything is resolved so the algorithm
+  allow-list can refuse it early, and which element the indirection resolves to. What that element may be is
+  still the engine's call: it must be in the same document and outside the signature, checked after the
+  transform answers, so an implementation decides what the profile's indirection names and never widens what a
+  signature may claim.
+
 - **The scope is an input too, on the read side.** `XmlSignatureVerifier::verify()` takes the element whose
   signature is being verified, and `DecryptionRequest` names the container the `xenc:EncryptedKey` and
   `xenc:ReferenceList` are read from. Neither is defaulted, because a default would mean "search the whole

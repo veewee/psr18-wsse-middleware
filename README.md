@@ -139,7 +139,7 @@ Every block is a small, immutable value object you drop into the `outbound` or `
 | Inbound | Checks |
 |---|---|
 | [`Decrypt`](docs/inbound-blocks.md#inbound-decrypt) | Decrypts the `xenc:EncryptedData` parts with your private key |
-| [`VerifySignature`](docs/inbound-blocks.md#inbound-verifysignature) | The signature verifies, and the parts you require were covered by a trusted signer |
+| [`VerifySignature`](docs/inbound-blocks.md#inbound-verifysignature) | The signature verifies, and the parts you require were covered by a trusted signer (including a token covered through `#STR-Transform`) |
 | [`ValidateTimestamp`](docs/inbound-blocks.md#inbound-validatetimestamp) | The response is not stale, future-dated, or past its own `Expires` |
 
 ### The order to list them in

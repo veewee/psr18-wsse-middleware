@@ -39,8 +39,11 @@ final class DigestVerifier
         // An enveloped-signature reference digests its element without the signature it contains. The resolver
         // has already established that this is the one signature the element holds and that it is the signature
         // being verified, so nothing here has to decide which node may be dropped.
+        //
+        // Which element is digested is the resolver's answer too: a reference whose transform substituted one
+        // reports it, and this reads that rather than the element the reference URI named.
         $canonical = $this->canonicalizer->canonicalize(
-            $reference->element,
+            $reference->digested(),
             $parsed->canonicalization,
             $parsed->inclusivePrefixes === [] ? null : $parsed->inclusivePrefixes,
             $reference->envelopedSignature,

@@ -89,6 +89,23 @@ The signer's certificate must be trusted by the store, be within its validity wi
 certificate with no `keyUsage` extension is not refused on that ground. No Extended Key Usage is required: the
 X.509 Token Profile mandates none, and no registered EKU describes WS-Security message signing.
 
+**A token covered through its reference verifies.** A peer may cover its signing token by pointing a
+`ds:Reference` at the `wsse:SecurityTokenReference` that names it, with the WS-Security `#STR-Transform`
+telling the verifier to substitute the token before digesting. WSS4J and CXF emit this routinely, and it is
+accepted here with no configuration: the transform's own canonicalization still goes through the profile's
+`acceptedCanonicalizations` allow-list, so an inclusive method named inside it is refused by default like any
+other. What the verifier reports as signed is the **token**, not the reference that named it, which is what
+makes `Part::securityHeaderContents()` mean what you would expect.
+
+Two of the reference forms are dereferenced: a `wsse:Reference` to a token by id, and a `wsse:KeyIdentifier`
+naming a SAML assertion. Both name an element the message actually carries. A reference that instead names a
+certificate: a `wsse:KeyIdentifier` holding a Subject Key Identifier or a thumbprint, or a
+`ds:X509IssuerSerial`, is **refused**. A signer using one of those digested a `wsse:BinarySecurityToken` it
+built from its own keystore, an element that never travelled, and reproducing that byte-for-byte from a
+certificate found locally is guesswork. A digest over an approximation of what the signer digested proves
+nothing, so this fails closed rather than nearly verifying. If you meet such a peer, the fix is for it to
+reference its token directly.
+
 **A trusted certificate is not your peer.** If you anchor a CA here, every certificate that CA ever issued
 verifies. Read [Trust: what a verified signature proves](trust.md) for what to do about that, and for
 opt-in [revocation checking](trust.md#revocation-checking-opt-in).

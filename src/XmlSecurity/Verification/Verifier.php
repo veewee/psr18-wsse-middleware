@@ -21,6 +21,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\OpenSslTrustResolv
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\TrustResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\X509DataKeyInfoResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\AlgorithmPolicyEnforcer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\DereferencingTransform;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\DigestVerifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ReferenceResolver;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo\ResolvedVerificationReference;
@@ -56,9 +57,16 @@ final class Verifier implements XmlSignatureVerifier
      * The key-info resolver decides which ds:KeyInfo shapes are understood, and defaults to plain XML-DSig: an
      * inline ds:X509Certificate. The WS-Security profile injects its own, which reads the token forms its spec
      * defines. It is handed the id lookup above per call, so the two cannot address different id attributes.
+     *
+     * The dereferencing transform, when a profile supplies one, is the one transform a reference may declare
+     * that substitutes the element to digest instead of canonicalizing the one it points at. Absent it, such a
+     * reference stays an unknown transform and is refused, which is the engine's own answer on plain XML-DSig.
      */
-    public static function create(?IdLookup $idLookup = null, ?KeyInfoResolver $keyInfo = null): self
-    {
+    public static function create(
+        ?IdLookup $idLookup = null,
+        ?KeyInfoResolver $keyInfo = null,
+        ?DereferencingTransform $dereferencingTransform = null,
+    ): self {
         // The signer and verifier share one canonicalizer instance because digesting and verifying read the
         // same canonical form.
         $canonicalizer = new DomCanonicalizer();
@@ -69,10 +77,11 @@ final class Verifier implements XmlSignatureVerifier
             new SignedInfoParser(),
             new AlgorithmPolicyEnforcer(),
             new CertificateExtractor($keyInfo ?? new X509DataKeyInfoResolver(), $idLookup),
-            new ReferenceResolver($idLookup),
+            new ReferenceResolver($idLookup, $dereferencingTransform),
             new DigestVerifier($canonicalizer, new Digest()),
             new SignatureValidator($canonicalizer, new OpenSslSigner()),
             new OpenSslTrustResolver(new CertificateTrust()),
+            $dereferencingTransform,
         );
     }
 
@@ -85,13 +94,14 @@ final class Verifier implements XmlSignatureVerifier
         private DigestVerifier $digestVerifier,
         private SignatureValidator $signatureValidator,
         private TrustResolver $trustResolver,
+        private ?DereferencingTransform $dereferencingTransform = null,
     ) {
     }
 
     public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature
     {
         $signature = $this->signatureLocator->locate($scope);
-        $signedInfo = $this->signedInfoParser->parse($signature);
+        $signedInfo = $this->signedInfoParser->parse($signature, $this->dereferencingTransform);
 
         $this->policyEnforcer->enforce($policy, $signedInfo);
 
@@ -118,8 +128,11 @@ final class Verifier implements XmlSignatureVerifier
             throw SignatureVerificationFailed::withReason('The signature value did not verify.');
         }
 
+        // What a signature covered is what it digested, so a reference whose transform substituted the
+        // element reports the substituted one. A caller asserting coverage by identity is asking about the
+        // token, never about the indirection that named it.
         $elements = array_map(
-            static fn (ResolvedVerificationReference $reference): Element => $reference->element,
+            static fn (ResolvedVerificationReference $reference): Element => $reference->digested(),
             $resolved,
         );
         $ids = array_map(
