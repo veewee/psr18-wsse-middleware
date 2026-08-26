@@ -37,19 +37,27 @@ final class Encryptor implements XmlEncryptor
      * The id convention is taken as a pair: the minter stamps the xenc:EncryptedData id and the lookup resolves
      * a by-id encryption target, so two that disagree would leave a DataReference pointing at nothing. Defaults
      * to the engine's xml:id; the WS-Security profile hands over its wsu:Id convention.
+     *
+     * A sink moves the cipher bytes out of the document and leaves a pointer at them. Without one, which is
+     * the default, both cipher values are base64 in the document as they always were.
      */
-    public static function create(?IdConvention $idConvention = null): self
-    {
+    public static function create(
+        ?IdConvention $idConvention = null,
+        ?CipherValueSink $cipherValueSink = null,
+    ): self {
         $idConvention ??= AttributeIdConvention::xmlId();
         $cipher = new Cipher();
+        // One instance for both builders, so the wrapped key and the content cannot end up in different
+        // shapes within one message.
+        $cipherValueElement = new CipherValueElement($cipherValueSink);
 
         return new self(
             new TargetLocator($idConvention->lookup()),
             new SessionKeyFactory(),
             $cipher,
-            new EncryptedDataBuilder($idConvention->minter()),
+            new EncryptedDataBuilder($idConvention->minter(), $cipherValueElement),
             new KeyTransport(),
-            new EncryptedKeyBuilder(),
+            new EncryptedKeyBuilder($cipherValueElement),
             new ExternalPartSealer($cipher, new ExternalEncryptedDataBuilder($idConvention->minter())),
         );
     }

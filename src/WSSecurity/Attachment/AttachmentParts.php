@@ -4,16 +4,18 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Attachment;
 
 use Phpro\ResourceStream\Factory\MemoryStream;
+use Phpro\ResourceStream\ResourceStream;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Attachment\AttachmentsCollection;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Cid;
+use Soap\Psr18AttachmentsMiddleware\Attachment\IdGenerator;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorageInterface;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\MalformedAttachmentHeaders;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
-use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
+use Soap\Psr18WsseMiddleware\XmlSecurity\MintsExternalParts;
 
 /**
  * The shipped ExternalParts implementation over the attachments middleware's storage, so a caller writes no
@@ -30,7 +32,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
  * wrong answers are refused by that peer, and a default would let the decision be skipped by someone who
  * never read the WSDL. See docs/attachments.md for the table that turns a policy into this argument.
  */
-final readonly class AttachmentParts implements ExternalParts
+final readonly class AttachmentParts implements MintsExternalParts
 {
     private const OPAQUE_MEDIA_TYPE = 'application/octet-stream';
 
@@ -100,6 +102,32 @@ final readonly class AttachmentParts implements ExternalParts
         }
 
         return ExternalPartList::of(...$parts);
+    }
+
+    /**
+     * Adds a part this message did not arrive with, under an id nothing else answers for.
+     *
+     * The id is generated rather than derived from what the part carries, because two values with the same
+     * bytes are still two parts and one id can only address one of them. It stays alphanumeric, which is what
+     * keeps a WSS4J peer able to read the reference back: it decodes a cid with a form decoder, so an id
+     * holding a plus sign reaches it as a space.
+     *
+     * @param ResourceStream<resource> $content
+     * @param non-empty-string         $mimeType
+     */
+    public function mint(ResourceStream $content, string $mimeType): ExternalPart
+    {
+        $attachment = Attachment::cid(
+            IdGenerator::generate(),
+            'ciphervalue',
+            'ciphervalue',
+            $content,
+            $mimeType,
+        );
+
+        $this->attachments()->add($attachment);
+
+        return new ExternalPart(Cid::uriFor($attachment->id), $mimeType, $attachment->content);
     }
 
     public function replace(ExternalPartList $parts): void

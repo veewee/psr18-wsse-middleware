@@ -21,7 +21,11 @@ use VeeWee\Xml\Dom\Document;
  */
 final class XopInclude
 {
-    private const string NAMESPACE_URI = 'http://www.w3.org/2004/08/xop/include';
+    /**
+     * Public because the emitting side declares the same namespace it matches on: two spellings of one URI is
+     * a way for them to disagree.
+     */
+    public const string NAMESPACE_URI = 'http://www.w3.org/2004/08/xop/include';
 
     /**
      * Every reference an xop:Include under this element names, in document order.

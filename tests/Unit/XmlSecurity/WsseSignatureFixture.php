@@ -162,8 +162,11 @@ final class WsseSignatureFixture
         bool $inclusivePrefixes = false,
         ?ExternalPartSignature $externalParts = null,
         string $body = self::BODY,
+        ?Document $document = null,
     ): Document {
-        $document = $this->envelope($withTimestamp, $body);
+        // A document handed in is signed as it stands, which is how a test signs something another block
+        // already wrote.
+        $document ??= $this->envelope($withTimestamp, $body);
 
         $this->signer()->sign($document, new SigningRequest(
             container: $this->security($document),
