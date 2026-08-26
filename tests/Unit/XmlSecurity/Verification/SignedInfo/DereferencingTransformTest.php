@@ -11,6 +11,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\SecurityTokenReferenceTransform;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\ApexDefaultNamespace;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
@@ -185,11 +186,11 @@ final class DereferencingTransformTest extends TestCase
      */
     private function withExpectedDigest(ParsedReference $reference, Element $element): ParsedReference
     {
-        $canonical = (new DomCanonicalizer())->canonicalize(
+        $canonical = ApexDefaultNamespace::emptied((new DomCanonicalizer())->canonicalize(
             $element,
             SignatureCanonicalization::EXC_C14N,
             ['#default'],
-        );
+        ));
 
         return new ParsedReference(
             DigestMethod::SHA256,

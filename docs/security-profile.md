@@ -142,7 +142,9 @@ algorithm enums live under `Soap\Psr18WsseMiddleware\Algorithm\`: `SignatureMeth
   verified with phpseclib, and a key one cannot read is not thereby a key the other cannot use.
 - **Reference transforms:** the enveloped-signature transform, the four canonicalizations below, and the
   WS-Security `#STR-Transform`, which digests the token a `wsse:SecurityTokenReference` names instead of the
-  reference element. The last is accepted without opting in, because it is neither weak nor unauthenticated:
+  reference element. Its digest input states the empty default namespace on the token, whatever default was
+  in scope, which is what the peers emitting it produce; a token inheriting a default namespace is therefore
+  digested as though none applied. The last is accepted without opting in, because it is neither weak nor unauthenticated:
   the canonicalization it names inside its own parameters is still gated by the allow-list below. Its
   certificate-naming forms (Subject Key Identifier, thumbprint, issuer and serial) are refused; see
   [Inbound blocks](inbound-blocks.md#inbound-verifysignature). No other transform is accepted: an XPath or

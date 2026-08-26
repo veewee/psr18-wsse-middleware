@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo;
 
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\ApexDefaultNamespace;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\Canonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\CanonicalizationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
@@ -48,6 +49,12 @@ final class DigestVerifier
             $parsed->inclusivePrefixes === [] ? null : $parsed->inclusivePrefixes,
             $reference->envelopedSignature,
         );
+        // A dereferenced reference's digest input always states the empty default namespace on its apex,
+        // whatever was in scope. See ApexDefaultNamespace for why that is not the primitive's job.
+        if ($reference->dereferenced !== null) {
+            $canonical = ApexDefaultNamespace::emptied($canonical);
+        }
+
         $actual = $this->digest->hash($canonical, $parsed->digestMethod);
 
         return $this->digest->equals($expected, $actual);
