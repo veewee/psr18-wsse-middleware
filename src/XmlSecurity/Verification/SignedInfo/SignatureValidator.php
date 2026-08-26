@@ -11,7 +11,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
-use Soap\Psr18WsseMiddleware\OpenSSL\Mac;
+use Soap\Psr18WsseMiddleware\OpenSSL\Hmac;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
@@ -43,7 +43,7 @@ final class SignatureValidator
     public function __construct(
         private Canonicalizer $canonicalizer,
         private OpenSslSigner $opensslSigner,
-        private Mac $mac = new Mac(),
+        private Hmac $hmac = new Hmac(),
     ) {
     }
 
@@ -84,7 +84,7 @@ final class SignatureValidator
 
         if ($signatureMethod->keyKind() === SignatureKeyKind::Hmac) {
             return $verificationKey instanceof SessionKey
-                && $this->mac->verify($canonical, $verificationKey, $expectedSignature, $signatureMethod);
+                && $this->hmac->verify($canonical, $verificationKey, $expectedSignature, $signatureMethod);
         }
 
         if (!$verificationKey instanceof Certificate) {

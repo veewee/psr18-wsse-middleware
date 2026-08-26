@@ -7,6 +7,7 @@ use Dom\Element;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -37,6 +38,7 @@ final class SecurityHeaderTest extends TestCase
             $document,
             SoapVersion::Soap12,
             new SecurityProfile(actorOrRole: 'urn:ours', mustUnderstand: false),
+            new ExchangeKeys()
         );
 
         $security = SecurityHeader::forContext($context)->element();
@@ -55,7 +57,7 @@ final class SecurityHeaderTest extends TestCase
 
     public function test_for_context_defaults_to_the_ultimate_receiver_and_must_understand(): void
     {
-        $context = new WsseContext($this->envelope(self::SOAP12), SoapVersion::Soap12, new SecurityProfile());
+        $context = new WsseContext($this->envelope(self::SOAP12), SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys());
 
         $security = SecurityHeader::forContext($context)->element();
 
@@ -69,6 +71,7 @@ final class SecurityHeaderTest extends TestCase
             $this->envelope(self::SOAP11),
             SoapVersion::Soap11,
             new SecurityProfile(actorOrRole: 'urn:ours'),
+            new ExchangeKeys()
         );
 
         $security = SecurityHeader::forContext($context)->element();

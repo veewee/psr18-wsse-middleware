@@ -18,6 +18,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ValidateTimestamp;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -249,6 +250,7 @@ final class FaultUniformityTest extends TestCase
                 .'<soap:Body><data>x</data></soap:Body></soap:Envelope>'),
             SoapVersion::Soap12,
             new SecurityProfile(),
+            new ExchangeKeys()
         );
     }
 

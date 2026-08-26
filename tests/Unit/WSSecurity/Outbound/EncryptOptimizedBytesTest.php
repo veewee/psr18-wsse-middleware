@@ -14,6 +14,7 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ResolveOptimizedBytes;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -106,10 +107,10 @@ final class EncryptOptimizedBytesTest extends TestCase
 
         (new ResolveOptimizedBytes(
             AttachmentParts::response($storage, ExternalPartCoverage::Content),
-        ))(new WsseContext($document, SoapVersion::Soap12, $this->profile()));
+        ))(new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()));
 
         (new Decrypt($fixture->leafKey))(
-            new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+            new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
         );
 
         static::assertStringContainsString(self::PLAINTEXT, $document->toXmlString());
@@ -141,7 +142,7 @@ final class EncryptOptimizedBytesTest extends TestCase
             ->withParts([])
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))
             ->withOptimizedCipherBytes($carriers)(
-                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+                new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
             );
 
         // The encoder's own attachment: still there, still under its id, now sealed as ciphertext.
@@ -185,7 +186,7 @@ final class EncryptOptimizedBytesTest extends TestCase
 
         (new Encryption(new WrappedSessionKey($fixture->leafCertificate, optimizedCipherBytes: $carriers)))
             ->withOptimizedCipherBytes($carriers)(
-                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+                new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
             );
 
         return $document;

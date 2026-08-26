@@ -21,11 +21,13 @@ use VeeWee\Xml\Dom\Document;
  * Both dialects are read, whichever one the profile emits. A token this cannot read returns null, which is a
  * refusal to whoever asked; nothing here distinguishes one unreadable token from another.
  */
-final readonly class DerivedKeyTokenReader
+final class DerivedKeyTokenReader
 {
-    public function __construct(
-        private PSHA1 $pSha1 = new PSHA1(),
-    ) {
+    private readonly PSHA1 $pSha1;
+
+    public function __construct()
+    {
+        $this->pSha1 = new PSHA1();
     }
 
     public function supports(Element $element): bool

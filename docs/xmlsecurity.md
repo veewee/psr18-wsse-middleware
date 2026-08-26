@@ -107,7 +107,7 @@ SHA-1 is not a choice: the specification names this function, both dialects deri
 does not depend on the collision resistance SHA-1 lost. Everything above it is the profile's:
 `WSSecurity\Keys\DerivedSessionKey` writes the token and `WSSecurity\Xml\DerivedKeyTokenReader` reads one back.
 
-`OpenSSL\Mac` is the keyed MAC beside it, for the HMAC signature methods. It is separate from `OpenSSL\Signer`
+`OpenSSL\Hmac` is the keyed MAC beside it, for the HMAC signature methods. It is separate from `OpenSSL\Signer`
 because a MAC is not a signature: one key both produces and checks it, so it identifies no party and there is no
 certificate to load. Its comparison is constant-time and refuses unequal lengths, which is what makes a
 truncated MAC a failure rather than a prefix match.

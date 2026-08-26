@@ -9,7 +9,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
-use Soap\Psr18WsseMiddleware\OpenSSL\Mac;
+use Soap\Psr18WsseMiddleware\OpenSSL\Hmac;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
@@ -40,7 +40,7 @@ use function VeeWee\Xml\Dom\Manipulator\append;
  * The detached ds:Signature is appended to the container element the caller supplies on the request, so the
  * engine carries no SOAP-header, SOAP-version, or mustUnderstand dependency. The signature is inserted last, so
  * no Target can resolve to it. The key never leaves the OpenSSL\ boundary: it is handed to OpenSSL\Signer or to
- * OpenSSL\Mac, which resolve the live handle or the secret internally.
+ * OpenSSL\Hmac, which resolve the live handle or the secret internally.
  *
  * Which of the two computes the value follows from the signature method the request names, never from the shape
  * of the key it was handed. Deciding by the key would let an HMAC method be answered with a certificate\'s
@@ -70,7 +70,7 @@ final class Signer implements XmlSigner
             $canonicalizer,
             new OpenSslSigner(),
             $idLookup,
-            new Mac(),
+            new Hmac(),
         );
     }
 
@@ -81,7 +81,7 @@ final class Signer implements XmlSigner
         private Canonicalizer $canonicalizer,
         private OpenSslSigner $opensslSigner,
         private IdLookup $idLookup,
-        private Mac $mac = new Mac(),
+        private Hmac $hmac = new Hmac(),
     ) {
     }
 
@@ -194,7 +194,7 @@ final class Signer implements XmlSigner
 
         if ($method->keyKind() === SignatureKeyKind::Hmac) {
             return $key instanceof SessionKey
-                ? $this->mac->compute($canonical, $key, $method)
+                ? $this->hmac->compute($canonical, $key, $method)
                 : throw SigningFailed::cryptoError('A keyed-MAC signature method needs a symmetric secret.');
         }
 

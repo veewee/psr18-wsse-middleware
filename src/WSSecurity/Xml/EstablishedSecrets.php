@@ -28,10 +28,12 @@ use VeeWee\Xml\Dom\Document;
  */
 final readonly class EstablishedSecrets
 {
+    private readonly DerivedKeyTokenReader $derivedKeys;
+
     public function __construct(
         private ExchangeKeys $keys,
-        private DerivedKeyTokenReader $derivedKeys = new DerivedKeyTokenReader(),
     ) {
+        $this->derivedKeys = new DerivedKeyTokenReader();
     }
 
     /**

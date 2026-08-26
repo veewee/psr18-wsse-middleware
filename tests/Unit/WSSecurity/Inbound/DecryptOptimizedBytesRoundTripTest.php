@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ResolveOptimizedBytes;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -76,7 +77,7 @@ final class DecryptOptimizedBytesRoundTripTest extends TestCase
         $document = $fixture->envelope(body: '<data>'.self::PLAINTEXT.'</data>');
 
         (new Encryption(new WrappedSessionKey($fixture->leafCertificate)))(
-            new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+            new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
         );
 
         return $document;
@@ -132,13 +133,13 @@ final class DecryptOptimizedBytesRoundTripTest extends TestCase
     {
         (new ResolveOptimizedBytes(
             AttachmentParts::response($storage, ExternalPartCoverage::Content),
-        ))(new WsseContext($document, SoapVersion::Soap12, $this->profile()));
+        ))(new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()));
     }
 
     private function decrypt(WsseSignatureFixture $fixture, Document $document): void
     {
         (new Decrypt($fixture->leafKey))(
-            new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+            new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
         );
     }
 

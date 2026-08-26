@@ -23,7 +23,7 @@ final class WsseContext
         private readonly Document $document,
         private readonly SoapVersion $soapVersion,
         private readonly SecurityProfile $profile,
-        private readonly ExchangeKeys $keys = new ExchangeKeys(),
+        private readonly ExchangeKeys $keys,
     ) {
     }
 

@@ -28,7 +28,7 @@ use Throwable;
  * (its IEEE format), and for DSA the two coordinates are padded to the subgroup width, so neither needs a DER
  * conversion around the crypto boundary.
  *
- * The HMAC methods are keyed by a secret rather than by a key pair and belong to the Mac class beside this one.
+ * The HMAC methods are keyed by a secret rather than by a key pair and belong to the Hmac class beside this one.
  */
 final class Signer
 {
@@ -197,7 +197,7 @@ final class Signer
     private static function notAsymmetric(SignatureMethod $method): LogicException
     {
         return new LogicException(sprintf(
-            '%s is keyed by a shared secret and is computed by the Mac class, not by the Signer.',
+            '%s is keyed by a shared secret and is computed by the Hmac class, not by the Signer.',
             $method->name,
         ));
     }

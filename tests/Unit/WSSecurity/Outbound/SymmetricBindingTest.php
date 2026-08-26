@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\RequiresPhp;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\WrappedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\CertificateSigningKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
@@ -220,6 +221,7 @@ final class SymmetricBindingTest extends OutboundTestCase
             new SecurityProfile(crypto: new CryptoPolicy(
                 acceptedSignatureMethods: [SignatureMethod::HMAC_SHA1, SignatureMethod::HMAC_SHA256],
             )),
+            new ExchangeKeys()
         );
     }
 

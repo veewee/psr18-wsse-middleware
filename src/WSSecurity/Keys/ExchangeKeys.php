@@ -15,9 +15,10 @@ use WeakMap;
  * load-bearing rather than a convenience: a process-wide cache would let a response verify against a secret
  * established in a different exchange, which is cross-exchange replay.
  *
- * Sources are keyed by object identity through a WeakMap, which is the platform's map-keyed-by-object and whose
- * weak keys never extend a source's lifetime. Passing the same source to two blocks is therefore what makes
- * them share a key.
+ * Sources are keyed by object identity, which is what makes passing the same source to two blocks the way they
+ * come to share a key. A WeakMap is simply the platform's object-keyed map; its weak keys carry no weight here,
+ * because a source is held by the block that was configured with it for as long as the middleware lives and
+ * this bag is the shorter-lived of the two.
  */
 final class ExchangeKeys
 {

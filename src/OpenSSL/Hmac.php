@@ -19,7 +19,7 @@ use function Psl\Hash\equals;
  * The comparison is constant-time and refuses unequal lengths, which is what makes a truncated MAC a failure
  * rather than a prefix match.
  */
-final class Mac
+final class Hmac
 {
     /**
      * @return non-empty-string the raw MAC bytes, which is what the XML-DSig SignatureValue carries base64

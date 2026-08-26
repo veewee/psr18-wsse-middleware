@@ -13,6 +13,7 @@ use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorageInterface;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ResolveOptimizedBytes;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -277,7 +278,7 @@ final class ResolveOptimizedBytesTest extends TestCase
     {
         (new ResolveOptimizedBytes(
             AttachmentParts::response($storage, ExternalPartCoverage::Content),
-        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
     }
 
     private function pointer(string $cid): string

@@ -176,7 +176,7 @@ final class SignerTest extends TestCase
         [$private] = $this->keyAndCertificate();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Mac');
+        $this->expectExceptionMessage('Hmac');
 
         (new Signer())->sign($private, 'payload', SignatureMethod::HMAC_SHA256);
     }

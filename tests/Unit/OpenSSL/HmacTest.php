@@ -7,9 +7,9 @@ use LogicException;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
-use Soap\Psr18WsseMiddleware\OpenSSL\Mac;
+use Soap\Psr18WsseMiddleware\OpenSSL\Hmac;
 
-final class MacTest extends TestCase
+final class HmacTest extends TestCase
 {
     /**
      * RFC 4231 test case 2: the key "Jefe" over "what do ya want for nothing?". A published vector rather than
@@ -17,7 +17,7 @@ final class MacTest extends TestCase
      */
     public function test_it_matches_the_published_hmac_vectors(): void
     {
-        $mac = new Mac();
+        $mac = new Hmac();
         $key = SessionKey::fromBytes('Jefe');
         $data = 'what do ya want for nothing?';
 
@@ -39,7 +39,7 @@ final class MacTest extends TestCase
 
     public function test_it_computes_a_mac_of_the_digest_length_for_every_hmac_method(): void
     {
-        $mac = new Mac();
+        $mac = new Hmac();
         $key = SessionKey::fromBytes(str_repeat("\x0b", 32));
 
         foreach ([
@@ -59,7 +59,7 @@ final class MacTest extends TestCase
 
     public function test_a_mac_verifies_against_the_key_that_produced_it_and_nothing_else(): void
     {
-        $mac = new Mac();
+        $mac = new Hmac();
         $key = SessionKey::fromBytes(str_repeat("\x2a", 32));
         $other = SessionKey::fromBytes(str_repeat("\x2b", 32));
         $value = $mac->compute('payload', $key, SignatureMethod::HMAC_SHA256);
@@ -76,7 +76,7 @@ final class MacTest extends TestCase
      */
     public function test_a_truncated_mac_does_not_verify(): void
     {
-        $mac = new Mac();
+        $mac = new Hmac();
         $key = SessionKey::fromBytes(str_repeat("\x2a", 32));
         $value = $mac->compute('payload', $key, SignatureMethod::HMAC_SHA256);
 
@@ -88,14 +88,14 @@ final class MacTest extends TestCase
     {
         $this->expectException(LogicException::class);
 
-        (new Mac())->compute('payload', SessionKey::fromBytes(''), SignatureMethod::HMAC_SHA256);
+        (new Hmac())->compute('payload', SessionKey::fromBytes(''), SignatureMethod::HMAC_SHA256);
     }
 
     public function test_a_non_hmac_method_cannot_be_computed_as_a_mac(): void
     {
         $this->expectException(LogicException::class);
 
-        (new Mac())->compute(
+        (new Hmac())->compute(
             'payload',
             SessionKey::fromBytes(str_repeat("\x2a", 32)),
             SignatureMethod::RSA_SHA256,

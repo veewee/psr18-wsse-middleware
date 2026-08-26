@@ -227,6 +227,7 @@ final class DerivedSessionKeyTest extends TestCase
                 crypto: new CryptoPolicy(acceptedSignatureMethods: [SignatureMethod::HMAC_SHA256]),
                 wsSecureConversation: WsSecureConversationVersion::V2005_02,
             ),
+            new ExchangeKeys()
         );
 
         (new Signature(new SymmetricSigningKey(new DerivedSessionKey(
