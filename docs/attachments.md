@@ -217,9 +217,15 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 The asymmetry is not an oversight: it is what the two policy validators require. Building two adapters is the
 supported way to express it, since they are cheap immutable values.
 
-**The default is `Content` and the recommendation is `Complete`.** The default stays where it is because
-changing the meaning of an existing call is not something a release does quietly. The recommendation is what
-your peer's WSDL most likely means.
+**The default is `Content` and the recommendation is `Complete`.** They pull in opposite directions on
+purpose. The recommendation is what your peer's WSDL most likely means, since a bare `<sp:Attachments/>` is
+the common case. The default is `Content` because it is the only coverage `Outbound\Encryption` emits, so a
+`Complete` default would refuse the ordinary encryption wiring for a choice a peer never validates. It also
+matches what the Java library defaults to when a coverage is not stated; it is the policy layer above it, not
+the library, that reads a bare assertion as `Complete`.
+
+So: pass the coverage on a signing or verifying adapter, where the WSDL decides it. Leave it alone on an
+encrypting one.
 
 **Inbound, the coverage you configure is a requirement rather than a hint.** A `Complete` adapter on
 `VerifySignature` refuses a reference declaring the content transform, and `Decrypt` refuses the wrong
