@@ -5,7 +5,7 @@ namespace Soap\Psr18WsseMiddleware\WSSecurity\Attachment;
 
 use Phpro\ResourceStream\Factory\MemoryStream;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\CipherValueSink;
-use Soap\Psr18WsseMiddleware\XmlSecurity\MintsExternalParts;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 
 /**
  * Puts cipher bytes in a MIME part of their own, which is where a peer with storeBytesInAttachment on looks
@@ -24,8 +24,15 @@ final readonly class CipherValueParts implements CipherValueSink
      */
     private const MEDIA_TYPE = 'application/ciphervalue';
 
+    /**
+     * What the part is, for whoever reads the wire. The adapter storing it cannot know: it sees octets and a
+     * media type, and only this class knows they are one element's cipher value. Several parts share the name
+     * in a message that optimizes more than one value, which is what the reference is for.
+     */
+    private const NAME = 'CipherValue';
+
     public function __construct(
-        private MintsExternalParts $carriers,
+        private ExternalParts $carriers,
     ) {
     }
 
@@ -34,7 +41,7 @@ final readonly class CipherValueParts implements CipherValueSink
         // Held in memory rather than streamed: these are the bytes the cipher just returned, so they are
         // already there, and the part is minted only to carry them out again.
         return $this->carriers
-            ->mint(MemoryStream::create()->write($bytes)->rewind(), self::MEDIA_TYPE)
+            ->add(MemoryStream::create()->write($bytes)->rewind(), self::MEDIA_TYPE, self::NAME)
             ->reference;
     }
 }

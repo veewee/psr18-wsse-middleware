@@ -7,6 +7,7 @@ use Phpro\ResourceStream\Factory\MemoryStream;
 use Phpro\ResourceStream\ResourceStream;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
+use Soap\Psr18AttachmentsMiddleware\Attachment\Cid;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorageInterface;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
@@ -109,6 +110,42 @@ final class ResolveOptimizedBytesTest extends TestCase
         $this->resolve($document, $this->storage(self::BYTES));
 
         static::assertSame($before, $document->toXmlString());
+    }
+
+    public function test_the_xop_encoder_can_still_resolve_its_own_attachment_afterwards(): void
+    {
+        // The attachments package decodes an MTOM response element by doing exactly
+        // responseAttachments()->findById(Cid::idFor($href)), which throws when the part is gone. So this
+        // block has to leave an application-level include and its part exactly where the encoder expects
+        // them, while resolving the security value beside it.
+        $storage = $this->storage(self::BYTES);
+        $storage->responseAttachments()->add(new Attachment(
+            '<invoice@example.com>',
+            'file',
+            'invoice.pdf',
+            'application/pdf',
+            $this->stream('%PDF-1.7 invoice bytes'),
+        ));
+
+        $document = $this->envelope(
+            body: '<message>'.$this->pointer('invoice@example.com').'</message>'
+                .$this->encryptedData($this->pointer(self::CID)),
+        );
+
+        $this->resolve($document, $storage);
+
+        static::assertStringContainsString(
+            'href="'.Cid::uriFor('<invoice@example.com>').'"',
+            $document->toXmlString(),
+            "the encoder's own pointer must survive untouched",
+        );
+        static::assertSame(
+            '%PDF-1.7 invoice bytes',
+            $storage->responseAttachments()
+                ->findById(Cid::idFor(Cid::uriFor('<invoice@example.com>')))
+                ->content->rewind()->getContents(),
+        );
+        static::assertStringContainsString(base64_encode(self::BYTES), $document->toXmlString());
     }
 
     public function test_it_leaves_the_consumed_part_in_the_collection(): void

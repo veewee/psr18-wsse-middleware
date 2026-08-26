@@ -404,11 +404,12 @@ interface ExternalParts
     public function coverage(): ExternalPartCoverage;
     public function collect(): ExternalPartList;
     public function collectSealed(): ExternalPartList;
+    public function add(ResourceStream $content, string $mimeType, string $name): ExternalPart;
     public function replace(ExternalPartList $parts): void;
 }
 ```
 
-Implement it if your attachments live somewhere else. Four contract points matter:
+Implement it if your attachments live somewhere else. Five contract points matter:
 
 - **`coverage()` says how much of a part your compositions cover**, and the blocks read it: it decides both
   the transform they declare and what they expect from a peer. Return `ExternalPartCoverage::Content` unless
@@ -419,6 +420,13 @@ Implement it if your attachments live somewhere else. Four contract points matte
   `$digestPrefix` to the result, which is the order a peer composes them in. Joining them first puts the
   header block through the transform, and for an XML part that means handing a canonicalizer a header block
   to parse.
+- **`add()` adds a part the message did not arrive with**, and returns it carrying the reference that now
+  addresses it. The reference is yours to choose: nothing above this decides what addresses a part, so an
+  adapter over something other than MIME need not produce anything resembling a Content-ID. The `$name` goes
+  the other way, because it is the one thing about the part you cannot work out: the bytes mean something to
+  whoever handed them over and nothing to you. Several parts may share a name; the reference is what tells
+  them apart. Only `Outbound\Encryption::withOptimizedCipherBytes()` reaches this, and only when a caller
+  asked for it.
 - **`collectSealed()` returns the same parts with an empty `$digestPrefix`**, which a cipher seals on the way
   out and opens on the way in. A `xenc:CipherReference` addresses the MIME part, so what sits there is the
   part's own octets whatever the coverage says a signature covers. Return `collect()` if you compose nothing.

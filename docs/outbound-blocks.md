@@ -261,7 +261,7 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
   on the `xenc:EncryptedData`, so the far side can restore it. An element whose content is or contains an
   `xop:Include` cannot be encrypted at all: that would protect the pointer while the bytes travel in the clear.
   Encrypt the attachment instead.
-- `withOptimizedCipherBytes(MintsExternalParts $carriers): self`: write each cipher value's bytes into a MIME
+- `withOptimizedCipherBytes(ExternalParts $carriers): self`: write each cipher value's bytes into a MIME
   part of its own and leave an `xop:Include` in the `xenc:CipherValue`, instead of base64 in the document.
   Off by default.
   ```php
@@ -279,13 +279,11 @@ new Outbound\Encryption($recipient, encKeyRef: Outbound\KeyReference\EncKeyRef::
   Both values move: the wrapped key in the header and the encrypted content in the body. Each minted part
   carries `Content-Type: application/ciphervalue` and the raw bytes, not base64.
 
-  Three consequences worth knowing before you turn it on. The request becomes a multipart one, so the
-  attachments middleware has to be in the pipeline, and under MTOM that means a SOAP 1.2 envelope. The
-  argument is an `ExternalParts` that can also mint, which `AttachmentParts` is; a plain adapter fails at
-  wiring rather than at the first encrypted message. And it cannot be combined with encrypt-then-sign: the
-  minted parts are not registered on the signing block, so signing an element that now holds a pointer is
-  refused. WSS4J silently disables the option in that case; we do not, because a security-relevant setting
-  that turns itself off leaves nothing downstream able to tell.
+  Two consequences worth knowing before you turn it on. The request becomes a multipart one, so the
+  attachments middleware has to be in the pipeline, and under MTOM that means a SOAP 1.2 envelope. And it
+  cannot be combined with encrypt-then-sign: the minted parts are not registered on the signing block, so
+  signing an element that now holds a pointer is refused. WSS4J silently disables the option in that case; we
+  do not, because a security-relevant setting that turns itself off leaves nothing downstream able to tell.
 - `withDataEncryptionMethod(DataEncryptionMethod $method): self`: the bulk-data cipher. Default: the profile's
   `dataEncryptionMethod()` (AES-256-GCM).
 - `withKeyEncryptionMethod(KeyEncryptionMethod $method): self`: the key-transport method that wraps the

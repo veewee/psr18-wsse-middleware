@@ -48,6 +48,29 @@ final class ThirdPartyExternalPartsTest extends TestCase
         static::assertSame('application/pdf', $parts->only()->mimeType);
     }
 
+    public function test_a_hand_written_adapter_can_carry_the_cipher_bytes_too(): void
+    {
+        // The emission half of the same seam. An adapter holding a plain array can mint the part the cipher
+        // bytes travel in, which is why minting belongs on the one interface rather than on a second one only
+        // the shipped adapter implements.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $parts = new ArrayParts([]);
+        $document = $fixture->envelope();
+
+        (new Encryption($fixture->leafCertificate))
+            ->withOptimizedCipherBytes($parts)(
+                new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+            );
+
+        // The wrapped key and the body cipher value, each pointing at a part this adapter minted.
+        $minted = $parts->collect();
+        static::assertCount(2, $minted);
+        foreach ($minted as $part) {
+            static::assertSame('application/ciphervalue', $part->mimeType);
+            static::assertStringContainsString('href="'.$part->reference.'"', $document->toXmlString());
+        }
+    }
+
     public function test_a_spent_stream_is_recovered_because_the_engine_rewinds_before_reading(): void
     {
         // Defence in depth, pinned so it stays. The seam asks an adapter to rewind, and the engine rewinds

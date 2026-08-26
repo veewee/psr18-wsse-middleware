@@ -15,7 +15,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\UnknownAttachment;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
-use Soap\Psr18WsseMiddleware\XmlSecurity\MintsExternalParts;
+use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 
 /**
  * The shipped ExternalParts implementation over the attachments middleware's storage, so a caller writes no
@@ -32,7 +32,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\MintsExternalParts;
  * wrong answers are refused by that peer, and a default would let the decision be skipped by someone who
  * never read the WSDL. See docs/attachments.md for the table that turns a policy into this argument.
  */
-final readonly class AttachmentParts implements MintsExternalParts
+final readonly class AttachmentParts implements ExternalParts
 {
     private const OPAQUE_MEDIA_TYPE = 'application/octet-stream';
 
@@ -112,15 +112,20 @@ final readonly class AttachmentParts implements MintsExternalParts
      * keeps a WSS4J peer able to read the reference back: it decodes a cid with a form decoder, so an id
      * holding a plus sign reaches it as a space.
      *
+     * The name the caller gave fills both halves of the Content-Disposition. A part added here holds bytes
+     * belonging to an element of the envelope rather than a file, so there is no filename that would be true
+     * and no second name worth asking for.
+     *
      * @param ResourceStream<resource> $content
      * @param non-empty-string         $mimeType
+     * @param non-empty-string         $name
      */
-    public function mint(ResourceStream $content, string $mimeType): ExternalPart
+    public function add(ResourceStream $content, string $mimeType, string $name): ExternalPart
     {
         $attachment = Attachment::cid(
             IdGenerator::generate(),
-            'ciphervalue',
-            'ciphervalue',
+            $name,
+            $name,
             $content,
             $mimeType,
         );

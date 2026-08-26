@@ -30,7 +30,6 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalParts;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\MintsExternalParts;
 use VeeWee\Xml\Dom\Document;
 
 /**
@@ -62,7 +61,7 @@ final class Encryption implements OutboundAction
     private ?KeyEncryptionMethod $keyEncryptionMethod = null;
     private ?KeyTransportAlgorithm $keyTransportAlgorithm = null;
     private ?ExternalParts $attachments = null;
-    private ?MintsExternalParts $cipherCarriers = null;
+    private ?ExternalParts $cipherCarriers = null;
 
     private ?XmlEncryptor $encryptor = null;
 
@@ -100,7 +99,7 @@ final class Encryption implements OutboundAction
      * signing an element that now holds a pointer is refused. WSS4J silently disables this option in that
      * case instead; a security-relevant setting that turns itself off is not a behaviour to copy.
      */
-    public function withOptimizedCipherBytes(MintsExternalParts $carriers): self
+    public function withOptimizedCipherBytes(ExternalParts $carriers): self
     {
         $clone = clone $this;
         $clone->cipherCarriers = $carriers;

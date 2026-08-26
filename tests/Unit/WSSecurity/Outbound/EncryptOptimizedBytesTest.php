@@ -4,8 +4,10 @@ declare(strict_types=1);
 namespace SoapTest\Psr18WsseMiddleware\Unit\WSSecurity\Outbound;
 
 use Dom\Element;
+use Phpro\ResourceStream\Factory\MemoryStream;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
+use Soap\Psr18AttachmentsMiddleware\Attachment\Attachment;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorageInterface;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
@@ -112,6 +114,47 @@ final class EncryptOptimizedBytesTest extends TestCase
         static::assertStringContainsString(self::PLAINTEXT, $document->toXmlString());
     }
 
+    public function test_it_coexists_with_an_attachment_the_xop_encoder_wrote(): void
+    {
+        // Under MTOM the encoder has already put the file in requestAttachments and an xop:Include in the
+        // Body by the time this block runs. Emission adds parts of its own beside it, so the encoder's
+        // attachment has to come out of this untouched and still addressable by the id it chose.
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $storage = new AttachmentStorage();
+        $storage->requestAttachments()->add(new Attachment(
+            '<invoice@example.com>',
+            'file',
+            'invoice.pdf',
+            'application/pdf',
+            MemoryStream::create()->write('%PDF-1.7 invoice bytes')->rewind(),
+        ));
+
+        $document = $fixture->envelope(
+            body: '<message><xop:Include xmlns:xop="'.self::XOP.'" href="cid:invoice@example.com"/></message>',
+        );
+
+        // The Body itself cannot be encrypted while it carries a pointer, which is the standing refusal, so
+        // this is the MTOM shape: encrypt the attachment, and let the wrapped key's bytes travel in a part.
+        (new Encryption($fixture->leafCertificate))
+            ->withParts([])
+            ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))
+            ->withOptimizedCipherBytes(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
+                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+            );
+
+        // The encoder's own attachment: still there, still under its id, now sealed as ciphertext.
+        $sealed = $storage->requestAttachments()->findById('<invoice@example.com>');
+        static::assertNotSame('%PDF-1.7 invoice bytes', $sealed->content->rewind()->getContents());
+
+        // Its pointer in the Body is untouched, so the encoder's reference still addresses it.
+        static::assertStringContainsString('href="cid:invoice@example.com"', $document->toXmlString());
+
+        // One minted part for the wrapped key. The attachment's own ciphertext travels in its own part under
+        // a CipherReference, so nothing optimizes it a second time.
+        static::assertCount(2, $storage->requestAttachments());
+        static::assertCount(1, $this->pointersInside($document, 'CipherValue'));
+    }
+
     public function test_signing_after_it_is_refused_rather_than_silently_disabled(): void
     {
         // WSS4J turns the option off when encryption comes before signing, warning that the cipher bytes will
@@ -140,6 +183,29 @@ final class EncryptOptimizedBytesTest extends TestCase
             );
 
         return $document;
+    }
+
+    /**
+     * The pointers sitting inside one kind of element, which is how many values actually got optimized.
+     *
+     * @return list<string>
+     */
+    private function pointersInside(Document $document, string $localName): array
+    {
+        $hrefs = [];
+        foreach ($document->toUnsafeDocument()->getElementsByTagNameNS(self::XENC, $localName) as $element) {
+            if (!$element instanceof Element) {
+                continue;
+            }
+
+            foreach ($element->getElementsByTagNameNS(self::XOP, 'Include') as $include) {
+                if ($include instanceof Element) {
+                    $hrefs[] = $include->getAttribute('href');
+                }
+            }
+        }
+
+        return $hrefs;
     }
 
     /**

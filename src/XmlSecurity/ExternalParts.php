@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\XmlSecurity;
 
+use Phpro\ResourceStream\ResourceStream;
+
 /**
  * Where external parts come from and where the transformed ones go back to.
  *
@@ -41,6 +43,27 @@ interface ExternalParts
      * composes nothing can return collect().
      */
     public function collectSealed(): ExternalPartList;
+
+    /**
+     * Adds a part the message did not arrive with, and returns it with the reference that now addresses it.
+     *
+     * The reference comes back rather than going in, because whatever addresses a part is this
+     * implementation's own vocabulary: nothing above it invents one. A caller asks for somewhere to put bytes
+     * and is told what to point at, so an implementation over something other than MIME need not produce
+     * anything resembling a Content-ID.
+     *
+     * The name goes the other way, because it is the one thing about the part an implementation cannot work
+     * out: these bytes mean something to whoever handed them over and nothing here. Several parts may share
+     * one, since what tells them apart is the reference.
+     *
+     * It sits on this interface rather than on one of its own because replace() already asks for a store that
+     * can be written to, so adding excludes no implementation that was viable before it.
+     *
+     * @param ResourceStream<resource> $content
+     * @param non-empty-string         $mimeType
+     * @param non-empty-string         $name     what the part is, for whoever reads the wire
+     */
+    public function add(ResourceStream $content, string $mimeType, string $name): ExternalPart;
 
     /**
      * Fully replaces each part it is handed, matched by reference, and touches nothing else.
