@@ -64,7 +64,14 @@ final class RequiredPartsValidator
                     throw SecurityFault::inboundFailure();
                 }
 
-                $dynamic = DynamicPartMembers::forPart($part, $securityHeader) ?? [];
+                try {
+                    $dynamic = DynamicPartMembers::forPart($part, $securityHeader) ?? [];
+                } catch (WsseHeaderException $exception) {
+                    // primarySignature refuses a header with no signature or with several. Inbound that is a
+                    // message-shape refusal like any other, so it collapses into the uniform fault.
+                    throw SecurityFault::inboundFailure($exception);
+                }
+
                 foreach ($dynamic as $member) {
                     if (!$signedElements->wasSigned($member)) {
                         throw SecurityFault::inboundFailure();
