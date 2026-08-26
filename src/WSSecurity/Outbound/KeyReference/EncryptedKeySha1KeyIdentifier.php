@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
+use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\Builder\SecurityTokenReference;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityEncodingType;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
@@ -32,6 +34,33 @@ final readonly class EncryptedKeySha1KeyIdentifier implements KeyIdentifierInter
     public function __construct(
         private string $base64Sha1,
     ) {
+    }
+
+    /**
+     * The identifier a wrapped key is named by, computed from the bytes rather than stated alongside them.
+     *
+     * The digest is over the wrapped bytes as they travel, not over the plaintext session key, which is what
+     * makes it something both sides can compute without either revealing the secret.
+     *
+     * @param string $wrapped the cipher bytes of the xenc:EncryptedKey, before base64
+     */
+    public static function forWrappedKey(string $wrapped): self
+    {
+        /** @var non-empty-string $base64Sha1 */
+        $base64Sha1 = base64_encode((new Digest())->hash($wrapped, DigestMethod::SHA1));
+
+        return new self($base64Sha1);
+    }
+
+    /**
+     * The identifier as it is written and as an inbound reference names it, for a caller that has to register
+     * the key under it as well as point at it.
+     *
+     * @return non-empty-string
+     */
+    public function value(): string
+    {
+        return $this->base64Sha1;
     }
 
     public function apply(Document $document): Element

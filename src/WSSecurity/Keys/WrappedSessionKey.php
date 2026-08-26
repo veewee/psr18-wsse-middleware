@@ -4,10 +4,8 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
-use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
-use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\CipherValueParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\BinarySecurityToken;
@@ -48,7 +46,6 @@ final class WrappedSessionKey implements SymmetricKeySource
     private readonly SessionKeyFactory $sessionKeyFactory;
     private readonly KeyTransport $keyTransport;
     private readonly EncryptedKeyBuilder $encryptedKeyBuilder;
-    private readonly Digest $digest;
 
     /**
      * @param ?DataEncryptionMethod $keyLength fixes the key's width up front, for a deployment whose blocks
@@ -72,7 +69,6 @@ final class WrappedSessionKey implements SymmetricKeySource
         $this->encryptedKeyBuilder = new EncryptedKeyBuilder(new CipherValueElement(
             $optimizedCipherBytes === null ? null : new CipherValueParts($optimizedCipherBytes),
         ));
-        $this->digest = new Digest();
     }
 
     public function resolve(WsseContext $context, KeyRequest $for): SymmetricKey
@@ -109,17 +105,14 @@ final class WrappedSessionKey implements SymmetricKeySource
         $header->appendChildren(static fn (): \Dom\Element => $encryptedKey);
         $wsuId = (new WsuIdConvention())->minter()->mint($encryptedKey, $document);
 
-        // The digest is over the wrapped bytes as they travel, not over the plaintext key. That is what makes
-        // it something both sides can compute without either revealing the secret.
-        /** @var non-empty-string $sha1 */
-        $sha1 = base64_encode($this->digest->hash($wrapped, DigestMethod::SHA1));
+        $reference = EncryptedKeySha1KeyIdentifier::forWrappedKey($wrapped);
 
         return new SymmetricKey(
             $sessionKey,
-            new EncryptedKeySha1KeyIdentifier($sha1),
+            $reference,
             // Both forms, whichever this message emits: a peer may name the key by either in its response, and
             // which one it picks is not ours to constrain.
-            [$sha1, '#'.$wsuId],
+            [$reference->value(), '#'.$wsuId],
             $encryptedKey,
         );
     }

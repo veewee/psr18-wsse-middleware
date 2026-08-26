@@ -202,11 +202,6 @@ no secret.
   width from the first block that asks for the key. State it when your blocks disagree: the wrapped bytes are
   fixed once written, so a later block needing a different exact width is refused rather than served a key its
   cipher cannot use.
-Every consumer of the key names it by the WSS 1.1 `EncryptedKeySHA1` identifier, which names the key itself
-rather than the element carrying it. Naming the element is representable in the format and is not offered here:
-an `xenc:EncryptedData` naming its key that way is one WSS4J cannot resolve, so the option would work for a
-signature and not for an encryption. Inbound, both forms are accepted, because which one a peer echoes is not
-something a client gets to constrain.
 - `?KeyTransportAlgorithm $keyTransportAlgorithm = null`: the whole key-transport choice (method plus OAEP hash)
   in one atomic value, so an invalid pairing cannot be expressed. `null` takes it from the profile. See
   [Security profile and defaults](security-profile.md).
@@ -214,6 +209,22 @@ something a client gets to constrain.
   `xop:Include` where its `xenc:CipherValue` would have been. Pass the same registration you gave
   `Encryption::withOptimizedCipherBytes()` when both values should travel that way; whether an element's cipher
   value is optimized is decided per element, so the key and the content are separate choices.
+
+**What it is.** One object, constructed once with the middleware, that holds no key. On the first block that
+asks during a message it mints fresh random bytes, encrypts those bytes under the recipient's certificate,
+writes the result into the header as an `xenc:EncryptedKey`, and hands the plaintext bytes to that block. Every
+later block in the same exchange asking the *same object* gets those same bytes back, and nothing more is
+written. That is how two blocks come to share one key: you pass one instance to both. Pass two instances and
+you get two keys and two `xenc:EncryptedKey` elements.
+
+"Wrapped" describes what happens to the key on the wire, not what this object contains: the session key is
+wrapped (encrypted) under the recipient's public key so only the recipient can unwrap it.
+
+Every consumer of the key names it by the WSS 1.1 `EncryptedKeySHA1` identifier, which names the key itself
+rather than the element carrying it. Naming the element is representable in the format and is not offered here:
+an `xenc:EncryptedData` naming its key that way is one WSS4J cannot resolve, so the option would work for a
+signature and not for an encryption. Inbound, both forms are accepted, because which one a peer echoes is not
+something a client gets to constrain.
 
 **A request protected only by a `WrappedSessionKey` signature authenticates nobody.** The key was minted here
 and encrypted under the server's public certificate, which anyone holding that certificate can do, so the
