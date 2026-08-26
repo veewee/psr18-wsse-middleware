@@ -342,6 +342,15 @@ about your own outbound message is a secret from you. A refusal about the messag
 - **An XML attachment must be a well-formed document with no doctype.** Its content is canonicalized before
   digesting, so there has to be something to canonicalize. Both limits match what a peer does with the same
   bytes.
+- **A `Content-ID` should stay alphanumeric for a WSS4J peer.** One containing `+` or `%` draws "Attachment
+  not found" from Apache WSS4J, which reads a `cid:` reference with a form decoder rather than a URI one and
+  so turns a `+` into a space. It emits those references unencoded, so the same id breaks its own round trip
+  and no peer can be using one; the exposure is only an id you choose here. The generated ids are
+  alphanumeric, so this reaches you only if you name attachments yourself.
+- **`storeBytesInAttachment` peers are not supported.** A CXF or WSS4J peer can be configured to put cipher
+  bytes in a MIME part and leave an `xop:Include` in the `xenc:CipherValue` rather than base64 inline. Nothing
+  negotiates that, it is not part of this profile, and it changes every encrypted message rather than only the
+  attachment ones. Messages from such a peer are refused, not misread.
 - **WCF and .NET cannot be the peer.** There is no SwA support in WCF, only MTOM. A .NET peer that wants
   attachment security is not a case this feature serves.
 
