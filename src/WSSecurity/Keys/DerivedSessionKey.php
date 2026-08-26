@@ -96,25 +96,23 @@ final class DerivedSessionKey implements SymmetricKeySource
     {
         $key = $context->keys()->materialize($this, fn (): SymmetricKey => $this->mint($context, $for));
 
-        if ($for->mandatory && $key->length() !== $for->bytes) {
-            throw new InvalidArgumentException(sprintf(
-                'The derived key this source carries is %d bytes and this block needs exactly %d. '
-                .'Give each block a derived key of its own.',
-                $key->length(),
-                $for->bytes,
-            ));
-        }
+        $for->enforce(
+            $key,
+            'The derived key this source carries',
+            'Give each block a derived key of its own.',
+        );
 
         return $key;
     }
 
     private function mint(WsseContext $context, KeyRequest $for): SymmetricKey
     {
-        if ($for->bytes < self::MINIMUM_LENGTH) {
+        $width = $for->mintingWidth();
+        if ($width < self::MINIMUM_LENGTH) {
             throw new InvalidArgumentException(sprintf(
                 'A derived key must be at least %d bytes and this block asked for %d.',
                 self::MINIMUM_LENGTH,
-                $for->bytes,
+                $width,
             ));
         }
 
@@ -124,12 +122,12 @@ final class DerivedSessionKey implements SymmetricKeySource
 
         // The deriving key's own width is not this key's: it is only a secret to derive from, and HMAC-based
         // derivation takes a key of any length.
-        $deriving = $this->from->resolve($context, KeyRequest::preferably($for->bytes));
+        $deriving = $this->from->resolve($context, KeyRequest::preferably($width));
 
         // A fresh nonce per token. Repeating one repeats the derived key, so two messages would share one key.
         $nonce = $this->random->bytes(self::NONCE_BYTES);
         $label = $this->label === null || $this->label === '' ? self::DEFAULT_LABEL : $this->label;
-        $derived = $this->pSha1->derive($deriving->bytes, $label.$nonce, $this->offset, $for->bytes);
+        $derived = $this->pSha1->derive($deriving->bytes, $label.$nonce, $this->offset, $width);
 
         $token = (new DerivedKeyToken(
             $version,
@@ -137,7 +135,7 @@ final class DerivedSessionKey implements SymmetricKeySource
             $label,
             $nonce,
             $this->offset,
-            $for->bytes,
+            $width,
         ))->build($document);
 
         $header->appendChildren(static fn (): Element => $token);

@@ -87,13 +87,11 @@ final class PreSharedSessionKey implements SymmetricKeySource
         // the same identifier is a no-op, which is what lets every block in both directions hold this source.
         $context->keys()->establish($this->key->bytes, ...$this->key->wireIdentifiers);
 
-        if ($for->mandatory && $this->key->length() !== $for->bytes) {
-            throw new InvalidArgumentException(sprintf(
-                'The pre-shared secret is %d bytes and this block needs exactly %d.',
-                $this->key->length(),
-                $for->bytes,
-            ));
-        }
+        $for->enforce(
+            $this->key,
+            'The pre-shared secret',
+            'Fix the block\'s algorithm or agree on a secret of that width.',
+        );
 
         return $this->key;
     }

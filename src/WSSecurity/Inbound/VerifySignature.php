@@ -174,7 +174,7 @@ final class VerifySignature implements InboundAction
         try {
             // A pre-shared secret is registered before anything reads a ds:KeyInfo, so the reference naming it
             // resolves. Registration is idempotent, which is what lets both inbound blocks hold one source.
-            $this->preSharedKey?->resolve($context, KeyRequest::preferably(1));
+            $this->preSharedKey?->resolve($context, KeyRequest::any());
 
             // Collected inside the try, because collecting is itself work over peer-controlled bytes: under a
             // complete coverage it canonicalizes headers a peer chose, and after Decrypt ran those headers

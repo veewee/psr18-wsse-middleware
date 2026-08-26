@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 
-use InvalidArgumentException;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
@@ -80,16 +79,11 @@ final class WrappedSessionKey implements SymmetricKeySource
     {
         $key = $context->keys()->materialize($this, fn (): SymmetricKey => $this->mint($context, $for));
 
-        if ($for->mandatory && $key->length() !== $for->bytes) {
-            // A key of the wrong width fails at the peer with nothing local to explain it, so the mismatch is
-            // named here instead. Both numbers appear: which of the two is wrong is the caller's to decide.
-            throw new InvalidArgumentException(sprintf(
-                'The session key this source carries is %d bytes and this block needs exactly %d. '
-                .'Fix the block\'s algorithm or state the width on the key source.',
-                $key->length(),
-                $for->bytes,
-            ));
-        }
+        $for->enforce(
+            $key,
+            'The session key this source carries',
+            'Fix the block\'s algorithm or state the width on the key source.',
+        );
 
         return $key;
     }
@@ -99,7 +93,7 @@ final class WrappedSessionKey implements SymmetricKeySource
         $document = $context->document();
         $header = SecurityHeader::forContext($context);
 
-        $sessionKey = $this->sessionKeyFactory->generate($this->keyLength?->keyLength() ?? $for->bytes);
+        $sessionKey = $this->sessionKeyFactory->generate($this->keyLength?->keyLength() ?? $for->mintingWidth());
         $algorithm = $this->keyTransportAlgorithm ?? KeyTransportAlgorithm::fromMethod(
             $context->profile()->crypto()->keyEncryptionMethod(),
             $context->profile()->crypto()->oaepHash(),

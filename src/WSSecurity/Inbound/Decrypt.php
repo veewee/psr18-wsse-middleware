@@ -160,7 +160,7 @@ final class Decrypt implements InboundAction
             $container = SecurityHeader::locate($document, $context->soapVersion(), $context->profile()->actorOrRole())
                 ?? throw DecryptionFailed::withReason('The message carries no Security header for this receiver.');
 
-            $this->preSharedKey?->resolve($context, KeyRequest::preferably(1));
+            $this->preSharedKey?->resolve($context, KeyRequest::any());
 
             $external = $this->externalPartDecryption();
             $result = $this->decryptor->decrypt(
