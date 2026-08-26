@@ -87,6 +87,38 @@ final class DerivedKeyVerificationTest extends TestCase
         $this->verifier($fixture)($this->context($document, $keys));
     }
 
+    public function test_an_offset_beyond_the_cap_is_refused_before_deriving(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $this->signedWithADerivedKey($fixture, $keys);
+
+        // The offset is the same lever as the length: P_SHA1 generates offset plus length bytes before slicing,
+        // so a key ten billion bytes into the stream is an allocation rather than a key.
+        $this->only($document, self::WSC, 'Offset')->textContent = '9999999999';
+
+        $this->expectException(SecurityFault::class);
+        $this->verifier($fixture)($this->context($document, $keys));
+    }
+
+    public function test_a_generation_beyond_the_cap_is_refused_before_deriving(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $this->signedWithADerivedKey($fixture, $keys);
+
+        // Generation counts in multiples of the length, so it reaches the same offsets by another route.
+        $token = $this->only($document, self::WSC, 'DerivedKeyToken');
+        $offset = $this->only($document, self::WSC, 'Offset');
+        $offset->parentNode?->removeChild($offset);
+        $generation = $document->toUnsafeDocument()->createElementNS(self::WSC, 'wsc:Generation');
+        $generation->textContent = '9999999';
+        $token->appendChild($generation);
+
+        $this->expectException(SecurityFault::class);
+        $this->verifier($fixture)($this->context($document, $keys));
+    }
+
     public function test_a_token_carrying_both_a_generation_and_an_offset_is_refused(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
