@@ -235,7 +235,7 @@ not ask for it.
 | `encryptSymmetricKey` = true, **and an absent element** | The ordinary case: a fresh session key wrapped under the recipient's certificate, which is what `Keys\GeneratedSessionKey` writes. SoapUI labels it "Create Encrypted Key" and defaults it to `true`. |
 | `encryptSymmetricKey` = false | No `xenc:EncryptedKey` is written at all, so the two sides must already share the key. Not something `GeneratedSessionKey` can express: ask what the shared secret and its agreed identifier are, and map it to `Keys\PreSharedSessionKey`. |
 | `symmetricEncAlgorithm` | `DataEncryptionMethod` |
-| `keyEncryptionAlgorithm` | `KeyEncryptionMethod`, or `KeyTransportAlgorithm` when the OAEP hashes matter. Both go on the `GeneratedSessionKey`, which is what wraps the key. |
+| `keyEncryptionAlgorithm` | A `KeyTransportAlgorithm` passed as `keyTransportAlgorithm:` to the `GeneratedSessionKey`, which is what wraps the key. A bare `KeyEncryptionMethod` is not accepted there: it sets a profile-wide default on `CryptoPolicy` and nothing else, and `Encryption` has no `withKeyEncryptionMethod()` to override it per block. Use the named constructors (`rsa1_5()`, `legacyMgf1p()`, `oaepSha256()`), or `KeyTransportAlgorithm::fromMethod()` for a pairing they do not cover. |
 | `embeddedKeyName`, `embeddedKeyPassword` | A key from the keystore rather than a freshly wrapped one: `new Keys\PreSharedSessionKey($secret, $identifier, $valueType)`. SoapUI names the key by its keystore alias, which is **not** the identifier a peer references it by on the wire, so ask what the two sides agreed on; neither the alias nor the password is it. The secret itself has to be exported from the keystore, which this package cannot read. |
 | Parts table entries | See Parts below |
 

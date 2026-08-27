@@ -59,6 +59,9 @@ re-derive them by running the skills over `samples/`, which is the exercise anyw
   the interop suite had WSS4J verify what we emit and had us read back our own message. A captured response from
   a CXF or WSS4J endorsing peer is the fixture that would have caught it, and the `java-interop` harness is
   where it would come from.
+- **An asymmetric binding with an endorsing supporting token.** Every endorsing sample here sits under a
+  symmetric or transport binding, so the shape whose inbound rule `bb9ce22` changed is the one the corpus cannot
+  exercise. What the skill says about it rests on that commit and its docs, not on a file.
 - **A real WCF or .NET published WSDL.** The `rubnds_WCF-1.xml` project talks to one but carries no security
   configuration of its own, so the `CustomBinding` idioms in the WS-SecurityPolicy skill come from a policy a
   user pasted rather than from a fixture.

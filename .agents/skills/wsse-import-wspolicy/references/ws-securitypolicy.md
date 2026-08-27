@@ -217,6 +217,30 @@ particular is unauthenticated: say so in the comment rather than letting it pass
 | `sp:BootstrapPolicy` | The policy governing the handshake messages themselves, so it is only reachable once the handshake is. Nothing to map, and nothing to read for the ordinary exchange: do not mine it for assertions to apply to your own messages. |
 | `sp:Trust13` / `sp:Trust10` | WS-Trust negotiation with an STS, not something this package performs. |
 
+### Verifying an endorsement the peer sends back
+
+A policy carrying `sp:EndorsingSupportingTokens` describes both directions, so a peer that mirrors it endorses
+its own responses. Every `ds:Signature` in the header has to verify, and beyond that the inbound rule is about
+**how many parties** the header carries: one, and an endorsement is exempt from that count only where there is
+no identity to hold it against.
+
+| The response carries | Inbound |
+|---|---|
+| A MAC over the body, endorsed by a certificate. The symmetric-binding shape | Exempt unconditionally, because a MAC names no party. Hand `VerifySignature` both the trust store and `useEstablishedKey: true`, since it must resolve each signature by its own `ds:KeyInfo`. |
+| A certificate signature endorsed by **the same** certificate. The ordinary asymmetric shape | Accepted: one party. Nothing to configure. |
+| A certificate signature endorsed by a **different** certificate | Refused as two parties, however well each signature verifies. |
+| One signature covering no other signature | Not an endorsement at all, and counted like any other signature |
+
+The third row is the one to raise while you still have the peer's attention. A deployment that deliberately
+signs with one identity and endorses with another is representable in the policy, since an endorsing supporting
+token is a distinct token assertion, but it is not what a client with one keystore alias does and it is not what
+this package will accept on the way in. Ask which certificate their endorsement uses before assuming the
+response will verify, because the fault will not tell you.
+
+**The parts an endorsement covered are never yours to require.** Its own coverage is not reported whoever keyed
+it, so a `signed:` list naming something only the endorsement covered refuses every response. Require what the
+sending party signed.
+
 ### An endorsing token under a transport binding
 
 `sp:EndorsingSupportingTokens` beside an `sp:TransportBinding` is a real and tested configuration, not a
