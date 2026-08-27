@@ -276,6 +276,20 @@ four facts that hold whatever format you read addressing from.
 An empty attribute value (`from=""`, `messageID=""`) is unset, the same convention as the empty elements inside
 `<con:configuration>`. A project with no `wsaConfig` at all wants no addressing, so add no middleware.
 
+**A `${...}` value is a property expansion, not a value.** `replyTo="${#Project#publicIp}"` names a project
+property defined elsewhere in the same file, and copying the literal puts `${#Project#publicIp}` on the wire.
+Resolve it from the `<con:properties>` block, then reference the resolved value the way the surrounding
+application does rather than hardcoding somebody's test host. This applies to any attribute in the project, not
+only these.
+
+**Which of these actually produce an argument.** Across every sample in the corpus, only four ever do:
+`action`, `from`, `replyTo` and `faultTo`. Two `WsaOptions` arguments are therefore mapped from the
+documentation and exercised by no file: `namespace`, because `version` is `200508` in all 97 `wsaConfig`
+elements, and `to`, because nothing sets an explicit To and `addDefaultTo="false"` asks for the opposite, an
+omission this package cannot express. Everything else on the element is either already the default or
+unmappable, which is why a faithful import of a SoapUI project usually ends at
+`new WsaMiddleware(new WsaOptions(action: '...'))`.
+
 ## Parts
 
 Both the Signature and Encryption entries carry a Parts table, and it is not stored as a table. Each row is one

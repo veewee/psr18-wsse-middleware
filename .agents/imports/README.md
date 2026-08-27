@@ -9,7 +9,7 @@ they were.
 imports/
   psalm.xml     typechecks drafts/, because the project's psalm.xml covers src/ only
   fetch.sh      refills samples/ from scratch
-  drafts/       the wiring the skills produce, one file per sample (three carry WsaMiddleware)
+  drafts/       the wiring the skills produce, one file per sample (four carry WsaMiddleware)
   samples/      third-party configuration files: wspolicy, metro, soapui, ibm
 ```
 
@@ -62,6 +62,9 @@ re-derive them by running the skills over `samples/`, which is the exercise anyw
 - **An asymmetric binding with an endorsing supporting token.** Every endorsing sample here sits under a
   symmetric or transport binding, so the shape whose inbound rule `bb9ce22` changed is the one the corpus cannot
   exercise. What the skill says about it rests on that commit and its docs, not on a file.
+- **A source setting `WsaOptions`' `namespace` or `to`.** All 97 `wsaConfig` elements say `version="200508"`,
+  the default, and none sets an explicit To, so those two arguments are mapped from the documentation and
+  exercised by no file. The other four, `action`, `from`, `replyTo` and `faultTo`, are covered by `f10` and `f14`.
 - **A real WCF or .NET published WSDL.** The `rubnds_WCF-1.xml` project talks to one but carries no security
   configuration of its own, so the `CustomBinding` idioms in the WS-SecurityPolicy skill come from a policy a
   user pasted rather than from a fixture.
