@@ -317,11 +317,15 @@ new Outbound\Encryption(new Keys\GeneratedSessionKey(
 Both inbound blocks now take **what key material you hold**, in the same shape, because they answer the same
 question. `Inbound\Decrypt` takes `?Key $privateKey` and `?PreSharedSessionKey $preSharedKey`;
 `Inbound\VerifySignature` takes `?TrustStore $trustStore` and `?PreSharedSessionKey $preSharedKey` before its
-`signed:` list, so a deployment receiving only symmetric signatures no longer passes anchors nothing reads. At
-least one must be given, and `::fromEstablishedKeys()` on either states the case where everything is keyed by
-what the request itself conveyed. A
-deployment whose peer encrypts under a key the exchange already established wraps nothing, so there is nothing
-to unwrap; see [Inbound blocks](docs/inbound-blocks.md).
+`signed:` list, so a deployment receiving only symmetric signatures no longer passes anchors nothing reads.
+Both also take `bool $useEstablishedKey = false`, which states the case where everything is keyed by what the
+request itself conveyed, and at least one of the three must be given. A deployment whose peer encrypts under a
+key the exchange already established wraps nothing, so there is nothing to unwrap; see
+[Inbound blocks](docs/inbound-blocks.md).
+
+`$useEstablishedKey` is off by default and reading the exchange's keys follows it, so a block given only a
+trust store refuses a MAC keyed by an established key instead of accepting one it was never configured for.
+Pass it wherever you expect a correlated response. A pre-shared secret turns the same reading on by itself.
 
 For the rare case where you need a custom engine service, override it with a `with*()` method
 (`Outbound\Signature::withSigner`, `Outbound\Encryption::withEncryptor`, `Inbound\Decrypt::withDecryptor`,
@@ -366,6 +370,13 @@ carries two. See
 Inbound, a scope may now carry **several** signatures and every one of them must verify, where the previous
 version refused a scope carrying more than one. `VerifiedSignature::$signer` is therefore
 `VerifiedSignature::$signers`, a list, and a registered `onTrustedSigner` check runs against each of them.
+
+Every signature that contributes coverage to one Security header must be by the same **party**, where a party is
+a certificate or the holder of a secret the exchange established. An endorsement contributes no coverage of its
+own and is exempt, and only counts as one when it covers a `ds:Signature` that verified and nothing else. This
+refuses a message whose required parts were covered partly by your peer and partly by somebody else holding a
+certificate your anchor issued. It is stricter than WSS4J and Apache CXF, which pool every signature's
+references and never ask which credential covered what, so a message this refuses may be one they accept.
 
 `Outbound\Encryption` takes the same `withParts()` list to choose what gets encrypted, and defaults to the Body
 alone. Its `withEncryptSignature(bool)` switch is gone with the other booleans: and it used to default to

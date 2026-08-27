@@ -123,9 +123,14 @@ final class Verifier implements XmlSignatureVerifier
         // the union of what they covered, which is what makes an endorsing supporting token work: the primary
         // signature covers the Body, the endorsement covers the primary. An injected extra signature is not an
         // alternative to validate, it is one more thing that must hold, so it refuses the message.
+        $verifiedSignatures = [];
         foreach ($this->signatureLocator->locate($scope) as $signature) {
-            $verified = $this->verifyOne($document, $policy, $signature);
+            $verifiedSignatures[] = $this->verifyOne($document, $policy, $signature);
+        }
 
+        $this->assertOneContributingParty($verifiedSignatures);
+
+        foreach ($verifiedSignatures as $verified) {
             $elements = [...$elements, ...$verified->elements];
             $ids = [...$ids, ...$verified->ids];
             $externalParts = [...$externalParts, ...$verified->externalParts];
@@ -133,8 +138,6 @@ final class Verifier implements XmlSignatureVerifier
                 $signers[] = $verified->signer;
             }
         }
-
-        $this->assertOneSignerAtMost($signers);
 
         return new VerifiedSignature(
             new VerifiedReferences($elements, $ids),
@@ -144,7 +147,7 @@ final class Verifier implements XmlSignatureVerifier
     }
 
     /**
-     * Every certificate-keyed signature in one scope must be by the same signer.
+     * Every signature that contributes coverage to one scope must be by the same party.
      *
      * Without this the union of coverage would span parties. Where trust is anchored on a CA rather than pinned
      * to the peer, anyone holding a certificate that CA issued can produce a signature this verifier accepts, so
@@ -152,26 +155,77 @@ final class Verifier implements XmlSignatureVerifier
      * requirement naming the Security header contents would then be satisfied partly by the peer and partly by
      * the attacker, and a caller reading "every token was signed" would have no way to tell.
      *
-     * One signer is what a message from one party looks like, endorsement included: the endorsing token belongs
-     * to the sender. A message genuinely signed by two identities, a countersignature by a notary say, is
-     * refused rather than merged, because which parts each of them vouched for is a question this reports no
-     * answer to.
+     * A party is a certificate, or the holder of a secret this exchange established. Counting the secret is what
+     * makes the rule reach the shape it matters most in: a MAC names no certificate, so a rule stated over
+     * signers alone sees one signer in a scope where two parties signed.
      *
-     * @param list<TrustedSigner> $signers
+     * An endorsement contributes no coverage of its own and is exempt, which is the whole reason the rule is
+     * about contribution rather than about signing: an endorsing token belongs to the sender and legitimately
+     * differs from the party whose signature it endorses. The exemption is deliberately narrow, because a wide
+     * one would be the same hole reopened: a signature covering the primary *and* a part of its own choosing
+     * would launder that part through the exemption, so covering anything else at all makes a signature a
+     * contributor.
+     *
+     * A message genuinely signed by two contributing identities, a countersignature by a notary say, is refused
+     * rather than merged, because which parts each of them vouched for is a question this reports no answer to.
+     *
+     * @param list<VerifiedOneSignature> $verifiedSignatures
      *
      * @throws SignatureVerificationFailed
      */
-    private function assertOneSignerAtMost(array $signers): void
+    private function assertOneContributingParty(array $verifiedSignatures): void
     {
-        $seen = null;
-        foreach ($signers as $signer) {
-            $certificate = $signer->certificate()->toBase64Der();
-            $seen ??= $certificate;
+        $signatureElements = array_map(
+            static fn (VerifiedOneSignature $verified): Element => $verified->signature,
+            $verifiedSignatures,
+        );
 
-            if ($seen !== $certificate) {
-                throw SignatureVerificationFailed::withReason('The scope carries signatures by more than one signer.');
+        $certificates = [];
+        $secretParty = false;
+        foreach ($verifiedSignatures as $verified) {
+            if (self::onlyEndorses($verified->elements, $signatureElements)) {
+                continue;
+            }
+
+            if ($verified->signer === null) {
+                // Every secret in a scope was established by this exchange, so they are all the one party this
+                // exchange shares them with.
+                $secretParty = true;
+
+                continue;
+            }
+
+            $certificates[$verified->signer->certificate()->toBase64Der()] = true;
+        }
+
+        if (count($certificates) + (int) $secretParty > 1) {
+            throw SignatureVerificationFailed::withReason('The scope carries signatures from more than one party.');
+        }
+    }
+
+    /**
+     * Whether a signature covered nothing but signatures that themselves verified, which is what an endorsement
+     * and only an endorsement does. Compared by instance, so a look-alike element elsewhere is not one of them.
+     *
+     * A signature covering nothing is not an endorsement: it vouches for no part of the message, so it may not
+     * borrow the exemption an endorsement gets.
+     *
+     * @param list<Element> $covered
+     * @param list<Element> $signatureElements
+     */
+    private static function onlyEndorses(array $covered, array $signatureElements): bool
+    {
+        if ($covered === []) {
+            return false;
+        }
+
+        foreach ($covered as $element) {
+            if (!in_array($element, $signatureElements, true)) {
+                return false;
             }
         }
+
+        return true;
     }
 
     /**
@@ -223,6 +277,7 @@ final class Verifier implements XmlSignatureVerifier
         // element reports the substituted one. A caller asserting coverage by identity is asking about the
         // token, never about the indirection that named it.
         return new VerifiedOneSignature(
+            $signature,
             array_map(
                 static fn (ResolvedVerificationReference $reference): Element => $reference->digested(),
                 $resolved->elements,

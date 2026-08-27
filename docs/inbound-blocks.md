@@ -77,16 +77,23 @@ new Inbound\Decrypt($privateKey);
   never passed here: it was established while the request was written and the exchange already holds it, and
   neither could be handed to an inbound block anyway, because both *mint* and would write a token into the
   response.
+- `bool $useEstablishedKey = false`: read the key this exchange established for itself. A correlated response
+  carries no key of its own: each element names the key its own request conveyed, and this says such a response
+  is what you expect. Nothing is handed over, because the request registered the key while it was written.
+  **Off by default, and off means off**: a block given only a trust store refuses a MAC keyed by an established
+  key rather than accepting one it was never configured for, so a deployment that wants certificates only gets
+  certificates only. A pre-shared secret turns the same reading on by itself, since it is registered into the
+  same place.
 
 Same shape as `VerifySignature`, for the same reason: both blocks answer "what key material do I hold?".
-At least one must be given, unless everything is keyed by what this exchange established for itself:
+At least one of the three must be given:
 
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 
 new Inbound\Decrypt($privateKey);                          // a key wrapped under our certificate
 new Inbound\Decrypt(preSharedKey: $secret);                // a secret both sides hold
-Inbound\Decrypt::fromEstablishedKeys();                    // our own request conveyed the key
+new Inbound\Decrypt(useEstablishedKey: true);              // our own request conveyed the key
 ```
 - `withAttachments(ExternalParts $attachments): self`: also decrypt the response's encrypted attachments. Off
   by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
@@ -118,9 +125,10 @@ public, so anyone can wrap a key to you, and nothing about a key's position make
 
 A response to a request that established a symmetric key carries no `xenc:EncryptedKey` at all: the key
 travelled with the request, so each `xenc:EncryptedData` only points back at it. Which of the two shapes a
-message uses is decided by the message rather than by configuration, so nothing needs saying here for it: a
-container carrying a wrapped key has that key unwrapped, and a container carrying none has each part's key
-resolved from what the exchange established.
+given message uses is decided by the message: a container carrying a wrapped key has that key unwrapped, and a
+container carrying none has each part's key resolved from what the exchange established. That the second shape
+may arrive at all is yours to state, with `useEstablishedKey: true`, and a block that did not state it refuses
+one rather than opening it. Both may be stated at once for a peer that uses either.
 
 Both ways a peer may name a session key are read: a `wsse:KeyIdentifier` carrying the `EncryptedKeySHA1`
 digest, and a `wsse:Reference` whose URI carries that same digest and whose `ValueType` declares it. This
@@ -186,9 +194,15 @@ new Inbound\VerifySignature($trustStore,
   key. Only a pre-shared key is passed here: a wrapped or derived key was established while the request was
   written and the exchange already holds it, and neither could be handed to an inbound block anyway, because
   both *mint* and would write a token into the response.
+- `bool $useEstablishedKey = false`: read the key this exchange established for itself. A correlated response
+  carries no key of its own: each element names the key its own request conveyed, and this says such a response
+  is what you expect. Nothing is handed over, because the request registered the key while it was written.
+  **Off by default, and off means off**: a block given only a trust store refuses a MAC keyed by an established
+  key rather than accepting one it was never configured for, so a deployment that wants certificates only gets
+  certificates only. A pre-shared secret turns the same reading on by itself, since it is registered into the
+  same place.
 
-Both are optional and **at least one must be given**, unless every signature is keyed by what this exchange
-established for itself, which `VerifySignature::fromEstablishedKeys()` states:
+All three are optional and **at least one must be given**:
 
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
@@ -196,7 +210,10 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 new Inbound\VerifySignature($trustStore, signed: [Part::body()]);                 // certificates
 new Inbound\VerifySignature(preSharedKey: $secret, signed: [Part::body()]);       // a shared secret
 new Inbound\VerifySignature($trustStore, $secret, signed: [Part::body()]);        // both, one pass
-Inbound\VerifySignature::fromEstablishedKeys(signed: [Part::body()]);             // our request's own key
+new Inbound\VerifySignature(useEstablishedKey: true, signed: [Part::body()]);     // our request's own key
+
+// A response that may carry either: a certificate signature, or a MAC keyed by our request's own key.
+new Inbound\VerifySignature($trustStore, signed: [Part::body()], useEstablishedKey: true);
 ```
 
 **Both at once is not unusual here**, unlike on `Decrypt`: one message may carry a MAC over the body and a
@@ -214,12 +231,28 @@ deeper than a direct child are still not candidates at all, which is the wrappin
 how many there are. The count is bounded, because each signature costs a canonicalization, a digest per
 reference and a crypto operation.
 
-**Every certificate-keyed signature in the header must be by the same signer.** Where you anchor trust on a CA
-rather than pinning the peer, anyone holding a certificate that CA issued can produce a signature this block
-accepts, so without this rule they could append their own token and a signature over it to a message your peer
-signed: a `Part::securityHeaderContents()` requirement would then be satisfied partly by each, and nothing in
-the result would tell you. A message genuinely signed by two identities is refused rather than merged, because
+**Every signature that contributes coverage must be by the same party.** Where you anchor trust on a CA rather
+than pinning the peer, anyone holding a certificate that CA issued can produce a signature this block accepts,
+so without this rule they could append their own token and a signature over it to a message your peer signed: a
+`Part::securityHeaderContents()` requirement would then be satisfied partly by each, and nothing in the result
+would tell you. A message genuinely signed by two contributing identities is refused rather than merged, because
 which parts each of them vouched for is a question this reports no answer to.
+
+A party is a certificate, or the holder of a secret this exchange established. **Counting the secret is what
+makes the rule reach the shape it matters most in.** A MAC names no certificate, so a rule stated over signers
+alone would see a single signer in a response where the peer MACed the body and somebody else signed the
+timestamp, and the union would quietly span the two.
+
+An endorsement is the exception, because it contributes no coverage of its own: an endorsing token belongs to
+the sender and legitimately differs from the party whose signature it endorses. A signature counts as one only
+when it covers a `ds:Signature` that itself verified **and nothing else**. That last clause is load-bearing: a
+wider exemption would be the same hole reopened, since a signature covering the primary plus a part of its own
+choosing would launder that part through it.
+
+Worth knowing how this compares to your peers, because it is stricter than both. WSS4J pools every verified
+signature's references and answers "was this element signed" from the pool, and Apache CXF validates
+`sp:SignedParts` against the same flattened set; neither consults which credential covered what. So a message
+this block refuses may well be one a WSS4J or CXF receiver accepts.
 - `withAttachments(ExternalParts $attachments): self`: require the response's attachments to be covered by the
   verified signature. Off by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).

@@ -114,6 +114,7 @@ final class EndorsingSignatureTest extends TestCase
         (new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::body()],
+            useEstablishedKey: true,
         ))($this->context($document, $keys));
 
         static::assertCount(2, $this->signatures($document));
@@ -159,7 +160,7 @@ final class EndorsingSignatureTest extends TestCase
             ->withParts([Part::body()])($this->context($document, $keys));
 
         $this->expectException(SecurityFault::class);
-        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))
+        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()], useEstablishedKey: true))
             ->onTrustedSigner(static function (TrustedSigner $signer): void {
             })($this->context($document, $keys));
     }
@@ -183,7 +184,7 @@ final class EndorsingSignatureTest extends TestCase
             ->withParts([Part::primarySignature()])($context);
 
         $seen = [];
-        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))
+        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()], useEstablishedKey: true))
             ->onTrustedSigner(static function (TrustedSigner $signer) use (&$seen): void {
                 $seen[] = $signer->subjectDistinguishedName()->toString();
             })($this->context($document, $keys));
@@ -216,7 +217,7 @@ final class EndorsingSignatureTest extends TestCase
         $value->textContent = ($encoded[0] === 'A' ? 'B' : 'A').substr($encoded, 1);
 
         $this->expectException(SecurityFault::class);
-        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))(
+        (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()], useEstablishedKey: true))(
             $this->context($document, $keys),
         );
     }

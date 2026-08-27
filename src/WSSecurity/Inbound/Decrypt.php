@@ -40,7 +40,7 @@ use Throwable;
  *
  * A response encrypted under a key this exchange already established carries no xenc:EncryptedKey at all: each
  * xenc:EncryptedData names the key instead, and it is resolved from what the exchange holds. Such a deployment
- * needs no private key here, which is what fromEstablishedKeys() states. A pre-shared secret is the one case
+ * needs no private key here, which is what useEstablishedKey states. A pre-shared secret is the one case
  * that has to be handed over, because no outbound direction established it.
  *
  * Every decryption failure, whatever its cause, collapses to one SecurityFault with a non-identifying
@@ -59,21 +59,22 @@ final class Decrypt implements InboundAction
      * @param ?PreSharedSessionKey $preSharedKey opens parts encrypted under a secret both sides already hold.
      *        A key this exchange established for itself is never passed: the request that wrote it already did
      *
-     * @param bool $allowNothing internal, set only by fromEstablishedKeys(). Holding neither is a real
-     *        configuration and not an error; the guard exists so that reaching it by forgetting an argument
-     *        says so, rather than failing later on the first part it cannot open
+     * @param bool $useEstablishedKey opens parts encrypted under the key this exchange established for itself,
+     *        which a correlated response is keyed by and conveys nothing for. Nothing is handed over because
+     *        the request that wrote the key already registered it; this states that such a response is what
+     *        this deployment expects, which is a configuration rather than an argument left out
      *
-     * @throws InvalidArgumentException when neither is offered
+     * @throws InvalidArgumentException when the block is given nothing to open with
      */
     public function __construct(
         private readonly ?Key $privateKey = null,
         private readonly ?PreSharedSessionKey $preSharedKey = null,
-        bool $allowNothing = false,
+        private readonly bool $useEstablishedKey = false,
     ) {
-        if (!$allowNothing && $privateKey === null && $preSharedKey === null) {
+        if (!$useEstablishedKey && $privateKey === null && $preSharedKey === null) {
             throw new InvalidArgumentException(
                 'A decryption has to open something: give this block a private key, a pre-shared secret, or '
-                .'both. Use fromEstablishedKeys() when every part is encrypted under what this exchange '
+                .'both, or pass useEstablishedKey: true when every part is encrypted under what this exchange '
                 .'established for itself.',
             );
         }
@@ -82,18 +83,6 @@ final class Decrypt implements InboundAction
         // through the wsu:Id convention (native namespace-less @Id from interop peers is still accepted too).
         // Only the read half is handed over: nothing inbound mints, and a class that holds no minter cannot.
         $this->decryptor = Decryptor::create((new WsuIdConvention())->lookup());
-    }
-
-    /**
-     * Decrypts with the key this exchange established for itself, which a correlated response is keyed by and
-     * conveys nothing for.
-     *
-     * Named rather than expressed by passing nothing, because holding no key of your own is a decision about
-     * the deployment rather than an argument left out.
-     */
-    public static function fromEstablishedKeys(): self
-    {
-        return new self(null, null, allowNothing: true);
     }
 
     /**
@@ -185,7 +174,9 @@ final class Decrypt implements InboundAction
                     $this->privateKey,
                     $context->profile()->crypto(),
                     $external,
-                    new EstablishedSessionKeyResolver($context->keys(), (new WsuIdConvention())->lookup()),
+                    $this->useEstablishedKey || $this->preSharedKey !== null
+                        ? new EstablishedSessionKeyResolver($context->keys(), (new WsuIdConvention())->lookup())
+                        : null,
                 ),
             );
 

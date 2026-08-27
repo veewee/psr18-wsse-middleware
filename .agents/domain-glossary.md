@@ -107,6 +107,7 @@ WS-Addressing wire element names are spec-given and used exactly as the specs sp
 | **Leaf** | The first certificate in a chain — the end-entity (signer) certificate | | `leaf` (`src/KeyStore/CertificateChain.php:31`) | end cert |
 | **Intermediates** | The certificates above the leaf, passed to the verifier as untrusted intermediate certificates | | `intermediates` (`src/KeyStore/CertificateChain.php:44`) | middle certs |
 | **TrustedSigner** | The validated signer identity (subject DN + certificate) returned once trust is established | The verified result; CertificateChain is the unverified input | `TrustedSigner` (`src/KeyStore/TrustedSigner.php:8`) | verified signer, signer (bare) |
+| **Contributing party** | Whoever a verified signature in one Security header is keyed by: a certificate, or the holder of a secret the exchange established. Every signature contributing coverage must be one and the same party | The unit the one-party rule counts, so a MAC counts as a party even though it names no signer. An endorsement contributes nothing and is exempt | `assertOneContributingParty()` (`src/XmlSecurity/Verification/Verifier.php`) | signer (for the secret case), identity |
 
 ## Freshness and time
 | Term | Definition | Boundary | Source name(s) | Avoid |

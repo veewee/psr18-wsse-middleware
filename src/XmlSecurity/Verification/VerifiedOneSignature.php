@@ -18,6 +18,8 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 final readonly class VerifiedOneSignature
 {
     /**
+     * @param Element                $signature     the ds:Signature this came from, so the orchestrator can
+     *        tell an endorsement from a contributor: an endorsement covers one of these and nothing else
      * @param list<Element>          $elements      the covered element instances, in reference order
      * @param list<non-empty-string> $ids           the bare id each reference used, in the same order
      * @param list<ExternalPart>     $externalParts the external parts this signature covered
@@ -25,6 +27,7 @@ final readonly class VerifiedOneSignature
      *        names no party: one key both produces and checks it
      */
     public function __construct(
+        public Element $signature,
         public array $elements,
         public array $ids,
         public array $externalParts,

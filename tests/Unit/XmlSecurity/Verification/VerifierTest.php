@@ -403,6 +403,9 @@ final class VerifierTest extends TestCase
      * Where trust is anchored on a CA rather than pinned to the peer, anyone that CA issued a certificate to can
      * produce a signature this verifier accepts. Merging their coverage with the peer's would let them satisfy
      * a requirement the peer never met, so a scope signed by two identities is refused rather than merged.
+     *
+     * Neither of these two endorses the other: both cover the Body, so both contribute coverage. An endorsement
+     * covers a signature and nothing else, and is the one thing a second party in a scope may legitimately be.
      */
     public function test_a_scope_signed_by_two_different_signers_is_refused(): void
     {
@@ -419,7 +422,7 @@ final class VerifierTest extends TestCase
         );
 
         $this->expectException(SignatureVerificationFailed::class);
-        $this->expectExceptionMessage('more than one signer');
+        $this->expectExceptionMessage('more than one party');
         $this->verifier()->verify(
             $document,
             new VerificationPolicy(

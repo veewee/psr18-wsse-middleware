@@ -16,6 +16,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -23,6 +24,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Signing\Symmetric;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
@@ -61,7 +63,7 @@ final class SymmetricSignatureVerificationTest extends TestCase
 
         // A MAC names no certificate, so a deployment that only ever receives one has no anchors to offer.
         // Handing it a trust store it never reads would say it accepts something it does not.
-        (VerifySignature::fromEstablishedKeys(signed: [Part::body()]))($this->context($document, $keys));
+        (new VerifySignature(useEstablishedKey: true, signed: [Part::body()]))($this->context($document, $keys));
 
         static::assertCount(1, $this->elements($document, self::DS, 'Signature'));
     }
@@ -158,6 +160,114 @@ final class SymmetricSignatureVerificationTest extends TestCase
         $block($this->context($document, $keys));
     }
 
+    /**
+     * A MAC names no certificate, so the same-signer rule sees one signer in a scope where two parties
+     * contributed coverage. What a caller reads as "the Body and the Timestamp were signed" would be one part
+     * from the peer and one from whoever else the anchor issued a certificate to.
+     */
+    public function test_a_certificate_covering_a_part_the_mac_left_out_is_refused(): void
+    {
+        $peer = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $peer->envelope(withTimestamp: true);
+
+        // The peer MACs the Body alone, keyed by the secret this exchange established.
+        (new Signature(new Symmetric(new GeneratedSessionKey($peer->leafCertificate))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($this->context($document, $keys));
+
+        // The Timestamp is nobody's until someone signs it, and anyone the anchor issued a certificate to can.
+        $attacker = $this->appendSignatureBy($document, [WsseSignatureFixture::timestampTarget()]);
+
+        $this->assertRefusedBecause(
+            'The scope carries signatures from more than one party.',
+            fn (): mixed => (new VerifySignature(
+                TrustStore::fromCertificates(
+                    $peer->caCertificate,
+                    $attacker->caCertificate,
+                    $attacker->leafCertificate,
+                ),
+                signed: [Part::body(), Part::timestamp()],
+                useEstablishedKey: true,
+            ))($this->context($document, $keys)),
+        );
+    }
+
+    /**
+     * The same laundering against a token the attacker wrote themselves, which is what makes
+     * securityHeaderContents() the requirement it looks like: every element in the header is signed, and one of
+     * them is signed by the party that put it there.
+     */
+    public function test_a_certificate_covering_a_token_it_appended_itself_is_refused(): void
+    {
+        $peer = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $peer->envelope(withTimestamp: true);
+
+        (new Signature(new Symmetric(new GeneratedSessionKey($peer->leafCertificate))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body(), Part::securityHeaderContents()])($this->context($document, $keys));
+
+        $token = $document->toUnsafeDocument()->createElementNS(
+            WsseSignatureFixture::WSSE,
+            'wsse:BinarySecurityToken',
+        );
+        $token->setAttributeNS(WsseSignatureFixture::WSU, 'wsu:Id', 'AppendedToken');
+        $token->setAttribute('ValueType', WsseSignatureFixture::X509_TOKEN);
+        $token->textContent = 'YXBwZW5kZWQ=';
+        $peer->security($document)->appendChild($token);
+
+        $attacker = $this->appendSignatureBy($document, [Target::byId('AppendedToken')]);
+
+        $this->assertRefusedBecause(
+            'The scope carries signatures from more than one party.',
+            fn (): mixed => (new VerifySignature(
+                TrustStore::fromCertificates(
+                    $peer->caCertificate,
+                    $attacker->caCertificate,
+                    $attacker->leafCertificate,
+                ),
+                signed: [Part::body(), Part::securityHeaderContents()],
+                useEstablishedKey: true,
+            ))($this->context($document, $keys)),
+        );
+    }
+
+    /**
+     * A second signature by a certificate, over targets of its own, referenced by Subject Key Identifier so it
+     * needs no token in the document. Returns the fixture it was made with, whose anchors the caller has to
+     * trust for the signature to resolve at all.
+     *
+     * @param non-empty-list<Target> $targets
+     */
+    private function appendSignatureBy(Document $document, array $targets): WsseSignatureFixture
+    {
+        $other = WsseSignatureFixture::caSignedLeaf();
+        $other->sign(
+            $targets,
+            keyIdentifier: new X509SubjectKeyIdentifier($other->leafCertificate),
+            document: $document,
+        );
+
+        return $other;
+    }
+
+    /**
+     * @param callable(): mixed $verification
+     */
+    private function assertRefusedBecause(string $reason, callable $verification): void
+    {
+        try {
+            $verification();
+        } catch (SecurityFault $fault) {
+            static::assertSame($reason, $fault->getPrevious()?->getMessage());
+
+            return;
+        }
+
+        static::fail('The message was accepted.');
+    }
+
     public function test_it_decrypts_a_body_encrypted_under_the_established_key_with_no_wrapped_key(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
@@ -181,7 +291,7 @@ final class SymmetricSignatureVerificationTest extends TestCase
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedKey'));
         static::assertCount(1, $this->elements($document, self::XENC, 'ReferenceList'));
 
-        (Decrypt::fromEstablishedKeys())($this->context($document, $keys));
+        (new Decrypt(useEstablishedKey: true))($this->context($document, $keys));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertStringContainsString('<data>secret</data>', $document->toXmlString());
@@ -202,7 +312,7 @@ final class SymmetricSignatureVerificationTest extends TestCase
         $encryptedKey->parentNode?->removeChild($encryptedKey);
 
         $this->expectException(SecurityFault::class);
-        (Decrypt::fromEstablishedKeys())($this->context($document, new ExchangeKeys()));
+        (new Decrypt(useEstablishedKey: true))($this->context($document, new ExchangeKeys()));
     }
 
     /**
@@ -225,6 +335,7 @@ final class SymmetricSignatureVerificationTest extends TestCase
         return new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::body()],
+            useEstablishedKey: true,
         );
     }
 

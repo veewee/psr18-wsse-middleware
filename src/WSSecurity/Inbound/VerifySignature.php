@@ -72,23 +72,24 @@ final class VerifySignature implements InboundAction
      *        already did
      * @param list<Part>|null $signed null requires the Body; an explicit list replaces that entirely
      *
-     * @param bool $allowNothing internal, set only by fromEstablishedKeys(). Holding neither is a real
-     *        configuration and not an error; the guard exists so that reaching it by forgetting an argument
-     *        says so, rather than failing later on the first part it cannot open
+     * @param bool $useEstablishedKey verifies a MAC keyed by what this exchange established for itself, which
+     *        a correlated response carries and conveys nothing for. Nothing is handed over because the request
+     *        that wrote the key already registered it; this states that such a response is what this deployment
+     *        expects, which is a configuration rather than an argument left out
      *
-     * @throws InvalidArgumentException when neither is offered
+     * @throws InvalidArgumentException when the block is given nothing to verify against
      */
     public function __construct(
         private readonly ?TrustStore $trustStore = null,
         private readonly ?PreSharedSessionKey $preSharedKey = null,
         private readonly ?array $signed = null,
-        bool $allowNothing = false,
+        private readonly bool $useEstablishedKey = false,
     ) {
-        if (!$allowNothing && $trustStore === null && $preSharedKey === null) {
+        if (!$useEstablishedKey && $trustStore === null && $preSharedKey === null) {
             throw new InvalidArgumentException(
                 'A signature has to be verified against something: give this block a trust store, a '
-                .'pre-shared secret, or both. Use fromEstablishedKeys() when the only signature to verify is '
-                .'keyed by what this exchange established for itself.',
+                .'pre-shared secret, or both, or pass useEstablishedKey: true when the only signature to '
+                .'verify is keyed by what this exchange established for itself.',
             );
         }
 
@@ -96,21 +97,6 @@ final class VerifySignature implements InboundAction
         // through the wsu:Id convention.
         // Only the read half is handed over: nothing inbound mints, and a class that holds no minter cannot.
         $this->requiredParts = new RequiredPartsValidator(new TargetLocator(self::idLookup()));
-    }
-
-    /**
-     * Verifies against the key this exchange established for itself, and nothing else.
-     *
-     * A response MACed with the key its own request conveyed needs no material handed over: the request
-     * registered it while it was written. Named rather than expressed by passing nothing, because accepting
-     * neither a certificate nor a shared secret is a decision about the deployment rather than two arguments
-     * left out.
-     *
-     * @param list<Part>|null $signed null requires the Body; an explicit list replaces that entirely
-     */
-    public static function fromEstablishedKeys(?array $signed = null): self
-    {
-        return new self(null, null, $signed, allowNothing: true);
     }
 
 
@@ -153,7 +139,7 @@ final class VerifySignature implements InboundAction
     {
         return $this->verifier ?? Verifier::create(
             self::idLookup(),
-            new WsseKeyInfoResolver(keys: $context->keys()),
+            new WsseKeyInfoResolver(keys: $this->readsEstablishedKeys() ? $context->keys() : null),
             new SecurityTokenReferenceTransform(),
         );
     }
@@ -161,6 +147,18 @@ final class VerifySignature implements InboundAction
     private static function idLookup(): IdLookup
     {
         return (new WsuIdConvention())->lookup();
+    }
+
+    /**
+     * Whether a ds:KeyInfo naming a secret should resolve against this exchange's key bag at all.
+     *
+     * A pre-shared secret is registered into that same bag when the block runs, so it needs the bag read even
+     * where no key was established by a direction of this exchange. Off for a deployment that stated neither,
+     * which then refuses a MAC on the reference it presents rather than on a bag it never meant to consult.
+     */
+    private function readsEstablishedKeys(): bool
+    {
+        return $this->useEstablishedKey || $this->preSharedKey !== null;
     }
 
     /**

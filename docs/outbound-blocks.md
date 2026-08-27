@@ -89,9 +89,13 @@ new Outbound\BinarySecurityToken(Certificate::fromFile('security_token.pub'));
 ```
 
 - `Certificate $certificate`: the public X.509 certificate to embed, as a `KeyStore\Certificate`. Required.
+  A `ClientCertificate`, the bundle you sign with, is not one: hand over its public half with
+  `$clientCertificate->publicCertificate()`. The two are separate types because this block puts a public
+  certificate on the wire and nothing here needs the private key.
 
 You rarely add this block by hand: the `Signature` block embeds one automatically when you reference the key by
-`KeyRef::BinarySecurityToken`. Add it explicitly only when a server expects the token present on its own.
+`KeyRef::BinarySecurityToken`. Add it explicitly only when a server expects the token present on its own, which
+is what a policy asking for both an included token and an inline key reference amounts to.
 
 - `BinarySecurityToken::forCertificatePath(CertificateChain $path): self`: a named constructor embedding the
   whole certification path as a `#X509PKIPathv1` token instead of the leaf alone. Signing with a path is
@@ -320,6 +324,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
 
@@ -547,6 +552,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 $sessionKey = new Keys\GeneratedSessionKey($recipient);
 
@@ -574,6 +580,10 @@ An endorsed message a peer sends you verifies too. `Inbound\VerifySignature` che
 directly inside the header it scopes to and requires each of them to verify, so what you may require is the union
 of what they covered. A second signature is one more thing that must hold rather than an alternative the
 verifier may pick, which is what makes an injected one refuse the message.
+
+The union is bounded by who signed, though. Every signature that contributes coverage has to be by the same
+party, an endorsement being the one exception, so a third party cannot add coverage to a message your peer
+signed; see [Inbound blocks](inbound-blocks.md#inbound-verifysignature) for the whole rule.
 
 `Part::primarySignature()` is outbound only, though. Required inbound it refuses an endorsed message, because
 such a message carries two signatures and which of them is primary is not something document order decides on a
@@ -614,6 +624,7 @@ the assertion instead of a certificate, so the receiver resolves the verifying k
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 new WsseMiddleware($profile, outbound: [
     new Outbound\Timestamp(),

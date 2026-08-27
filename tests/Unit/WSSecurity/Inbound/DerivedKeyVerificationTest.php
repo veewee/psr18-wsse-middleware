@@ -250,7 +250,7 @@ final class DerivedKeyVerificationTest extends TestCase
         $encryptedKey = $this->only($document, self::XENC, 'EncryptedKey');
         $encryptedKey->parentNode?->removeChild($encryptedKey);
 
-        (Decrypt::fromEstablishedKeys())($this->context($document, $keys));
+        (new Decrypt(useEstablishedKey: true))($this->context($document, $keys));
 
         static::assertCount(0, $this->elements($document, self::XENC, 'EncryptedData'));
         static::assertStringContainsString('<data>secret</data>', $document->toXmlString());
@@ -274,6 +274,7 @@ final class DerivedKeyVerificationTest extends TestCase
         return new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::body()],
+            useEstablishedKey: true,
         );
     }
 

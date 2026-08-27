@@ -207,6 +207,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 // Your signing identity (certificate + private key):
@@ -248,6 +249,8 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 // Decode the .p12 once, then derive each credential from the bundle:
 $bundle = Pkcs12Bundle::fromFile('client.p12', 'secret');
@@ -297,6 +300,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
 
@@ -352,6 +356,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
@@ -431,8 +436,12 @@ $transport = Psr18Transport::createForClient(
             inbound: [
                 // The response is keyed by the same session key, resolved from the exchange, so there is no
                 // private key to unwrap anything with and nothing to hand over.
-                Inbound\Decrypt::fromEstablishedKeys(),
-                new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]),
+                new Inbound\Decrypt(useEstablishedKey: true),
+                new Inbound\VerifySignature(
+                    $trustStore,
+                    signed: [Part::body(), Part::timestamp()],
+                    useEstablishedKey: true,
+                ),
                 new Inbound\ValidateTimestamp(),
             ],
         ),
