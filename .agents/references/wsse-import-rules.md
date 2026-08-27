@@ -31,6 +31,19 @@ Consult these when the mapping reaches them:
 - [Trust](../../docs/trust.md), for anchors, pinning and revocation
 - [.agents/domain-glossary.md](../domain-glossary.md), for the canonical name of anything you are about to write
 
+## Samples to check yourself against
+
+[`.agents/imports/`](../imports/README.md) holds real configurations published by the stacks these skills read,
+under `samples/`: CXF and Metro policies, SoapUI projects with actual Signature and Encryption entries, and
+WebSphere's shipped policy sets with their bindings. Every mapping table here was checked against them, and
+several were wrong until they were.
+
+It is git-excluded, so on a fresh clone only the tooling is there: `./fetch.sh` inside it brings the samples
+back. Reach for it when a source file uses something a table does not cover, when you are about to widen a
+mapping, or before changing one of these skills. Its `drafts/` holds the wiring each skill produced for twelve
+of the samples, and re-typechecking those is the cheapest way to notice that the package's API moved out from
+under a skill.
+
 ## The blocks you are mapping onto
 
 An inventory to plan against. The arguments and the `with*()` methods are in the two block pages above; do not
@@ -42,7 +55,7 @@ Outbound, in the order they must run:
 |---|---|
 | `Timestamp` | A `wsu:Timestamp`, expiring `timestampTtl` seconds out |
 | `Username` | A `wsse:UsernameToken`, `PasswordText` by default, `PasswordDigest` or username-only on request |
-| `BinarySecurityToken` | An X.509 certificate as a base64-DER token, for the cases a signature does not already embed one |
+| `BinarySecurityToken` | An X.509 certificate as a base64-DER token, for the cases a signature does not already embed one. Takes a `Certificate`, so a signing identity goes in as `$clientCertificate->publicCertificate()` |
 | `Signature` | A detached multi-reference `ds:Signature` |
 | `Encryption` | XML-Enc ciphertext for the named parts, under a fresh session key |
 | `SamlAssertion` | A SAML 1.1 or 2.0 assertion obtained elsewhere, imported verbatim |
@@ -101,11 +114,27 @@ substitute something plausible, and do not quietly drop it.
 
 Give these back with the draft, in order:
 
-1. **Trace every non-default argument** to a line in the source configuration. One you cannot trace is one you
+1. **Typecheck the draft before you hand it over.** Write the wiring to a file and run the project's Psalm over
+   it. This is not a style check: the blocks distinguish types that describe the same identity, so a
+   `ClientCertificate` where a `Certificate` belongs, or an enum reached under the wrong namespace, is a real
+   error a reader will not see in a code block.
+
+   Psalm's own `projectFiles` covers `src` only, so write the draft into `.agents/imports/drafts/` and run
+   `vendor/bin/psalm -c .agents/imports/psalm.xml --no-cache`, which reuses the project's autoloader and checks
+   your draft alongside the reference ones. Fix what it reports before handing anything over, and say it passed.
+
+   **It proves the shapes, not the invariants.** These blocks guard combinations in their constructors, and a
+   clean typecheck says nothing about those: `path:` alongside any `KeyRef` but `BinarySecurityToken` throws, an
+   empty `withParts()` list throws, an endorsing `Signature` placed before the block it endorses throws, and a
+   session key whose width disagrees with a later block's cipher is refused. So for every pair of arguments you
+   are passing together, read the constructor. A draft that typechecks and throws on the first request is worse
+   than one that does not compile.
+
+2. **Trace every non-default argument** to a line in the source configuration. One you cannot trace is one you
    invented.
-2. **Read the bytes you send.** Check the Security header holds the tokens the peer wants, that the signature
+3. **Read the bytes you send.** Check the Security header holds the tokens the peer wants, that the signature
    references cover the parts you expect, and that the key reference is the shape they asked for.
-3. **Send one real request.** A peer faulting on a header it cannot understand tells you what no local test can.
-4. **Test the inbound side by making it fail.** Inbound failures are uniform by design, so a response that
+4. **Send one real request.** A peer faulting on a header it cannot understand tells you what no local test can.
+5. **Test the inbound side by making it fail.** Inbound failures are uniform by design, so a response that
    passes proves nothing about the inbound list. Confirm it rejects what it should reject, not only that it
    accepts what it should accept.

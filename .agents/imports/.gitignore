@@ -1,0 +1,7 @@
+# Everything in here is working material: third-party samples that belong to the projects they came from, and
+# drafts that name real hosts and paths. Only the tooling is committed, and fetch.sh rebuilds the rest.
+*
+!.gitignore
+!README.md
+!fetch.sh
+!psalm.xml
