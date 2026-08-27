@@ -222,6 +222,25 @@ final class PreSharedSessionKeyTest extends TestCase
         static::assertNotNull($keys->resolve('the-agreed-key'));
     }
 
+    /**
+     * The WSS 1.1 reference writes its own encoding type, so an encoding named alongside it is one this would
+     * silently drop. Refused rather than dropped, because the base64 guard above keys off the argument the
+     * reference then ignores: naming another encoding would skip the guard and get base64 written anyway,
+     * leaving a reference declaring one encoding and carrying another.
+     */
+    public function test_the_wss_session_key_type_refuses_an_encoding_it_would_have_to_drop(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('writes its own base64 encoding type');
+
+        new PreSharedSessionKey(
+            SessionKey::fromBytes(str_repeat("\x2a", 32)),
+            'not base64 at all!!',
+            'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#EncryptedKeySHA1',
+            'urn:example:plain-text',
+        );
+    }
+
     public function test_an_empty_secret_is_refused(): void
     {
         $this->expectException(InvalidArgumentException::class);

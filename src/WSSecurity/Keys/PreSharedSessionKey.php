@@ -55,6 +55,19 @@ final class PreSharedSessionKey implements SymmetricKeySource
             throw new InvalidArgumentException('A pre-shared secret must not be empty.');
         }
 
+        // The WSS 1.1 reference writes its own base64 encoding type, so it has no room for one named here.
+        // Refused rather than ignored: the base64 check below keys off this argument, so accepting another
+        // encoding would skip that check and still write base64, which is the very mismatch it exists to catch.
+        if ($valueType === WsSecurityValueType::EncryptedKeySha1->value
+            && $encodingType !== WsSecurityEncodingType::Base64Binary->value
+        ) {
+            throw new InvalidArgumentException(sprintf(
+                'The WSS 1.1 session-key reference writes its own base64 encoding type, so it cannot also '
+                .'declare "%s". Leave the encoding at its default, or agree on another value type.',
+                $encodingType,
+            ));
+        }
+
         // The identifier is written verbatim under the encoding the reference declares, so the two have to
         // agree. A plain name under a base64 encoding type is a reference that says one thing and carries
         // another, which a strict receiver refuses and a lenient one resolves to something else.
