@@ -95,6 +95,41 @@ final class EndorsingSignatureTest extends TestCase
     }
 
     /**
+     * The shape a CXF peer emits under sp:ProtectTokens: its endorsement covers the primary signature *and* its
+     * own BinarySecurityToken, because AbstractBindingBuilder::doEndorsedSignatures() adds the BST to the
+     * endorsement's reference list whenever the binding asks for token protection. A supporting token declaring
+     * signed parts of its own reaches the same shape by the other route.
+     *
+     * So an endorsement is recognised by covering a signature that verified, not by covering only that. What
+     * keeps the exemption honest is that its own coverage is not reported: the endorsed party never vouched for
+     * the endorsing token, so a requirement is not satisfied by it.
+     */
+    public function test_an_endorsement_covering_its_own_token_as_well_is_read_as_one(): void
+    {
+        $fixture = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $fixture->envelope();
+        $context = $this->context($document, $keys);
+
+        (new Signature(new Symmetric(new GeneratedSessionKey($fixture->leafCertificate))))
+            ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+            ->withParts([Part::body()])($context);
+
+        // The endorsement covers the primary signature and the token it is keyed by, which is the pair CXF adds.
+        (new Signature(new Asymmetric($this->identity($fixture), KeyRef::BinarySecurityToken)))
+            ->withParts([Part::primarySignature(), Part::binarySecurityToken()])($context);
+
+        $verified = (new VerifySignature(
+            TrustStore::fromCertificates($fixture->caCertificate),
+            signed: [Part::body()],
+            useEstablishedKey: true,
+        ));
+        $verified($this->context($document, $keys));
+
+        static::assertCount(2, $this->signatures($document));
+    }
+
+    /**
      * An endorsed message verifies inbound: both signatures are checked, and what a caller may require is the
      * union of what they covered.
      */

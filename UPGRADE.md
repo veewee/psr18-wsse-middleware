@@ -372,8 +372,9 @@ version refused a scope carrying more than one. `VerifiedSignature::$signer` is 
 `VerifiedSignature::$signers`, a list, and a registered `onTrustedSigner` check runs against each of them.
 
 Every signature that contributes coverage to one Security header must be by the same **party**, where a party is
-a certificate or the holder of a secret the exchange established. An endorsement contributes no coverage of its
-own and is exempt, and only counts as one when it covers a `ds:Signature` that verified and nothing else. This
+a certificate or the holder of a secret the exchange established. An endorsement is exempt, and counts as one
+when it covers a `ds:Signature` that verified; its own coverage is then not reported, so a
+`Part::securityHeaderContents()` requirement is no longer satisfied by an endorsing token's own element. This
 refuses a message whose required parts were covered partly by your peer and partly by somebody else holding a
 certificate your anchor issued. It is stricter than WSS4J and Apache CXF, which pool every signature's
 references and never ask which credential covered what, so a message this refuses may be one they accept.

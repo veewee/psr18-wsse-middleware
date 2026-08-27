@@ -243,11 +243,18 @@ makes the rule reach the shape it matters most in.** A MAC names no certificate,
 alone would see a single signer in a response where the peer MACed the body and somebody else signed the
 timestamp, and the union would quietly span the two.
 
-An endorsement is the exception, because it contributes no coverage of its own: an endorsing token belongs to
-the sender and legitimately differs from the party whose signature it endorses. A signature counts as one only
-when it covers a `ds:Signature` that itself verified **and nothing else**. That last clause is load-bearing: a
-wider exemption would be the same hole reopened, since a signature covering the primary plus a part of its own
-choosing would launder that part through it.
+An endorsement is the exception: an endorsing token belongs to the sender and legitimately differs from the
+party whose signature it endorses. A signature counts as an endorsement when it covers a `ds:Signature` that
+itself verified, which is the same test CXF applies to an endorsing supporting token.
+
+**An endorsement's own coverage is not reported, and that is what keeps the exception honest.** Only the
+signatures it endorsed enter what you may require. A peer covers more alongside the primary signature as a
+matter of course, so recognising an endorsement cannot mean requiring it to cover nothing else: under
+`sp:ProtectTokens` a CXF endorsement also covers its own token, and a supporting token may declare signed parts
+of its own. Discarding the rest is what stops the exception being a way in: a signature covering the primary
+plus a part of its own choosing is an endorsement whose choice of part is thrown away, so there is nothing to
+launder. The consequence to know is that a `Part::securityHeaderContents()` requirement is not satisfied by an
+endorsing token's own element, because only the endorsing party ever vouched for it.
 
 Worth knowing how this compares to your peers, because it is stricter than both. WSS4J pools every verified
 signature's references and answers "was this element signed" from the pool, and Apache CXF validates

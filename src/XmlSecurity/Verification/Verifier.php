@@ -128,12 +128,36 @@ final class Verifier implements XmlSignatureVerifier
             $verifiedSignatures[] = $this->verifyOne($document, $policy, $signature);
         }
 
-        $this->assertOneContributingParty($verifiedSignatures);
+        $signatureElements = array_map(
+            static fn (VerifiedOneSignature $verified): Element => $verified->signature,
+            $verifiedSignatures,
+        );
+
+        $this->assertOneContributingParty($verifiedSignatures, $signatureElements);
 
         foreach ($verifiedSignatures as $verified) {
-            $elements = [...$elements, ...$verified->elements];
-            $ids = [...$ids, ...$verified->ids];
-            $externalParts = [...$externalParts, ...$verified->externalParts];
+            // An endorsement's own coverage does not join the union. It vouches for a signature, and a peer
+            // legitimately covers more alongside it: a CXF endorsement under sp:ProtectTokens also covers its
+            // own token, and a supporting token may declare signed parts of its own. Pooling those would let
+            // the endorsing party's word satisfy a requirement the endorsed party never met, which is the same
+            // conflation the one-party rule exists to prevent. So the signatures it endorsed are reported and
+            // the rest is not, and a caller wanting those parts has to see them covered by the party that sent
+            // the message.
+            $endorsing = self::endorses($verified->elements, $signatureElements);
+            $reported = $endorsing
+                ? self::signaturesAmong($verified->elements, $signatureElements)
+                : array_keys($verified->elements);
+
+            foreach ($reported as $index) {
+                $elements[] = $verified->elements[$index];
+                // Paired by index with the element, as VerifiedReferences states, so the two are filtered
+                // together or not at all. A reference resolving to an element resolved it by an id.
+                $ids[] = $verified->ids[$index];
+            }
+
+            if (!$endorsing) {
+                $externalParts = [...$externalParts, ...$verified->externalParts];
+            }
             if ($verified->signer !== null) {
                 $signers[] = $verified->signer;
             }
@@ -159,31 +183,31 @@ final class Verifier implements XmlSignatureVerifier
      * makes the rule reach the shape it matters most in: a MAC names no certificate, so a rule stated over
      * signers alone sees one signer in a scope where two parties signed.
      *
-     * An endorsement contributes no coverage of its own and is exempt, which is the whole reason the rule is
-     * about contribution rather than about signing: an endorsing token belongs to the sender and legitimately
-     * differs from the party whose signature it endorses. The exemption is deliberately narrow, because a wide
-     * one would be the same hole reopened: a signature covering the primary *and* a part of its own choosing
-     * would launder that part through the exemption, so covering anything else at all makes a signature a
-     * contributor.
+     * An endorsement is exempt, which is the whole reason the rule is about contribution rather than about
+     * signing: an endorsing token belongs to the sender and legitimately differs from the party whose signature
+     * it endorses. What keeps the exemption from being the hole reopened is not a narrow test here but that an
+     * endorsement's own coverage never joins the union, in verify(): a signature covering the primary *and* a
+     * part of its own choosing is exempt from this count and has that part discarded, so there is nothing to
+     * launder either way.
+     *
+     * Covering a verified signature is the whole test, deliberately, because it is the one a peer answers to.
+     * It is what CXF requires of an endorsing supporting token, and a peer covers more alongside the primary
+     * signature as a matter of course: under sp:ProtectTokens its endorsement also covers its own token.
      *
      * A message genuinely signed by two contributing identities, a countersignature by a notary say, is refused
      * rather than merged, because which parts each of them vouched for is a question this reports no answer to.
      *
      * @param list<VerifiedOneSignature> $verifiedSignatures
+     * @param list<Element>              $signatureElements
      *
      * @throws SignatureVerificationFailed
      */
-    private function assertOneContributingParty(array $verifiedSignatures): void
+    private function assertOneContributingParty(array $verifiedSignatures, array $signatureElements): void
     {
-        $signatureElements = array_map(
-            static fn (VerifiedOneSignature $verified): Element => $verified->signature,
-            $verifiedSignatures,
-        );
-
         $certificates = [];
         $secretParty = false;
         foreach ($verifiedSignatures as $verified) {
-            if (self::onlyEndorses($verified->elements, $signatureElements)) {
+            if (self::endorses($verified->elements, $signatureElements)) {
                 continue;
             }
 
@@ -204,28 +228,35 @@ final class Verifier implements XmlSignatureVerifier
     }
 
     /**
-     * Whether a signature covered nothing but signatures that themselves verified, which is what an endorsement
-     * and only an endorsement does. Compared by instance, so a look-alike element elsewhere is not one of them.
+     * Whether a signature endorses another, meaning it covered one that itself verified. Compared by instance,
+     * so a look-alike element elsewhere in the document is not one of them.
      *
-     * A signature covering nothing is not an endorsement: it vouches for no part of the message, so it may not
+     * A signature covering nothing endorses nothing: it vouches for no part of the message, so it may not
      * borrow the exemption an endorsement gets.
      *
      * @param list<Element> $covered
      * @param list<Element> $signatureElements
      */
-    private static function onlyEndorses(array $covered, array $signatureElements): bool
+    private static function endorses(array $covered, array $signatureElements): bool
     {
-        if ($covered === []) {
-            return false;
-        }
+        return self::signaturesAmong($covered, $signatureElements) !== [];
+    }
 
-        foreach ($covered as $element) {
-            if (!in_array($element, $signatureElements, true)) {
-                return false;
-            }
-        }
-
-        return true;
+    /**
+     * The positions in $covered holding a verified signature, which is all an endorsement reports having
+     * covered. Positions rather than elements, because the caller reports the id beside each one.
+     *
+     * @param list<Element> $covered
+     * @param list<Element> $signatureElements
+     *
+     * @return list<non-negative-int>
+     */
+    private static function signaturesAmong(array $covered, array $signatureElements): array
+    {
+        return array_keys(array_filter(
+            $covered,
+            static fn (Element $element): bool => in_array($element, $signatureElements, true),
+        ));
     }
 
     /**
