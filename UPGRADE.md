@@ -378,8 +378,10 @@ endorsed message a peer sent unverifiable. Narrow to that element: a bare `Id` a
 resolved, because it is an attribute this profile never writes.
 
 Every signature that contributes coverage to one Security header must be by the same **party**, where a party is
-a certificate or the holder of a secret the exchange established. An endorsement is exempt, and counts as one
-when it covers a `ds:Signature` that verified; its own coverage is then not reported, so a
+a certificate or the holder of a secret the exchange established. An endorsement of a **MAC** is exempt, since a
+MAC names no party and there is no identity to hold the endorsement against; an endorsement of a
+certificate-keyed signature is counted like any other signature, so it has to be by the same certificate it
+endorses. Whatever a signature covering another signature keyed it, its own coverage is not reported, so a
 `Part::securityHeaderContents()` requirement is no longer satisfied by an endorsing token's own element. This
 refuses a message whose required parts were covered partly by your peer and partly by somebody else holding a
 certificate your anchor issued. It is stricter than WSS4J and Apache CXF, which pool every signature's
@@ -484,9 +486,10 @@ layer. Update your `use` statements. One case went away: `SignatureMethod::RSA_O
 was never a signature method. `KeyTransportAlgorithm` and `OaepHash` are new, and so are the five HMAC cases
 described below.
 
-Where you set them changed too. `Entry\Signature::withSignatureMethod()` / `withDigestMethod()` and
-`Entry\Encryption::withDataEncryptionMethod()` / `withKeyEncryptionMethod()` still exist on the blocks for a
-one-off override, but the defaults for every block come from a `CryptoPolicy` on the profile:
+Where you set them changed too. `Signature::withSignatureMethod()` / `withDigestMethod()` and
+`Encryption::withDataEncryptionMethod()` still exist on the blocks for a one-off override, but the defaults for
+every block come from a `CryptoPolicy` on the profile. The key transport is the exception: it moved onto the key
+source, as the section on symmetric key sources above records.
 
 ```php
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;

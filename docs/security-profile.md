@@ -73,9 +73,9 @@ $profile = new SecurityProfile(
 and can be used to drive the signing/encryption layer without the SOAP profile:
 
 - `SignatureMethod $signatureMethod = SignatureMethod::RSA_SHA256`: the outbound signature algorithm.
-- `OaepHash $oaepHash = OaepHash::Sha1`: the OAEP label hash every outbound `Encryption` block uses unless it
-  overrides the whole key transport itself. Set it here to move every block to SHA-256 at once, rather than
-  repeating `withKeyTransportAlgorithm()` on each and having a block added later fall back to SHA-1.
+- `OaepHash $oaepHash = OaepHash::Sha1`: the OAEP label hash every outbound `Encryption` block uses unless its
+  key source states the whole key transport itself. Set it here to move every block to SHA-256 at once, rather
+  than passing `keyTransportAlgorithm:` to each key source and having one added later fall back to SHA-1.
 - `DigestMethod $digestMethod = DigestMethod::SHA256`: the outbound per-reference digest.
 - `SignatureCanonicalization $canonicalization = SignatureCanonicalization::EXC_C14N`: the outbound
   canonicalization method.

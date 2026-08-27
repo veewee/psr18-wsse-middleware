@@ -201,6 +201,81 @@ final class EndorsingSignatureTest extends TestCase
     }
 
     /**
+     * An "endorsement" by somebody else entirely. Where trust is anchored on a CA, anyone that CA issued a
+     * certificate to can sign the peer's primary signature and cover nothing else, which is structurally what an
+     * endorsement looks like. Exempting it on that shape alone would let them join the message as an accepted
+     * signer, which is precisely what the one-party rule exists to refuse.
+     *
+     * An endorsement of a certificate-keyed signature therefore has to be by that same certificate. Only an
+     * endorsement of a MAC gets the exemption unconditionally, because a MAC names nobody and there is genuinely
+     * no identity to hold it against.
+     */
+    public function test_an_endorsement_by_a_certificate_other_than_the_signer_is_refused(): void
+    {
+        $peer = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $peer->envelope();
+        $context = $this->context($document, $keys);
+
+        // A certificate-keyed primary, so there is an identity for an endorsement to have to match.
+        (new Signature(new Asymmetric($this->identity($peer), KeyRef::BinarySecurityToken)))
+            ->withParts([Part::body()])($context);
+
+        // A different leaf under a different anchor, covering only the primary signature.
+        $other = WsseSignatureFixture::caSignedLeaf();
+        (new Signature(new Asymmetric($this->identity($other), KeyRef::BinarySecurityToken)))
+            ->withParts([Part::primarySignature()])($context);
+
+        $this->assertRefusedBecause(
+            'The scope carries signatures from more than one party.',
+            fn (): mixed => (new VerifySignature(
+                TrustStore::fromCertificates($peer->caCertificate, $other->caCertificate),
+                signed: [Part::body()],
+            ))($this->context($document, $keys)),
+        );
+    }
+
+    /**
+     * The same shape by the same certificate is the ordinary asymmetric endorsement and stays accepted: one
+     * party signed twice, which is what an endorsing supporting token belonging to the sender looks like.
+     */
+    public function test_an_endorsement_by_the_signer_itself_is_accepted(): void
+    {
+        $peer = WsseSignatureFixture::caSignedLeaf();
+        $keys = new ExchangeKeys();
+        $document = $peer->envelope();
+        $context = $this->context($document, $keys);
+
+        (new Signature(new Asymmetric($this->identity($peer), KeyRef::BinarySecurityToken)))
+            ->withParts([Part::body()])($context);
+        (new Signature(new Asymmetric($this->identity($peer), KeyRef::BinarySecurityToken)))
+            ->withParts([Part::primarySignature()])($context);
+
+        (new VerifySignature(
+            TrustStore::fromCertificates($peer->caCertificate),
+            signed: [Part::body()],
+        ))($this->context($document, $keys));
+
+        static::assertCount(2, $this->signatures($document));
+    }
+
+    /**
+     * @param callable(): mixed $verification
+     */
+    private function assertRefusedBecause(string $reason, callable $verification): void
+    {
+        try {
+            $verification();
+        } catch (SecurityFault $fault) {
+            static::assertSame($reason, $fault->getPrevious()?->getMessage());
+
+            return;
+        }
+
+        static::fail('The message was accepted.');
+    }
+
+    /**
      * The endorsement is what carries an identity here: the primary signature is keyed by a session key anyone
      * holding the recipient's certificate could have minted, so it names nobody. A registered signer check
      * therefore has exactly one signer to run against, and it is the endorser's.

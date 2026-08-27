@@ -247,9 +247,15 @@ makes the rule reach the shape it matters most in.** A MAC names no certificate,
 alone would see a single signer in a response where the peer MACed the body and somebody else signed the
 timestamp, and the union would quietly span the two.
 
-An endorsement is the exception: an endorsing token belongs to the sender and legitimately differs from the
-party whose signature it endorses. A signature counts as an endorsement when it covers a `ds:Signature` that
-itself verified, which is the same test CXF applies to an endorsing supporting token.
+An endorsement is the exception, and only where there is nothing to hold it against. A signature that covers a
+`ds:Signature` which itself verified is an endorsement in shape, which is the test CXF applies to an endorsing
+supporting token, and shape alone is not enough to be exempt: anyone your anchor issued a certificate to can
+sign your peer's signature and cover nothing else, which is that shape exactly.
+
+So the exemption is unconditional only for an endorsement of a **MAC**, which names no party and therefore
+offers no identity to compare. An endorsement of a certificate-keyed signature is counted like any other
+signature, and so passes exactly when it is by the same certificate it endorses, which is the ordinary
+asymmetric endorsement, and is refused when it is somebody else's.
 
 **An endorsement's own coverage is not reported, and that is what keeps the exception honest.** Only the
 signatures it endorsed enter what you may require. A peer covers more alongside the primary signature as a

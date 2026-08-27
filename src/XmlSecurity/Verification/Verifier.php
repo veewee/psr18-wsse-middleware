@@ -207,7 +207,7 @@ final class Verifier implements XmlSignatureVerifier
         $certificates = [];
         $secretParty = false;
         foreach ($verifiedSignatures as $verified) {
-            if (self::endorses($verified->elements, $signatureElements)) {
+            if (self::endorsesOnlySecretKeyed($verified, $verifiedSignatures, $signatureElements)) {
                 continue;
             }
 
@@ -228,11 +228,72 @@ final class Verifier implements XmlSignatureVerifier
     }
 
     /**
-     * Whether a signature endorses another, meaning it covered one that itself verified. Compared by instance,
-     * so a look-alike element elsewhere in the document is not one of them.
+     * Whether a signature may skip the party count, which is only when every signature it endorses is keyed by
+     * a secret.
      *
-     * A signature covering nothing endorses nothing: it vouches for no part of the message, so it may not
-     * borrow the exemption an endorsement gets.
+     * Covering a verified signature is what an endorsement looks like, and it is not enough on its own. Where
+     * trust is anchored on a CA, anyone that CA issued a certificate to can sign the peer's primary signature
+     * and cover nothing else, which is that shape exactly; exempting on shape alone would let them join the
+     * message as an accepted signer, which is the thing the count exists to refuse.
+     *
+     * A MAC is the case with nothing to compare: it names no party, so an endorsement of it cannot be held
+     * against an identity and the exemption is unconditional. That is also the shape the exemption exists for,
+     * since a session key proves possession of nothing and the endorsement is where an identity enters.
+     *
+     * An endorsement of a certificate-keyed signature is not exempt, and so falls into the count with its own
+     * certificate. It then passes exactly when that certificate is the one it endorsed, which is the ordinary
+     * asymmetric endorsement, and refuses when it is somebody else's.
+     *
+     * @param list<VerifiedOneSignature> $verifiedSignatures
+     * @param list<Element>              $signatureElements
+     */
+    private static function endorsesOnlySecretKeyed(
+        VerifiedOneSignature $verified,
+        array $verifiedSignatures,
+        array $signatureElements,
+    ): bool {
+        $endorsed = self::endorsedSignatures($verified->elements, $signatureElements);
+        if ($endorsed === []) {
+            // Covering no signature at all is not an endorsement: it vouches for parts of the message like any
+            // other signature, so it answers to the count like any other.
+            return false;
+        }
+
+        foreach ($endorsed as $index) {
+            if ($verifiedSignatures[$index]->signer !== null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Which of the scope's signatures a set of covered elements endorses, as positions in $signatureElements.
+     * Compared by instance, so a look-alike element elsewhere in the document is not one of them.
+     *
+     * @param list<Element> $covered
+     * @param list<Element> $signatureElements
+     *
+     * @return list<non-negative-int>
+     */
+    private static function endorsedSignatures(array $covered, array $signatureElements): array
+    {
+        $endorsed = [];
+        foreach ($signatureElements as $index => $signature) {
+            if (in_array($signature, $covered, true)) {
+                $endorsed[] = $index;
+            }
+        }
+
+        return $endorsed;
+    }
+
+    /**
+     * Whether a signature covered one that verified, which is the shape of an endorsement and is what decides
+     * whether its own coverage is reported. Narrower than the exemption above on purpose: a signature covering
+     * the primary plus a part of its own choosing has that part discarded here whoever keyed it, so the
+     * exemption cannot become a way to launder one.
      *
      * @param list<Element> $covered
      * @param list<Element> $signatureElements
