@@ -238,6 +238,10 @@ so without this rule they could append their own token and a signature over it t
 would tell you. A message genuinely signed by two contributing identities is refused rather than merged, because
 which parts each of them vouched for is a question this reports no answer to.
 
+A reference to a `ds:Signature` resolves by the native `Id` that XML Signature declares on it as well as by
+`wsu:Id`, because that is how a peer names the signature its endorsement covers. Everywhere else only `wsu:Id`
+is read.
+
 A party is a certificate, or the holder of a secret this exchange established. **Counting the secret is what
 makes the rule reach the shape it matters most in.** A MAC names no certificate, so a rule stated over signers
 alone would see a single signer in a response where the peer MACed the body and somebody else signed the

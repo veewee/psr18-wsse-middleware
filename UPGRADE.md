@@ -371,6 +371,12 @@ Inbound, a scope may now carry **several** signatures and every one of them must
 version refused a scope carrying more than one. `VerifiedSignature::$signer` is therefore
 `VerifiedSignature::$signers`, a list, and a registered `onTrustedSigner` check runs against each of them.
 
+**A reference to a `ds:Signature` now resolves by the native `Id` that XML Signature declares on it**, alongside
+the `wsu:Id` the WS-Security profile mandates for every other part. WSS4J and Apache CXF write `Id="SIG-..."` on
+the element and reference it that way from an endorsing signature, so resolving only `wsu:Id` left every
+endorsed message a peer sent unverifiable. Narrow to that element: a bare `Id` anywhere else is still not
+resolved, because it is an attribute this profile never writes.
+
 Every signature that contributes coverage to one Security header must be by the same **party**, where a party is
 a certificate or the holder of a secret the exchange established. An endorsement is exempt, and counts as one
 when it covers a `ds:Signature` that verified; its own coverage is then not reported, so a
