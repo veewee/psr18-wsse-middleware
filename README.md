@@ -1,13 +1,15 @@
 # SOAP WSSE/WSA Middleware
 
-This package adds WSSE (WS-Security), and WSA (WS-Addressing) to your PSR-18 based SOAP transport.
+This package adds WSSE (WS-Security) and WSA (WS-Addressing) to your PSR-18 based SOAP transport.
 
-From this major version on, the XML-Security layer lives inside this package. It signs, encrypts, decrypts and
-verifies on the modern PHP DOM, so you no longer pull in `robrichards/wse-php` or `robrichards/xmlseclibs` at
-runtime. The cryptography underneath is split: `phpseclib/phpseclib` performs the symmetric ciphers, the RSA and
-ECDSA signatures and the RSA key transport, `ext-openssl` performs certificate path validation and key parsing,
-and digests run on `ext-hash`. Because the timestamp parser uses the ICU date formatter, the requirements now
-also include `ext-intl`.
+Signing, encryption, decryption and verification all happen inside this package, on the modern PHP DOM. There is
+no XML-security library behind it. The cryptography underneath is split, which is worth knowing if you scope a
+CVE watch by dependency: `phpseclib/phpseclib` does the symmetric ciphers, the RSA and ECDSA signatures and the
+RSA key transport, `ext-openssl` does certificate path validation and key parsing, and digests run on `ext-hash`.
+The inbound timestamp parser reads instants with the ICU date formatter, which is why `ext-intl` is required.
+
+Coming from 3.x? Read the [upgrade guide](UPGRADE.md) first: the block names, the credential objects and several
+defaults are different.
 
 # Want to help out? 💚
 
@@ -26,8 +28,8 @@ composer require php-soap/psr18-wsse-middleware
 
 This package includes the [php-soap/psr18-transport](https://github.com/php-soap/psr18-transport/) package and is meant to be used together with it.
 
-Requires *at least* **PHP 8.4.21+**: signature canonicalization relies on a libxml fix that shipped in 8.4.21, and
-`ext-intl` and `ext-openssl` must be enabled. Install `ext-gmp` or `ext-bcmath` for native-speed RSA/ECDSA math.
+Requires **PHP 8.4.21** or newer, because signature canonicalization relies on a libxml fix that shipped in that
+patch release, with `ext-intl` and `ext-openssl` enabled. Install `ext-gmp` or `ext-bcmath` for native-speed RSA/ECDSA math.
 
 # WsaMiddleware
 
@@ -165,6 +167,17 @@ list you compose, so these are yours to get right:
 ## Common flows
 
 The following are complete, copy-pasteable setups. Adapt the file paths, credentials and parts to your service.
+
+| Flow | Reach for it when |
+|---|---|
+| [Username/password authentication](#usernamepassword-authentication) | The service just wants credentials, and you are on TLS |
+| [Signing a request and verifying the response](#signing-a-request-and-verifying-the-response) | You have a certificate and want mutual integrity. The standard case |
+| [SAML assertion flow](#saml-assertion-flow) | An STS issues you an assertion to present |
+| [Encrypting a request and decrypting the response](#encrypting-a-request-and-decrypting-the-response) | Part of the message is confidential, not just tamper-evident |
+| [Symmetric binding: a secret you and your peer already share](#symmetric-binding-a-secret-you-and-your-peer-already-share) | An `sp:SymmetricBinding` and you already hold a shared secret |
+| [Symmetric binding: one session key for the signature and the encryption](#symmetric-binding-one-session-key-for-the-signature-and-the-encryption) | An `sp:SymmetricBinding` and you have only their certificate |
+
+If you are new here, read the first two in order. The rest are self-contained.
 
 ### Username/password authentication
 
@@ -386,6 +399,77 @@ $transport = Psr18Transport::createForClient(
     ])
 );
 ```
+
+### Symmetric binding: a secret you and your peer already share
+
+The other way to key a symmetric binding, and the one worth reaching for first when you have the choice. Nothing
+about the key goes on the wire: both sides already hold it, so the message carries only a reference naming which
+of the agreed keys it used.
+
+That is what makes this the symmetric case that actually authenticates, and mutually: only the two holders of the
+secret can produce a MAC that verifies under it. So there is no endorsing signature here, and no certificate at
+all. What it does not give you is non-repudiation, since either side could have produced any given message.
+
+```php
+use Http\Client\Common\PluginClient;
+use Soap\Psr18Transport\Psr18Transport;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
+use Soap\Psr18WsseMiddleware\WsseMiddleware;
+
+// The secret itself: raw key bytes, from wherever your deployment keeps them. 32 bytes here, because
+// AES-256-GCM takes exactly that width and HMAC-SHA256 carries its full strength at it.
+$secret = SessionKey::fromBytes(base64_decode($config['wsse_shared_secret'], true));
+
+// One source, held by every block in both directions. The identifier is the name you and your peer agreed on
+// out of band, and it is carried verbatim, so it has to be base64 under the default encoding.
+$sharedSecret = new Keys\PreSharedSessionKey(
+    $secret,
+    base64_encode('our-agreed-key-name'),
+    WsSecurityValueType::EncryptedKeySha1->value,
+);
+
+$transport = Psr18Transport::createForClient(
+    new PluginClient($yourPsr18Client, [
+        new WsseMiddleware(
+            new SecurityProfile(),
+            outbound: [
+                new Outbound\Timestamp(),
+                (new Outbound\Signature(new Signing\Symmetric($sharedSecret)))
+                    ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+                    ->withParts([Part::body(), Part::timestamp()]),
+                (new Outbound\Encryption($sharedSecret))
+                    ->withParts([Part::body()]),
+            ],
+            inbound: [
+                // The same source both ways. No private key to unwrap with, and no trust store, because no
+                // certificate is involved in either direction.
+                new Inbound\Decrypt(preSharedKey: $sharedSecret),
+                new Inbound\VerifySignature(
+                    preSharedKey: $sharedSecret,
+                    signed: [Part::body(), Part::timestamp()],
+                ),
+                new Inbound\ValidateTimestamp(),
+            ],
+        ),
+    ])
+);
+```
+
+Which `ValueType` to agree on depends on the peer. A WSS4J or CXF one wants the WSS 1.1 `EncryptedKeySHA1` URI
+used above, because that is the only custom identifier its emitter writes for a shared secret. Nothing here is a
+digest of any cipher bytes, and it does not have to be: the URI names the shape of the reference rather than how
+the value was arrived at. Their reader takes any type at all, so a peer that is something else is free to agree
+on another. See [`PreSharedSessionKey`](docs/outbound-blocks.md#presharedsessionkey) for the arguments, and
+[Session keys](docs/key-stores.md#session-keys) for where the bytes come from and why they have to be a key
+rather than a passphrase.
 
 ### Symmetric binding: one session key for the signature and the encryption
 

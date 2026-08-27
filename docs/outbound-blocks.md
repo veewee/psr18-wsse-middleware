@@ -14,6 +14,29 @@ Two blocks take a credential object rather than a bare certificate: `Signature` 
 [Symmetric key sources](#symmetric-key-sources) below describe them, and they are worth reading before the
 blocks that consume them.
 
+## At a glance
+
+The whole outbound vocabulary, in the order you would list it. Copy what you need and read the section behind it
+when a default does not fit:
+
+```php
+new Outbound\Timestamp();                                           // wsu:Timestamp, 300s window
+new Outbound\Username('user', 'pass');                              // wsse:UsernameToken
+new Outbound\BinarySecurityToken($certificate);                     // your X.509, standalone
+new Outbound\Signature(new Signing\Asymmetric($clientCertificate)); // ds:Signature, X.509
+new Outbound\Signature(new Signing\Symmetric($keySource));          // ds:Signature, keyed MAC
+new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient));  // xenc:EncryptedData
+new Outbound\SamlAssertion($xml, Outbound\SamlVersion::Saml20);     // saml:Assertion from an STS
+```
+
+And the three places a symmetric key can come from, which both `Signing\Symmetric` and `Encryption` accept:
+
+| Where the key comes from | Use | On the wire |
+|---|---|---|
+| Minted here, wrapped under the peer's certificate | [`Keys\GeneratedSessionKey`](#generatedsessionkey) | An `xenc:EncryptedKey` |
+| Derived per use from one of the others | [`Keys\DerivedSessionKey`](#derivedsessionkey) | A `wsc:DerivedKeyToken` |
+| A secret both sides already hold | [`Keys\PreSharedSessionKey`](#presharedsessionkey) | Nothing; only a reference |
+
 ## Outbound: `Timestamp`
 
 Stamps the message with a created/expires window so the receiver can reject a stale or replayed call. It writes
@@ -261,7 +284,16 @@ use gets a key of its own.
 - `?string $label = null`: the derivation label. `null` uses the specification's own default, which is what
   every peer emitting this shape uses.
 - `int $offset = 0`: how far into the derived stream this key starts, for a peer that partitions one stream
-  across several keys.
+  across several keys. A derivation generates at most 128 bytes, and the bound covers the offset plus the key
+  width together rather than either on its own, so the usable ceiling depends on what consumes the key: 96 with
+  `HMAC_SHA256` or AES-256 (a 32-byte key), 112 with AES-128 (16 bytes). Partitioning one stream therefore gets
+  you at most four 32-byte keys.
+
+  The two refusals surface at different moments, which is worth knowing when you are working out which number
+  is wrong. An offset leaving no room for even the narrowest key this will ever derive (16 bytes) throws at
+  construction, at the line that wrote it. An offset that clears that floor but not the width a block actually
+  asks for throws when that block asks. The same 128-byte ceiling bounds what an inbound `wsc:Offset` or
+  `wsc:Generation` may ask for, so the two directions stay in step.
 
 There is no length argument: the consuming block's algorithm defines it, and it arrives with the request. Give
 each block a derived key of its own, which is also what makes the two derive to different keys:
@@ -336,6 +368,20 @@ new Outbound\Signature(new Signing\Asymmetric($clientCertificate));
 (new Outbound\Signature(new Signing\Asymmetric($clientCertificate, KeyRef::SubjectKeyIdentifier)))
     ->withParts([Part::body()]);
 ```
+
+| To | Use |
+|---|---|
+| Sign the Body and the Security-header contents | the default, nothing to write |
+| Sign a different set of parts | `->withParts([Part::body(), Part::timestamp()])` |
+| Sign with an EC key | `->withSignatureMethod(SignatureMethod::ECDSA_SHA256)` |
+| Sign with a shared secret instead of a certificate | `new Signing\Symmetric($keySource)` plus an `HMAC_*` method |
+| Reference the key some other way | `new Signing\Asymmetric($cert, KeyRef::Thumbprint)` |
+| Send your whole chain in the token | `new Signing\Asymmetric($cert, path: $bundle->chain)` |
+| Endorse another block's signature | `->withParts([Part::primarySignature()])`, listed last |
+| Also cover the attachments | `->withAttachments(AttachmentParts::request(...))` |
+| Satisfy a peer that needs ancestor prefixes pinned | `->withInclusivePrefixes()` |
+
+Every argument, and why each default is what it is:
 
 - `SigningKey $signingKey`: how the signature is keyed and referenced. Required. See
   [Signing keys](#signing-keys) for the two implementations and their own arguments.
@@ -444,6 +490,20 @@ new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient));
 // Reference the recipient by IssuerSerial:
 new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient, EncKeyRef::IssuerSerial));
 ```
+
+| To | Use |
+|---|---|
+| Encrypt the Body under a fresh session key | the default, nothing to write |
+| Encrypt a different set of parts | `->withParts([Part::body(), Part::element($ns, 'Order')])` |
+| Replace the element rather than its content | `Part::body()->withEncryptionMode(EncryptionMode::Element)` |
+| Share one key with a `Signature` block | pass that block the same key-source object |
+| Reference the recipient some other way | `new Keys\GeneratedSessionKey($cert, EncKeyRef::Thumbprint)` |
+| Use a different bulk cipher | `->withDataEncryptionMethod(DataEncryptionMethod::AES128_GCM)` |
+| Use a different key transport | `new Keys\GeneratedSessionKey($cert, keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha256())` |
+| Also encrypt the attachments | `->withAttachments(AttachmentParts::request(...))` |
+| Move the cipher bytes into MIME parts | `->withOptimizedCipherBytes(AttachmentParts::request(...))` |
+
+Every argument, and why each default is what it is:
 
 - `SymmetricKeySource $key`: where the session key comes from. Required. See
   [Symmetric key sources](#symmetric-key-sources). The block asks for exactly the width its data-encryption

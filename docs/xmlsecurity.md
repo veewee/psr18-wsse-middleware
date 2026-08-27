@@ -112,12 +112,17 @@ because a MAC is not a signature: one key both produces and checks it, so it ide
 certificate to load. Its comparison is constant-time and refuses unequal lengths, which is what makes a
 truncated MAC a failure rather than a prefix match.
 
+The four interfaces a `with*()` override implements:
+
 ```php
-public function sign(Document $document, SigningRequest $request): void;
-public function encrypt(Document $document, EncryptionRequest $request): void;
+public function sign(Document $document, SigningRequest $request): SignedExternalParts;
+public function encrypt(Document $document, EncryptionRequest $request): EncryptionResult;
 public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature;
-public function decrypt(Document $document, DecryptionRequest $request): void;
+public function decrypt(Document $document, DecryptionRequest $request): DecryptionResult;
 ```
+
+Each return value reports what the operation actually covered, which is what lets a block refuse a replaceable
+service that protected less than it was handed.
 
 ### Enveloped signatures (layer level only)
 

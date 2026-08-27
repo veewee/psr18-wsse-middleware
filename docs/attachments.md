@@ -1,5 +1,7 @@
 # Attachment security
 
+[← Back to the deep dives](../README.md#deep-dives)
+
 Signing, verifying, encrypting and decrypting SOAP attachments as first-class parts of the message, under the
 same key material as the body.
 

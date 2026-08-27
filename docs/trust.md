@@ -5,6 +5,22 @@
 Background for [`Inbound\VerifySignature`](inbound-blocks.md#inbound-verifysignature): what anchoring a
 certificate does and does not buy you, and how to close the gap.
 
+## At a glance
+
+Anchoring a CA proves a response was signed by somebody that CA vouched for, never that it was signed by your
+service. Pick how you close that:
+
+| Your situation | Do this | Cost |
+|---|---|---|
+| One endpoint, a stable certificate | Pin it: `TrustStore::fromCertificates($theirLeaf)` | You ship a new file when they rotate |
+| Many endpoints, or short-lived certificates | Anchor the CA and add `->onTrustedSigner($check)` | You write the identity check |
+| You need revocation as well | Anchor the CA and add `->withRevocationLists(...)` | You supply and refresh the CRLs |
+| A CA you fully control, issuing only to you | Anchor it alone | Nothing, if that stays true |
+
+**Pinning and revocation checking do not combine.** Revocation wants a list issued by the signer's own issuer,
+and a pinned certificate is not its own issuer, so the check fails closed. Adding the CA to fix that re-trusts
+everything that CA ever signed, which is what the pin existed to prevent. Pick one row, not two.
+
 ## Chain validity is not authentication
 
 **If you anchor a CA, you are trusting every certificate that CA ever issued.** The check proves the response

@@ -9,6 +9,28 @@ The package wraps your keys and certificates in small value objects:
 - `KeyStore\ClientCertificate`: a certificate and a private key together in one PEM bundle.
 - `KeyStore\SessionKey`: raw symmetric key bytes. See [Session keys](#session-keys).
 
+## At a glance
+
+Start from the file you were handed. This is the whole decision:
+
+| What you have | Load it with | You get |
+|---|---|---|
+| A certificate and its key in one PEM | `ClientCertificate::fromFile('client.pem')` | A signing identity |
+| A certificate and a key in separate PEMs | `Certificate::fromFile(...)` and `Key::fromFile(...)` | The two halves separately |
+| A public certificate alone | `Certificate::fromFile('service.pub')` | An encryption recipient, or a token to embed |
+| A private key alone | `Key::fromFile('key.priv')` | A decryption key |
+| A `.p12` / `.pfx` identity bundle | `Pkcs12Bundle::fromFile(...)`, then `ClientCertificate::fromPkcs12($bundle)` | A signing identity, chain included |
+| A trusted-CA file: several certificates, no key | `TrustStore::fromPem(Pem::fromFile('anchors.pem'))` | Trust anchors, **every** certificate |
+| A `.jks` / `.jceks` Java keystore | Nothing here reads it. [Convert it first](#converting-a-java-keystore) | Whichever of the above it held |
+| An agreed shared secret, as raw bytes | `SessionKey::fromBytes(...)` | A [pre-shared key](outbound-blocks.md#presharedsessionkey) |
+
+Add `->withPassphrase('xxx')` to a `Key` or `ClientCertificate` whose key is encrypted. A `Pkcs12Bundle` takes
+its passphrase up front and hands back a key that is already decrypted, so nothing follows it.
+
+**The one trap worth naming up front:** use `TrustStore::fromPem()` for a truststore, never
+`TrustStore::fromPkcs12()`. The latter is built for an identity bundle and skips entry 0 as the leaf, which
+silently costs you an anchor. The rows above are already the right way round.
+
 ```php
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
@@ -94,7 +116,7 @@ hands the key back through `->privateKey(): ?Key`, which is `null` when the file
 Deciding whether a key belongs in the file is the caller's job, not the reader's:
 
 - `TrustStore::fromPem()` refuses it. A trust store holds public certificates only, so a key there means the
-  wrong file was exported — usually a client bundle where a trusted-CA file was meant.
+  wrong file was exported, usually a client bundle where a trusted-CA file was meant.
 - `ClientCertificate` is the class for a certificate and its private key in one file, and `Key` for a private
   key on its own.
 

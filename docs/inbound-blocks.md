@@ -9,6 +9,32 @@ default and what it expects.
 See [Outbound blocks](outbound-blocks.md) for their request-side counterparts, and the
 [README](../README.md#the-building-blocks) for the order to list them in.
 
+## At a glance
+
+The whole inbound vocabulary, in the order it has to run. Copy what you need and read the section behind it when
+a default does not fit:
+
+```php
+new Inbound\ResolveOptimizedBytes(AttachmentParts::response(...)); // put back bytes moved to MIME parts
+new Inbound\Decrypt($privateKey);                                  // open the xenc:EncryptedData parts
+new Inbound\VerifySignature($trustStore, signed: [Part::body()]);  // verify, and require what was covered
+new Inbound\ValidateTimestamp();                                   // reject a stale or future-dated reply
+```
+
+The order is a security property, not a style: verifying before decrypting fails closed against an
+encrypt-then-sign peer, and `ValidateTimestamp` means nothing unless `Part::timestamp()` is in the `signed:`
+list above it. An empty `inbound` list checks nothing at all.
+
+Both key-taking blocks answer the same question, "what key material do I hold?", and at least one answer is
+required:
+
+| What you hold | `Decrypt` | `VerifySignature` |
+|---|---|---|
+| A private key, for a key a peer wrapped to you | `new Inbound\Decrypt($privateKey)` | not applicable |
+| Certificates you trust as signers | not applicable | `new Inbound\VerifySignature($trustStore, ...)` |
+| A secret both sides already hold | `preSharedKey: $sharedSecret` | `preSharedKey: $sharedSecret` |
+| The key your own request conveyed | `useEstablishedKey: true` | `useEstablishedKey: true` |
+
 ## Inbound: `ResolveOptimizedBytes`
 
 Puts back the bytes a peer moved out of the document. Place it **first** in the inbound list, ahead of
@@ -59,8 +85,8 @@ Only code that deliberately registered this block ever sees them.
 ## Inbound: `Decrypt`
 
 Decrypts the `xenc:EncryptedData` parts of the response with your private key. Each encrypted part is replaced
-in place by its plaintext. Place it first in the inbound list, before verification, so the verifier sees the
-plaintext.
+in place by its plaintext. Place it before `VerifySignature`, so the verifier sees the plaintext (and after
+`ResolveOptimizedBytes` if you registered that too).
 
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
@@ -70,6 +96,16 @@ $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 
 new Inbound\Decrypt($privateKey);
 ```
+
+| To | Use |
+|---|---|
+| Open parts a peer wrapped under your certificate | `new Inbound\Decrypt($privateKey)` |
+| Open parts keyed by a secret both sides hold | `new Inbound\Decrypt(preSharedKey: $sharedSecret)` |
+| Open parts keyed by what your request conveyed | `new Inbound\Decrypt(useEstablishedKey: true)` |
+| Accept either of the last two shapes | pass both, in one block |
+| Also decrypt the attachments | `->withAttachments(AttachmentParts::response(...))` |
+
+Every argument, and why each default is what it is:
 
 - `?Key $privateKey = null`: your recipient private key as a `KeyStore\Key`, which unwraps an
   `xenc:EncryptedKey` a peer wrapped for you.
@@ -171,10 +207,23 @@ new Inbound\VerifySignature($trustStore,
 );
 ```
 
+| To | Use |
+|---|---|
+| Require the Body was signed | the default, nothing to write |
+| Require more than the Body | `signed: [Part::body(), Part::timestamp()]` |
+| Require every Security-header token was signed | `signed: [..., Part::securityHeaderContents()]` |
+| Verify a MAC keyed by a shared secret | `preSharedKey: $sharedSecret` |
+| Verify a MAC keyed by your own request's key | `useEstablishedKey: true` |
+| Check *which* peer signed, not just that one did | `->onTrustedSigner($check)`, see [Trust](trust.md) |
+| Turn on revocation checking | `$trustStore->withRevocationLists(...)` |
+| Require the attachments were covered | `->withAttachments(AttachmentParts::response(...))` |
+
+Every argument, and why each default is what it is:
+
 - `?TrustStore $trustStore = null`: the certificates you trust as signers. Build it with
-  `TrustStore::fromCertificates(...)`. Required, and still required for a purely symmetric deployment: the block
-  cannot know in advance which kind of signature will arrive, and one keyed by a certificate must still be
-  checked against something. Pass a store holding the anchors you would accept.
+  `TrustStore::fromCertificates(...)`. Leave it out only where no certificate-keyed signature can arrive, since
+  a signature keyed by one has to be checked against something and a store that is absent cannot check it. A
+  deployment that receives both shapes passes this alongside its secret.
 - `signed: ?list<Part> $signed = null`: the parts that **must** be covered by a trusted signature. Pass it as a
   named argument (`signed:`). `null`, the default, requires `Part::body()`: without that floor, a peer holding
   any trusted certificate could sign one decoy element it minted in its own Security header and leave the body
@@ -289,6 +338,13 @@ this block refuses may well be one a WSS4J or CXF receiver accepts.
   `Inbound\Decrypt` when the attachments arrive encrypted, so the digest is checked against the plaintext the
   far side signed.
 
+  **A pointer is not the bytes it names.** A signature over an element holding an `xop:Include` is refused
+  unless that same signature also carries a `ds:Reference` digesting the bytes the pointer names. Registering
+  the attachment is what makes such a reference checkable, and registration alone is not enough: a part being
+  available says it arrived, not that anything vouches for it. A default WSS4J receiver does not expand such an
+  element before verifying, so a signature covering only the pointer verifies there while the file it stands for
+  travels unprotected. Refusing is deliberate, because matching that peer would mean reproducing the weakness.
+
 The accepted signature, digest and canonicalization algorithms come from the profile's allow-lists. By default
 the signature allow-list covers RSA and ECDSA at SHA-256/384/512, and only the exclusive C14N variants are
 accepted; to accept an inclusive variant, add it to the profile's `acceptedCanonicalizations` (see
@@ -342,25 +398,13 @@ whether anyone vouched for them. Unless `Part::timestamp()` is in `VerifySignatu
 rewrites both values and the window is unbounded, which makes this block decorative. Register the two together:
 
 ```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+
 inbound: [
     new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]),
     new Inbound\ValidateTimestamp(),
 ],
 ```
-
-```php
-use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
-
-new Inbound\ValidateTimestamp();
-```
-
-**The same rule applies on the way in.** A signature over an element holding an `xop:Include` is refused
-unless that same signature also carries a `ds:Reference` digesting the bytes the pointer names. Registering
-the attachment here is what makes such a reference checkable, but registration alone is not enough: a part
-being available says it arrived, not that anything vouches for it. A default WSS4J receiver does not expand
-such an element before verifying, so a signature covering only the pointer verifies there while the file it
-stands for travels unprotected. Refusing is deliberate: matching that peer would mean reproducing the
-weakness.
 
 - No required arguments. The freshness window (clock skew and maximum age) comes from the `SecurityProfile` on
   the context: `clockSkew()` and `timestampTtl()`. Configure the window on the profile, not on this block.

@@ -4,6 +4,39 @@
 
 A few value objects let you say which parts to protect and how a token is referenced.
 
+## At a glance
+
+| To name | Use | Notes |
+|---|---|---|
+| The SOAP Body | `Part::body()` | By position, so a moved Body no longer answers |
+| The `wsu:Timestamp` | `Part::timestamp()` | Needs a `Timestamp` block to produce one |
+| The `wsse:UsernameToken` | `Part::usernameToken()` | |
+| The `wsse:BinarySecurityToken` | `Part::binarySecurityToken()` | |
+| One element by qualified name | `Part::element($namespace, $localName)` | Exactly one must match, or it is refused |
+| One element by its position | `Part::path(...$steps)` | Binds the element to where a reader looks |
+| One element by `wsu:Id` | `Part::byId($id)` | Names an element but not a position |
+| Everything in the Security header | `Part::securityHeaderContents()` | Dynamic. In the signing default |
+| Every other SOAP header block | `Part::soapHeaders()` | Dynamic. Excludes `wsse:Security` |
+| The signature already in the header | `Part::primarySignature()` | Outbound only, for an endorsement |
+
+And how a key is referenced:
+
+| To reference the key by | Signing | Encryption |
+|---|---|---|
+| An embedded token the signature points at | `KeyRef::BinarySecurityToken` (default) | `EncKeyRef::BinarySecurityToken` |
+| The certificate's Subject Key Identifier | `KeyRef::SubjectKeyIdentifier` | `EncKeyRef::SubjectKeyIdentifier` (default) |
+| Its issuer and serial number | `KeyRef::IssuerSerial` | `EncKeyRef::IssuerSerial` |
+| Its thumbprint | `KeyRef::Thumbprint` | `EncKeyRef::Thumbprint` |
+| A SAML assertion in the header | `KeyRef::SamlAssertion` | not applicable |
+| Something this package does not model | `Signature::withKeyIdentifier(...)` | not applicable |
+
+`KeyRef` goes on the [`Signing\Asymmetric`](outbound-blocks.md#signing-keys) and `EncKeyRef` on the
+[`GeneratedSessionKey`](outbound-blocks.md#generatedsessionkey), not on the block, because both say how a
+*key* is named rather than what gets protected. The rest of this page is what each one means and when the
+distinctions bite.
+
+## Parts
+
 `Part` names the parts a block targets:
 
 - `Part::body()`: the SOAP Body. Named by its position (`Envelope` then `Body`), not by its name alone, so a
@@ -81,6 +114,8 @@ every such element to have been signed.
   an endorsed message carries two signatures, so requiring this part inbound refuses it. See
   [Endorsing a signature](outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control).
 
+## Key references
+
 `KeyRef` (for signing), and `EncKeyRef` (for encryption) choose how your certificate is referenced:
 
 - `Outbound\KeyReference\KeyRef`: `BinarySecurityToken` (embed the token and point at it; the X.509 interop default for
@@ -110,6 +145,8 @@ guessed at rather than what was wrong.
 Inbound, both forms resolve against the keys the exchange established and against nothing else. A reference
 naming a key this exchange never saw is refused rather than searched for; see
 [Inbound blocks](inbound-blocks.md).
+
+## Trust anchors
 
 `KeyStore\TrustStore::fromCertificates(Certificate ...$anchors)` lists the certificates you trust when verifying a
 response. Each entry may be a CA to chain up to, or the peer's own certificate, which is honoured as a direct

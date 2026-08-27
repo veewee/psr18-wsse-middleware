@@ -33,6 +33,38 @@ $profile = new SecurityProfile(
 );
 ```
 
+## The defaults at a glance
+
+Everything `new SecurityProfile()` gives you, and where to change it. Outbound choices can also be overridden
+per block; the inbound allow-lists cannot, because they are the floor.
+
+| Setting | Default | Direction |
+|---|---|---|
+| `timestampTtl` | 300 seconds | Both: the window you send and the maximum age you accept |
+| `clockSkew` | 60 seconds | Inbound tolerance against the local clock |
+| `actorOrRole` | `null`, the ultimate receiver | Both: which header is written and which is read |
+| `mustUnderstand` | `true` | Outbound |
+| `wsSecureConversation` | `V2005_12` | Outbound only; both dialects are read |
+| `signatureMethod` | `RSA_SHA256` | Outbound |
+| `digestMethod` | `SHA256` | Outbound |
+| `canonicalization` | `EXC_C14N` | Outbound |
+| `dataEncryptionMethod` | `AES256_GCM` | Outbound |
+| `keyEncryptionMethod` | `RSA_OAEP` | Outbound |
+| `oaepHash` | `Sha1` | Outbound |
+| `acceptedSignatureMethods` | RSA, ECDSA and HMAC at SHA-256/384/512 | Inbound |
+| `acceptedDigestMethods` | SHA-256/384/512 | Inbound |
+| `acceptedCanonicalizations` | the exclusive variants only | Inbound |
+| `acceptedDataEncryptionMethods` | the three GCM ciphers only | Inbound |
+| `acceptedKeyEncryptionMethods` | RSA-OAEP and RSA-OAEP-MGF1P | Inbound |
+| `acceptedOaepHashes` | SHA-1 and SHA-256 | Inbound |
+| `minimumRsaKeyBits` | 1024. **Raise to 2048 if your peer allows** | Inbound |
+| `minimumEcKeyBits` | 224 | Inbound |
+
+The three you are most likely to need to change are `acceptedDataEncryptionMethods` (a .NET/WCF peer offers only
+CBC), `acceptedSignatureMethods` (an older algorithm suite pins SHA-1), and `acceptedCanonicalizations` (a peer
+whose references carry no `ds:Transforms`). Each costs something, and
+[What is rejected inbound by default](#what-is-rejected-inbound-by-default-and-why) is the table of what.
+
 `SecurityProfile` carries the WS-Security freshness window, how the Security header is targeted, and composes a
 `CryptoPolicy`:
 

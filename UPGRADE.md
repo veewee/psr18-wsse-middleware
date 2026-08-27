@@ -1,10 +1,43 @@
 # Upgrade guide
 
-## Upgrading to the new major version
+## Upgrading from 3.x
 
 Everything below is written against the last released version. This release swaps the old `robrichards/wse-php`
 wrapper for an XML-Security layer that lives in this package. You still build security as a list of blocks, so
 the idea is familiar, but the names, the credential objects and several defaults changed.
+
+### The short version
+
+Nine things account for almost every port. Work through them in this order and the rest of this guide is
+reference you read when something does not fit:
+
+1. Get onto **PHP 8.4.21** or newer and enable `ext-intl`. Below that patch level, canonicalization corrupts
+   your signature digests. [Details](#php-8421-is-the-minimum)
+2. Drop `robrichards/wse-php`, `robrichards/xmlseclibs` and the `cweagans/composer-patches`
+   workaround from your `composer.json`. Nothing replaces them.
+   [Details](#the-xml-security-layer-is-now-part-of-this-package)
+3. Pass a **`SecurityProfile` as the first argument** to `WsseMiddleware`, and rename `outgoing:` to
+   `outbound:` and `incoming:` to `inbound:`. [Details](#two-block-lists-instead-of-one)
+4. Rename `WSSecurity\Entry\*` to `WSSecurity\Outbound\*`, and `WSSecurity\KeyStore\*` to `KeyStore\*`.
+   [Details](#outbound-blocks-moved-and-were-renamed)
+5. Wrap your credentials: `Outbound\Signature` takes a `Signing\Asymmetric`, `Outbound\Encryption` takes a
+   `Keys\GeneratedSessionKey`. The `KeyIdentifier` objects become the `KeyRef` and `EncKeyRef` enums on those
+   credentials. [Details](#blocks-take-credentials-not-crypto-wiring)
+6. Replace the `withSignBody()` / `withSignAllHeaders()` booleans with a `withParts([...])` list of `Part`
+   values. [Details](#what-the-signature-block-signs-is-now-a-list-of-parts)
+7. Check the **changed wire defaults**. SHA-256 replaces SHA-1, GCM replaces CBC, and the timestamp window
+   drops from an hour to five minutes. A peer that pins the old algorithms needs them set back explicitly.
+   [Details](#secure-defaults-changed-on-the-wire)
+8. If you used `WsaMiddleware` without `WsaMiddleware2005`, you were on the 2004/08 namespace and now have to
+   ask for it: the default moved to 2005/08. [Details](#one-ws-addressing-middleware)
+9. **Add an inbound list.** The previous version could only decrypt a response; it could not verify one. An
+   empty `inbound` list checks nothing, so if you sign outbound, verify inbound.
+   [Details](#inbound-is-now-a-real-explicit-list)
+
+Then there is a set of capabilities that did not exist before, so nothing needs porting for them: verifying and
+timestamp-checking a response, symmetric bindings (one session key shared by a signature and an encryption),
+derived keys, endorsing signatures, ECDSA, `.p12` and PEM-bundle loading, revocation checking, and secured SOAP
+attachments. Each has its own section below.
 
 ### The XML-Security layer is now part of this package
 
@@ -65,6 +98,7 @@ not what the previous version sent. If a peer pins the old algorithms, set them 
 | Encrypted parts | Body **and the signature** (`encryptSignature` defaulted to `true`) | Body only |
 | Encryption key reference | had to be passed explicitly | `EncKeyRef::SubjectKeyIdentifier` |
 | Signature key reference | had to be passed explicitly | `KeyRef::BinarySecurityToken` |
+
 **An encryption on its own emits the bytes it always did.** The `xenc:ReferenceList` stays nested inside the
 `xenc:EncryptedKey` and no `ds:KeyInfo` appears on the `xenc:EncryptedData`, so a peer reading your messages
 today sees no change.
@@ -130,7 +164,7 @@ new WsseMiddleware(
 );
 ```
 
-The defaults (`null` and `true`) are the previous behaviour exactly. An untargeted header carrying
+The defaults (`null` and `true`) are the previous behaviour exactly: an untargeted header carrying
 `mustUnderstand="1"`. One value drives both directions: outbound it targets the header the blocks write,
 inbound it selects the header they read. Set it if your deployment is addressed as a named intermediary rather
 than the ultimate receiver: a response whose Security header is addressed to an explicit actor/role is only
@@ -349,12 +383,12 @@ The boolean switches are gone. `withSignAllHeaders()`, `withSignBody()`, `withSi
 ```
 
 The default is `[Part::body(), Part::securityHeaderContents()]`, where `securityHeaderContents()` is a dynamic
-part covering every element present in the `wsse:Security` header when the request is built. The Timestamp and
-any tokens. The previous default signed the Body and all SOAP headers, so the closest equivalent is
+part covering every element present in the `wsse:Security` header when the request is built, which is the
+Timestamp and any tokens. The previous default signed the Body and all SOAP headers, so the closest equivalent is
 `[Part::body(), Part::soapHeaders(), Part::securityHeaderContents()]`.
 
 The available factories are `body()`, `timestamp()`, `usernameToken()`, `binarySecurityToken()`,
-`securityHeaderContents()`, `soapHeaders()` (every SOAP header block except `wsse:Security`. The equivalent of
+`securityHeaderContents()`, `soapHeaders()` (every SOAP header block except `wsse:Security`, the equivalent of
 `wse-php`'s `signAllHeaders`), `primarySignature()`, `element(namespace, localName)` and `byId(id)`. The three
 dynamic parts also work inbound: pass them to `Inbound\VerifySignature`'s `signed:` list to require every
 Security-header token (or every other SOAP header, or the primary signature) was signed.
@@ -388,8 +422,8 @@ certificate your anchor issued. It is stricter than WSS4J and Apache CXF, which 
 references and never ask which credential covered what, so a message this refuses may be one they accept.
 
 `Outbound\Encryption` takes the same `withParts()` list to choose what gets encrypted, and defaults to the Body
-alone. Its `withEncryptSignature(bool)` switch is gone with the other booleans: and it used to default to
-`true`, so the previous version encrypted the signature as well. Name the signature as a part to keep that:
+alone. Its `withEncryptSignature(bool)` switch is gone with the other booleans, and it used to default to `true`,
+so the previous version encrypted the signature as well. Name the signature as a part to keep that:
 
 ```php
 (new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate)))
@@ -405,8 +439,8 @@ constructing an object, and the certificate it describes is derived from the cre
 |---|---|
 | `new BinarySecurityTokenIdentifier()` | `KeyRef::BinarySecurityToken` |
 | `new X509SubjectKeyIdentifier($certificate)` | `KeyRef::SubjectKeyIdentifier` |
-|. | `KeyRef::IssuerSerial` (new) |
-|. | `KeyRef::Thumbprint` (new) |
+| (no equivalent) | `KeyRef::IssuerSerial` |
+| (no equivalent) | `KeyRef::Thumbprint` |
 
 `KeyRef` selects the reference for a `Signing\Asymmetric`; `EncKeyRef` offers the same four cases for a
 `GeneratedSessionKey` (encryption has no Holder-of-Key equivalent). Both live under
@@ -515,9 +549,7 @@ XML-Security layer be driven by a `CryptoPolicy` alone, without the SOAP profile
   Inbound, the ECDSA methods are in the default accepted signature allow-list.
 - **Keyed-MAC signing.** `SignatureMethod` gained `HMAC_SHA1`, `HMAC_SHA224`, `HMAC_SHA256`, `HMAC_SHA384` and
   `HMAC_SHA512`, which is what a `SymmetricBinding` policy asks for. They are keyed by a shared secret rather
-  than by a certificate, so they need a `Signing\Symmetric`; pairing one with an
-  `Signing\Asymmetric` throws,
-  because that would make the "secret" the peer's public key bytes. The SHA-2 sizes are in the default accepted
+  than by a certificate, so they need a `Signing\Symmetric`; pairing one with a `Signing\Asymmetric` throws, because that would make the "secret" the peer's public key bytes. The SHA-2 sizes are in the default accepted
   allow-list and the SHA-1 one is not, exactly as with RSA. `SignatureMethod::isEcdsa()` is replaced by
   `keyKind()`, returning a `SignatureKeyKind`, so every consumer decides what each kind means rather than
   defaulting to the RSA route.
@@ -566,8 +598,8 @@ new WsaMiddleware();                                                // 2005/08 i
 The `WSA_ADDRESS_ANONYMOUS` constant is gone; each version's anonymous URI comes from
 `WsaNamespace::anonymousUri()` and is used automatically when `replyTo` is left unset.
 
-`WsaOptions` also exposes what the middleware previously derived with no way to override: `action` and `to`:
-plus two properties that could not be sent at all before: `from` and `faultTo`. All of them default to `null`,
+`WsaOptions` also exposes what the middleware previously derived with no way to override (`action` and `to`),
+plus two properties that could not be sent at all before (`from` and `faultTo`). All of them default to `null`,
 which keeps the previous behaviour: `action` from the request's `SOAPAction`, `to` from the request URI, and
 `From`/`FaultTo` omitted. `wsa:MessageID` is still generated per message and is deliberately not configurable.
 
@@ -589,7 +621,7 @@ and WSSE has to see plain XML on the way out and a split multipart on the way ba
 new WsseMiddleware(
     new SecurityProfile(),
     outbound: [
-        (new Outbound\Signature($clientCertificate))
+        (new Outbound\Signature(new Signing\Asymmetric($clientCertificate)))
             ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete)),
     ],
     inbound: [
