@@ -245,6 +245,37 @@ The assertion XML maps to `new Outbound\SamlAssertion($xml, $version)`. The form
 and signs an assertion inside SoapUI, has no counterpart: this package imports an assertion, it does not issue
 one. Ask where the real assertion comes from.
 
+## WS-Addressing: `<con:wsaConfig>`
+
+Not WS-Security, and not part of `WssContainer`: it sits on the request, and falls back to the operation and
+then the interface, so read it from the same request whose `outgoingWss` you followed. It maps onto
+`WsaMiddleware`, a separate middleware; see [the shared rules](../../references/wsse-import-rules.md) for the
+four facts that hold whatever format you read addressing from.
+
+```xml
+<con:wsaConfig mustUnderstand="NONE" version="200508" action="urn:getAdminToken" generateMessageId="true"/>
+```
+
+| Attribute | Ours |
+|---|---|
+| `version="200508"` | `WsaNamespace::W3c200508`, already the default |
+| `version="200408"` | `WsaNamespace::Submission200408` |
+| `addDefaultAction="true"` | The default: `action: null` takes it from the request's `SOAPAction` |
+| `addDefaultTo="true"` | The default: `to: null` uses the request URI |
+| `action="..."` | `new WsaOptions(action: '...')`. Check it looks like a URI first: projects here carry bare local names such as `getAdminToken`, which go on the wire verbatim and are probably not what the service matches on. Raise one that does. |
+| `addDefaultTo="false"` with no `to` | Omitting `wsa:To` altogether, which is not representable: `to: null` derives one rather than dropping it. Raise it. |
+| `replyTo` = the version's `/anonymous` URI | `replyTo: null`, the default. The commonest value in real projects. |
+| `replyTo` = the version's `/none` URI | Discard the reply. Not usable from a request/response client, and not representable. Raise it. |
+| `replyTo` / `faultTo` = a real address | `new WsaOptions(replyTo: '...', faultTo: '...')`, but see the shared rules: an address needs something listening, which this client is not. |
+| `from="..."` | `new WsaOptions(from: '...')` |
+| `generateMessageId`, `messageID` | Unmapped either way. The id is always freshly generated and can be neither fixed nor suppressed. SoapUI's values here are usually property expansions like `${Properties#MessageID}`. |
+| `relatesTo` | Unmapped, and meaningless outbound |
+| `replyToRefParams`, `faultToRefParams` | Unmapped: reference parameters on the endpoint reference |
+| `mustUnderstand="NONE"`, `"TRUE"`, `"FALSE"` | Unmapped. These headers carry no `mustUnderstand` here, and `SecurityProfile(mustUnderstand:)` is the Security header, not this. `NONE` is what almost every real project carries anyway. |
+
+An empty attribute value (`from=""`, `messageID=""`) is unset, the same convention as the empty elements inside
+`<con:configuration>`. A project with no `wsaConfig` at all wants no addressing, so add no middleware.
+
 ## Parts
 
 Both the Signature and Encryption entries carry a Parts table, and it is not stored as a table. Each row is one

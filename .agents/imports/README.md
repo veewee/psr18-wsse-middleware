@@ -9,7 +9,7 @@ they were.
 imports/
   psalm.xml     typechecks drafts/, because the project's psalm.xml covers src/ only
   fetch.sh      refills samples/ from scratch
-  drafts/       the wiring the skills produce, one file per sample
+  drafts/       the wiring the skills produce, one file per sample (three carry WsaMiddleware)
   samples/      third-party configuration files: wspolicy, metro, soapui, ibm
 ```
 
@@ -43,7 +43,7 @@ re-derive them by running the skills over `samples/`, which is the exercise anyw
 | `samples/wspolicy/` | `apache/cxf`, `systests/ws-security` | 32 WS-SecurityPolicy files. The `*-policy.xml` are standalone alternatives; the `DoubleIt*.wsdl` show the binding plus `wsdl:input`/`wsdl:output` split, attachments with both `sp13` transforms, symmetric bindings, derived keys, endorsing tokens under both binding kinds |
 | `samples/metro/` | `eclipse-ee4j/metro-wsit` | Metro's own idioms: `sc:KeyStore`/`sc:TrustStore` inside a policy, `sp:SamlToken`, `sp:WssX509V1Token10`, the 2005/07 namespace |
 | `samples/soapui/` | `RUB-NDS/SOAP-Test-Webservices`, plus three others | Seven projects with real Signature, Encryption and Timestamp entries against Axis2, Metro and CXF. The SmartBear WSTF ones have empty `wssContainer` elements and are kept only as a counter-example |
-| `samples/ibm/` | `IBM/webspherelab`, `windup/windup-java-ee-tests` | The shipped WebSphere policy-set library (`policy.xml`) with the cell's general `bindings.xml`, plus the one JAX-RPC `ibm-webservicesclient-ext.xmi` found carrying security config. Other public `.xmi` files are empty stubs and are not fetched |
+| `samples/ibm/` | `IBM/webspherelab`, `windup/windup-java-ee-tests` | The shipped WebSphere policy-set library (`policy.xml`) with the cell's general `bindings.xml`, plus one policy set's `WSAddressing/policy.xml` and the one JAX-RPC `ibm-webservicesclient-ext.xmi` found carrying security config. Other public `.xmi` files are empty stubs and are not fetched |
 
 ## What is still missing
 

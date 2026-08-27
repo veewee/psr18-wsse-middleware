@@ -116,6 +116,41 @@ The same doubling shows up on header assertions: a `sp:Header Namespace=` for bo
 `http://schemas.xmlsoap.org/ws/2004/08/addressing` and `http://www.w3.org/2005/08/addressing` is one
 requirement about addressing headers, written twice.
 
+### The `WSAddressing` policy type
+
+A policy set carries one `PolicyTypes/WSAddressing/policy.xml` beside its `WSSecurity` one, and it is a
+different vocabulary again: WS-Addressing 1.0 Metadata, `wsam:` on
+`http://www.w3.org/2007/05/addressing/metadata`. Every shipped set has one and they are all this shape:
+
+```xml
+<wsp:Policy>
+  <wsp:ExactlyOne><wsp:All>
+    <wsam:Addressing wsp:Optional="true">
+      <wsp:Policy><wsp:ExactlyOne>
+        <wsp:All/>
+        <wsam:AnonymousResponses/>
+        <wsam:NonAnonymousResponses/>
+      </wsp:ExactlyOne></wsp:Policy>
+    </wsam:Addressing>
+  </wsp:All></wsp:ExactlyOne>
+</wsp:Policy>
+```
+
+| Assertion | Ours |
+|---|---|
+| `wsam:Addressing` | `new WsaMiddleware()`, beside the `WsseMiddleware` rather than inside it |
+| `wsp:Optional="true"` on it | Addressing is permitted, not required. Sending it conforms either way, so send it. |
+| `wsam:AnonymousResponses` | `replyTo: null`, which is the version's anonymous URI, so nothing to write |
+| `wsam:NonAnonymousResponses` | The reply goes to an address you name, which a PSR-18 client has nothing listening on. Raise it rather than setting `replyTo:` and calling it done. |
+| The empty `<wsp:All/>` alternative | Either response style is accepted, so the default is fine |
+
+Unlike the `WSSecurity` policy this one does use `wsp:ExactlyOne`, and it is nested: the outer one has a single
+alternative and the inner one offers three. Note also `xmlns:wsp="http://www.w3.org/ns/ws-policy"` here, WS-Policy
+1.5, where the `WSSecurity` policy in the same set uses 1.2. One policy set, two policy namespaces.
+
+See [the shared rules](../../references/wsse-import-rules.md) for what holds about addressing whatever format
+it came from.
+
 ### `bindings.xml`
 
 ```xml

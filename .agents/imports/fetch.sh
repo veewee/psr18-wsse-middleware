@@ -71,6 +71,7 @@ for pair in \
   "PolicySets/LTPA WSSecurity default/PolicyTypes/WSSecurity/policy.xml|wasps_LTPA_policy.xml" \
   "PolicySets/Username SecureConversation/PolicyTypes/WSSecurity/policy.xml|wasps_UsernameSecureConv_policy.xml" \
   "PolicySets/TrustServiceSymmetricDefault/PolicyTypes/WSSecurity/policy.xml|wasps_TrustSymmetric_policy.xml" \
+  "PolicySets/Username WSSecurity default/PolicyTypes/WSAddressing/policy.xml|wasps_Username_wsaddressing_policy.xml" \
   "PolicyTypes/WSSecurity/bindings.xml|wasps_general_bindings.xml"
 do
   fetch_content IBM/webspherelab main "$WASCELL/${pair%%|*}" "samples/ibm/${pair##*|}" \

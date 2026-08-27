@@ -29,6 +29,7 @@ Consult these when the mapping reaches them:
 - [Security profile and defaults](../../docs/security-profile.md), for what is refused inbound and why
 - [Key stores](../../docs/key-stores.md), for loading certificates, keys, PEM bundles and PKCS#12 bundles
 - [Trust](../../docs/trust.md), for anchors, pinning and revocation
+- [WsaMiddleware](../../docs/wsa-middleware.md), when the source configures WS-Addressing; see below
 - [.agents/domain-glossary.md](../domain-glossary.md), for the canonical name of anything you are about to write
 
 ## Samples to check yourself against
@@ -82,6 +83,59 @@ The defaults worth knowing before you write anything, because matching one means
 | Timestamp TTL, clock skew | 300 seconds, 60 seconds |
 | `mustUnderstand` | true |
 | Algorithms | RSA-SHA256, SHA-256 digest, exclusive C14N, AES-256-GCM, RSA-OAEP |
+
+## WS-Addressing comes in the same files
+
+Every one of these formats configures WS-Addressing alongside WS-Security, and it is easy to skip because it is
+not a security setting and so appears in none of the mapping tables. Skipping it produces a draft that secures
+the message correctly and then has the service reject it for a missing or wrong `wsa:Action`.
+
+It is a **separate middleware**, so it is never part of the `WsseMiddleware` construction, and **the order is a
+security property whenever the source signs an addressing header**:
+
+```php
+new PluginClient($client, [
+    new WsaMiddleware(new WsaOptions(action: 'urn:doSomething')),  // adds wsa:To, wsa:Action, ...
+    new WsseMiddleware($profile, outbound: [/* ... */]),           // then signs them
+]);
+```
+
+The request passes through in array order, so listed the other way round the signature is built before the
+addressing headers exist. **How that fails depends on how the source named the header**, and only one of the two
+tells you:
+
+| The part list holds | Wrong order gives you |
+|---|---|
+| A named header, `Part::element('http://www.w3.org/2005/08/addressing', 'To')` | A thrown exception: exactly one element must match and none does |
+| The dynamic `Part::soapHeaders()` | Nothing at all. It expands against the message as it stands, finds no addressing headers, and the message goes out reading as fully protected with `wsa:To` and `wsa:Action` covered by nothing |
+
+The second row is why this is worth stating rather than leaving to be discovered: a source asking for signed
+addressing headers by namespace, which the WebSphere policy sets do, produces a silently unprotected message.
+See [Choosing parts and key references](../../docs/parts-and-key-references.md#parts).
+
+Where each format puts it:
+
+| Format | Where |
+|---|---|
+| WS-SecurityPolicy | `wsaw:UsingAddressing`, `wsam:Addressing` or `wsap:UsingAddressing` in the WSDL, presence only |
+| SoapUI | `<con:wsaConfig>` on the request, operation or interface, with a dozen attributes |
+| WebSphere policy set | A whole `PolicyTypes/WSAddressing/policy.xml` beside the `WSSecurity` one |
+| IBM `.xmi` descriptors | Not configured here; addressing is a JAX-WS or policy-set concern |
+
+Four things hold whichever format you read them from, so they are worth knowing once:
+
+- **The `wsa:MessageID` is always freshly generated and cannot be set or suppressed.** The receiver echoes it to
+  correlate the reply, so a fixed or absent one breaks that. A source asking for either is an unmapped item.
+- **`wsa:RelatesTo` is outbound-meaningless** and deliberately absent: it correlates a reply to a request.
+- **A non-anonymous `wsa:ReplyTo` needs somewhere to receive the reply**, which a PSR-18 client calling a
+  request/response service does not have. Setting the option is possible; making it work is a deployment
+  question, so raise it rather than copying the address across.
+- **Addressing headers carry no `mustUnderstand` here.** `SecurityProfile(mustUnderstand:)` is the Security
+  header and a different setting; do not map one onto the other.
+
+The defaults are chosen so that most sources map to `new WsaMiddleware()` and nothing else: a null Action is
+taken from the request's `SOAPAction`, a null To from the request URI, and a null ReplyTo is the version's
+anonymous URI. Write an option only where the source names a value those would not produce.
 
 ## The three rules
 
