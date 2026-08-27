@@ -183,16 +183,20 @@ final class Verifier implements XmlSignatureVerifier
      * makes the rule reach the shape it matters most in: a MAC names no certificate, so a rule stated over
      * signers alone sees one signer in a scope where two parties signed.
      *
-     * An endorsement is exempt, which is the whole reason the rule is about contribution rather than about
-     * signing: an endorsing token belongs to the sender and legitimately differs from the party whose signature
-     * it endorses. What keeps the exemption from being the hole reopened is not a narrow test here but that an
-     * endorsement's own coverage never joins the union, in verify(): a signature covering the primary *and* a
-     * part of its own choosing is exempt from this count and has that part discarded, so there is nothing to
-     * launder either way.
+     * An endorsement of a MAC is exempt unconditionally: a MAC names no party, so there is no identity to hold
+     * the endorsement against, and it is the shape the exemption exists for, since a session key proves
+     * possession of nothing and the endorsement is where an identity enters. An endorsement of a
+     * certificate-keyed signature is not exempt. It falls into this count with its own certificate, so it passes
+     * exactly when that certificate is the one it endorsed and refuses when it is somebody else's. See
+     * endorsesOnlySecretKeyed(), which is where that distinction lives.
      *
-     * Covering a verified signature is the whole test, deliberately, because it is the one a peer answers to.
-     * It is what CXF requires of an endorsing supporting token, and a peer covers more alongside the primary
-     * signature as a matter of course: under sp:ProtectTokens its endorsement also covers its own token.
+     * Covering a verified signature is therefore not on its own enough to be exempt, however much it looks like
+     * an endorsement: anyone the anchor issued a certificate to can sign the peer's signature and cover nothing
+     * else, which is that shape exactly.
+     *
+     * Either way, what keeps an exemption from becoming a hole is not this test alone but that an endorsement's
+     * own coverage never joins the union, in verify(): a signature covering the primary *and* a part of its own
+     * choosing has that part discarded whoever keyed it, so there is nothing to launder.
      *
      * A message genuinely signed by two contributing identities, a countersignature by a notary say, is refused
      * rather than merged, because which parts each of them vouched for is a question this reports no answer to.

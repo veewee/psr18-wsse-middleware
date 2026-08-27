@@ -238,6 +238,11 @@ final class EndorsingSignatureTest extends TestCase
     /**
      * The same shape by the same certificate is the ordinary asymmetric endorsement and stays accepted: one
      * party signed twice, which is what an endorsing supporting token belonging to the sender looks like.
+     *
+     * Asserted through the signer check rather than by counting elements in the document, because what matters
+     * is what the verifier reports. An endorsement of a certificate is not exempt from the party count, so it
+     * reports its signer like any other signature: two signers, one identity, and a registered check runs
+     * against both. Counting ds:Signature elements would have said nothing about any of that.
      */
     public function test_an_endorsement_by_the_signer_itself_is_accepted(): void
     {
@@ -251,12 +256,17 @@ final class EndorsingSignatureTest extends TestCase
         (new Signature(new Asymmetric($this->identity($peer), KeyRef::BinarySecurityToken)))
             ->withParts([Part::primarySignature()])($context);
 
+        $seen = [];
         (new VerifySignature(
             TrustStore::fromCertificates($peer->caCertificate),
             signed: [Part::body()],
-        ))($this->context($document, $keys));
+        ))->onTrustedSigner(static function (TrustedSigner $signer) use (&$seen): void {
+            $seen[] = $signer->subjectDistinguishedName()->toString();
+        })($this->context($document, $keys));
 
-        static::assertCount(2, $this->signatures($document));
+        static::assertCount(2, $seen);
+        static::assertSame($seen[0], $seen[1], 'both signatures are the one identity');
+        static::assertStringContainsString('WSSE Round Trip Leaf', $seen[0]);
     }
 
     /**
