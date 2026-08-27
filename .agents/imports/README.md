@@ -53,6 +53,12 @@ re-derive them by running the skills over `samples/`, which is the exercise anyw
   `ws-securitybinding language:xml`). A related IBM format from a different product, not covered by any skill.
 - **An application-scoped WebSphere binding.** Only the cell's general bindings were found, so the
   application-level overlay is unverified.
+- **An endorsed message from a peer.** Every sample here is a configuration, never a message, so the inbound
+  endorsement path is covered by reasoning alone. `ad9330f` is what that costs: an endorsement names the
+  signature it covers by that signature's own `Id`, our reader read `wsu:Id` alone, and nothing noticed because
+  the interop suite had WSS4J verify what we emit and had us read back our own message. A captured response from
+  a CXF or WSS4J endorsing peer is the fixture that would have caught it, and the `java-interop` harness is
+  where it would come from.
 - **A real WCF or .NET published WSDL.** The `rubnds_WCF-1.xml` project talks to one but carries no security
   configuration of its own, so the `CustomBinding` idioms in the WS-SecurityPolicy skill come from a policy a
   user pasted rather than from a fixture.
