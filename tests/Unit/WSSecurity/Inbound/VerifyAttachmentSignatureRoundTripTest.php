@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -133,7 +134,7 @@ final class VerifyAttachmentSignatureRoundTripTest extends TestCase
         // Without registered parts the standing rule applies: an external reference URI is never resolved.
         $this->expectException(SecurityFault::class);
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))(
-            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
         );
     }
 
@@ -278,7 +279,7 @@ final class VerifyAttachmentSignatureRoundTripTest extends TestCase
     ): void {
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))
             ->withAttachments(AttachmentParts::response($storage, $coverage))(
-                new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+                new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
             );
     }
 

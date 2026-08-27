@@ -172,7 +172,6 @@ final class WsseSignatureFixture
             container: $this->security($document),
             targets: $targets,
             signingKey: $this->leafKey,
-            signingCertificate: $this->leafCertificate,
             keyIdentifier: $keyIdentifier ?? new DirectReferenceKeyIdentifier(self::BST_ID, self::X509_TOKEN),
             signatureMethod: $signatureMethod,
             digestMethod: $digestMethod,

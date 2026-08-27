@@ -14,6 +14,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPart;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartList;
+use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Manipulator\append;
 
@@ -42,12 +43,21 @@ final readonly class ExternalPartSealer
         ExternalPartEncryption $external,
         SessionKey $sessionKey,
         DataEncryptionMethod $method,
+        ?KeyIdentifier $keyIdentifier = null,
     ): SealedExternalParts {
         $sealed = [];
         $ids = [];
 
         foreach ($external->parts as $part) {
-            [$sealed[], $ids[]] = $this->sealOne($document, $container, $part, $external, $sessionKey, $method);
+            [$sealed[], $ids[]] = $this->sealOne(
+                $document,
+                $container,
+                $part,
+                $external,
+                $sessionKey,
+                $method,
+                $keyIdentifier,
+            );
         }
 
         return new SealedExternalParts(ExternalPartList::of(...$sealed), $ids);
@@ -65,6 +75,7 @@ final readonly class ExternalPartSealer
         ExternalPartEncryption $external,
         SessionKey $sessionKey,
         DataEncryptionMethod $method,
+        ?KeyIdentifier $keyIdentifier,
     ): array {
         $plaintext = $part->content->rewind()->getContents();
         if ($plaintext === '') {
@@ -83,6 +94,7 @@ final readonly class ExternalPartSealer
             $method,
             $external->type,
             $external->transform,
+            $keyIdentifier,
         );
 
         append($encryptedData)($container);

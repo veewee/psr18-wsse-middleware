@@ -16,14 +16,14 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
-use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateExtractor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyInfoResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\VerificationKeyExtractor;
 use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Covers the inbound CertificateExtractor: it reads the two forms that carry the certificate in the message (a
+ * Covers the inbound VerificationKeyExtractor: it reads the two forms that carry the certificate in the message (a
  * BST direct reference and an inline ds:X509Certificate), and resolves the three forms that name the certificate
  * by identifier (Subject Key Identifier, SHA-1 thumbprint, IssuerSerial) against the verifier's trust store. A
  * reference to a certificate the trust store does not hold is refused, and an ambiguous match is refused.
@@ -32,7 +32,7 @@ use VeeWee\Xml\Dom\Document;
  * a class-only assertion passes on whichever check happens to fire -- which is how a refused ValueType and a
  * merely-unknown certificate become indistinguishable to the suite.
  */
-final class CertificateExtractorTest extends TestCase
+final class VerificationKeyExtractorTest extends TestCase
 {
     private const X509_TOKEN = WsseSignatureFixture::X509_TOKEN;
     private const WSSE11 = 'http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd';
@@ -160,10 +160,7 @@ final class CertificateExtractorTest extends TestCase
     public function test_it_resolves_a_signer_referenced_by_subject_key_identifier(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $this->withKeyInfo(
-            new X509SubjectKeyIdentifier(),
-            $fixture->leafCertificate,
-        );
+        $document = $this->withKeyInfo(new X509SubjectKeyIdentifier($fixture->leafCertificate));
 
         $chain = $this->extractor()->extract(
             $document,
@@ -177,10 +174,7 @@ final class CertificateExtractorTest extends TestCase
     public function test_it_resolves_a_signer_referenced_by_sha1_thumbprint(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $this->withKeyInfo(
-            new ThumbprintKeyIdentifier(),
-            $fixture->leafCertificate,
-        );
+        $document = $this->withKeyInfo(new ThumbprintKeyIdentifier($fixture->leafCertificate));
 
         $chain = $this->extractor()->extract(
             $document,
@@ -255,10 +249,7 @@ final class CertificateExtractorTest extends TestCase
     public function test_it_resolves_a_signer_referenced_by_issuer_and_serial(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $this->withKeyInfo(
-            new IssuerSerialKeyIdentifier(),
-            $fixture->leafCertificate,
-        );
+        $document = $this->withKeyInfo(new IssuerSerialKeyIdentifier($fixture->leafCertificate));
 
         // A second, unrelated trust anchor has a different issuer DN, so the issuer-serial match stays unique.
         $other = WsseSignatureFixture::selfSignedLeaf();
@@ -275,10 +266,7 @@ final class CertificateExtractorTest extends TestCase
     public function test_it_refuses_an_identifier_reference_to_a_certificate_not_in_the_trust_store(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $this->withKeyInfo(
-            new X509SubjectKeyIdentifier(),
-            $fixture->leafCertificate,
-        );
+        $document = $this->withKeyInfo(new X509SubjectKeyIdentifier($fixture->leafCertificate));
 
         // The trust store holds only the CA, not the signer leaf, so the identifier cannot be resolved.
         $this->expectException(SignatureVerificationFailed::class);
@@ -292,10 +280,7 @@ final class CertificateExtractorTest extends TestCase
     public function test_it_refuses_an_ambiguous_subject_key_identifier_match(): void
     {
         $fixture = WsseSignatureFixture::caSignedLeaf();
-        $document = $this->withKeyInfo(
-            new X509SubjectKeyIdentifier(),
-            $fixture->leafCertificate,
-        );
+        $document = $this->withKeyInfo(new X509SubjectKeyIdentifier($fixture->leafCertificate));
 
         // Two trust-store entries with the same identifier make the reference ambiguous.
         $this->expectException(SignatureVerificationFailed::class);
@@ -338,7 +323,7 @@ final class CertificateExtractorTest extends TestCase
         $document = $this->document('', '<ds:KeyInfo><ds:X509Data/></ds:KeyInfo>');
 
         try {
-            (new CertificateExtractor($hostile, (new WsuIdConvention())->lookup()))
+            (new VerificationKeyExtractor($hostile, (new WsuIdConvention())->lookup()))
                 ->extract($document, $this->signature($document), TrustStore::fromCertificates());
             static::fail('The hostile resolver was expected to be refused.');
         } catch (SignatureVerificationFailed $failure) {
@@ -348,16 +333,16 @@ final class CertificateExtractorTest extends TestCase
         }
     }
 
-    private function extractor(): CertificateExtractor
+    private function extractor(): VerificationKeyExtractor
     {
-        return new CertificateExtractor(new WsseKeyInfoResolver(), (new WsuIdConvention())->lookup());
+        return new VerificationKeyExtractor(new WsseKeyInfoResolver(), (new WsuIdConvention())->lookup());
     }
 
     /**
      * Builds an envelope whose ds:Signature carries a ds:KeyInfo produced by the given outbound key-identifier
      * strategy for the given certificate, the form a conformant peer emits when it names the signer by identifier.
      */
-    private function withKeyInfo(KeyIdentifier $strategy, Certificate $certificate): Document
+    private function withKeyInfo(KeyIdentifier $strategy): Document
     {
         $document = $this->document('', '<ds:KeyInfoPlaceholder/>');
         $native = $document->toUnsafeDocument();
@@ -367,7 +352,7 @@ final class CertificateExtractorTest extends TestCase
         $placeholder = $native->getElementsByTagNameNS(WsseSignatureFixture::DS, 'KeyInfoPlaceholder')->item(0);
         static::assertInstanceOf(Element::class, $placeholder);
 
-        $keyInfo = $strategy->apply($document, $certificate);
+        $keyInfo = $strategy->apply($document);
         $signature->replaceChild($keyInfo, $placeholder);
 
         return $document;

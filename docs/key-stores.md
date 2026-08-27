@@ -7,6 +7,29 @@ The package wraps your keys and certificates in small value objects:
 - `KeyStore\Certificate`: a public X.509 certificate in PEM format.
 - `KeyStore\Key`: a private key (PKCS#8) in PEM format.
 - `KeyStore\ClientCertificate`: a certificate and a private key together in one PEM bundle.
+- `KeyStore\SessionKey`: raw symmetric key bytes. See [Session keys](#session-keys).
+
+## At a glance
+
+Start from the file you were handed. This is the whole decision:
+
+| What you have | Load it with | You get |
+|---|---|---|
+| A certificate and its key in one PEM | `ClientCertificate::fromFile('client.pem')` | A signing identity |
+| A certificate and a key in separate PEMs | `Certificate::fromFile(...)` and `Key::fromFile(...)` | The two halves separately |
+| A public certificate alone | `Certificate::fromFile('service.pub')` | An encryption recipient, or a token to embed |
+| A private key alone | `Key::fromFile('key.priv')` | A decryption key |
+| A `.p12` / `.pfx` identity bundle | `Pkcs12Bundle::fromFile(...)`, then `ClientCertificate::fromPkcs12($bundle)` | A signing identity, chain included |
+| A trusted-CA file: several certificates, no key | `TrustStore::fromPem(Pem::fromFile('anchors.pem'))` | Trust anchors, **every** certificate |
+| A `.jks` / `.jceks` Java keystore | Nothing here reads it. [Convert it first](#converting-a-java-keystore) | Whichever of the above it held |
+| An agreed shared secret, as raw bytes | `SessionKey::fromBytes(...)` | A [pre-shared key](outbound-blocks.md#presharedsessionkey) |
+
+Add `->withPassphrase('xxx')` to a `Key` or `ClientCertificate` whose key is encrypted. A `Pkcs12Bundle` takes
+its passphrase up front and hands back a key that is already decrypted, so nothing follows it.
+
+**The one trap worth naming up front:** use `TrustStore::fromPem()` for a truststore, never
+`TrustStore::fromPkcs12()`. The latter is built for an identity bundle and skips entry 0 as the leaf, which
+silently costs you an anchor. The rows above are already the right way round.
 
 ```php
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
@@ -93,7 +116,7 @@ hands the key back through `->privateKey(): ?Key`, which is `null` when the file
 Deciding whether a key belongs in the file is the caller's job, not the reader's:
 
 - `TrustStore::fromPem()` refuses it. A trust store holds public certificates only, so a key there means the
-  wrong file was exported — usually a client bundle where a trusted-CA file was meant.
+  wrong file was exported, usually a client bundle where a trusted-CA file was meant.
 - `ClientCertificate` is the class for a certificate and its private key in one file, and `Key` for a private
   key on its own.
 
@@ -160,3 +183,31 @@ Use `TrustStore::fromPem()` here, not `TrustStore::fromPkcs12()`. Every entry in
 silently costs you one anchor. Check the anchor count against the `trustedCertEntry` count `keytool -list`
 reported.
 
+## Session keys
+
+Every other key here arrives as a certificate or a bundle. A `SessionKey` is different: it is raw bytes, held
+inside a `HiddenString` so it stays out of exception messages and var dumps.
+
+You never build one for a wrapped or a derived key. Those are minted for you, per exchange, from the package's
+own CSPRNG. The one case that needs a `SessionKey` in your own code is a
+[pre-shared key](outbound-blocks.md#presharedsessionkey), where the secret is something you and your peer agreed
+on out of band:
+
+```php
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
+
+// Whatever your deployment already has: a secret from your configuration store, a key file, a KMS response.
+$secret = SessionKey::fromBytes(base64_decode($configuration['wsse_shared_secret'], true));
+```
+
+Two things worth stating, because the type cannot enforce either:
+
+- **The bytes have to be the key, not a passphrase.** `SessionKey::fromBytes()` uses what it is given; it derives
+  nothing. A cipher takes exactly the width its algorithm defines (16, 24 or 32 bytes), and passing a
+  human-chosen string of the right length gives you a key with the entropy of that string. Generate it with a
+  CSPRNG and transport it as base64 or hex.
+- **An empty secret is refused** where it is used, because an HMAC keyed with nothing is one anybody can
+  reproduce.
+
+There is no file loader for it. A shared secret's storage is a deployment decision, and a `fromFile()` here
+would suggest a convention this package has no business inventing.

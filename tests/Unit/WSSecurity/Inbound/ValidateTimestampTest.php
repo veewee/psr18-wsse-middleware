@@ -12,6 +12,7 @@ use Psl\DateTime\Timezone;
 use Soap\Psr18WsseMiddleware\Clock\Clock;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ValidateTimestamp;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -409,7 +410,7 @@ final class ValidateTimestampTest extends TestCase
 
     private function context(string $xml, ?SecurityProfile $profile = null): WsseContext
     {
-        return new WsseContext(Document::fromXmlString($xml), SoapVersion::Soap12, $profile ?? new SecurityProfile());
+        return new WsseContext(Document::fromXmlString($xml), SoapVersion::Soap12, $profile ?? new SecurityProfile(), new ExchangeKeys());
     }
 
     private function envelope(string $securityInner): string

@@ -13,6 +13,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\X509SubjectKeyIdentifier;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -39,7 +40,7 @@ final class VerifySignatureRoundTripTest extends TestCase
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::body(), Part::timestamp()],
         );
-        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
 
         $this->assertTheSameConfigurationRefusesATamperedBody($block, $document);
     }
@@ -56,7 +57,7 @@ final class VerifySignatureRoundTripTest extends TestCase
 
         $this->expectException(SecurityFault::class);
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))(
-            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
         );
     }
 
@@ -67,7 +68,7 @@ final class VerifySignatureRoundTripTest extends TestCase
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget(), WsseSignatureFixture::timestampTarget()], withTimestamp: true);
 
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))(
-            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
         );
 
         // Reaching here is the pass: the block throws rather than returning a verdict.
@@ -88,7 +89,7 @@ final class VerifySignatureRoundTripTest extends TestCase
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))
             ->onTrustedSigner(static function (TrustedSigner $signer) use (&$seen): void {
                 $seen = $signer;
-            })(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            })(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
 
         static::assertInstanceOf(TrustedSigner::class, $seen);
         static::assertStringContainsString('WSSE', $seen->subjectDistinguishedName()->toString());
@@ -108,7 +109,7 @@ final class VerifySignatureRoundTripTest extends TestCase
             });
 
         try {
-            $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
             static::fail('Expected the rejected signer to refuse the message.');
         } catch (SecurityFault $fault) {
             // The reason reaches the log, never the message a peer could read.
@@ -131,7 +132,7 @@ final class VerifySignatureRoundTripTest extends TestCase
             });
 
         try {
-            $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
         } catch (SecurityFault) {
             // expected
         }
@@ -152,7 +153,7 @@ final class VerifySignatureRoundTripTest extends TestCase
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::body(), Part::timestamp()],
         );
-        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
 
         $this->assertTheSameConfigurationRefusesATamperedBody($block, $document);
     }
@@ -166,7 +167,7 @@ final class VerifySignatureRoundTripTest extends TestCase
         (new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::timestamp()],
-        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
     }
 
     public function test_it_rejects_a_signed_body_relocated_into_the_security_header(): void
@@ -204,7 +205,7 @@ final class VerifySignatureRoundTripTest extends TestCase
         (new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::body()],
-        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
     }
 
     public function test_it_rejects_an_untrusted_signer(): void
@@ -216,7 +217,7 @@ final class VerifySignatureRoundTripTest extends TestCase
         (new VerifySignature(
             TrustStore::fromCertificates(WsseSignatureFixture::caSignedLeaf()->caCertificate),
             signed: [Part::body()],
-        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
     }
 
     public function test_it_round_trips_an_inclusive_c14n_signature_when_the_policy_opts_in(): void
@@ -249,6 +250,7 @@ final class VerifySignatureRoundTripTest extends TestCase
                 SignatureCanonicalization::C14N,
                 SignatureCanonicalization::EXC_C14N,
             ])),
+            new ExchangeKeys()
         ));
         $this->addToAssertionCount(1);
     }
@@ -266,7 +268,7 @@ final class VerifySignatureRoundTripTest extends TestCase
         (new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate),
             signed: [Part::body(), Part::timestamp()],
-        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        ))(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
     }
 
     public function test_it_verifies_a_signer_referenced_by_subject_key_identifier(): void
@@ -276,14 +278,14 @@ final class VerifySignatureRoundTripTest extends TestCase
         // must resolve it from the trust store, which holds the CA and the signer leaf.
         $document = $fixture->sign(
             [WsseSignatureFixture::bodyTarget()],
-            keyIdentifier: new X509SubjectKeyIdentifier(),
+            keyIdentifier: new X509SubjectKeyIdentifier($fixture->leafCertificate),
         );
 
         $block = new VerifySignature(
             TrustStore::fromCertificates($fixture->caCertificate, $fixture->leafCertificate),
             signed: [Part::body()],
         );
-        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
 
         $this->assertTheSameConfigurationRefusesATamperedBody($block, $document);
     }
@@ -301,6 +303,6 @@ final class VerifySignatureRoundTripTest extends TestCase
         $body->textContent = 'tampered';
 
         $this->expectException(SecurityFault::class);
-        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        $block(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
     }
 }

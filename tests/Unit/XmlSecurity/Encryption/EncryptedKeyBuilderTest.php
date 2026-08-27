@@ -7,7 +7,6 @@ use Dom\Element;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
-use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\DirectReferenceKeyIdentifier;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\EncryptedKeyBuilder;
 use VeeWee\Xml\Dom\Document;
@@ -29,9 +28,7 @@ final class EncryptedKeyBuilderTest extends TestCase
             $document,
             'wrapped-key-bytes',
             new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
-            new Certificate('cert'),
             KeyTransportAlgorithm::legacyMgf1p(),
-            ['id-one', 'id-two'],
         );
 
         static::assertSame('EncryptedKey', $encryptedKey->localName);
@@ -48,11 +45,9 @@ final class EncryptedKeyBuilderTest extends TestCase
         $cipherValue = $this->child($cipherData, 'CipherValue', self::XENC);
         static::assertSame(base64_encode('wrapped-key-bytes'), $cipherValue->textContent);
 
-        $referenceList = $this->child($encryptedKey, 'ReferenceList', self::XENC);
-        $references = $referenceList->getElementsByTagNameNS(self::XENC, 'DataReference');
-        static::assertSame(2, $references->count());
-        static::assertSame('#id-one', $references->item(0)?->getAttribute('URI'));
-        static::assertSame('#id-two', $references->item(1)?->getAttribute('URI'));
+        // No ReferenceList inside the key. The key is written when it is minted, before any block has said
+        // what it will encrypt, and the same key may be spent by a signature that encrypts nothing.
+        static::assertSame(0, $encryptedKey->getElementsByTagNameNS(self::XENC, 'ReferenceList')->count());
     }
 
     public function test_it_emits_digest_and_mgf_children_for_sha256(): void
@@ -63,9 +58,7 @@ final class EncryptedKeyBuilderTest extends TestCase
             $document,
             'wrapped-key-bytes',
             new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
-            new Certificate('cert'),
             KeyTransportAlgorithm::oaepSha256(),
-            ['id-one'],
         );
 
         $encryptionMethod = $this->child($encryptedKey, 'EncryptionMethod', self::XENC);

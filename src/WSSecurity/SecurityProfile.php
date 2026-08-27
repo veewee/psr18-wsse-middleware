@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity;
 
 use InvalidArgumentException;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecureConversationVersion;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
 
 /**
@@ -27,6 +28,8 @@ final class SecurityProfile
      *                                 (SOAP 1.2). Null, the default, means the ultimate receiver, whose header
      *                                 carries no such attribute
      * @param bool        $mustUnderstand whether the outbound Security header demands the receiver process it
+     * @param WsSecureConversationVersion $wsSecureConversation which dialect an emitted wsc:DerivedKeyToken is
+     *                                 written in. Both are read on the way in whatever this says
      */
     public function __construct(
         private readonly int $timestampTtl = 300,
@@ -34,6 +37,7 @@ final class SecurityProfile
         ?CryptoPolicy $crypto = null,
         private readonly ?string $actorOrRole = null,
         private readonly bool $mustUnderstand = true,
+        private readonly WsSecureConversationVersion $wsSecureConversation = WsSecureConversationVersion::V2005_12,
     ) {
         // The window is checked here rather than left to a static-analysis annotation: the TTL also drives the
         // outbound Expires, where a non-positive value would emit a token that expired before it was created.
@@ -56,6 +60,11 @@ final class SecurityProfile
     public function mustUnderstand(): bool
     {
         return $this->mustUnderstand;
+    }
+
+    public function wsSecureConversation(): WsSecureConversationVersion
+    {
+        return $this->wsSecureConversation;
     }
 
     public static function default(): self

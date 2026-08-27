@@ -1,13 +1,15 @@
 # SOAP WSSE/WSA Middleware
 
-This package adds WSSE (WS-Security), and WSA (WS-Addressing) to your PSR-18 based SOAP transport.
+This package adds WSSE (WS-Security) and WSA (WS-Addressing) to your PSR-18 based SOAP transport.
 
-From this major version on, the XML-Security layer lives inside this package. It signs, encrypts, decrypts and
-verifies on the modern PHP DOM, so you no longer pull in `robrichards/wse-php` or `robrichards/xmlseclibs` at
-runtime. The cryptography underneath is split: `phpseclib/phpseclib` performs the symmetric ciphers, the RSA and
-ECDSA signatures and the RSA key transport, `ext-openssl` performs certificate path validation and key parsing,
-and digests run on `ext-hash`. Because the timestamp parser uses the ICU date formatter, the requirements now
-also include `ext-intl`.
+Signing, encryption, decryption and verification all happen inside this package, on the modern PHP DOM. There is
+no XML-security library behind it. The cryptography underneath is split, which is worth knowing if you scope a
+CVE watch by dependency: `phpseclib/phpseclib` does the symmetric ciphers, the RSA and ECDSA signatures and the
+RSA key transport, `ext-openssl` does certificate path validation and key parsing, and digests run on `ext-hash`.
+The inbound timestamp parser reads instants with the ICU date formatter, which is why `ext-intl` is required.
+
+Coming from 3.x? Read the [upgrade guide](UPGRADE.md) first: the block names, the credential objects and several
+defaults are different.
 
 # Want to help out? 💚
 
@@ -26,8 +28,8 @@ composer require php-soap/psr18-wsse-middleware
 
 This package includes the [php-soap/psr18-transport](https://github.com/php-soap/psr18-transport/) package and is meant to be used together with it.
 
-Requires *at least* **PHP 8.4.21+**: signature canonicalization relies on a libxml fix that shipped in 8.4.21, and
-`ext-intl` and `ext-openssl` must be enabled. Install `ext-gmp` or `ext-bcmath` for native-speed RSA/ECDSA math.
+Requires **PHP 8.4.21** or newer, because signature canonicalization relies on a libxml fix that shipped in that
+patch release, with `ext-intl` and `ext-openssl` enabled. Install `ext-gmp` or `ext-bcmath` for native-speed RSA/ECDSA math.
 
 # WsaMiddleware
 
@@ -133,8 +135,8 @@ Every block is a small, immutable value object you drop into the `outbound` or `
 | [`Timestamp`](docs/outbound-blocks.md#outbound-timestamp) | A `wsu:Timestamp` so the receiver can reject a stale or replayed call |
 | [`Username`](docs/outbound-blocks.md#outbound-username) | A `wsse:UsernameToken`, with a plaintext or digested password |
 | [`BinarySecurityToken`](docs/outbound-blocks.md#outbound-binarysecuritytoken) | Your X.509 certificate as a base64-DER token |
-| [`Signature`](docs/outbound-blocks.md#outbound-signature) | A detached, multi-reference `ds:Signature`, optionally covering attachments and their MIME headers |
-| [`Encryption`](docs/outbound-blocks.md#outbound-encryption) | XML-Enc ciphertext for the parts you name, and optionally the attachments, under a fresh session key |
+| [`Signature`](docs/outbound-blocks.md#outbound-signature) | A detached, multi-reference `ds:Signature`, keyed by a certificate or a shared secret, optionally covering attachments and their MIME headers |
+| [`Encryption`](docs/outbound-blocks.md#outbound-encryption) | XML-Enc ciphertext for the parts you name, and optionally the attachments, under a session key a key source provides |
 | [`SamlAssertion`](docs/outbound-blocks.md#outbound-samlassertion) | A SAML 1.1 / 2.0 assertion you obtained from an STS |
 
 | Inbound | Checks |
@@ -159,10 +161,23 @@ list you compose, so these are yours to get right:
   is a valid configuration as far as this middleware is concerned. If you sign outbound, verify inbound.
 - **`ValidateTimestamp` needs a signed timestamp.** `VerifySignature` requires the body by default but nothing
   more, so name `Part::timestamp()` too.
+- **An endorsing `Signature` goes last**, after the block it endorses. It covers that block's signature, so a
+  header with nothing to endorse, or with two candidates, is refused rather than signed over.
 
 ## Common flows
 
 The following are complete, copy-pasteable setups. Adapt the file paths, credentials and parts to your service.
+
+| Flow | Reach for it when |
+|---|---|
+| [Username/password authentication](#usernamepassword-authentication) | The service just wants credentials, and you are on TLS |
+| [Signing a request and verifying the response](#signing-a-request-and-verifying-the-response) | You have a certificate and want mutual integrity. The standard case |
+| [SAML assertion flow](#saml-assertion-flow) | An STS issues you an assertion to present |
+| [Encrypting a request and decrypting the response](#encrypting-a-request-and-decrypting-the-response) | Part of the message is confidential, not just tamper-evident |
+| [Symmetric binding: a secret you and your peer already share](#symmetric-binding-a-secret-you-and-your-peer-already-share) | An `sp:SymmetricBinding` and you already hold a shared secret |
+| [Symmetric binding: one session key for the signature and the encryption](#symmetric-binding-one-session-key-for-the-signature-and-the-encryption) | An `sp:SymmetricBinding` and you have only their certificate |
+
+If you are new here, read the first two in order. The rest are self-contained.
 
 ### Username/password authentication
 
@@ -205,6 +220,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 // Your signing identity (certificate + private key):
@@ -219,17 +235,16 @@ $transport = Psr18Transport::createForClient(
             new SecurityProfile(),
             outbound: [
                 new Outbound\Timestamp(),
-                new Outbound\Signature(
+                new Outbound\Signature(new Signing\Asymmetric(
                     $clientCertificate,
-                    keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken,
-                ),
+                    Outbound\KeyReference\KeyRef::BinarySecurityToken,
+                )),
                 // The default already signs the Body and the Security-header contents. To be explicit:
-                // (new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken))
+                // (new Outbound\Signature(new Signing\Asymmetric($clientCertificate)))
                 //     ->withParts([Part::body(), Part::securityHeaderContents()]),
             ],
             inbound: [
-                new Inbound\VerifySignature(
-                    $trustStore,
+                new Inbound\VerifySignature($trustStore,
                     signed: [Part::body(), Part::timestamp()],
                 ),
                 new Inbound\ValidateTimestamp(),
@@ -247,13 +262,15 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Pkcs12Bundle;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 // Decode the .p12 once, then derive each credential from the bundle:
 $bundle = Pkcs12Bundle::fromFile('client.p12', 'secret');
 
 // Your signing identity (certificate + private key):
 $clientCertificate = ClientCertificate::fromPkcs12($bundle);
-new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken);
+new Outbound\Signature(new Signing\Asymmetric($clientCertificate));
 
 // A recipient / BinarySecurityToken certificate from its own .p12:
 $recipient = Certificate::fromPkcs12(Pkcs12Bundle::fromFile('service.p12', 'secret'));
@@ -296,6 +313,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
 
@@ -306,7 +324,7 @@ $stsTransport = Psr18Transport::createForClient(
             new SecurityProfile(),
             outbound: [
                 new Outbound\Timestamp(),
-                new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken),
+                new Outbound\Signature(new Signing\Asymmetric($clientCertificate)),
             ],
         ),
     ])
@@ -327,7 +345,7 @@ $serviceTransport = Psr18Transport::createForClient(
                     $assertionXml,
                     Outbound\SamlVersion::Saml20,
                 ),
-                new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken),
+                new Outbound\Signature(new Signing\Asymmetric($clientCertificate)),
             ],
         ),
     ])
@@ -347,9 +365,11 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 $clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
@@ -364,15 +384,148 @@ $transport = Psr18Transport::createForClient(
             outbound: [
                 new Outbound\Timestamp(),
                 // Sign first ...
-                new Outbound\Signature($clientCertificate, keyRef: Outbound\KeyReference\KeyRef::BinarySecurityToken),
+                new Outbound\Signature(new Signing\Asymmetric($clientCertificate)),
                 // ... Then encrypt:
-                new Outbound\Encryption($recipient),
+                new Outbound\Encryption(new Keys\GeneratedSessionKey($recipient)),
             ],
             inbound: [
                 // Decrypt first ...
                 new Inbound\Decrypt($ourPrivateKey),
                 // ... Then verify and check freshness:
                 new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]),
+                new Inbound\ValidateTimestamp(),
+            ],
+        ),
+    ])
+);
+```
+
+### Symmetric binding: a secret you and your peer already share
+
+The other way to key a symmetric binding, and the one worth reaching for first when you have the choice. Nothing
+about the key goes on the wire: both sides already hold it, so the message carries only a reference naming which
+of the agreed keys it used.
+
+That is what makes this the symmetric case that actually authenticates, and mutually: only the two holders of the
+secret can produce a MAC that verifies under it. So there is no endorsing signature here, and no certificate at
+all. What it does not give you is non-repudiation, since either side could have produced any given message.
+
+```php
+use Http\Client\Common\PluginClient;
+use Soap\Psr18Transport\Psr18Transport;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
+use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsSecurityValueType;
+use Soap\Psr18WsseMiddleware\WsseMiddleware;
+
+// The secret itself: raw key bytes, from wherever your deployment keeps them. 32 bytes here, because
+// AES-256-GCM takes exactly that width and HMAC-SHA256 carries its full strength at it.
+$secret = SessionKey::fromBytes(base64_decode($config['wsse_shared_secret'], true));
+
+// One source, held by every block in both directions. The identifier is the name you and your peer agreed on
+// out of band, and it is carried verbatim, so it has to be base64 under the default encoding.
+$sharedSecret = new Keys\PreSharedSessionKey(
+    $secret,
+    base64_encode('our-agreed-key-name'),
+    WsSecurityValueType::EncryptedKeySha1->value,
+);
+
+$transport = Psr18Transport::createForClient(
+    new PluginClient($yourPsr18Client, [
+        new WsseMiddleware(
+            new SecurityProfile(),
+            outbound: [
+                new Outbound\Timestamp(),
+                (new Outbound\Signature(new Signing\Symmetric($sharedSecret)))
+                    ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+                    ->withParts([Part::body(), Part::timestamp()]),
+                (new Outbound\Encryption($sharedSecret))
+                    ->withParts([Part::body()]),
+            ],
+            inbound: [
+                // The same source both ways. No private key to unwrap with, and no trust store, because no
+                // certificate is involved in either direction.
+                new Inbound\Decrypt(preSharedKey: $sharedSecret),
+                new Inbound\VerifySignature(
+                    preSharedKey: $sharedSecret,
+                    signed: [Part::body(), Part::timestamp()],
+                ),
+                new Inbound\ValidateTimestamp(),
+            ],
+        ),
+    ])
+);
+```
+
+Which `ValueType` to agree on depends on the peer. A WSS4J or CXF one wants the WSS 1.1 `EncryptedKeySHA1` URI
+used above, because that is the only custom identifier its emitter writes for a shared secret. Nothing here is a
+digest of any cipher bytes, and it does not have to be: the URI names the shape of the reference rather than how
+the value was arrived at. Their reader takes any type at all, so a peer that is something else is free to agree
+on another. See [`PreSharedSessionKey`](docs/outbound-blocks.md#presharedsessionkey) for the arguments, and
+[Session keys](docs/key-stores.md#session-keys) for where the bytes come from and why they have to be a key
+rather than a passphrase.
+
+### Symmetric binding: one session key for the signature and the encryption
+
+What an `sp:SymmetricBinding` policy asks for. Both blocks are handed the **same** key source, which is how they
+come to share one `xenc:EncryptedKey`; the endorsing signature at the end is what makes the request authenticate
+anybody at all, because a session key wrapped under the server's public certificate proves possession of nothing.
+
+```php
+use Http\Client\Common\PluginClient;
+use Soap\Psr18Transport\Psr18Transport;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
+use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\ClientCertificate;
+use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\EncKeyRef;
+use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\KeyReference\KeyRef;
+use Soap\Psr18WsseMiddleware\WSSecurity\Part;
+use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing;
+use Soap\Psr18WsseMiddleware\WsseMiddleware;
+
+$clientCertificate = ClientCertificate::fromFile('client.pem')->withPassphrase('xxx');
+$recipient = Certificate::fromFile('service.pub');
+$trustStore = TrustStore::fromCertificates(Certificate::fromFile('service-ca.pub'));
+
+// One session key, shared by being the same object. Add a Keys\DerivedSessionKey per block when the policy
+// asks for sp:RequireDerivedKeys.
+$sessionKey = new Keys\GeneratedSessionKey($recipient, EncKeyRef::Thumbprint);
+
+$transport = Psr18Transport::createForClient(
+    new PluginClient($yourPsr18Client, [
+        new WsseMiddleware(
+            new SecurityProfile(),
+            outbound: [
+                new Outbound\Timestamp(),
+                (new Outbound\Signature(new Signing\Symmetric($sessionKey)))
+                    ->withSignatureMethod(SignatureMethod::HMAC_SHA256)
+                    ->withParts([Part::body(), Part::timestamp()]),
+                (new Outbound\Encryption($sessionKey))
+                    ->withParts([Part::body()]),
+                // The endorsement: a certificate you control, over the signature above.
+                (new Outbound\Signature(new Signing\Asymmetric($clientCertificate, KeyRef::Thumbprint)))
+                    ->withParts([Part::primarySignature()]),
+            ],
+            inbound: [
+                // The response is keyed by the same session key, resolved from the exchange, so there is no
+                // private key to unwrap anything with and nothing to hand over.
+                new Inbound\Decrypt(useEstablishedKey: true),
+                new Inbound\VerifySignature(
+                    $trustStore,
+                    signed: [Part::body(), Part::timestamp()],
+                    useEstablishedKey: true,
+                ),
                 new Inbound\ValidateTimestamp(),
             ],
         ),

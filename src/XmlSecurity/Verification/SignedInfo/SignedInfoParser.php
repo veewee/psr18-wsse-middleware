@@ -286,6 +286,14 @@ final class SignedInfoParser
     private function signatureMethod(Element $signedInfo): SignatureMethod
     {
         $method = $this->requireDsChild($signedInfo, 'SignatureMethod');
+
+        // A truncated MAC is a shorter secret to guess: cut to one byte, a forgery succeeds once in 256
+        // attempts, and at one bit it is a coin flip. No peer needs truncation, so the element is refused
+        // outright rather than validated against a floor nobody can defend.
+        if (ChildElements::named($method, Namespaces::Ds, 'HMACOutputLength') !== []) {
+            throw SignatureVerificationFailed::withReason('ds:HMACOutputLength is not accepted.');
+        }
+
         $algorithm = SignatureMethod::tryFrom((string) $method->getAttribute('Algorithm'));
 
         return $algorithm

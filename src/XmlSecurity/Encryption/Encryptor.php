@@ -6,7 +6,6 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 use Dom\Element;
 use Dom\Node;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
-use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
 use Soap\Psr18WsseMiddleware\Xml\XopInclude;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
@@ -23,13 +22,16 @@ use function VeeWee\Xml\Dom\Manipulator\append;
 
 /**
  * Orchestrates the XML encryption flow for one request: resolve every target first (fail fast before any
- * mutation), generate one shared session key, encrypt and replace each target as xenc:EncryptedData, wrap the
- * session key under the recipient certificate, build one xenc:EncryptedKey carrying the ReferenceList, insert
- * it into the container element the caller supplies on the request and re-sort that container.
+ * mutation), encrypt and replace each target as xenc:EncryptedData under the session key the request carries,
+ * and append one xenc:ReferenceList naming them all where the request says it goes: the container, or the
+ * element carrying the key.
+ *
+ * How the session key reaches the recipient is not decided here. The caller has already established it, which
+ * is what lets one key protect both a signature and an encryption; this class only spends it.
  *
  * The Encryptor does not locate or create the container (the caller does that and passes the element in: the
  * WS-Security profile hands over its wsse:Security header). No openssl_* calls live here: every cipher operation
- * goes through OpenSSL\Cipher and every key-wrap through OpenSSL\KeyTransport.
+ * goes through OpenSSL\Cipher.
  */
 final class Encryptor implements XmlEncryptor
 {
@@ -47,28 +49,22 @@ final class Encryptor implements XmlEncryptor
     ): self {
         $idConvention ??= AttributeIdConvention::xmlId();
         $cipher = new Cipher();
-        // One instance for both builders, so the wrapped key and the content cannot end up in different
-        // shapes within one message.
         $cipherValueElement = new CipherValueElement($cipherValueSink);
 
         return new self(
             new TargetLocator($idConvention->lookup()),
-            new SessionKeyFactory(),
             $cipher,
             new EncryptedDataBuilder($idConvention->minter(), $cipherValueElement),
-            new KeyTransport(),
-            new EncryptedKeyBuilder($cipherValueElement),
+            new ReferenceListBuilder(),
             new ExternalPartSealer($cipher, new ExternalEncryptedDataBuilder($idConvention->minter())),
         );
     }
 
     public function __construct(
         private readonly TargetLocator $targetLocator,
-        private readonly SessionKeyFactory $sessionKeyFactory,
         private readonly Cipher $cipher,
         private readonly EncryptedDataBuilder $encryptedDataBuilder,
-        private readonly KeyTransport $keyTransport,
-        private readonly EncryptedKeyBuilder $encryptedKeyBuilder,
+        private readonly ReferenceListBuilder $referenceListBuilder,
         private readonly ExternalPartSealer $externalPartSealer,
     ) {
     }
@@ -88,7 +84,7 @@ final class Encryptor implements XmlEncryptor
         }
 
         try {
-            $sessionKey = $this->sessionKeyFactory->generate($request->dataEncryptionMethod);
+            $sessionKey = $request->sessionKey;
 
             $partIds = [];
             foreach ($targets as [$element, $mode]) {
@@ -101,13 +97,14 @@ final class Encryptor implements XmlEncryptor
                     $cipherText,
                     $request->dataEncryptionMethod,
                     $mode,
+                    $request->keyIdentifier,
                 );
             }
 
             // Under the same session key, contributing to the same ReferenceList. The SwA profile wants one
-            // EncryptedKey naming the in-document parts and the attachment parts together, and
-            // EncryptedKeyReader refuses a second key in the container, so this cannot be a separate
-            // operation alongside the first.
+            // key naming the in-document parts and the attachment parts together, and EncryptedKeyReader
+            // refuses a second key in the container, so this cannot be a separate operation alongside the
+            // first.
             $sealed = $request->externalParts === null
                 ? new SealedExternalParts(ExternalPartList::of(), [])
                 : $this->externalPartSealer->seal(
@@ -116,32 +113,20 @@ final class Encryptor implements XmlEncryptor
                     $request->externalParts,
                     $sessionKey,
                     $request->dataEncryptionMethod,
+                    $request->keyIdentifier,
                 );
             $partIds = [...$partIds, ...$sealed->ids];
 
-            $wrappedKey = $this->keyTransport->wrap(
-                $sessionKey,
-                $request->recipientCertificate,
-                $request->keyTransportAlgorithm,
-            );
-
             if ($partIds === []) {
                 // The ReferenceList invariant, checked rather than assumed: every id in it came from work done
-                // above, so an empty list here would mean an EncryptedKey unlocking nothing. The request guard
-                // makes this unreachable, and a static constraint is not a runtime check.
+                // above, so an empty list here would name nothing while the message reads as encrypted. The
+                // request guard makes this unreachable, and a static constraint is not a runtime check.
                 throw EncryptionFailed::withReason('An encryption request must name at least one part.');
             }
 
-            $encryptedKey = $this->encryptedKeyBuilder->build(
-                $document,
-                $wrappedKey,
-                $request->keyIdentifier,
-                $request->recipientCertificate,
-                $request->keyTransportAlgorithm,
-                $partIds,
+            append($this->referenceListBuilder->build($document, $partIds))(
+                $request->nestReferenceListIn ?? $container,
             );
-
-            append($encryptedKey)($container);
 
             return new EncryptionResult($sealed->parts);
         } catch (EncryptionFailed $exception) {

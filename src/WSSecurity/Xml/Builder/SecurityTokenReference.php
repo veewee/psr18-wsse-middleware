@@ -59,21 +59,50 @@ final readonly class SecurityTokenReference
     }
 
     /**
-     * KeyIdentifier variant: carries an encoded identifier of the key (SKI, thumbprint, ...).
+     * Local-reference variant: points at an element this same Security header carries, by its wsu:Id.
      *
-     * @param non-empty-string $encodedValue the base64-encoded identifier
-     * @param non-empty-string $valueType the identifier's WS-Security ValueType URI
-     * @param non-empty-string $encodingType the encoding URI (typically Base64Binary)
+     * The ValueType is optional because not every referenced element has one, but pass it where the element's
+     * own profile defines one: a receiver enforcing the Basic Security Profile classifies a reference by its
+     * declared type, and refuses one it cannot classify rather than looking at what it points at.
+     *
+     * @param non-empty-string $uri       the wsu:Id of the referenced element, without the '#'
+     * @param non-empty-string $valueType the referenced element's own type URI
      */
-    public static function keyIdentifier(string $encodedValue, string $valueType, string $encodingType): self
+    public static function localReference(string $uri, string $valueType): self
     {
         return new self(namespaced_element(
             WsseNamespaces::Wsse->value,
-            WsseNamespaces::Wsse->qualify('KeyIdentifier'),
+            WsseNamespaces::Wsse->qualify('Reference'),
+            attribute('URI', '#'.$uri),
             attribute('ValueType', $valueType),
-            attribute('EncodingType', $encodingType),
-            value($encodedValue),
         ));
+    }
+
+    /**
+     * KeyIdentifier variant: carries an encoded identifier of the key (SKI, thumbprint, ...).
+     *
+     * @param non-empty-string      $encodedValue the base64-encoded identifier
+     * @param non-empty-string      $valueType    the identifier's WS-Security ValueType URI
+     * @param non-empty-string      $encodingType the encoding URI (typically Base64Binary)
+     * @param non-empty-string|null $tokenType    the wsse11:TokenType naming what the identifier points at, for
+     *        the identifier kinds whose profile calls for it
+     */
+    public static function keyIdentifier(
+        string $encodedValue,
+        string $valueType,
+        string $encodingType,
+        ?string $tokenType = null,
+    ): self {
+        return new self(
+            namespaced_element(
+                WsseNamespaces::Wsse->value,
+                WsseNamespaces::Wsse->qualify('KeyIdentifier'),
+                attribute('ValueType', $valueType),
+                attribute('EncodingType', $encodingType),
+                value($encodedValue),
+            ),
+            $tokenType,
+        );
     }
 
     /**

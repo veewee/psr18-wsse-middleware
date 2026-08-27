@@ -60,6 +60,30 @@ Worth knowing whether you use a skill or do it yourself.
 - **Pick a port for you.** WebSphere scopes settings per port, while a `WsseMiddleware` is configured once per
   client. Two ports that disagree are two middlewares.
 
+## Symmetric bindings
+
+An `sp:SymmetricBinding` keys both the signature and the encryption off one symmetric session key, and the
+translation is a different shape from the asymmetric one rather than a longer version of it: instead of two
+credentials, one key source is passed to both blocks. `wsse-import-wspolicy` carries the full table; the shape it
+produces is the one in
+[Symmetric key sources](outbound-blocks.md#symmetric-key-sources).
+
+Three assertions do most of the work:
+
+- `sp:ProtectionToken` names the token both blocks key off. An `sp:X509Token` there is a
+  `Keys\GeneratedSessionKey` over that certificate; something the two sides agreed out of band is a
+  `Keys\PreSharedSessionKey`.
+- `sp:RequireDerivedKeys` (on the protection token, or its `sp:RequireDerivedKeys` sibling on a supporting
+  token) wraps that source in a `Keys\DerivedSessionKey` per block. One per block, not one shared, because each
+  derives a key of its own length.
+- `sp:EndorsingSupportingTokens` and `sp:SignedEndorsingSupportingTokens` become a second `Signature` block over
+  `Part::primarySignature()`, placed after the block it endorses. Expect one: a symmetric binding whose
+  protection token is a wrapped session key authenticates nobody without it.
+
+The algorithm-suite warning below applies with more force here. `Basic128Rsa15`, which is what issue #9's policy
+names, pins RSA-1.5 key transport **and** HMAC-SHA1 for the signature, and this package refuses both by default.
+Both have to be named, and both are worth renegotiating.
+
 ## One thing to expect from a WS-SecurityPolicy
 
 Its algorithm suites are older than its reputation suggests. Every standard `sp:AlgorithmSuite` specifies RSA-SHA1

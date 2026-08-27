@@ -5,6 +5,22 @@
 Background for [`Inbound\VerifySignature`](inbound-blocks.md#inbound-verifysignature): what anchoring a
 certificate does and does not buy you, and how to close the gap.
 
+## At a glance
+
+Anchoring a CA proves a response was signed by somebody that CA vouched for, never that it was signed by your
+service. Pick how you close that:
+
+| Your situation | Do this | Cost |
+|---|---|---|
+| One endpoint, a stable certificate | Pin it: `TrustStore::fromCertificates($theirLeaf)` | You ship a new file when they rotate |
+| Many endpoints, or short-lived certificates | Anchor the CA and add `->onTrustedSigner($check)` | You write the identity check |
+| You need revocation as well | Anchor the CA and add `->withRevocationLists(...)` | You supply and refresh the CRLs |
+| A CA you fully control, issuing only to you | Anchor it alone | Nothing, if that stays true |
+
+**Pinning and revocation checking do not combine.** Revocation wants a list issued by the signer's own issuer,
+and a pinned certificate is not its own issuer, so the check fails closed. Adding the CA to fix that re-trusts
+everything that CA ever signed, which is what the pin existed to prevent. Pick one row, not two.
+
 ## Chain validity is not authentication
 
 **If you anchor a CA, you are trusting every certificate that CA ever issued.** The check proves the response
@@ -52,6 +68,17 @@ $expected = DistinguishedName::fromString('CN=payments.example.com,O=Example,C=B
 - `onTrustedSigner(callable(TrustedSigner): void $check): self` returns a copy with the check registered.
   `TrustedSigner` carries `subjectDistinguishedName()` and `certificate()`, so you can compare the subject, or
   the certificate's own bytes for a per-message pin.
+
+A signature keyed by a symmetric secret names no signer: one key both produces and checks it, so there is no
+identity for a check to run against. A message signed **only** that way, with a check registered, is
+**refused** rather than accepted with the check quietly skipped. That is also how you require a message to
+carry an endorsing signature: the check has a signer to run against only when a certificate signed too.
+
+When a message carries several signatures, the check runs against **every** signer and all of them must pass.
+All rather than any, because you are naming the identity you expected: a second signature from some other
+certificate your trust store happens to hold is exactly the thing you did not expect. It costs a message a
+lenient reading would have accepted, and it stops an identity you never named contributing to one you believe
+you checked.
 
 ## Revocation checking (opt-in)
 

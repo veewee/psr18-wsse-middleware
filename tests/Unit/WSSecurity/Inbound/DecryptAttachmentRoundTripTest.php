@@ -14,6 +14,8 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -162,7 +164,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
         // a file that is still ciphertext.
         $this->expectException(SecurityFault::class);
         (new Decrypt($fixture->leafKey))(
-            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
         );
     }
 
@@ -179,7 +181,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
             (new Decrypt($fixture->leafKey))
                 ->withDecryptor(new OpeningNothingDecryptor())
                 ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
-                    new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+                    new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
                 );
             static::fail('Expected the block to refuse an unencrypted registered attachment.');
         } catch (SecurityFault $fault) {
@@ -235,8 +237,8 @@ final class DecryptAttachmentRoundTripTest extends TestCase
         // message would still satisfy a policy check for "the Body is encrypted".
         $this->expectException(EncryptionFailed::class);
         $this->expectExceptionMessage('An element carrying an xop:Include cannot be encrypted');
-        (new Encryption($fixture->leafCertificate))(
-            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate)))(
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
         );
     }
 
@@ -249,7 +251,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
 
         (new Decrypt($fixture->leafKey))
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Complete))(
-                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+                new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
             );
 
         $opened = $storage->requestAttachments()->findById('<'.self::CID.'>');
@@ -269,7 +271,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
 
         (new Decrypt($fixture->leafKey))
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Complete))(
-                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+                new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
             );
     }
 
@@ -326,13 +328,13 @@ final class DecryptAttachmentRoundTripTest extends TestCase
     ): Document {
         $document = $fixture->envelope();
 
-        $block = (new Encryption($fixture->leafCertificate))
+        $block = (new Encryption(new GeneratedSessionKey($fixture->leafCertificate)))
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content));
         if ($parts !== null) {
             $block = $block->withParts($parts);
         }
 
-        $block(new WsseContext($document, SoapVersion::Soap12, $this->profile()));
+        $block(new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()));
 
         return $document;
     }
@@ -344,7 +346,7 @@ final class DecryptAttachmentRoundTripTest extends TestCase
     ): void {
         (new Decrypt($fixture->leafKey))
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
-                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+                new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
             );
     }
 

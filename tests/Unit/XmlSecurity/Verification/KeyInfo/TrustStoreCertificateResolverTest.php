@@ -18,7 +18,7 @@ use SoapTest\Psr18WsseMiddleware\Unit\XmlSecurity\WsseSignatureFixture;
  *
  * A reference naming an identifier this library does not support is not covered here, because it cannot be
  * built: the reference carries a KeyIdentifierKind, so an unknown spelling is refused while ds:KeyInfo is read.
- * CertificateExtractorTest pins that from the document instead.
+ * VerificationKeyExtractorTest pins that from the document instead.
  */
 final class TrustStoreCertificateResolverTest extends TestCase
 {

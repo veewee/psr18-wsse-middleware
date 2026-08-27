@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\WSSecurity\Xml;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\Xml\ElementName;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
 use Soap\Psr18WsseMiddleware\Xml\Exception\IdReferenceException;
@@ -14,7 +15,9 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\IdLookup;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\CertificateReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyIdentifierKind;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyInfoResolver;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\KeyReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\OnlyChild;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\SecretReference;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Verification\KeyInfo\X509DataKeyInfoResolver;
 use VeeWee\Xml\Dom\Document;
 
@@ -29,19 +32,34 @@ use VeeWee\Xml\Dom\Document;
  * reads: the one *inside* the token reference. The one directly under ds:KeyInfo is plain XML-DSig and belongs to
  * the resolver behind this one.
  *
+ * It also reads the two forms that name a symmetric session key rather than a certificate: a wsse:KeyIdentifier
+ * carrying an EncryptedKeySHA1, and a wsse:Reference naming a local xenc:EncryptedKey. Both resolve against the
+ * keys this exchange established and nowhere else, so a reference to a key the exchange never saw is refused
+ * rather than searched for. Without exchange keys neither form resolves at all, which is what keeps a
+ * deployment that establishes no secret from having a symmetric surface to attack.
+ *
  * This is where the profile's ValueType URIs are translated into what they mean, so nothing downstream has to
  * know how WS-Security spells an identifier.
  */
 final readonly class WsseKeyInfoResolver implements KeyInfoResolver
 {
     private KeyInfoResolver $plain;
+    private ?EstablishedSecrets $secrets;
 
-    public function __construct(?KeyInfoResolver $plain = null)
-    {
+    /**
+     * @param ?ExchangeKeys $keys the symmetric keys of the exchange in flight, when there is one. Null leaves
+     *        every symmetric reference form unresolvable, which is the right answer for a direction that
+     *        established no secret
+     */
+    public function __construct(
+        ?KeyInfoResolver $plain = null,
+        ?ExchangeKeys $keys = null,
+    ) {
         $this->plain = $plain ?? new X509DataKeyInfoResolver();
+        $this->secrets = $keys === null ? null : new EstablishedSecrets($keys);
     }
 
-    public function read(Document $document, Element $signatureElement, IdLookup $idLookup): CertificateReference
+    public function read(Document $document, Element $signatureElement, IdLookup $idLookup): KeyReference
     {
         $keyInfo = OnlyChild::named($signatureElement, Namespaces::Ds, 'KeyInfo')
             ?? throw SignatureVerificationFailed::withReason('ds:KeyInfo is missing.');
@@ -51,7 +69,8 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
             return $this->plain->read($document, $signatureElement, $idLookup);
         }
 
-        return $this->fromDirectReference($document, $str, $idLookup)
+        return $this->establishedSecret($document, $str, $idLookup)
+            ?? $this->fromDirectReference($document, $str, $idLookup)
             ?? $this->fromKeyIdentifier($str)
             ?? $this->fromIssuerSerial($str)
             // The reference is present but names the certificate in no way this profile defines. Falling through
@@ -67,7 +86,7 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
      * certificate, or a whole certification path when the token declares PKIPath. Null when no such reference is
      * present, so a sibling form can be tried; an unusable one is refused outright.
      */
-    private function fromDirectReference(Document $document, Element $str, IdLookup $idLookup): ?CertificateReference
+    private function fromDirectReference(Document $document, Element $str, IdLookup $idLookup): ?KeyReference
     {
         $reference = OnlyChild::named($str, WsseNamespaces::Wsse, 'Reference');
         if ($reference === null) {
@@ -114,7 +133,7 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
      * releases of this library emitted a Thumbprint reference that way, and a response correlated to one of those
      * must still verify. Only one may be present, across both namespaces.
      */
-    private function fromKeyIdentifier(Element $str): ?CertificateReference
+    private function fromKeyIdentifier(Element $str): ?KeyReference
     {
         $wsse = OnlyChild::named($str, WsseNamespaces::Wsse, 'KeyIdentifier');
         $wsse11 = OnlyChild::named($str, WsseNamespaces::Wsse11, 'KeyIdentifier');
@@ -154,10 +173,24 @@ final readonly class WsseKeyInfoResolver implements KeyInfoResolver
     }
 
     /**
+     * The symmetric secret this reference names, when it names one at all.
+     *
+     * Null covers both "this is a certificate reference" and "this names a secret nothing established", which
+     * is deliberate: the caller falls through to the certificate forms and ends at the one refusal every
+     * unreadable ds:KeyInfo produces, so a peer learns nothing from which of the two it hit.
+     */
+    private function establishedSecret(Document $document, Element $str, IdLookup $idLookup): ?SecretReference
+    {
+        $secret = $this->secrets?->forReference($document, $str, $idLookup);
+
+        return $secret === null ? null : new SecretReference($secret);
+    }
+
+    /**
      * Reads the ds:X509Data > ds:X509IssuerSerial inside the token reference into its issuer DN and decimal
      * serial. Null when the reference carries no such child.
      */
-    private function fromIssuerSerial(Element $str): ?CertificateReference
+    private function fromIssuerSerial(Element $str): ?KeyReference
     {
         $x509Data = OnlyChild::named($str, Namespaces::Ds, 'X509Data');
         if ($x509Data === null) {

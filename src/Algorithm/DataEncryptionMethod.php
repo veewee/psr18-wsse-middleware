@@ -49,6 +49,21 @@ enum DataEncryptionMethod: string
         return $this->isGcm() ? 16 : 0;
     }
 
+    /**
+     * The key length the cipher takes, in bytes. It belongs on the method because the method is what defines
+     * it: a key of any other length is not a weaker choice, it is one the cipher cannot use.
+     *
+     * @return positive-int
+     */
+    public function keyLength(): int
+    {
+        return match ($this) {
+            self::AES128_CBC, self::AES128_GCM => 16,
+            self::AES192_CBC, self::AES192_GCM, self::TRIPLEDES_CBC => 24,
+            self::AES256_CBC, self::AES256_GCM => 32,
+        };
+    }
+
     public static function default(): self
     {
         return self::AES256_GCM;

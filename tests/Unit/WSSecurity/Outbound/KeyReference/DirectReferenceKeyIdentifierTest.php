@@ -12,7 +12,7 @@ final class DirectReferenceKeyIdentifierTest extends KeyIdentifierTestCase
         $document = $this->document();
         $strategy = new DirectReferenceKeyIdentifier('token-1', 'urn:value-type');
 
-        $keyInfo = $strategy->apply($document, $this->certificate());
+        $keyInfo = $strategy->apply($document);
 
         static::assertSame('KeyInfo', $keyInfo->localName);
         static::assertSame(self::DS, $keyInfo->namespaceURI);
@@ -34,7 +34,7 @@ final class DirectReferenceKeyIdentifierTest extends KeyIdentifierTestCase
         $before = $document->toXmlString();
 
         $keyInfo = (new DirectReferenceKeyIdentifier('token-1', 'urn:value-type'))
-            ->apply($document, $this->certificate());
+            ->apply($document);
 
         // The returned element is detached and no BST is created anywhere.
         static::assertNull($keyInfo->parentNode);

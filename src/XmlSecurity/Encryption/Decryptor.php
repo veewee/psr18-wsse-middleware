@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Encryption;
 
+use Dom\Element;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Cipher;
 use Soap\Psr18WsseMiddleware\OpenSSL\KeyTransport;
 use Soap\Psr18WsseMiddleware\XmlSecurity\AttributeIdConvention;
@@ -15,8 +17,13 @@ use VeeWee\Xml\Dom\Document;
 
 /**
  * Orchestrates the XML decryption flow for one request: count the declared data references and reject an
- * over-cap message before any crypto (a denial-of-service gate), unwrap the session key (which also refuses a
- * non-SHA-1 OAEP parameterization), then resolve and decrypt each referenced xenc:EncryptedData in place.
+ * over-cap message before any crypto (a denial-of-service gate), obtain the session key, then resolve and
+ * decrypt each referenced xenc:EncryptedData in place.
+ *
+ * The key comes from one of two places, decided by the message rather than by configuration. A container
+ * carrying an xenc:EncryptedKey has its key unwrapped from it, which also refuses a non-SHA-1 OAEP
+ * parameterization. A container carrying none is a message encrypted under a key both sides already hold, and
+ * each part's key is resolved from what the exchange established.
  *
  * The wrapped key and the reference list are read from the container the request names, so only the parts that
  * container claims are decrypted. The referenced xenc:EncryptedData themselves are resolved document-wide, as
@@ -68,16 +75,20 @@ final class Decryptor implements XmlDecryptor
                 throw DecryptionFailed::withReason('The message declares too many encrypted parts.');
             }
 
-            $sessionKey = $this->encryptedKeyReader->read(
-                $document,
-                $request->container,
-                $request->privateKey,
-                $request->policy,
-            );
+            $wrapped = $this->encryptedKeyReader->isPresent($document, $request->container)
+                ? $this->encryptedKeyReader->read(
+                    $document,
+                    $request->container,
+                    $request->privateKey
+                        ?? throw DecryptionFailed::withReason('The message wraps a key and no private key was supplied.'),
+                    $request->policy,
+                )
+                : null;
 
             $opened = [];
             foreach ($references as $id) {
                 $element = $this->encryptedData->resolve($document, $id);
+                $sessionKey = $wrapped ?? $this->establishedKey($document, $element, $request);
 
                 // Which path a part takes is decided by the element, not by configuration: one carrying a
                 // CipherReference has its bytes elsewhere and cannot be replaced in place. An encrypted
@@ -105,5 +116,19 @@ final class Decryptor implements XmlDecryptor
             // Every cause collapses to one message so the inbound path is never a padding or validation oracle.
             throw DecryptionFailed::withReason('Unable to decrypt the message.', $exception);
         }
+    }
+
+    /**
+     * The established key this part names, for a message that wraps none.
+     *
+     * A part naming nothing established is refused rather than decrypted against a key found some other way: a
+     * key with no provenance protects nothing, and there is no second candidate to try.
+     *
+     * @throws DecryptionFailed
+     */
+    private function establishedKey(Document $document, Element $element, DecryptionRequest $request): SessionKey
+    {
+        return $request->sessionKeys?->resolve($document, $element)
+            ?? throw DecryptionFailed::withReason('The message names no key this exchange established.');
     }
 }

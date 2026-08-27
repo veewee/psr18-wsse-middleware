@@ -19,6 +19,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Signature;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Timestamp;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
+use Soap\Psr18WsseMiddleware\WSSecurity\Signing\Asymmetric;
 use Soap\Psr18WsseMiddleware\WSSecurity\Xml\WsuIdConvention;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Canonicalization\DomCanonicalizer;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
@@ -52,7 +53,7 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         );
 
         (new Timestamp())($context);
-        (new Signature($certificate, keyRef: KeyRef::BinarySecurityToken))
+        (new Signature(new Asymmetric($certificate, KeyRef::BinarySecurityToken)))
             ->withSigner($this->realSigner())($context);
 
         (new VerifySignature(
@@ -81,7 +82,7 @@ final class InclusiveC14nSelfConsistencyTest extends OutboundTestCase
         );
 
         (new Timestamp())($context);
-        (new Signature($certificate, keyRef: KeyRef::BinarySecurityToken))
+        (new Signature(new Asymmetric($certificate, KeyRef::BinarySecurityToken)))
             ->withSigner($this->realSigner())($context);
 
         // The DigestValue the signer emitted must equal what a verifier recomputes from the wire. The signer

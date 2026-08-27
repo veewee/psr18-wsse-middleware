@@ -1,5 +1,7 @@
 # Attachment security
 
+[← Back to the deep dives](../README.md#deep-dives)
+
 Signing, verifying, encrypting and decrypting SOAP attachments as first-class parts of the message, under the
 same key material as the body.
 
@@ -29,7 +31,7 @@ use Soap\Psr18AttachmentsMiddleware\Multipart\AttachmentType;
 use Soap\Psr18AttachmentsMiddleware\Storage\AttachmentStorage;
 use Soap\Psr18Transport\Psr18Transport;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
-use Soap\Psr18WsseMiddleware\WSSecurity\{Inbound, Outbound, Part, SecurityProfile};
+use Soap\Psr18WsseMiddleware\WSSecurity\{Inbound, Keys, Outbound, Part, SecurityProfile, Signing};
 use Soap\Psr18WsseMiddleware\WsseMiddleware;
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
@@ -44,9 +46,9 @@ $transport = Psr18Transport::createForClient(
             outbound: [
                 new Outbound\Timestamp(),
                 // Sign first, so the digest covers the plaintext attachment.
-                (new Outbound\Signature($clientCertificate))
+                (new Outbound\Signature(new Signing\Asymmetric($clientCertificate)))
                     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete)),
-                (new Outbound\Encryption($recipientCertificate))
+                (new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate)))
                     ->withParts([Part::body()])
                     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Content)),
             ],
@@ -201,6 +203,11 @@ attachment parts together, so all of them are under one session key. That is why
 the same `Outbound\Encryption` block rather than being a block of its own: a second block would emit a second
 key, which a receiver refuses.
 
+Sharing that key with a `Signature` block works too, and changes the shape: the `xenc:ReferenceList` moves out of
+the `xenc:EncryptedKey` and each `xenc:EncryptedData`, attachments included, names the key with an
+`EncryptedKeySHA1` identifier. See
+[where the reference list goes](outbound-blocks.md#outbound-encryption). The interop harness covers it.
+
 A signed attachment adds a reference to the same `ds:Signature` as the body's:
 
 ```xml
@@ -259,11 +266,11 @@ You choose where the adapter is built:
 use Soap\Psr18WsseMiddleware\XmlSecurity\ExternalPartCoverage;
 
 // A bare <sp:Attachments/> in the peer's SignedParts.
-(new Outbound\Signature($clientCertificate))
+(new Outbound\Signature(new Signing\Asymmetric($clientCertificate)))
     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Complete));
 
 // EncryptedParts is satisfied by either, so content-only is the cheaper choice.
-(new Outbound\Encryption($recipientCertificate))
+(new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate)))
     ->withParts([Part::body()])
     ->withAttachments(AttachmentParts::request($attachments, ExternalPartCoverage::Content));
 

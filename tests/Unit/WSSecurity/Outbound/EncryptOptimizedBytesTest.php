@@ -14,6 +14,8 @@ use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\WSSecurity\Attachment\AttachmentParts;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\ResolveOptimizedBytes;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -105,10 +107,10 @@ final class EncryptOptimizedBytesTest extends TestCase
 
         (new ResolveOptimizedBytes(
             AttachmentParts::response($storage, ExternalPartCoverage::Content),
-        ))(new WsseContext($document, SoapVersion::Soap12, $this->profile()));
+        ))(new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()));
 
         (new Decrypt($fixture->leafKey))(
-            new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+            new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
         );
 
         static::assertStringContainsString(self::PLAINTEXT, $document->toXmlString());
@@ -135,11 +137,12 @@ final class EncryptOptimizedBytesTest extends TestCase
 
         // The Body itself cannot be encrypted while it carries a pointer, which is the standing refusal, so
         // this is the MTOM shape: encrypt the attachment, and let the wrapped key's bytes travel in a part.
-        (new Encryption($fixture->leafCertificate))
+        $carriers = AttachmentParts::request($storage, ExternalPartCoverage::Content);
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate, optimizedCipherBytes: $carriers)))
             ->withParts([])
             ->withAttachments(AttachmentParts::request($storage, ExternalPartCoverage::Content))
-            ->withOptimizedCipherBytes(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
-                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+            ->withOptimizedCipherBytes($carriers)(
+                new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
             );
 
         // The encoder's own attachment: still there, still under its id, now sealed as ciphertext.
@@ -177,9 +180,13 @@ final class EncryptOptimizedBytesTest extends TestCase
         $fixture ??= WsseSignatureFixture::caSignedLeaf();
         $document = $fixture->envelope(body: '<data>'.self::PLAINTEXT.'</data>');
 
-        (new Encryption($fixture->leafCertificate))
-            ->withOptimizedCipherBytes(AttachmentParts::request($storage, ExternalPartCoverage::Content))(
-                new WsseContext($document, SoapVersion::Soap12, $this->profile()),
+        // Registered on both the key source and the block: whether a cipher value is optimized is decided per
+        // element, so the wrapped key and the content are separate choices over one set of carriers.
+        $carriers = AttachmentParts::request($storage, ExternalPartCoverage::Content);
+
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate, optimizedCipherBytes: $carriers)))
+            ->withOptimizedCipherBytes($carriers)(
+                new WsseContext($document, SoapVersion::Soap12, $this->profile(), new ExchangeKeys()),
             );
 
         return $document;

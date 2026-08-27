@@ -76,6 +76,13 @@ final class CryptoPolicy
             SignatureMethod::ECDSA_SHA256,
             SignatureMethod::ECDSA_SHA384,
             SignatureMethod::ECDSA_SHA512,
+            // The HMAC methods follow the same rule their RSA counterparts do: the SHA-2 sizes are sound and
+            // the SHA-1 one is named deliberately or not at all. Accepting a keyed MAC costs nothing to a
+            // deployment that establishes no symmetric secret, because the verifier refuses an HMAC signature
+            // whose ds:KeyInfo resolved to a certificate rather than to a secret this exchange established.
+            SignatureMethod::HMAC_SHA256,
+            SignatureMethod::HMAC_SHA384,
+            SignatureMethod::HMAC_SHA512,
         ], 'signature method');
         $this->acceptedDigestMethods = self::requireNonEmpty($acceptedDigestMethods ?? [
             DigestMethod::SHA256,

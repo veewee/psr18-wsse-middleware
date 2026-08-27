@@ -25,9 +25,11 @@ final class SessionKeyFactoryTest extends TestCase
     }
 
     #[DataProvider('methods')]
-    public function test_it_generates_a_key_of_the_correct_length(DataEncryptionMethod $method, int $length): void
-    {
-        $key = (new SessionKeyFactory())->generate($method);
+    public function test_it_generates_a_key_of_the_length_the_method_takes(
+        DataEncryptionMethod $method,
+        int $length,
+    ): void {
+        $key = (new SessionKeyFactory())->generate($method->keyLength());
 
         static::assertSame($length, strlen($key->bytes()));
     }
@@ -37,8 +39,8 @@ final class SessionKeyFactoryTest extends TestCase
         $factory = new SessionKeyFactory();
 
         static::assertNotSame(
-            $factory->generate(DataEncryptionMethod::AES256_GCM)->bytes(),
-            $factory->generate(DataEncryptionMethod::AES256_GCM)->bytes(),
+            $factory->generate(32)->bytes(),
+            $factory->generate(32)->bytes(),
         );
     }
 }

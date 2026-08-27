@@ -6,9 +6,12 @@ namespace Soap\Psr18WsseMiddleware\XmlSecurity\Verification\SignedInfo;
 use Dom\Element;
 use Dom\Node;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
+use Soap\Psr18WsseMiddleware\OpenSSL\Hmac;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\Xml\ChildElements;
 use Soap\Psr18WsseMiddleware\Xml\ElementText;
@@ -31,12 +34,16 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
  * A forged or malformed signature value is a normal cryptographic outcome reported as false, with no detail
  * that would distinguish a wrong key from garbage bytes. Structural violations are refused before the crypto
  * call. A canonicalization failure propagates unchanged.
+ *
+ * Which primitive checks the value follows from the signature method, never from the shape of the key handed
+ * over: a mismatch between the two is refused rather than resolved in either direction.
  */
 final class SignatureValidator
 {
     public function __construct(
         private Canonicalizer $canonicalizer,
         private OpenSslSigner $opensslSigner,
+        private Hmac $hmac = new Hmac(),
     ) {
     }
 
@@ -48,7 +55,7 @@ final class SignatureValidator
      */
     public function validate(
         Element $signatureElement,
-        Certificate $signerCertificate,
+        Certificate|SessionKey $verificationKey,
         SignatureMethod $signatureMethod,
         SignatureCanonicalization $canonicalizationMethod,
         array $inclusivePrefixes,
@@ -75,8 +82,17 @@ final class SignatureValidator
             $inclusivePrefixes === [] ? null : $inclusivePrefixes,
         );
 
+        if ($signatureMethod->keyKind() === SignatureKeyKind::Hmac) {
+            return $verificationKey instanceof SessionKey
+                && $this->hmac->verify($canonical, $verificationKey, $expectedSignature, $signatureMethod);
+        }
+
+        if (!$verificationKey instanceof Certificate) {
+            return false;
+        }
+
         try {
-            return $this->opensslSigner->verify($signerCertificate, $canonical, $expectedSignature, $signatureMethod);
+            return $this->opensslSigner->verify($verificationKey, $canonical, $expectedSignature, $signatureMethod);
         } catch (OpenSslException) {
             // A key or setup error: treated as a failed verification so the caller learns only that the
             // signature did not verify.

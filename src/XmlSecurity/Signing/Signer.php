@@ -4,8 +4,12 @@ declare(strict_types=1);
 namespace Soap\Psr18WsseMiddleware\XmlSecurity\Signing;
 
 use Dom\Element;
+use Soap\Psr18WsseMiddleware\Algorithm\SignatureKeyKind;
+use Soap\Psr18WsseMiddleware\KeyStore\Key;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\OpenSSL\Digest;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\OpenSslException;
+use Soap\Psr18WsseMiddleware\OpenSSL\Hmac;
 use Soap\Psr18WsseMiddleware\OpenSSL\Signer as OpenSslSigner;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\Xml\Query;
@@ -35,8 +39,12 @@ use function VeeWee\Xml\Dom\Manipulator\append;
  *
  * The detached ds:Signature is appended to the container element the caller supplies on the request, so the
  * engine carries no SOAP-header, SOAP-version, or mustUnderstand dependency. The signature is inserted last, so
- * no Target can resolve to it. The private key never leaves the OpenSSL\ boundary: its Key is handed to
- * OpenSSL\Signer, which resolves the live handle internally.
+ * no Target can resolve to it. The key never leaves the OpenSSL\ boundary: it is handed to OpenSSL\Signer or to
+ * OpenSSL\Hmac, which resolve the live handle or the secret internally.
+ *
+ * Which of the two computes the value follows from the signature method the request names, never from the shape
+ * of the key it was handed. Deciding by the key would let an HMAC method be answered with a certificate\'s
+ * public bytes, which is a secret everybody has.
  *
  * Mutates the document in place (id stamps on referenced elements, then ds:Signature insertion).
  */
@@ -62,6 +70,7 @@ final class Signer implements XmlSigner
             $canonicalizer,
             new OpenSslSigner(),
             $idLookup,
+            new Hmac(),
         );
     }
 
@@ -72,6 +81,7 @@ final class Signer implements XmlSigner
         private Canonicalizer $canonicalizer,
         private OpenSslSigner $opensslSigner,
         private IdLookup $idLookup,
+        private Hmac $hmac = new Hmac(),
     ) {
     }
 
@@ -133,7 +143,7 @@ final class Signer implements XmlSigner
             $digests,
             $signedInfoPrefixes,
         );
-        $keyInfo = $request->keyIdentifier->apply($document, $request->signingCertificate);
+        $keyInfo = $request->keyIdentifier->apply($document);
 
         // The signature is attached first so ds:SignedInfo is in-document: C14N only works on attached nodes,
         // and the signed bytes are the canonical form of SignedInfo as it sits inside the signed message.
@@ -169,13 +179,34 @@ final class Signer implements XmlSigner
             $inclusivePrefixes === [] ? null : $inclusivePrefixes,
         );
 
+        value(base64_encode($this->signatureValue($request, $canonical)))($signatureValue);
+    }
+
+    /**
+     * The signature or MAC bytes for the canonical ds:SignedInfo, chosen by the method the request names.
+     *
+     * @throws SigningFailed
+     */
+    private function signatureValue(SigningRequest $request, string $canonical): string
+    {
+        $method = $request->signatureMethod;
+        $key = $request->signingKey;
+
+        if ($method->keyKind() === SignatureKeyKind::Hmac) {
+            return $key instanceof SessionKey
+                ? $this->hmac->compute($canonical, $key, $method)
+                : throw SigningFailed::cryptoError('A keyed-MAC signature method needs a symmetric secret.');
+        }
+
+        if (!$key instanceof Key) {
+            throw SigningFailed::cryptoError('An asymmetric signature method needs private key material.');
+        }
+
         try {
-            $signature = $this->opensslSigner->sign($request->signingKey, $canonical, $request->signatureMethod);
+            return $this->opensslSigner->sign($key, $canonical, $method);
         } catch (OpenSslException $exception) {
             throw SigningFailed::cryptoError($exception->getMessage());
         }
-
-        value(base64_encode($signature))($signatureValue);
     }
 
     /**

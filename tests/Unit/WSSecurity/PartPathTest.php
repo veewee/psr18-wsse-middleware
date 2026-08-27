@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\PartKind;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
@@ -82,7 +83,7 @@ final class PartPathTest extends TestCase
 
         $this->expectException(SecurityFault::class);
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))(
-            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
         );
     }
 
@@ -97,7 +98,7 @@ final class PartPathTest extends TestCase
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate), signed: [Part::body()]))(
-            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
         );
 
         static::assertStringContainsString('<soap:Body', $document->toXmlString());

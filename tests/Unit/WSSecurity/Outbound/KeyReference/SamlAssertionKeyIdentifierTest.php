@@ -18,7 +18,7 @@ final class SamlAssertionKeyIdentifierTest extends KeyIdentifierTestCase
         $document = $this->document();
 
         $keyInfo = (new SamlAssertionKeyIdentifier('_assertion-123', SamlVersion::Saml11))
-            ->apply($document, $this->certificate());
+            ->apply($document);
 
         static::assertSame('KeyInfo', $keyInfo->localName);
         static::assertSame(self::DS, $keyInfo->namespaceURI);
@@ -37,7 +37,7 @@ final class SamlAssertionKeyIdentifierTest extends KeyIdentifierTestCase
     public function test_it_does_not_carry_an_encoding_type(): void
     {
         $keyInfo = (new SamlAssertionKeyIdentifier('_assertion-123', SamlVersion::Saml11))
-            ->apply($this->document(), $this->certificate());
+            ->apply($this->document());
 
         $keyIdentifier = $this->firstChildElement($this->firstChildElement($keyInfo));
         static::assertFalse($keyIdentifier->hasAttribute('EncodingType'));
@@ -50,7 +50,7 @@ final class SamlAssertionKeyIdentifierTest extends KeyIdentifierTestCase
         $document = $this->document();
 
         $keyInfo = (new SamlAssertionKeyIdentifier('_assertion-123', SamlVersion::Saml20))
-            ->apply($document, $this->certificate());
+            ->apply($document);
 
         $str = $this->firstChildElement($keyInfo);
         static::assertSame(self::TOKEN_TYPE_20, $str->getAttributeNS(self::WSSE11, 'TokenType'));
@@ -65,7 +65,7 @@ final class SamlAssertionKeyIdentifierTest extends KeyIdentifierTestCase
         $document = $this->document();
 
         $keyInfo = (new SamlAssertionKeyIdentifier('_assertion-123', SamlVersion::Saml11))
-            ->apply($document, $this->certificate());
+            ->apply($document);
 
         $str = $this->firstChildElement($keyInfo);
         static::assertSame(self::TOKEN_TYPE_11, $str->getAttributeNS(self::WSSE11, 'TokenType'));

@@ -103,7 +103,7 @@ final class BinarySecurityTokenTest extends OutboundTestCase
         $identifier = (new BinarySecurityToken($this->certificate()))->embedAsDirectReference($this->context($document));
 
         $bst = $this->only($document, self::WSSE, 'BinarySecurityToken');
-        $keyInfo = $identifier->apply($document, $this->certificate());
+        $keyInfo = $identifier->apply($document);
         $reference = $keyInfo->getElementsByTagNameNS(self::WSSE, 'Reference')->item(0);
 
         static::assertInstanceOf(Element::class, $reference);
@@ -148,7 +148,7 @@ final class BinarySecurityTokenTest extends OutboundTestCase
 
         // The reference's ValueType names what the referenced token carries, so it has to move with the token's:
         // a peer that finds them disagreeing refuses the SecurityTokenReference outright.
-        $keyInfo = $identifier->apply($document, $chain->leaf());
+        $keyInfo = $identifier->apply($document);
         $reference = $keyInfo->getElementsByTagNameNS(self::WSSE, 'Reference')->item(0);
         static::assertInstanceOf(Element::class, $reference);
         static::assertSame(self::X509_PKI_PATH, $reference->getAttribute('ValueType'));
@@ -167,7 +167,7 @@ final class BinarySecurityTokenTest extends OutboundTestCase
         $identifier = (new BinarySecurityToken($this->certificate()))->embedAsDirectReference($this->context($document));
 
         // Only the path token needs its type named; a bare certificate reference is complete without it.
-        $str = $identifier->apply($document, $this->certificate())
+        $str = $identifier->apply($document)
             ->getElementsByTagNameNS(self::WSSE, 'SecurityTokenReference')->item(0);
         static::assertInstanceOf(Element::class, $str);
         static::assertFalse($str->hasAttributeNS(self::WSSE11, 'TokenType'));

@@ -32,6 +32,7 @@ use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\Encryptor;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalEncryptedDataReader;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\External\ExternalPartSealer;
+use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\ReferenceListBuilder;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Encryption\SessionKeyFactory;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\DecryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Target;
@@ -124,9 +125,10 @@ final class EncryptorDecryptorTest extends TestCase
             $this->encryptionRequest($this->security($document), [$this->bodyTarget(), $this->timestampTarget()], $certificate, DataEncryptionMethod::AES256_GCM),
         );
 
-        // One EncryptedKey, two DataReferences, two EncryptedData.
+        // One EncryptedKey, one ReferenceList beside it naming both parts, two EncryptedData.
         static::assertCount(2, $this->encryptedData($document));
-        $references = $this->encryptedKey($document)->getElementsByTagNameNS(self::XENC, 'DataReference');
+        static::assertSame(1, $this->security($document)->getElementsByTagNameNS(self::XENC, 'ReferenceList')->count());
+        $references = $this->security($document)->getElementsByTagNameNS(self::XENC, 'DataReference');
         static::assertSame(2, $references->count());
 
         $this->decryptor()->decrypt($document, new DecryptionRequest($this->security($document), $key));
@@ -213,7 +215,7 @@ final class EncryptorDecryptorTest extends TestCase
 
         // Inflate the ReferenceList past the cap. Also corrupt the wrapped key so that, were the cap not
         // enforced first, the unwrap would fail too: the test proves the cap rejects before that work runs.
-        $referenceList = $this->encryptedKey($document)->getElementsByTagNameNS(self::XENC, 'ReferenceList')->item(0);
+        $referenceList = $this->security($document)->getElementsByTagNameNS(self::XENC, 'ReferenceList')->item(0);
         static::assertInstanceOf(Element::class, $referenceList);
         for ($i = 0; $i <= Decryptor::MAX_ENCRYPTED_PARTS; $i++) {
             $reference = $document->toUnsafeDocument()->createElementNS(self::XENC, 'xenc:DataReference');
@@ -269,11 +271,9 @@ final class EncryptorDecryptorTest extends TestCase
     {
         return new Encryptor(
             new TargetLocator(),
-            new SessionKeyFactory(),
             new Cipher(),
             new EncryptedDataBuilder((new WsuIdConvention())->minter()),
-            new KeyTransport(),
-            new EncryptedKeyBuilder(),
+            new ReferenceListBuilder(),
             new ExternalPartSealer(
                 new Cipher(),
                 new ExternalEncryptedDataBuilder((new WsuIdConvention())->minter()),
@@ -293,17 +293,32 @@ final class EncryptorDecryptorTest extends TestCase
     }
 
     /**
+     * Mints the session key, writes the xenc:EncryptedKey carrying it into the container, and returns the
+     * request that spends it. Wrapping the key is the caller's half of the flow now: the Encryptor is handed a
+     * key and never learns how the recipient will come by it.
+     *
      * @param non-empty-list<EncryptionTarget> $targets
      */
     private function encryptionRequest(Element $container, array $targets, Certificate $certificate, DataEncryptionMethod $method): EncryptionRequest
     {
+        $document = Document::fromUnsafeDocument($container->ownerDocument);
+        $sessionKey = (new SessionKeyFactory())->generate($method->keyLength());
+        $keyIdentifier = new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN);
+
+        $encryptedKey = (new EncryptedKeyBuilder())->build(
+            $document,
+            (new KeyTransport())->wrap($sessionKey, $certificate, KeyTransportAlgorithm::legacyMgf1p()),
+            $keyIdentifier,
+            KeyTransportAlgorithm::legacyMgf1p(),
+        );
+        $container->appendChild($encryptedKey);
+
         return new EncryptionRequest(
             container: $container,
             targets: $targets,
-            recipientCertificate: $certificate,
-            keyIdentifier: new DirectReferenceKeyIdentifier('RecipientToken', self::X509_TOKEN),
+            sessionKey: $sessionKey,
             dataEncryptionMethod: $method,
-            keyTransportAlgorithm: KeyTransportAlgorithm::legacyMgf1p(),
+            keyIdentifier: $keyIdentifier,
         );
     }
 

@@ -14,13 +14,217 @@ WebSphere splits requirements from key material, across as many as five files.
 
 The more specific file wins: application binding, then server, then cell.
 
-From WAS 7 onward a policy set replaces this: `policy.xml` is plain WS-SecurityPolicy (`sp:SignedParts`,
-`sp:EncryptedParts`, `sp:AlgorithmSuite`) and `bindings.xml` holds the IBM key and token wiring. Read the policy
-for what is protected and the bindings only for key material.
+From WAS 7 onward a policy set replaces this, and it is a different shape rather than a tidier one. See
+[Policy sets](#policy-sets-was-7-and-later) below: read `policy.xml` for what is protected and `bindings.xml`
+for the keys and tokens, but neither reads the way its equivalent does anywhere else.
+
+## Finding your configuration in the file
+
+One `.xmi` holds every service reference the module makes, and you want one of them. The nesting is:
+
+```xml
+<com.ibm.etools.webservice.wscext:WsClientExtension ...>
+  <serviceRefs serviceRefLink="service/WindupService">
+    <portQnameBindings portQnameLocalNameLink="WindupServicePort">
+      <clientServiceConfig> ... </clientServiceConfig>
+```
+
+and a second copy of the same nesting may sit under `<componentScopedRefs componentNameLink="SomeEJB">` for a
+reference an EJB makes rather than the module. Match on `serviceRefLink` and `portQnameLocalNameLink` together:
+one service with two ports carries two configurations that differ, and importing the wrong one produces a
+plausible draft for a port you do not call. If you cannot tell which, list what you found and ask.
+
+## Policy sets, WAS 7 and later
+
+A policy set is a directory tree, not a file:
+
+```
+PolicySets/<set name>/PolicyTypes/WSSecurity/policy.xml     what is protected
+PolicyTypes/WSSecurity/bindings.xml                         which keys and tokens do it
+```
+
+**Name means nothing. Read the file.** WebSphere's shipped "Username WSSecurity default" is a full
+`sp:AsymmetricBinding` with `Basic128Rsa15`, signing and encrypting the body in both directions, that happens to
+also carry a `sp:UsernameToken`. Someone telling you "we just use Username WSSecurity default" is describing
+five blocks, not one.
+
+### `policy.xml` is WS-SecurityPolicy with two IBM conventions on top
+
+Do not hand it to the WS-SecurityPolicy import unread. Two things differ, and both change the answer:
+
+**There are no alternatives.** The root `wsp:Policy` holds its assertions as direct children with no
+`wsp:ExactlyOne` and no `wsp:All` anywhere. Looking for alternatives to choose between finds nothing, and there
+is no choice to report.
+
+**Direction comes from `wsu:Id`, not from an attachment point.** The parts assertions sit inside nested
+`wsp:Policy` elements whose ids carry the direction as a prefix:
+
+```xml
+<wsp:Policy wsu:Id="request:app_signparts">
+  <sp:SignedParts><sp:Body/></sp:SignedParts>
+  ...
+</wsp:Policy>
+<wsp:Policy wsu:Id="response:app_signparts">
+  ...
+```
+
+| `wsu:Id` | Where it lands |
+|---|---|
+| `request:app_signparts` / `request:app_encparts` | `withParts()` on the outbound `Signature` / `Encryption` |
+| `response:app_signparts` | **`signed:` on `Inbound\VerifySignature`** |
+| `response:app_encparts` | Nothing to configure; `Decrypt` decrypts what arrives marked |
+| `request:token_auth` | The supporting token, request only |
+| `request:bootstrap_*` / `response:bootstrap_*` | The WS-SecureConversation handshake. Ignore them: this package does not perform the handshake, and mining them for parts applies the handshake's rules to your application messages. |
+
+An id you do not recognise is a question, not a part list. The binding assertion itself sits outside all of
+these and applies both ways, as it does everywhere.
+
+### The namespaces are older than you expect
+
+| Prefix | Value in a shipped WAS policy set |
+|---|---|
+| `sp:` | `http://docs.oasis-open.org/ws-sx/ws-securitypolicy/200512`, the committee draft between the 2005 submission and the 200702 standard |
+| `wsp:` | `http://schemas.xmlsoap.org/ws/2004/09/policy`, WS-Policy 1.2, not the 1.5 `http://www.w3.org/ns/ws-policy` |
+| `sp:IncludeToken` values | `.../ws-securitypolicy/200512/IncludeToken/...` |
+
+Matching on the 200702 namespace, or on WS-Policy 1.5, finds nothing in one of these files. The assertion
+vocabulary is otherwise the same, so the WS-SecurityPolicy reference's tables all apply.
+
+### IBM writes XPath where an assertion would do
+
+Every part IBM can express as an XPath, it does, in one canonical fully-qualified form:
+
+```xml
+<sp:SignedElements>
+  <sp:XPath>/*[namespace-uri()='http://schemas.xmlsoap.org/soap/envelope/' and local-name()='Envelope']/*[...'Header']/*[...'Security']/*[...'Timestamp']</sp:XPath>
+```
+
+Three rules for reading them:
+
+1. **Recognise the shortcuts.** That expression is `Part::timestamp()`. The `UsernameToken` one is
+   `Part::usernameToken()`. Build a `Part::path()` only for an expression that is not one of the named parts.
+2. **The XPaths come in SOAP 1.1 and SOAP 1.2 pairs**, one naming
+   `http://schemas.xmlsoap.org/soap/envelope/` and one `http://www.w3.org/2003/05/soap-envelope`. Four
+   expressions are usually two parts. Mapping them one for one produces a part list half of which can never
+   match, and on the inbound side a `signed:` requirement that refuses every response.
+3. **An `sp:EncryptedElements` XPath naming `ds:Signature` is `sp:EncryptSignature` in disguise**, and stays
+   unmapped: this package does not encrypt the signature. Refuse it in that form too rather than writing the
+   `ds:Signature` into an encrypted part list. Both shipped WS-Security policy sets do this in both directions,
+   so expect it.
+
+The same doubling shows up on header assertions: a `sp:Header Namespace=` for both
+`http://schemas.xmlsoap.org/ws/2004/08/addressing` and `http://www.w3.org/2005/08/addressing` is one
+requirement about addressing headers, written twice.
+
+### The `WSAddressing` policy type
+
+A policy set carries one `PolicyTypes/WSAddressing/policy.xml` beside its `WSSecurity` one, and it is a
+different vocabulary again: WS-Addressing 1.0 Metadata, `wsam:` on
+`http://www.w3.org/2007/05/addressing/metadata`. Every shipped set has one and they are all this shape:
+
+```xml
+<wsp:Policy>
+  <wsp:ExactlyOne><wsp:All>
+    <wsam:Addressing wsp:Optional="true">
+      <wsp:Policy><wsp:ExactlyOne>
+        <wsp:All/>
+        <wsam:AnonymousResponses/>
+        <wsam:NonAnonymousResponses/>
+      </wsp:ExactlyOne></wsp:Policy>
+    </wsam:Addressing>
+  </wsp:All></wsp:ExactlyOne>
+</wsp:Policy>
+```
+
+| Assertion | Ours |
+|---|---|
+| `wsam:Addressing` | `new WsaMiddleware()`, beside the `WsseMiddleware` rather than inside it |
+| `wsp:Optional="true"` on it | Addressing is permitted, not required. Sending it conforms either way, so send it. |
+| `wsam:AnonymousResponses` | `replyTo: null`, which is the version's anonymous URI, so nothing to write |
+| `wsam:NonAnonymousResponses` | The reply goes to an address you name, which a PSR-18 client has nothing listening on. Raise it rather than setting `replyTo:` and calling it done. |
+| The empty `<wsp:All/>` alternative | Either response style is accepted, so the default is fine |
+
+Unlike the `WSSecurity` policy this one does use `wsp:ExactlyOne`, and it is nested: the outer one has a single
+alternative and the inner one offers three. Note also `xmlns:wsp="http://www.w3.org/ns/ws-policy"` here, WS-Policy
+1.5, where the `WSSecurity` policy in the same set uses 1.2. One policy set, two policy namespaces.
+
+See [the shared rules](../../../references/wsse-import-rules.md) for what holds about addressing whatever format
+it came from.
+
+### `bindings.xml`
+
+```xml
+<securityBindings>
+  <securityBinding name="application">
+    <securityOutboundBindingConfig>
+      <signingInfo order="1" name="asymmetric-signingInfoResponse"> ... </signingInfo>
+      <keyInfo type="STRREF" name="gen_signkeyinfo"><tokenReference reference="gen_signx509token"/></keyInfo>
+      <tokenGenerator name="gen_signx509token" ...> ... </tokenGenerator>
+    </securityOutboundBindingConfig>
+    <securityInboundBindingConfig> ... </securityInboundBindingConfig>
+```
+
+The file is a graph, not a list: a `signingInfo` names a `keyInfo` by `reference`, which names a
+`tokenGenerator` by `reference`, which carries the keystore. Follow the chain rather than reading the
+`tokenGenerator` elements in order, because a file holds more of them than the policy uses.
+
+| In the bindings | Ours |
+|---|---|
+| `securityOutboundBindingConfig` | The `outbound` list **of whoever owns this file**. On a service's own bindings its outbound is the response, which the `...Response` suffix in the `name` confirms. Mirror it. |
+| `securityInboundBindingConfig` | Likewise the other direction, `...Request` in the names |
+| `order="N"` on `signingInfo` / `encryptionInfo` | The block order, and the only statement of it. `signingInfo` before `encryptionInfo` is sign-then-encrypt; the reverse means reversing our block order and the inbound list with it. |
+| Several `signingInfo` / `encryptionInfo` in one config | Alternatives, conventionally named `asymmetric-*` and `symmetric-*`. Which one applies is decided by the token the policy asks for, so read the policy first and take the matching pair. |
+| `keyEncryptionKeyInfo` on an `encryptionInfo` | A session key wrapped under a certificate: `Keys\GeneratedSessionKey` |
+| `dataEncryptionKeyInfo` inside `encryptionPartReference` | The data keyed directly off an established or shared secret, with no wrapped key: `Keys\PreSharedSessionKey`, or the SecureConversation case below |
+| `<transform algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>` | Exclusive C14N, already the default |
+| `keyInfo type=` | The same `STRREF` / `KEYID` / `X509ISSUER` / `THUMBPRINT` table as the `.xmi` bindings |
+
+A `tokenGenerator` or `tokenConsumer` is identified by its `valueType localName`:
+
+| `valueType localName` | Ours |
+|---|---|
+| `...wss-x509-token-profile-1.0#X509v3` | An X.509 certificate: the signing identity, or the recipient's certificate on an encryption chain |
+| `...wss-username-token-profile-1.0#UsernameToken` | `new Outbound\Username(...)` |
+| `LTPA`, `LTPA_PROPAGATION` (uri `http://www.ibm.com/websphere/appserver/tokentype...`) | Unmapped and unclosable: a WebSphere-minted proprietary binary token. A port requiring one cannot be called from outside the cell as configured. |
+| `http://schemas.xmlsoap.org/ws/2005/02/sc/sct` | A WS-SecureConversation token, obtained by an RST/RSTR handshake this package does not perform. If the policy's protection token is this, the whole set is unimplementable; say so rather than reporting one gap. |
+
+Two callback-handler properties are worth reading, because they map onto settings that are off by default here:
+
+| Property on a `callbackHandler` | Ours |
+|---|---|
+| `com.ibm.wsspi.wssecurity.token.username.addNonce` = true | `->withNonce(true)` on `Outbound\Username` |
+| `com.ibm.wsspi.wssecurity.token.username.addTimestamp` = true | `->withCreated(true)` |
+
+Key material sits on the `callbackHandler`, and it is the JKS problem again:
+
+```xml
+<callbackHandler classname="com.ibm.websphere.wssecurity.callbackhandler.X509GenerateCallbackHandler">
+  <key alias="soapprovider" keypass="{xor}..." name="CN=SOAPProvider, OU=TRL, O=IBM, ST=Kanagawa, C=JP"/>
+  <keyStore storepass="{xor}..." path="${USER_INSTALL_ROOT}/etc/ws-security/samples/dsig-receiver.ks" type="JKS"/>
+</callbackHandler>
+```
+
+`type` is `JKS` or `JCEKS`, and both need the `keytool` conversion below. `${USER_INSTALL_ROOT}` and friends are
+WebSphere variables, so a path is not a path until someone resolves them: ask rather than guessing at the
+profile root. The `alias` is what you need to pick the right key out after converting, and the `name` is the
+subject DN, which is a useful cross-check that you converted the right entry.
+
+**A file from a collector dump has its passwords masked** to a literal `{xor}********` rather than a real
+encoded value. That is not a decodable secret and not a bug in the dump. Either way no `{xor}` string, masked or
+not, goes into your output.
+
 
 ## Requirements
 
-The `ext` files state what must be secured. A client descriptor looks like this:
+The `ext` files state what must be secured.
+
+**Two generations of element name, and a file uses one or the other.** Older descriptors say
+`securityRequestSenderServiceConfig` and `securityResponseReceiverServiceConfig`; the ones written from WAS
+5.0.2 onward say `securityRequestGeneratorServiceConfig` and `securityResponseConsumerServiceConfig`. Grep for
+both before concluding a descriptor carries no security: the outer nesting is identical, so the wrong spelling
+finds nothing and looks like an unsecured port. The tables below apply to either spelling.
+
+A client descriptor looks like this:
 
 ```xml
 <clientServiceConfig actorURI="myActorURI">
@@ -47,8 +251,8 @@ The `ext` files state what must be secured. A client descriptor looks like this:
 | Their setting | Ours |
 |---|---|
 | `addCreatedTimeStamp flag="true" expires="PT3M"` | `new Outbound\Timestamp()` plus `new SecurityProfile(timestampTtl: 180)`. The value is an ISO 8601 duration; convert to seconds. |
-| `integrity` | `new Outbound\Signature($clientCertificate)`, with `withParts()` only if the parts differ from the default |
-| `confidentiality` | `new Outbound\Encryption($recipientCertificate)`, likewise |
+| `integrity` | `new Outbound\Signature(new Signing\Asymmetric($clientCertificate))`, with `withParts()` only if the parts differ from the default |
+| `confidentiality` | `new Outbound\Encryption(new Keys\GeneratedSessionKey($recipientCertificate))`, likewise |
 | `loginConfig authMethod="BasicAuth"` | `new Outbound\Username($user, $password)`, which sends `PasswordText` |
 | `authMethod="Signature"` | No `Username` block. The identity is the signing certificate. |
 | `authMethod="IDAssertion"` or `LTPA` | Unmapped. Ask which credential is actually expected. |
@@ -56,6 +260,10 @@ The `ext` files state what must be secured. A client descriptor looks like this:
 | `requiredConfidentiality` | `new Inbound\Decrypt($privateKey)` |
 | `addReceivedTimestamp flag="true"` | `new Inbound\ValidateTimestamp()` |
 | `actorURI`, `actor`, `role` | `new SecurityProfile(actorOrRole: '...')` |
+| An **empty** `securityResponseConsumerServiceConfig` or `securityResponseReceiverServiceConfig` | Nothing is required of the response, so no inbound blocks. Present-but-empty is a real configuration and not a truncated file. Say that the response goes unchecked, because it is more often an oversight in the descriptor than a peer that protects nothing. |
+| A `securityToken` element with `localName` ending `#UsernameToken` | `new Outbound\Username($user, $password)`. The `name` attribute is the token's name in WebSphere's own configuration, not the username: the credential comes from the bindings or from a callback handler, so ask for it. |
+| A `securityToken` with `localName="LTPA"` and the `websphere/appserver/tokentype` uri | Unmapped, and not a gap you can close: an LTPA token is a WebSphere-proprietary binary token minted by the cell's own security runtime, which this package cannot obtain or produce. Say so plainly, since it is common in WebSphere-to-WebSphere calls and it means this port cannot be called from outside the cell as configured. |
+| A `securityToken` with `localName` ending `#X509v3` | The signing identity, or `new Outbound\BinarySecurityToken($certificate)` where nothing signs |
 
 Remember the mirroring rule: on a service's own descriptor, the receiver sections drive your outbound and the
 response sender sections drive your inbound.

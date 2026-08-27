@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\OpenSSL\CipherText;
 use Soap\Psr18WsseMiddleware\Xml\Namespaces;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\EncryptionFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\IdMinter;
+use Soap\Psr18WsseMiddleware\XmlSecurity\KeyIdentifier;
 use Throwable;
 use VeeWee\Xml\Dom\Document;
 use function VeeWee\Xml\Dom\Builder\attribute;
@@ -26,7 +27,10 @@ use function VeeWee\Xml\Dom\Manipulator\Node\replace_by_external_node;
  * the single xenc:EncryptedData. For Element-mode Parts the whole element is replaced by the xenc:EncryptedData.
  * The CipherValue carries IV || ciphertext [|| tag], base64 in the document unless a sink was given a
  * place to put the bytes instead; the injected IdMinter stamps an id on the
- * xenc:EncryptedData so the xenc:DataReference in the EncryptedKey can address it.
+ * xenc:EncryptedData so the xenc:DataReference in the ReferenceList can address it.
+ *
+ * A ds:KeyInfo naming the key that encrypted it makes each element self-describing, which is what a receiver
+ * needs when the ReferenceList stands beside the key rather than inside it.
  */
 final class EncryptedDataBuilder
 {
@@ -48,10 +52,11 @@ final class EncryptedDataBuilder
         CipherText $cipherText,
         DataEncryptionMethod $method,
         EncryptionMode $mode,
+        ?KeyIdentifier $keyIdentifier = null,
     ): string {
         try {
             $framed = $cipherText->iv.$cipherText->bytes.($cipherText->tag ?? '');
-            $encryptedData = $this->buildEncryptedData($document, $framed, $method, $mode);
+            $encryptedData = $this->buildEncryptedData($document, $framed, $method, $mode, $keyIdentifier);
             $id = $this->idMinter->mint($encryptedData, $document);
 
             $this->place($targetElement, $encryptedData, $mode);
@@ -69,25 +74,35 @@ final class EncryptedDataBuilder
         string $framed,
         DataEncryptionMethod $method,
         EncryptionMode $mode,
+        ?KeyIdentifier $keyIdentifier,
     ): Element {
+        // Schema order: EncryptionMethod, then ds:KeyInfo, then CipherData.
+        $children = [
+            static fn (): Element => $document->map(namespaced_element(
+                Namespaces::Xenc->value,
+                Namespaces::Xenc->qualify('EncryptionMethod'),
+                attribute('Algorithm', $method->value),
+            )),
+        ];
+
+        if ($keyIdentifier !== null) {
+            $keyInfo = $keyIdentifier->apply($document);
+            $children[] = static fn (): Element => $keyInfo;
+        }
+
+        $children[] = fn (): Element => $document->map(namespaced_element(
+            Namespaces::Xenc->value,
+            Namespaces::Xenc->qualify('CipherData'),
+            children(
+                fn (): Element => $this->cipherValueElement->build($document, $framed),
+            ),
+        ));
+
         return $document->map(namespaced_element(
             Namespaces::Xenc->value,
             Namespaces::Xenc->qualify('EncryptedData'),
             attribute('Type', $mode->value),
-            children(
-                static fn (): Element => $document->map(namespaced_element(
-                    Namespaces::Xenc->value,
-                    Namespaces::Xenc->qualify('EncryptionMethod'),
-                    attribute('Algorithm', $method->value),
-                )),
-                fn (): Element => $document->map(namespaced_element(
-                    Namespaces::Xenc->value,
-                    Namespaces::Xenc->qualify('CipherData'),
-                    children(
-                        fn (): Element => $this->cipherValueElement->build($document, $framed),
-                    ),
-                )),
-            ),
+            children(...$children),
         ));
     }
 

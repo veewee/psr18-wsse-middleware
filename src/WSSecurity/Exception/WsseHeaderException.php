@@ -21,6 +21,24 @@ final class WsseHeaderException extends RuntimeException
         return new self('The message carries more than one wsse:Security header for the ultimate receiver.');
     }
 
+    public static function derivingTokenNotReferenceable(): self
+    {
+        return new self('The key a derived key derives from is not referenced by a security token reference.');
+    }
+
+    public static function noPrimarySignature(): self
+    {
+        return new self(
+            'The Security header carries no ds:Signature to endorse. An endorsing signature belongs after the '
+            .'block it endorses.',
+        );
+    }
+
+    public static function ambiguousPrimarySignature(): self
+    {
+        return new self('The Security header carries more than one ds:Signature, so none of them is the primary one.');
+    }
+
     public static function nothingToSign(): self
     {
         return new self('The configured signature parts matched no element to sign.');

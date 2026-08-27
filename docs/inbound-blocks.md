@@ -9,6 +9,32 @@ default and what it expects.
 See [Outbound blocks](outbound-blocks.md) for their request-side counterparts, and the
 [README](../README.md#the-building-blocks) for the order to list them in.
 
+## At a glance
+
+The whole inbound vocabulary, in the order it has to run. Copy what you need and read the section behind it when
+a default does not fit:
+
+```php
+new Inbound\ResolveOptimizedBytes(AttachmentParts::response(...)); // put back bytes moved to MIME parts
+new Inbound\Decrypt($privateKey);                                  // open the xenc:EncryptedData parts
+new Inbound\VerifySignature($trustStore, signed: [Part::body()]);  // verify, and require what was covered
+new Inbound\ValidateTimestamp();                                   // reject a stale or future-dated reply
+```
+
+The order is a security property, not a style: verifying before decrypting fails closed against an
+encrypt-then-sign peer, and `ValidateTimestamp` means nothing unless `Part::timestamp()` is in the `signed:`
+list above it. An empty `inbound` list checks nothing at all.
+
+Both key-taking blocks answer the same question, "what key material do I hold?", and at least one answer is
+required:
+
+| What you hold | `Decrypt` | `VerifySignature` |
+|---|---|---|
+| A private key, for a key a peer wrapped to you | `new Inbound\Decrypt($privateKey)` | not applicable |
+| Certificates you trust as signers | not applicable | `new Inbound\VerifySignature($trustStore, ...)` |
+| A secret both sides already hold | `preSharedKey: $sharedSecret` | `preSharedKey: $sharedSecret` |
+| The key your own request conveyed | `useEstablishedKey: true` | `useEstablishedKey: true` |
+
 ## Inbound: `ResolveOptimizedBytes`
 
 Puts back the bytes a peer moved out of the document. Place it **first** in the inbound list, ahead of
@@ -59,8 +85,8 @@ Only code that deliberately registered this block ever sees them.
 ## Inbound: `Decrypt`
 
 Decrypts the `xenc:EncryptedData` parts of the response with your private key. Each encrypted part is replaced
-in place by its plaintext. Place it first in the inbound list, before verification, so the verifier sees the
-plaintext.
+in place by its plaintext. Place it before `VerifySignature`, so the verifier sees the plaintext (and after
+`ResolveOptimizedBytes` if you registered that too).
 
 ```php
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
@@ -71,7 +97,40 @@ $privateKey = Key::fromFile('security_token.priv')->withPassphrase('xxx');
 new Inbound\Decrypt($privateKey);
 ```
 
-- `Key $privateKey`: your recipient private key as a `KeyStore\Key`. Required.
+| To | Use |
+|---|---|
+| Open parts a peer wrapped under your certificate | `new Inbound\Decrypt($privateKey)` |
+| Open parts keyed by a secret both sides hold | `new Inbound\Decrypt(preSharedKey: $sharedSecret)` |
+| Open parts keyed by what your request conveyed | `new Inbound\Decrypt(useEstablishedKey: true)` |
+| Accept either of the last two shapes | pass both, in one block |
+| Also decrypt the attachments | `->withAttachments(AttachmentParts::response(...))` |
+
+Every argument, and why each default is what it is:
+
+- `?Key $privateKey = null`: your recipient private key as a `KeyStore\Key`, which unwraps an
+  `xenc:EncryptedKey` a peer wrapped for you.
+- `?PreSharedSessionKey $preSharedKey = null`: a secret both sides already hold. A wrapped or derived key is
+  never passed here: it was established while the request was written and the exchange already holds it, and
+  neither could be handed to an inbound block anyway, because both *mint* and would write a token into the
+  response.
+- `bool $useEstablishedKey = false`: read the key this exchange established for itself. A correlated response
+  carries no key of its own: each element names the key its own request conveyed, and this says such a response
+  is what you expect. Nothing is handed over, because the request registered the key while it was written.
+  **Off by default, and off means off**: a block given only a trust store refuses a MAC keyed by an established
+  key rather than accepting one it was never configured for, so a deployment that wants certificates only gets
+  certificates only. A pre-shared secret turns the same reading on by itself, since it is registered into the
+  same place.
+
+Same shape as `VerifySignature`, for the same reason: both blocks answer "what key material do I hold?".
+At least one of the three must be given:
+
+```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+
+new Inbound\Decrypt($privateKey);                          // a key wrapped under our certificate
+new Inbound\Decrypt(preSharedKey: $secret);                // a secret both sides hold
+new Inbound\Decrypt(useEstablishedKey: true);              // our own request conveyed the key
+```
 - `withAttachments(ExternalParts $attachments): self`: also decrypt the response's encrypted attachments. Off
   by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).
@@ -98,6 +157,26 @@ The wrapped session key is read from the `wsse:Security` header addressed to you
 refused rather than decrypted against an `xenc:EncryptedKey` found elsewhere in the envelope: your certificate is
 public, so anyone can wrap a key to you, and nothing about a key's position makes it yours.
 
+### A response keyed by the exchange's own secret
+
+A response to a request that established a symmetric key carries no `xenc:EncryptedKey` at all: the key
+travelled with the request, so each `xenc:EncryptedData` only points back at it. Which of the two shapes a
+given message uses is decided by the message: a container carrying a wrapped key has that key unwrapped, and a
+container carrying none has each part's key resolved from what the exchange established. That the second shape
+may arrive at all is yours to state, with `useEstablishedKey: true`, and a block that did not state it refuses
+one rather than opening it. Both may be stated at once for a peer that uses either.
+
+Both ways a peer may name a session key are read: a `wsse:KeyIdentifier` carrying the `EncryptedKeySHA1`
+digest, and a `wsse:Reference` whose URI carries that same digest and whose `ValueType` declares it. This
+package emits the first; WSS4J's derived-key path emits the second. A `wsc:DerivedKeyToken` is read whether or
+not it declares an `Algorithm`, since the attribute is optional and P_SHA1 is the default, and whether or not it
+carries a `Label`.
+
+**Established, and nothing else.** A reference naming a key this exchange never saw is refused; there is no
+fallback and no second candidate. The keys of one exchange are scoped to that exchange and shared only between
+its request and its response, because a wider cache would let a response be opened with a key from a different
+exchange, which is replay.
+
 Any decryption failure collapses to one uniform `SecurityFault` that does not reveal which step failed. That
 hides *which* step failed, not *whether* it did: a caller who can trigger requests still sees the difference
 between a returned response and a thrown one. If you accept AES-CBC, read the note on
@@ -123,14 +202,28 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 
 $trustStore = TrustStore::fromCertificates(Certificate::fromFile('service-ca.pub'));
 
-new Inbound\VerifySignature(
-    $trustStore,
+new Inbound\VerifySignature($trustStore,
     signed: [Part::body(), Part::timestamp()],
 );
 ```
 
-- `TrustStore $trustStore`: the certificates you trust as signers. Build it with
-  `TrustStore::fromCertificates(...)`. Required.
+| To | Use |
+|---|---|
+| Require the Body was signed | the default, nothing to write |
+| Require more than the Body | `signed: [Part::body(), Part::timestamp()]` |
+| Require every Security-header token was signed | `signed: [..., Part::securityHeaderContents()]` |
+| Verify a MAC keyed by a shared secret | `preSharedKey: $sharedSecret` |
+| Verify a MAC keyed by your own request's key | `useEstablishedKey: true` |
+| Check *which* peer signed, not just that one did | `->onTrustedSigner($check)`, see [Trust](trust.md) |
+| Turn on revocation checking | `$trustStore->withRevocationLists(...)` |
+| Require the attachments were covered | `->withAttachments(AttachmentParts::response(...))` |
+
+Every argument, and why each default is what it is:
+
+- `?TrustStore $trustStore = null`: the certificates you trust as signers. Build it with
+  `TrustStore::fromCertificates(...)`. Leave it out only where no certificate-keyed signature can arrive, since
+  a signature keyed by one has to be checked against something and a store that is absent cannot check it. A
+  deployment that receives both shapes passes this alongside its secret.
 - `signed: ?list<Part> $signed = null`: the parts that **must** be covered by a trusted signature. Pass it as a
   named argument (`signed:`). `null`, the default, requires `Part::body()`: without that floor, a peer holding
   any trusted certificate could sign one decoy element it minted in its own Security header and leave the body
@@ -144,6 +237,88 @@ new Inbound\VerifySignature(
   **An empty list is not the default.** `signed: []` replaces the body floor with no requirement at all, so any
   message carrying a signature from any trusted certificate passes, whatever that signature actually covers.
   Pass `null` (or omit the argument) if you want the default; pass a list only when you mean every part in it.
+  `null` for a deployment that receives no certificate-keyed signature at all. A trust store handed over and
+  never read would say this block accepts something it does not.
+- `?PreSharedSessionKey $preSharedKey = null`: the secret a MAC is verified against, when both sides hold the
+  key. Only a pre-shared key is passed here: a wrapped or derived key was established while the request was
+  written and the exchange already holds it, and neither could be handed to an inbound block anyway, because
+  both *mint* and would write a token into the response.
+- `bool $useEstablishedKey = false`: read the key this exchange established for itself. A correlated response
+  carries no key of its own: each element names the key its own request conveyed, and this says such a response
+  is what you expect. Nothing is handed over, because the request registered the key while it was written.
+  **Off by default, and off means off**: a block given only a trust store refuses a MAC keyed by an established
+  key rather than accepting one it was never configured for, so a deployment that wants certificates only gets
+  certificates only. A pre-shared secret turns the same reading on by itself, since it is registered into the
+  same place.
+
+All three are optional and **at least one must be given**:
+
+```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+
+new Inbound\VerifySignature($trustStore, signed: [Part::body()]);                 // certificates
+new Inbound\VerifySignature(preSharedKey: $secret, signed: [Part::body()]);       // a shared secret
+new Inbound\VerifySignature($trustStore, $secret, signed: [Part::body()]);        // both, one pass
+new Inbound\VerifySignature(useEstablishedKey: true, signed: [Part::body()]);     // our request's own key
+
+// A response that may carry either: a certificate signature, or a MAC keyed by our request's own key.
+new Inbound\VerifySignature($trustStore, signed: [Part::body()], useEstablishedKey: true);
+```
+
+**Both at once is not unusual here**, unlike on `Decrypt`: one message may carry a MAC over the body and a
+certificate signature endorsing it, which is the shape [the outbound side
+emits](outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control). Each signature is resolved by
+its own `ds:KeyInfo`, so one block verifies them all in a single pass and two blocks would be wrong rather than
+merely redundant.
+
+A response may carry more than one `ds:Signature` directly inside the header addressed to you, and **every one
+of them must verify**. That is what lets a peer endorse its own response signature the way
+[the outbound side can](outbound-blocks.md#endorsing-a-signature-with-a-certificate-you-control), and it is also
+what makes an injected signature refuse the message: a second one is one more thing that must hold, never an
+alternative the verifier may pick. What you may require is the union of what they covered. Signatures nested
+deeper than a direct child are still not candidates at all, which is the wrapping defense and does not depend on
+how many there are. The count is bounded, because each signature costs a canonicalization, a digest per
+reference and a crypto operation.
+
+**Every signature that contributes coverage must be by the same party.** Where you anchor trust on a CA rather
+than pinning the peer, anyone holding a certificate that CA issued can produce a signature this block accepts,
+so without this rule they could append their own token and a signature over it to a message your peer signed: a
+`Part::securityHeaderContents()` requirement would then be satisfied partly by each, and nothing in the result
+would tell you. A message genuinely signed by two contributing identities is refused rather than merged, because
+which parts each of them vouched for is a question this reports no answer to.
+
+A reference to a `ds:Signature` resolves by the native `Id` that XML Signature declares on it as well as by
+`wsu:Id`, because that is how a peer names the signature its endorsement covers. Everywhere else only `wsu:Id`
+is read.
+
+A party is a certificate, or the holder of a secret this exchange established. **Counting the secret is what
+makes the rule reach the shape it matters most in.** A MAC names no certificate, so a rule stated over signers
+alone would see a single signer in a response where the peer MACed the body and somebody else signed the
+timestamp, and the union would quietly span the two.
+
+An endorsement is the exception, and only where there is nothing to hold it against. A signature that covers a
+`ds:Signature` which itself verified is an endorsement in shape, which is the test CXF applies to an endorsing
+supporting token, and shape alone is not enough to be exempt: anyone your anchor issued a certificate to can
+sign your peer's signature and cover nothing else, which is that shape exactly.
+
+So the exemption is unconditional only for an endorsement of a **MAC**, which names no party and therefore
+offers no identity to compare. An endorsement of a certificate-keyed signature is counted like any other
+signature, and so passes exactly when it is by the same certificate it endorses, which is the ordinary
+asymmetric endorsement, and is refused when it is somebody else's.
+
+**An endorsement's own coverage is not reported, and that is what keeps the exception honest.** Only the
+signatures it endorsed enter what you may require. A peer covers more alongside the primary signature as a
+matter of course, so recognising an endorsement cannot mean requiring it to cover nothing else: under
+`sp:ProtectTokens` a CXF endorsement also covers its own token, and a supporting token may declare signed parts
+of its own. Discarding the rest is what stops the exception being a way in: a signature covering the primary
+plus a part of its own choosing is an endorsement whose choice of part is thrown away, so there is nothing to
+launder. The consequence to know is that a `Part::securityHeaderContents()` requirement is not satisfied by an
+endorsing token's own element, because only the endorsing party ever vouched for it.
+
+Worth knowing how this compares to your peers, because it is stricter than both. WSS4J pools every verified
+signature's references and answers "was this element signed" from the pool, and Apache CXF validates
+`sp:SignedParts` against the same flattened set; neither consults which credential covered what. So a message
+this block refuses may well be one a WSS4J or CXF receiver accepts.
 - `withAttachments(ExternalParts $attachments): self`: require the response's attachments to be covered by the
   verified signature. Off by default. Pass `AttachmentParts::response($attachmentStorage, ExternalPartCoverage::Complete)`; see
   [Attachment security](attachments.md).
@@ -162,6 +337,13 @@ new Inbound\VerifySignature(
   nothing about this file" and "the file is signed" must not look the same to your code. Put this after
   `Inbound\Decrypt` when the attachments arrive encrypted, so the digest is checked against the plaintext the
   far side signed.
+
+  **A pointer is not the bytes it names.** A signature over an element holding an `xop:Include` is refused
+  unless that same signature also carries a `ds:Reference` digesting the bytes the pointer names. Registering
+  the attachment is what makes such a reference checkable, and registration alone is not enough: a part being
+  available says it arrived, not that anything vouches for it. A default WSS4J receiver does not expand such an
+  element before verifying, so a signature covering only the pointer verifies there while the file it stands for
+  travels unprotected. Refusing is deliberate, because matching that peer would mean reproducing the weakness.
 
 The accepted signature, digest and canonicalization algorithms come from the profile's allow-lists. By default
 the signature allow-list covers RSA and ECDSA at SHA-256/384/512, and only the exclusive C14N variants are
@@ -216,25 +398,13 @@ whether anyone vouched for them. Unless `Part::timestamp()` is in `VerifySignatu
 rewrites both values and the window is unbounded, which makes this block decorative. Register the two together:
 
 ```php
+use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
+
 inbound: [
     new Inbound\VerifySignature($trustStore, signed: [Part::body(), Part::timestamp()]),
     new Inbound\ValidateTimestamp(),
 ],
 ```
-
-```php
-use Soap\Psr18WsseMiddleware\WSSecurity\Inbound;
-
-new Inbound\ValidateTimestamp();
-```
-
-**The same rule applies on the way in.** A signature over an element holding an `xop:Include` is refused
-unless that same signature also carries a `ds:Reference` digesting the bytes the pointer names. Registering
-the attachment here is what makes such a reference checkable, but registration alone is not enough: a part
-being available says it arrived, not that anything vouches for it. A default WSS4J receiver does not expand
-such an element before verifying, so a signature covering only the pointer verifies there while the file it
-stands for travels unprotected. Refusing is deliberate: matching that peer would mean reproducing the
-weakness.
 
 - No required arguments. The freshness window (clock skew and maximum age) comes from the `SecurityProfile` on
   the context: `clockSkew()` and `timestampTtl()`. Configure the window on the profile, not on this block.

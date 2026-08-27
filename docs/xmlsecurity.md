@@ -18,7 +18,7 @@ with a `with*()` method:
 - `Inbound\VerifySignature::withVerifier(XmlSignatureVerifier $verifier)`
 
 ```php
-(new Outbound\Signature($clientCertificate))->withSigner($customSigner);
+(new Outbound\Signature(new Signing\Symmetric($signingKey)))->withSigner($customSigner);
 (new Inbound\Decrypt($privateKey))->withDecryptor($customDecryptor);
 ```
 
@@ -39,8 +39,25 @@ the element to work against, so it can be driven on any XML document, and the WS
 part of this package that knows what a SOAP envelope is.
 
 - **The container is an input, not something searched for.** `SigningRequest` and `EncryptionRequest` take a
-  `Dom\Element $container` as their first argument: the element the `ds:Signature` / `xenc:EncryptedKey` is
+  `Dom\Element $container` as their first argument: the element the `ds:Signature` / `xenc:ReferenceList` is
   appended to. The blocks pass their `wsse:Security` header.
+- **The key is an input, and either kind of key.** `SigningRequest::$signingKey` is a `Key` or a `SessionKey`,
+  and which one an operation needs follows from its `SignatureMethod` rather than from the shape of what was
+  handed over. `EncryptionRequest::$sessionKey` is the key to encrypt with, ready to use: the engine never wraps
+  one and never learns how the recipient will come by it, which is what lets one key protect a signature and an
+  encryption together. Wrapping is `EncryptedKeyBuilder` plus `OpenSSL\KeyTransport`, composed by whoever needs
+  it; the WS-Security profile composes them in its own key sources.
+- **Where the `xenc:ReferenceList` goes is an input, and it decides whether a `ds:KeyInfo` is needed.**
+  `EncryptionRequest::$nestReferenceListIn` names the element the list becomes a child of, or null to append it
+  to the container. `$keyIdentifier` is written as a `ds:KeyInfo` on every `xenc:EncryptedData` the operation
+  produces. A nested list ties the key to the parts itself, so it needs no identifier; a detached one has no such
+  tie, so each element names its own key. Which is possible depends on whether anything else has taken the key,
+  which is why the caller states both rather than the engine inferring either.
+- **A message may be encrypted under a key both sides already hold.** `DecryptionRequest::$privateKey` is
+  therefore optional, and `$sessionKeys` is a `SessionKeyResolver` the profile implements: given an
+  `xenc:EncryptedData`, it answers which established key that element names. The engine cannot decide this
+  itself, because which element names a key and how is a profile's vocabulary. What the engine owns is the rule
+  that such a key must already be established, so an unresolvable reference is a refusal rather than a search.
 - **Which `ds:KeyInfo` shapes are understood is an input as well.** Standalone, the layer reads the plain
   XML-DSig form. An inline `ds:X509Certificate`. The WS-Security token forms (a `wsse:BinarySecurityToken`
   reference, a `wsse:KeyIdentifier`, an issuer and serial) come from the profile, so pass its resolver to read
@@ -74,12 +91,38 @@ part of this package that knows what a SOAP envelope is.
   session key to a public certificate, so on the decryption side this is what distinguishes a key meant for this
   recipient from one an injector supplied.
 
+### Key derivation
+
+`OpenSSL\PSHA1` is the key-derivation function WS-SecureConversation derives with, and the TLS 1.0
+pseudorandom function over SHA-1: `A(0)` is the seed, `A(i)` is `HMAC-SHA1(secret, A(i-1))`, and the output is
+the concatenation of `HMAC-SHA1(secret, A(i) || seed)` taken from a given offset for a given length.
+
 ```php
-public function sign(Document $document, SigningRequest $request): void;
-public function encrypt(Document $document, EncryptionRequest $request): void;
-public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature;
-public function decrypt(Document $document, DecryptionRequest $request): void;
+use Soap\Psr18WsseMiddleware\OpenSSL\PSHA1;
+
+$derived = (new PSHA1())->derive($secret, $label.$nonce, offset: 0, length: 32);
 ```
+
+SHA-1 is not a choice: the specification names this function, both dialects derive with it, and its use as a PRF
+does not depend on the collision resistance SHA-1 lost. Everything above it is the profile's:
+`WSSecurity\Keys\DerivedSessionKey` writes the token and `WSSecurity\Xml\DerivedKeyTokenReader` reads one back.
+
+`OpenSSL\Hmac` is the keyed MAC beside it, for the HMAC signature methods. It is separate from `OpenSSL\Signer`
+because a MAC is not a signature: one key both produces and checks it, so it identifies no party and there is no
+certificate to load. Its comparison is constant-time and refuses unequal lengths, which is what makes a
+truncated MAC a failure rather than a prefix match.
+
+The four interfaces a `with*()` override implements:
+
+```php
+public function sign(Document $document, SigningRequest $request): SignedExternalParts;
+public function encrypt(Document $document, EncryptionRequest $request): EncryptionResult;
+public function verify(Document $document, VerificationPolicy $policy, Element $scope): VerifiedSignature;
+public function decrypt(Document $document, DecryptionRequest $request): DecryptionResult;
+```
+
+Each return value reports what the operation actually covered, which is what lets a block refuse a replaceable
+service that protected less than it was handed.
 
 ### Enveloped signatures (layer level only)
 

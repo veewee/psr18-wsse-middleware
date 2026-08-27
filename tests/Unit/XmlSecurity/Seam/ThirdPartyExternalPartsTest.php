@@ -8,6 +8,8 @@ use Phpro\ResourceStream\ResourceStream;
 use PHPUnit\Framework\Attributes\RequiresPhp;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\Decrypt;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\GeneratedSessionKey;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\Encryption;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -36,13 +38,13 @@ final class ThirdPartyExternalPartsTest extends TestCase
         $parts = new ArrayParts([new ExternalPart(self::CID, 'application/pdf', $this->stream(self::BYTES))]);
         $document = $fixture->envelope();
 
-        (new Encryption($fixture->leafCertificate))
-            ->withAttachments($parts)(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate)))
+            ->withAttachments($parts)(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
 
         static::assertNotSame(self::BYTES, $parts->only()->content->rewind()->getContents());
 
         (new Decrypt($fixture->leafKey))
-            ->withAttachments($parts)(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            ->withAttachments($parts)(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
 
         static::assertSame(self::BYTES, $parts->only()->content->rewind()->getContents());
         static::assertSame('application/pdf', $parts->only()->mimeType);
@@ -57,9 +59,9 @@ final class ThirdPartyExternalPartsTest extends TestCase
         $parts = new ArrayParts([]);
         $document = $fixture->envelope();
 
-        (new Encryption($fixture->leafCertificate))
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate, optimizedCipherBytes: $parts)))
             ->withOptimizedCipherBytes($parts)(
-                new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+                new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
             );
 
         // The wrapped key and the body cipher value, each pointing at a part this adapter minted.
@@ -83,11 +85,11 @@ final class ThirdPartyExternalPartsTest extends TestCase
         $parts = new ArrayParts([new ExternalPart(self::CID, 'application/pdf', $spent)], rewinds: false);
         $document = $fixture->envelope();
 
-        (new Encryption($fixture->leafCertificate))
-            ->withAttachments($parts)(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate)))
+            ->withAttachments($parts)(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
 
         (new Decrypt($fixture->leafKey))
-            ->withAttachments($parts)(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()));
+            ->withAttachments($parts)(new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()));
 
         static::assertSame(self::BYTES, $parts->only()->content->rewind()->getContents());
     }
@@ -102,9 +104,9 @@ final class ThirdPartyExternalPartsTest extends TestCase
         $this->expectException(EncryptionFailed::class);
         $this->expectExceptionMessage('An external part read zero bytes.');
 
-        (new Encryption($fixture->leafCertificate))
+        (new Encryption(new GeneratedSessionKey($fixture->leafCertificate)))
             ->withAttachments($parts)(
-                new WsseContext($fixture->envelope(), SoapVersion::Soap12, new SecurityProfile()),
+                new WsseContext($fixture->envelope(), SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
             );
     }
 

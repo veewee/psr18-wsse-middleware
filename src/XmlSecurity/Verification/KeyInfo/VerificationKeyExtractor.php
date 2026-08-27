@@ -9,6 +9,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\CertificateChain;
 use Soap\Psr18WsseMiddleware\KeyStore\Exception\InvalidCertificate;
 use Soap\Psr18WsseMiddleware\KeyStore\PkiPath;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\OpenSSL\Exception\CryptoOperationFailed;
 use Soap\Psr18WsseMiddleware\XmlSecurity\Exception\SignatureVerificationFailed;
@@ -17,10 +18,11 @@ use Throwable;
 use VeeWee\Xml\Dom\Document;
 
 /**
- * Turns whatever ds:KeyInfo names into the signer's certificate chain. Which shapes are recognised is the
- * injected KeyInfoResolver's business, not this class's: some carry the certificate in the message and are
- * decoded here, while the identifier forms carry only a pointer and are resolved by matching the identifier
- * against the trust store the caller already holds.
+ * Turns whatever ds:KeyInfo names into the key the signature is verified with: a certificate chain, or the
+ * symmetric secret the reference resolved to. Which shapes are recognised is the injected KeyInfoResolver's
+ * business, not this class's: some carry the certificate in the message and are decoded here, the identifier
+ * forms carry only a pointer and are resolved by matching the identifier against the trust store the caller
+ * already holds, and a secret arrives already resolved because nothing local could look one up by identifier.
  *
  * Resolving by identifier requires the actual certificate to be available locally, since the message carries
  * only a pointer to it. The trust store is the only local source of candidate certificates, so an identifier
@@ -35,7 +37,7 @@ use VeeWee\Xml\Dom\Document;
  * either the carried bytes are rewrapped into a chain or the TrustStoreCertificateResolver resolves the
  * identifier form. Which ds:KeyInfo shapes are understood is therefore the resolver's business, not this one's.
  */
-final class CertificateExtractor
+final class VerificationKeyExtractor
 {
     private readonly TrustStoreCertificateResolver $resolver;
 
@@ -53,11 +55,24 @@ final class CertificateExtractor
 
     /**
      * @throws SignatureVerificationFailed when ds:KeyInfo is absent or carries an unsupported or malformed
-     *         certificate reference, or names a certificate the trust store does not hold
+     *         reference, or names a certificate the trust store does not hold
      */
-    public function extract(Document $document, Element $signatureElement, TrustStore $trustStore): CertificateChain
-    {
+    public function extract(
+        Document $document,
+        Element $signatureElement,
+        TrustStore $trustStore,
+    ): CertificateChain|SessionKey {
         $reference = $this->readKeyInfo($document, $signatureElement);
+
+        if ($reference instanceof SecretReference) {
+            return $reference->secret;
+        }
+
+        if (!$reference instanceof CertificateReference) {
+            // The interface is a closed set of two, so this is the "a new kind arrived and nothing here was
+            // taught to handle it" case rather than a reachable message shape.
+            throw SignatureVerificationFailed::withReason('ds:KeyInfo does not carry the key in a supported form.');
+        }
 
         if ($reference->form === CertificateReference::FORM_CARRIED) {
             return $this->carriedChain($reference->base64DerCertificates);
@@ -78,7 +93,7 @@ final class CertificateExtractor
      *
      * @throws SignatureVerificationFailed
      */
-    private function readKeyInfo(Document $document, Element $signatureElement): CertificateReference
+    private function readKeyInfo(Document $document, Element $signatureElement): KeyReference
     {
         try {
             return $this->keyInfo->read($document, $signatureElement, $this->idLookup);

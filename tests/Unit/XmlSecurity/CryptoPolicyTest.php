@@ -41,6 +41,8 @@ final class CryptoPolicyTest extends TestCase
 
         static::assertFalse($policy->acceptsSignatureMethod(SignatureMethod::RSA_SHA1));
         static::assertFalse($policy->acceptsSignatureMethod(SignatureMethod::DSA_SHA1));
+        static::assertFalse($policy->acceptsSignatureMethod(SignatureMethod::HMAC_SHA1));
+        static::assertFalse($policy->acceptsSignatureMethod(SignatureMethod::HMAC_SHA224));
         static::assertFalse($policy->acceptsDigestMethod(DigestMethod::SHA1));
         static::assertFalse($policy->acceptsDigestMethod(DigestMethod::RIPEMD160));
         static::assertFalse($policy->acceptsKeyEncryptionMethod(KeyEncryptionMethod::RSA_1_5));
@@ -143,6 +145,9 @@ final class CryptoPolicyTest extends TestCase
             SignatureMethod::ECDSA_SHA256,
             SignatureMethod::ECDSA_SHA384,
             SignatureMethod::ECDSA_SHA512,
+            SignatureMethod::HMAC_SHA256,
+            SignatureMethod::HMAC_SHA384,
+            SignatureMethod::HMAC_SHA512,
         ];
 
         foreach (SignatureMethod::cases() as $method) {

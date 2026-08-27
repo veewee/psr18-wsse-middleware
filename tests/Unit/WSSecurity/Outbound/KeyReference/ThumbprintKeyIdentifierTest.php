@@ -16,8 +16,8 @@ final class ThumbprintKeyIdentifierTest extends KeyIdentifierTestCase
         $certificate = $this->certificate();
         $expected = $certificate->info()->thumbprintSha1()->toBase64();
 
-        $keyInfo = (new ThumbprintKeyIdentifier())
-            ->apply($document, $certificate);
+        $keyInfo = (new ThumbprintKeyIdentifier($certificate))
+            ->apply($document);
 
         static::assertSame('KeyInfo', $keyInfo->localName);
         static::assertSame(self::DS, $keyInfo->namespaceURI);

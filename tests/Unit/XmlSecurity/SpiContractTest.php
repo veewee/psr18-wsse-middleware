@@ -8,12 +8,12 @@ use LogicException;
 use PHPUnit\Framework\TestCase;
 use Soap\Psr18WsseMiddleware\Algorithm\DataEncryptionMethod;
 use Soap\Psr18WsseMiddleware\Algorithm\DigestMethod;
-use Soap\Psr18WsseMiddleware\Algorithm\KeyTransportAlgorithm;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureCanonicalization;
 use Soap\Psr18WsseMiddleware\Algorithm\SignatureMethod;
 use Soap\Psr18WsseMiddleware\KeyStore\Certificate;
 use Soap\Psr18WsseMiddleware\KeyStore\Key;
 use Soap\Psr18WsseMiddleware\KeyStore\Metadata\DistinguishedName;
+use Soap\Psr18WsseMiddleware\KeyStore\SessionKey;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\XmlSecurity\CryptoPolicy;
@@ -34,7 +34,6 @@ final class SpiContractTest extends TestCase
     public function test_signing_request_exposes_its_inputs(): void
     {
         $target = Target::element('urn:example', 'Body');
-        $certificate = new Certificate('cert');
         $key = new Key('key');
         $container = $this->container();
 
@@ -42,7 +41,6 @@ final class SpiContractTest extends TestCase
             container: $container,
             targets: [$target],
             signingKey: $key,
-            signingCertificate: $certificate,
             keyIdentifier: $this->keyIdentifier(),
             signatureMethod: SignatureMethod::RSA_SHA256,
             digestMethod: DigestMethod::SHA256,
@@ -51,27 +49,25 @@ final class SpiContractTest extends TestCase
 
         static::assertSame([$target], $request->targets);
         static::assertSame($key, $request->signingKey);
-        static::assertSame($certificate, $request->signingCertificate);
         static::assertSame(SignatureMethod::RSA_SHA256, $request->signatureMethod);
     }
 
     public function test_encryption_request_exposes_its_inputs(): void
     {
         $target = new EncryptionTarget(Target::element('urn:example', 'Body'), EncryptionMode::Content);
-        $recipient = new Certificate('cert');
+        $sessionKey = SessionKey::fromBytes(str_repeat("\x2a", 32));
         $container = $this->container();
 
         $request = new EncryptionRequest(
             container: $container,
             targets: [$target],
-            recipientCertificate: $recipient,
-            keyIdentifier: $this->keyIdentifier(),
+            sessionKey: $sessionKey,
             dataEncryptionMethod: DataEncryptionMethod::AES256_GCM,
-            keyTransportAlgorithm: KeyTransportAlgorithm::oaepSha1(),
+            keyIdentifier: $this->keyIdentifier(),
         );
 
         static::assertSame([$target], $request->targets);
-        static::assertSame($recipient, $request->recipientCertificate);
+        static::assertSame($sessionKey, $request->sessionKey);
         static::assertSame(DataEncryptionMethod::AES256_GCM, $request->dataEncryptionMethod);
     }
 
@@ -104,10 +100,10 @@ final class SpiContractTest extends TestCase
         $references = new VerifiedReferences([]);
         $signer = new TrustedSigner(DistinguishedName::fromString('CN=test'), new Certificate('cert'));
 
-        $signature = new VerifiedSignature($references, $signer);
+        $signature = new VerifiedSignature($references, [$signer]);
 
         static::assertSame($references, $signature->signedElements);
-        static::assertSame($signer, $signature->signer);
+        static::assertSame([$signer], $signature->signers);
     }
 
     private function container(): Element
@@ -120,9 +116,9 @@ final class SpiContractTest extends TestCase
     private function keyIdentifier(): KeyIdentifier
     {
         return new class implements KeyIdentifier {
-            public function apply(Document $document, Certificate $certificate): Element
+            public function apply(Document $document): Element
             {
-                // Construction-only contract test: apply() is never invoked here. Concrete strategies arrive in C2.
+                // Construction-only contract test: apply() is never invoked here.
                 throw new LogicException('Not exercised by the contract test.');
             }
         };

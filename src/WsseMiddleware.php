@@ -13,6 +13,7 @@ use Soap\Psr18WsseMiddleware\WSSecurity\Exception\PeerReportedFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\WsseHeaderException;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\InboundAction;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Outbound\OutboundAction;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -46,17 +47,22 @@ final class WsseMiddleware implements Plugin
 
     public function handleRequest(RequestInterface $request, callable $next, callable $first): Promise
     {
+        // One bag per exchange, shared by both directions and by nothing else. A response is verified and
+        // decrypted against a key its own request established; a bag living any longer would let it verify
+        // against a key from another exchange, which is replay.
+        $keys = new ExchangeKeys();
+
         if ($this->outbound !== []) {
-            $request = $this->applyOutbound($request);
+            $request = $this->applyOutbound($request, $keys);
         }
 
         return $next($request)->then(
             fn (ResponseInterface $response): ResponseInterface =>
-                $this->inbound === [] ? $response : $this->applyInbound($response),
+                $this->inbound === [] ? $response : $this->applyInbound($response, $keys),
         );
     }
 
-    private function applyOutbound(RequestInterface $request): RequestInterface
+    private function applyOutbound(RequestInterface $request, ExchangeKeys $keys): RequestInterface
     {
         // Outbound the envelope is the caller's own, so an unusable one is reported for what it is: naming
         // what was wrong with it is the whole value of the exception to the only person who can fix it.
@@ -64,10 +70,10 @@ final class WsseMiddleware implements Plugin
             foreach ($this->outbound as $block) {
                 $block($context);
             }
-        });
+        }, $keys);
     }
 
-    private function applyInbound(ResponseInterface $response): ResponseInterface
+    private function applyInbound(ResponseInterface $response, ExchangeKeys $keys): ResponseInterface
     {
         return $this->secure($response, self::inboundSoapVersion(...), function (WsseContext $context): void {
             try {
@@ -77,7 +83,7 @@ final class WsseMiddleware implements Plugin
             } catch (Throwable $failure) {
                 throw self::withWhatThePeerReported($context, $failure);
             }
-        });
+        }, $keys);
     }
 
     /**
@@ -107,13 +113,17 @@ final class WsseMiddleware implements Plugin
      * @param callable(WsseContext): void $run
      * @return T
      */
-    private function secure(MessageInterface $message, callable $version, callable $run): MessageInterface
-    {
+    private function secure(
+        MessageInterface $message,
+        callable $version,
+        callable $run,
+        ExchangeKeys $keys,
+    ): MessageInterface {
         return (new XmlMessageManipulator())(
             $message,
-            function (Document $document) use ($version, $run): void {
+            function (Document $document) use ($version, $run, $keys): void {
                 $document->manipulate(disallow_doctype());
-                $run(new WsseContext($document, $version($document), $this->profile));
+                $run(new WsseContext($document, $version($document), $this->profile, $keys));
             },
         );
     }

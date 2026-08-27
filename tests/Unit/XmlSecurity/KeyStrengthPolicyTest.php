@@ -10,6 +10,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\Metadata\PublicKeyStrength;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
 use Soap\Psr18WsseMiddleware\WSSecurity\WsseContext;
@@ -45,7 +46,7 @@ final class KeyStrengthPolicyTest extends TestCase
 
         $this->expectException(SecurityFault::class);
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))(
-            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
         );
     }
 
@@ -59,7 +60,7 @@ final class KeyStrengthPolicyTest extends TestCase
         $document = $fixture->sign([WsseSignatureFixture::bodyTarget()]);
 
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))(
-            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile()),
+            new WsseContext($document, SoapVersion::Soap12, new SecurityProfile(), new ExchangeKeys()),
         );
 
         static::assertStringContainsString('<soap:Body', $document->toXmlString());
@@ -73,7 +74,7 @@ final class KeyStrengthPolicyTest extends TestCase
 
         $this->expectException(SecurityFault::class);
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))(
-            new WsseContext($document, SoapVersion::Soap12, $profile),
+            new WsseContext($document, SoapVersion::Soap12, $profile, new ExchangeKeys()),
         );
     }
 
@@ -84,7 +85,7 @@ final class KeyStrengthPolicyTest extends TestCase
         $profile = new SecurityProfile(crypto: new CryptoPolicy(minimumRsaKeyBits: 512));
 
         (new VerifySignature(TrustStore::fromCertificates($fixture->caCertificate)))(
-            new WsseContext($document, SoapVersion::Soap12, $profile),
+            new WsseContext($document, SoapVersion::Soap12, $profile, new ExchangeKeys()),
         );
 
         static::assertStringContainsString('<soap:Body', $document->toXmlString());

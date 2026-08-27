@@ -22,7 +22,7 @@ use VeeWee\Xml\Dom\Document;
  */
 final class X509DataKeyInfoResolver implements KeyInfoResolver
 {
-    public function read(Document $document, Element $signatureElement, IdLookup $idLookup): CertificateReference
+    public function read(Document $document, Element $signatureElement, IdLookup $idLookup): KeyReference
     {
         $keyInfo = OnlyChild::named($signatureElement, Namespaces::Ds, 'KeyInfo')
             ?? throw SignatureVerificationFailed::withReason('ds:KeyInfo is missing.');

@@ -15,6 +15,7 @@ use Soap\Psr18WsseMiddleware\KeyStore\TrustedSigner;
 use Soap\Psr18WsseMiddleware\KeyStore\TrustStore;
 use Soap\Psr18WsseMiddleware\WSSecurity\Exception\SecurityFault;
 use Soap\Psr18WsseMiddleware\WSSecurity\Inbound\VerifySignature;
+use Soap\Psr18WsseMiddleware\WSSecurity\Keys\ExchangeKeys;
 use Soap\Psr18WsseMiddleware\WSSecurity\Part;
 use Soap\Psr18WsseMiddleware\WSSecurity\SecurityProfile;
 use Soap\Psr18WsseMiddleware\WSSecurity\SoapVersion;
@@ -76,6 +77,7 @@ final class VerifySignatureTest extends TestCase
             Document::fromXmlString('<soap:Envelope xmlns:soap="'.self::SOAP.'"><soap:Body><data>x</data></soap:Body></soap:Envelope>'),
             SoapVersion::Soap12,
             new SecurityProfile(),
+            new ExchangeKeys()
         );
         $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
 
@@ -95,6 +97,7 @@ final class VerifySignatureTest extends TestCase
             ),
             SoapVersion::Soap12,
             new SecurityProfile(),
+            new ExchangeKeys()
         );
         $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
 
@@ -115,6 +118,7 @@ final class VerifySignatureTest extends TestCase
             ),
             SoapVersion::Soap12,
             new SecurityProfile(actorOrRole: 'urn:ours'),
+            new ExchangeKeys()
         );
         $verifier = new RecordingVerifier($this->signed([$this->body($context->document())]));
 
@@ -276,6 +280,7 @@ final class VerifySignatureTest extends TestCase
             ),
             SoapVersion::Soap12,
             $profile ?? new SecurityProfile(),
+            new ExchangeKeys()
         );
     }
 
@@ -284,7 +289,7 @@ final class VerifySignatureTest extends TestCase
      */
     private function signed(array $elements): VerifiedSignature
     {
-        return new VerifiedSignature(new VerifiedReferences($elements), $this->signer());
+        return new VerifiedSignature(new VerifiedReferences($elements), [$this->signer()]);
     }
 
     private function signer(): TrustedSigner

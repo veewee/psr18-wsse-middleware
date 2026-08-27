@@ -77,6 +77,28 @@ final readonly class Part
     }
 
     /**
+     * The ds:Signature already in the Security header, which is what an endorsing supporting token covers: the
+     * whole element, signature value included, so the endorsement proves the endorser saw that exact signature.
+     *
+     * Put the endorsing Signature block after the one it endorses. A block placed before it fails loudly rather
+     * than signing nothing, because there is no signature there yet to name.
+     *
+     * This is the only way to cover a signature. securityHeaderContents() deliberately excludes every
+     * ds:Signature in both directions, since a signature is never one of the parts it covers and outbound it
+     * does not yet exist when the parts are resolved.
+     *
+     * Outbound only, in effect. Required inbound it refuses an endorsed message, because such a message carries
+     * two signatures and which of them is primary is not something document order decides on a message a peer
+     * shaped. To require that a response was endorsed at all, register an identity check instead: a signature
+     * keyed by a shared secret names nobody, so the check has a signer to run against only when a certificate
+     * also signed.
+     */
+    public static function primarySignature(): self
+    {
+        return new self(PartKind::PrimarySignature);
+    }
+
+    /**
      * Every current SOAP header block except the wsse:Security header itself (for example WS-Addressing
      * headers). A dynamic part expanded against the live message (signed outbound, required inbound); the
      * migration equivalent of wse-php's signAllHeaders.
@@ -203,9 +225,11 @@ final readonly class Part
             PartKind::Path => Target::path(...$this->path),
             PartKind::Element => Target::element($this->require($this->namespace), $this->require($this->localName)),
             PartKind::Id => Target::byId($this->require($this->id)),
-            PartKind::SecurityHeaderContents, PartKind::SoapHeaders => throw new LogicException(
-                'A dynamic Part (securityHeaderContents/soapHeaders) is expanded by the Signature block against '
-                .'the live document; it does not lower to a single Target.',
+            PartKind::SecurityHeaderContents,
+            PartKind::SoapHeaders,
+            PartKind::PrimarySignature => throw new LogicException(
+                'A dynamic Part (securityHeaderContents/soapHeaders/primarySignature) is expanded by the '
+                .'Signature block against the live document; it does not lower to a single Target.',
             ),
         };
     }

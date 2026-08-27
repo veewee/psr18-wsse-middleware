@@ -12,7 +12,7 @@ final class CustomKeyIdentifierTest extends KeyIdentifierTestCase
         $document = $this->document();
 
         $keyInfo = (new CustomKeyIdentifier('ZW5jb2RlZA==', 'urn:custom-value-type', 'urn:custom-encoding'))
-            ->apply($document, $this->certificate());
+            ->apply($document);
 
         static::assertSame('KeyInfo', $keyInfo->localName);
         static::assertSame(self::DS, $keyInfo->namespaceURI);

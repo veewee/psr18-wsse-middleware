@@ -14,13 +14,20 @@ use VeeWee\Xml\Dom\Document;
  * ds:KeyInfo > wsse:SecurityTokenReference > ds:X509Data > ds:X509IssuerSerial. The WS-Security X.509 token
  * profile requires the issuer-serial reference to sit inside a wsse:SecurityTokenReference for interop.
  */
-final class IssuerSerialKeyIdentifier implements KeyIdentifierInterface
+final readonly class IssuerSerialKeyIdentifier implements KeyIdentifierInterface
 {
-    public function apply(Document $document, Certificate $certificate): Element
-    {
-        $issuerSerial = $certificate->info()->issuerSerial();
+    public function __construct(
+        private Certificate $certificate,
+    ) {
+    }
 
-        return SecurityTokenReference::x509IssuerSerial($issuerSerial->issuer->toString(), $issuerSerial->serialNumber->toString())
-            ->buildKeyInfo($document);
+    public function apply(Document $document): Element
+    {
+        $issuerSerial = $this->certificate->info()->issuerSerial();
+
+        return SecurityTokenReference::x509IssuerSerial(
+            $issuerSerial->issuer->toString(),
+            $issuerSerial->serialNumber->toString(),
+        )->buildKeyInfo($document);
     }
 }

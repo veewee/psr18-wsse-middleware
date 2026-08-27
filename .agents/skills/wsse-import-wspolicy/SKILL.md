@@ -31,9 +31,17 @@ Two references, both required:
    `wsdl:input` constrains the request (your `outbound`) and one attached to `wsdl:output` constrains the
    response (your `inbound`). Do not assume symmetry; check.
 
-4. **Identify the binding first.** `sp:TransportBinding` means TLS does the protecting and you may need nothing
-   but a `Timestamp` and perhaps a `Username`. `sp:AsymmetricBinding` is the case that maps onto signing and
-   encryption blocks. `sp:SymmetricBinding` mostly does not map; see the reference.
+4. **Identify the binding first**, and expect exactly one per alternative. Two binding assertions in a single
+   `wsp:All` is an invalid alternative rather than a combination to implement, and usually means alternatives
+   were flattened or a `CustomBinding` was pasted by hand. Say so, then pick the binding whose message-level
+   protection the rest of the block depends on: `sp:MustSupportRefEncryptedKey` needs an `xenc:EncryptedKey`,
+   which only a message-level binding produces. A supporting token is **not** such a signal, because a
+   transport binding carries them routinely.
+
+   Each binding then decides the shape. `sp:TransportBinding` means TLS does the protecting and you may need
+   nothing but a `Timestamp` and perhaps a `Username`. `sp:AsymmetricBinding` maps onto a signing identity and a
+   recipient certificate. `sp:SymmetricBinding` maps onto one key source passed to both blocks, which is a
+   different shape rather than a longer version of the same one; see the reference's Symmetric bindings section.
 
 5. **Expand `sp:AlgorithmSuite` from the table in the reference, never from the name.** The suite names mislead:
    the `Sha256` in `Basic256Sha256` is the digest, not the signature, and every standard suite specifies
@@ -44,8 +52,11 @@ Two references, both required:
    `sp:RecipientToken` is the certificate you encrypt to. `sp:SignedParts` and `sp:EncryptedParts` give the part
    lists. The nested `sp:Require*Reference` assertions give the key reference.
 
-7. **Hand over a draft** with the unmapped list and the verification steps from the shared rules. Name the policy
-   alternative you chose at the top, so a reviewer can check that decision independently of the wiring.
+7. **Typecheck the draft, then hand it over** with the unmapped list and the verification steps from the shared
+   rules. Write it to `.agents/imports/drafts/` and run `vendor/bin/psalm -c .agents/imports/psalm.xml
+   --no-cache` before you show anyone: the blocks distinguish types that name the same identity, and a code block hides
+   that. Name the policy alternative you chose at the top, so a reviewer can check that decision independently
+   of the wiring.
 
 ## Output shape
 
