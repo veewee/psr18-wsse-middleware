@@ -361,6 +361,24 @@ why. Say so when you report the mapping, and say that it is inferred from MTOM r
 assertion. The outbound counterpart, `withOptimizedCipherBytes()`, is never implied by a policy: no assertion
 can require it, so it stays a deployment choice about size.
 
+### A signed attachment and MTOM together have one more refusal
+
+Where the policy asks for signed attachments **and** the peer is MTOM-enabled, expect a refusal that reads like
+a bug in this package and is not. A signature over an element holding an `xop:Include` is refused inbound unless
+that same signature also digests the bytes the pointer names. Registering the attachments is what makes such a
+reference checkable, and registration alone is not enough: a part being available says it arrived, not that
+anything vouches for it.
+
+The reason to warn about it in an import is that the peer is the one who chose the shape. A default WSS4J
+receiver does not expand such an element before verifying, so a signature covering only the pointer verifies
+*there* while the file it stands for travels unprotected, and a CXF sender will happily produce that message.
+Refusing it is deliberate rather than a gap to widen: matching that peer would mean reproducing the weakness.
+
+So say, when you hand over an import of an MTOM-enabled policy with `sp:Attachments` under `sp:SignedParts`,
+that a response refused this way is the peer signing a pointer and not the bytes, and that the fix is on their
+side. See [Inbound blocks](../../../../docs/inbound-blocks.md#inbound-verifysignature) and
+[Attachment security](../../../../docs/attachments.md).
+
 `sp:Attachments` requires `php-soap/psr18-attachments-middleware` 0.12.0 or later and an `AttachmentStorage`
 shared with `AttachmentsMiddleware`, so importing one means adding a dependency and a second middleware, not
 just a `with*()` call. Say so when you report the mapping. A `text/*` attachment is signed over a transformed form of its

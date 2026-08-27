@@ -148,7 +148,7 @@ Unlike the `WSSecurity` policy this one does use `wsp:ExactlyOne`, and it is nes
 alternative and the inner one offers three. Note also `xmlns:wsp="http://www.w3.org/ns/ws-policy"` here, WS-Policy
 1.5, where the `WSSecurity` policy in the same set uses 1.2. One policy set, two policy namespaces.
 
-See [the shared rules](../../references/wsse-import-rules.md) for what holds about addressing whatever format
+See [the shared rules](../../../references/wsse-import-rules.md) for what holds about addressing whatever format
 it came from.
 
 ### `bindings.xml`

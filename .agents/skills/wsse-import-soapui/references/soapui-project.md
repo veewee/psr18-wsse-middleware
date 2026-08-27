@@ -249,7 +249,7 @@ one. Ask where the real assertion comes from.
 
 Not WS-Security, and not part of `WssContainer`: it sits on the request, and falls back to the operation and
 then the interface, so read it from the same request whose `outgoingWss` you followed. It maps onto
-`WsaMiddleware`, a separate middleware; see [the shared rules](../../references/wsse-import-rules.md) for the
+`WsaMiddleware`, a separate middleware; see [the shared rules](../../../references/wsse-import-rules.md) for the
 four facts that hold whatever format you read addressing from.
 
 ```xml
